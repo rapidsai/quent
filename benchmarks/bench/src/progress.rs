@@ -82,5 +82,5 @@ impl BuildProgress {
 }
 
 fn short_name(package: &str) -> &str {
-    package.strip_prefix("quent-bench-rust-").unwrap_or(package)
+    package.strip_prefix("quent-bench-").unwrap_or(package)
 }

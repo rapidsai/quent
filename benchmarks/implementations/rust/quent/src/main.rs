@@ -3,37 +3,13 @@
 
 mod measure;
 mod models;
-mod verify;
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
+use quent_bench_quent_common::Exporter;
 use quent_bench_rust_common::BenchResult;
-use quent_bench_types::{
-    CaseResult as SharedCaseResult, EventShape, Implementation, MeasurementArgs,
-};
-use quent_instrumentation::FileSystemFormat;
-use serde::Serialize;
+use quent_bench_types::{CaseResult as SharedCaseResult, EventShape, Framework, MeasurementArgs};
 
-type CaseResult = SharedCaseResult<Implementation, Exporter, EventShape>;
-
-#[derive(Clone, Copy, Debug, Serialize, ValueEnum)]
-#[serde(rename_all = "kebab-case")]
-enum Exporter {
-    Noop,
-    Ndjson,
-    Msgpack,
-    Postcard,
-}
-
-impl Exporter {
-    fn file_format(self) -> Option<FileSystemFormat> {
-        match self {
-            Self::Noop => None,
-            Self::Ndjson => Some(FileSystemFormat::Ndjson),
-            Self::Msgpack => Some(FileSystemFormat::Msgpack),
-            Self::Postcard => Some(FileSystemFormat::Postcard),
-        }
-    }
-}
+type CaseResult = SharedCaseResult<Framework, Exporter, EventShape>;
 
 #[derive(Parser)]
 struct Args {

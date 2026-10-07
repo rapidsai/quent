@@ -13,15 +13,13 @@ using JobRunning = quent::FsmHandle<quent::Job, quent::job_state::Running>;
 using JobDynamic = quent::DynamicFsmHandle<quent::Job>;
 
 template <typename Handle>
-concept CanFinish = requires(Handle handle) {
-  std::move(handle).done();
-};
+concept CanFinish = requires(Handle handle) { std::move(handle).done(); };
 
 template <typename Handle>
-concept CanDeclareWorker = requires(Handle &handle,
-                                    quent::worker::Declaration event) {
-  handle.declaration(std::move(event));
-};
+concept CanDeclareWorker =
+    requires(Handle &handle, quent::worker::Declaration event) {
+      handle.declaration(std::move(event));
+    };
 
 static_assert(std::is_same_v<
               decltype(std::declval<const quent::worker::WorkerObserver &>()
@@ -31,20 +29,19 @@ static_assert(CanDeclareWorker<quent::Handle<quent::Worker>>);
 static_assert(!CanDeclareWorker<quent::Handle<quent::Cluster>>);
 static_assert(!std::is_copy_constructible_v<quent::Handle<quent::Worker>>);
 static_assert(std::is_move_constructible_v<quent::Handle<quent::Worker>>);
-static_assert(std::is_same_v<
-              decltype(std::declval<quent::FsmHandle<quent::Job>>()
-                           .queued(std::declval<quent::job::Queued>())),
-              JobQueued>);
+static_assert(
+    std::is_same_v<decltype(std::declval<quent::FsmHandle<quent::Job>>().queued(
+                       std::declval<quent::job::Queued>())),
+                   JobQueued>);
 static_assert(!CanFinish<JobQueued>);
 static_assert(CanFinish<JobRunning>);
 static_assert(CanFinish<JobDynamic>);
 static_assert(std::is_same_v<
-              decltype(std::declval<JobRunning>().into_dynamic()),
-              JobDynamic>);
-static_assert(std::is_same_v<
-              decltype(std::declval<JobDynamic>()
-                           .try_into<quent::job_state::Running>()),
-              std::optional<JobRunning>>);
+              decltype(std::declval<JobRunning>().into_dynamic()), JobDynamic>);
+static_assert(
+    std::is_same_v<decltype(std::declval<JobDynamic>()
+                                .try_into<quent::job_state::Running>()),
+                   std::optional<JobRunning>>);
 
 std::optional<JobRunning> recover_running(JobDynamic job) {
   return std::move(job).try_into<quent::job_state::Running>();
@@ -73,10 +70,11 @@ extern "C" int quent_demo_cpp_dynamic_values(const char *output_dir) {
   worker.declaration(quent::worker::Declaration{
       .instance_name = "dynamic_values",
       .cluster = quent::cluster::ClusterId(context.id()),
-      .details = quent::records::Details{
-          .version = "1.0",
-          .custom = make_dynamic_attributes(),
-      },
+      .details =
+          quent::records::Details{
+              .version = "1.0",
+              .custom = make_dynamic_attributes(),
+          },
   });
   return 0;
 }

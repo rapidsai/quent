@@ -150,9 +150,7 @@ def test_dynamic_attributes_preserve_insertion_order(tmp_path: Path) -> None:
                     "f32": quent.DynamicValue.f32(32.5),
                     "f64": quent.DynamicValue.f64(64.5),
                     "string": quent.DynamicValue.string("value"),
-                    "structure": UserDict(
-                        {"nested_first": 2, "nested_second": 3}
-                    ),
+                    "structure": UserDict({"nested_first": 2, "nested_second": 3}),
                     "u8_list": quent.DynamicValue.u8_list([1, 2]),
                     "u16_list": quent.DynamicValue.u16_list([1, 2]),
                     "u32_list": quent.DynamicValue.u32_list([1, 2]),
@@ -163,9 +161,7 @@ def test_dynamic_attributes_preserve_insertion_order(tmp_path: Path) -> None:
                     "i64_list": quent.DynamicValue.i64_list([-1, 2]),
                     "f32_list": quent.DynamicValue.f32_list([1.5, 2.5]),
                     "f64_list": quent.DynamicValue.f64_list([1.5, 2.5]),
-                    "string_list": quent.DynamicValue.string_list(
-                        ["first", "second"]
-                    ),
+                    "string_list": quent.DynamicValue.string_list(["first", "second"]),
                     "struct_list": quent.DynamicValue.struct_list(
                         [UserDict({"name": "first"}), UserDict({"name": "second"})]
                     ),
@@ -224,8 +220,7 @@ def test_dynamic_attributes_preserve_insertion_order(tmp_path: Path) -> None:
 
     assert (
         '"Struct":[[{"key":"name","value":{"String":"first"}}],'
-        '[{"key":"name","value":{"String":"second"}}]]'
-        in serialized
+        '[{"key":"name","value":{"String":"second"}}]]' in serialized
     )
     for value in [
         '"U8":8',
@@ -280,11 +275,15 @@ def test_dynamic_fsm_handle_is_accepted_as_entity_reference() -> None:
     dynamic_thread = (
         context.thread_observer().handle().idle(worker=worker_id).into_dynamic()
     )
-    queued_task = context.task_observer().handle().queued(
-        instance_name="task",
-        index=1,
-        worker=worker_id,
-        use_queue=None,
+    queued_task = (
+        context.task_observer()
+        .handle()
+        .queued(
+            instance_name="task",
+            index=1,
+            worker=worker_id,
+            use_queue=None,
+        )
     )
 
     queued_task.computing(

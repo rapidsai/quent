@@ -53,7 +53,7 @@ std::uint64_t native_thread_id() {
 #endif
 }
 
-}  // namespace
+} // namespace
 
 int main() {
   auto context = quent::Context::none();
@@ -61,9 +61,10 @@ int main() {
   auto process = context.process_observer()->handle();
   // This is the native OS process ID, not the Quent entity ID.
   process.started(quent::process::Started{
-      .process = quent::records::QuentOsProcess{
-          .native_id = native_process_id(),
-      },
+      .process =
+          quent::records::QuentOsProcess{
+              .native_id = native_process_id(),
+          },
   });
 
   // This is the Quent entity ID used to refer to the process entity.
@@ -72,9 +73,10 @@ int main() {
   std::thread worker([thread = std::move(thread), process_id]() mutable {
     // This is the worker's native OS thread ID, not the Quent entity ID.
     thread.started(quent::thread::Started{
-        .thread = quent::records::QuentOsThread{
-            .native_id = native_thread_id(),
-        },
+        .thread =
+            quent::records::QuentOsThread{
+                .native_id = native_thread_id(),
+            },
         .process = process_id,
     });
   });

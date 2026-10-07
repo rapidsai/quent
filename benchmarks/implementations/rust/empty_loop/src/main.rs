@@ -5,7 +5,7 @@ use std::{convert::Infallible, hint::black_box};
 
 use clap::Parser;
 use quent_bench_rust_common::{BenchResult, measure_threads};
-use quent_bench_types::{CaseResult, Implementation, Language, MeasurementArgs};
+use quent_bench_types::{CaseResult, Framework, Language, MeasurementArgs};
 
 #[derive(Parser)]
 struct Args {
@@ -24,8 +24,8 @@ fn main() -> BenchResult<()> {
             Ok::<(), Infallible>(())
         },
     )?;
-    let result: CaseResult<Implementation, &str, &str> = CaseResult::try_new(
-        Implementation::EmptyLoopRs,
+    let result: CaseResult<Framework, &str, &str> = CaseResult::try_new(
+        Framework::EmptyLoopRs,
         Language::Rust,
         None,
         None,

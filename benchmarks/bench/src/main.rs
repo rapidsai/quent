@@ -20,19 +20,10 @@ use progress::{BuildProgress, ProgressLine};
 type BenchResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 /// Selects an instrumentation framework for benchmark cases.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize, ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 enum Framework {
     Quent,
-}
-
-impl Framework {
-    /// Identifies the language used to deduplicate empty-loop cases across frameworks.
-    fn language(self) -> Language {
-        match self {
-            Self::Quent => Language::Rust,
-        }
-    }
 }
 
 /// Combines benchmark selection, shared workload settings, and framework-specific options.
@@ -42,6 +33,9 @@ struct Args {
     /// Frameworks to benchmark.
     #[arg(long, value_enum, value_delimiter = ',', default_value = "quent")]
     frameworks: Vec<Framework>,
+    /// Implementation languages to benchmark.
+    #[arg(long, value_enum, value_delimiter = ',', default_value = "rust")]
+    languages: Vec<Language>,
     /// Whether to measure an empty loop for each selected language.
     #[arg(long)]
     empty_loop: bool,
@@ -85,31 +79,31 @@ impl SharedArgs {
 impl Args {
     fn case_runners(&self) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
         let mut runners = Vec::new();
-        let languages = self
-            .frameworks
-            .iter()
-            .map(|framework| framework.language())
-            .collect::<BTreeSet<_>>();
+        let languages = self.languages.iter().copied().collect::<BTreeSet<_>>();
+        let frameworks = self.frameworks.iter().copied().collect::<BTreeSet<_>>();
         let mut builds = BuildProgress::new(
-            self.frameworks.len() + if self.empty_loop { languages.len() } else { 0 },
+            frameworks.len() * languages.len() + if self.empty_loop { languages.len() } else { 0 },
         );
         if self.empty_loop {
-            for language in languages {
-                match language {
-                    Language::Rust => {
-                        runners.extend(langs::rust::empty_loop_cases(&self.shared, &mut builds)?);
-                    }
-                }
+            for language in &languages {
+                runners.extend(langs::empty_loop_cases(
+                    *language,
+                    &self.shared,
+                    &mut builds,
+                )?);
             }
         }
-        for framework in self.frameworks.iter().copied() {
-            match framework {
-                Framework::Quent => {
-                    runners.extend(frameworks::quent::cases(
-                        &self.shared,
-                        &self.quent,
-                        &mut builds,
-                    )?);
+        for language in languages {
+            for framework in &frameworks {
+                match framework {
+                    Framework::Quent => {
+                        runners.extend(frameworks::quent::cases(
+                            language,
+                            &self.shared,
+                            &self.quent,
+                            &mut builds,
+                        )?);
+                    }
                 }
             }
         }

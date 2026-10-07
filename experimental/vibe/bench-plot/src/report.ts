@@ -60,10 +60,11 @@ export function availableLanguages(report: BenchReport): BenchLanguage[] {
   return (['rust', 'cpp', 'python'] as BenchLanguage[]).filter((language) => found.has(language));
 }
 
-export function caseLabel(value: BenchCase): string {
+export function caseLabel(value: BenchCase, includeLanguage = false): string {
   if (value.event_shape === null) return `${languageLabel(caseLanguage(value))} / empty loop`;
   const framework = value.implementation === 'quent' ? 'Quent' : value.implementation;
-  return `${framework} / ${value.exporter ?? 'default'}`;
+  const prefix = includeLanguage ? `${languageLabel(caseLanguage(value))} / ` : '';
+  return `${prefix}${framework} / ${value.exporter ?? 'default'}`;
 }
 
 export function discardedCallCount(value: BenchCase): number | null {
@@ -76,8 +77,8 @@ export function hasDiscardedCalls(value: BenchCase): boolean {
   return (discardedCallCount(value) ?? 0) > 0;
 }
 
-export function caseAxisLabel(value: BenchCase): string {
-  return `${hasDiscardedCalls(value) ? '⚠ ' : ''}${caseLabel(value)}`;
+export function caseAxisLabel(value: BenchCase, includeLanguage = false): string {
+  return `${hasDiscardedCalls(value) ? '⚠ ' : ''}${caseLabel(value, includeLanguage)}`;
 }
 
 export function isNoopCase(value: BenchCase): boolean {
@@ -100,6 +101,8 @@ const fixedFrameworkColors: Record<string, string> = {
   tracing: '#AA4499',
   opentelemetry: '#882255',
   'empty-loop-rs': '#565656',
+  'empty-loop-cpp': '#565656',
+  'empty-loop-python': '#565656',
 };
 
 const extraColors = [
@@ -190,11 +193,12 @@ export function boxSummary(value: BenchCase): BoxSummary {
   };
 }
 
-export function payloadGroups(report: BenchReport, language: BenchLanguage = 'rust', includeNoop = true,
+export function payloadGroups(report: BenchReport, languages: BenchLanguage | readonly BenchLanguage[] = 'rust', includeNoop = true,
   includeDiscarded = true): Array<{ name: string; threads: number[] }> {
+  const selectedLanguages = typeof languages === 'string' ? [languages] : languages;
   const groups = new Map<string, Set<number>>();
   for (const item of report.cases) {
-    if (caseLanguage(item) !== language || item.event_shape === null ||
+    if (!selectedLanguages.includes(caseLanguage(item)) || item.event_shape === null ||
       (!includeNoop && isNoopCase(item)) || (!includeDiscarded && hasDiscardedCalls(item))) continue;
     if (!groups.has(item.event_shape)) groups.set(item.event_shape, new Set());
     groups.get(item.event_shape)!.add(item.threads);

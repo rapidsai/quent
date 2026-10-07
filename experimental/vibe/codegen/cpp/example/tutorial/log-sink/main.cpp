@@ -12,7 +12,7 @@
 
 using AppLog = quent::Handle<quent::AppLog>;
 
-void info(const AppLog& log, std::string_view message, std::string_view target,
+void info(const AppLog &log, std::string_view message, std::string_view target,
           std::source_location source = std::source_location::current()) {
   log.info(quent::app_log::Info{
       .message = std::string{message},
@@ -24,7 +24,7 @@ void info(const AppLog& log, std::string_view message, std::string_view target,
   });
 }
 
-void warning(const AppLog& log, std::string_view message,
+void warning(const AppLog &log, std::string_view message,
              std::string_view target, std::string_view category,
              std::source_location source = std::source_location::current()) {
   log.warning(quent::app_log::Warning{

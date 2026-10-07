@@ -13,8 +13,7 @@
 static_assert(
     !std::is_same_v<quent::cluster::ClusterId, quent::worker::WorkerId>);
 static_assert(
-    !std::is_convertible_v<quent::cluster::ClusterId,
-                           quent::worker::WorkerId>);
+    !std::is_convertible_v<quent::cluster::ClusterId, quent::worker::WorkerId>);
 
 quent::DynamicAttributes make_dynamic_attributes() {
   quent::DynamicAttributes custom;
@@ -63,8 +62,7 @@ quent::DynamicAttributes make_dynamic_attributes() {
   std::vector<quent::DynamicList> nested_lists;
   nested_lists.push_back(quent::DynamicList::u8({1, 2}));
   nested_lists.push_back(quent::DynamicList::list(std::move(inner_lists)));
-  custom.add(
-      "nested_list", quent::DynamicList::list(std::move(nested_lists)));
+  custom.add("nested_list", quent::DynamicList::list(std::move(nested_lists)));
 
   quent::DynamicAttributes moved_from;
   moved_from.add("before_move", "retained");
@@ -84,11 +82,12 @@ int run_example() {
 
   auto cluster_observer = context.cluster_observer();
   auto scoped_cluster_telemetry = cluster_observer;
-  auto cluster = scoped_cluster_telemetry->handle(
-      quent::cluster::ClusterId(context.id()));
+  auto cluster =
+      scoped_cluster_telemetry->handle(quent::cluster::ClusterId(context.id()));
   cluster.declaration(
       quent::cluster::Declaration{.instance_name = "example_cluster"});
-  if (!cluster.declaration_emitted()) return 1;
+  if (!cluster.declaration_emitted())
+    return 1;
   try {
     cluster.declaration(
         quent::cluster::Declaration{.instance_name = "duplicate_cluster"});
@@ -101,10 +100,11 @@ int run_example() {
   worker.declaration(quent::worker::Declaration{
       .instance_name = "worker_0",
       .cluster = cluster.id(),
-      .details = quent::records::Details{
-          .version = "42.1.2",
-          .custom = std::move(custom),
-      },
+      .details =
+          quent::records::Details{
+              .version = "42.1.2",
+              .custom = std::move(custom),
+          },
   });
 
   auto queue = context.queue_observer()->handle();
@@ -138,17 +138,19 @@ int run_example() {
   auto file_stats = context.file_stats_observer()->handle();
   file_stats.scheduled();
   file_stats.checksum(quent::file_stats::Checksum{
-      .details = quent::records::Checksum{
-          .algorithm = "sha256",
-          .value = "abc123def456",
-      },
+      .details =
+          quent::records::Checksum{
+              .algorithm = "sha256",
+              .value = "abc123def456",
+          },
       .worker = worker.id(),
   });
   file_stats.decompressed(quent::file_stats::Decompressed{
-      .details = quent::records::Decompressed{
-          .algorithm = "snappy",
-          .ratio = 0.4,
-      },
+      .details =
+          quent::records::Decompressed{
+              .algorithm = "snappy",
+              .ratio = 0.4,
+          },
   });
 
   context.task_observer()
@@ -157,31 +159,35 @@ int run_example() {
           .instance_name = "my_task_31415",
           .index = 1,
           .worker = worker.id(),
-          .use_queue = quent::refs::QueueUsageRef{
-              .target = queue.id(),
-              .data = quent::records::QueueUsage{.entries = 1},
-          },
+          .use_queue =
+              quent::refs::QueueUsageRef{
+                  .target = queue.id(),
+                  .data = quent::records::QueueUsage{.entries = 1},
+              },
       })
       .computing(quent::task::Computing{
-          .use_thread = quent::refs::ThreadUsageRef{
-              .target = thread.id(),
-              .data = quent::records::ThreadUsage{},
-          },
+          .use_thread =
+              quent::refs::ThreadUsageRef{
+                  .target = thread.id(),
+                  .data = quent::records::ThreadUsage{},
+              },
           .use_memory = std::nullopt,
       })
       .computing(quent::task::Computing{
-          .use_thread = quent::refs::ThreadUsageRef{
-              .target = thread.id(),
-              .data = quent::records::ThreadUsage{},
-          },
-          .use_memory = quent::refs::MemoryPoolUsageRef{
-              .target = memory.id(),
-              .data = quent::records::MemoryPoolUsage{.bytes = 1024},
-          },
+          .use_thread =
+              quent::refs::ThreadUsageRef{
+                  .target = thread.id(),
+                  .data = quent::records::ThreadUsage{},
+              },
+          .use_memory =
+              quent::refs::MemoryPoolUsageRef{
+                  .target = memory.id(),
+                  .data = quent::records::MemoryPoolUsage{.bytes = 1024},
+              },
       })
       .exit();
-  auto idle_thread = std::move(thread).idle(
-      quent::thread::Idle{.worker = worker.id()});
+  auto idle_thread =
+      std::move(thread).idle(quent::thread::Idle{.worker = worker.id()});
   std::move(idle_thread).exit();
 
   auto detached_observer = [] {

@@ -29,9 +29,7 @@ def main() -> None:
             "f32": quent.DynamicValue.f32(32.5),
             "f64": quent.DynamicValue.f64(64.5),
             "string": quent.DynamicValue.string("value"),
-            "structure": quent.DynamicValue.structure(
-                {"first": "alpha", "second": 2}
-            ),
+            "structure": quent.DynamicValue.structure({"first": "alpha", "second": 2}),
             "u8_list": quent.DynamicValue.u8_list([1, 2]),
             "u16_list": quent.DynamicValue.u16_list([1, 2]),
             "u32_list": quent.DynamicValue.u32_list([1, 2]),

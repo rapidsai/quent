@@ -12,18 +12,20 @@ int main() {
 
   task.started();
   task.ended(quent::task::Ended{
-      .result = quent::records::WorkResult{
-          .success = true,
-          .items_processed = 128,
-      },
+      .result =
+          quent::records::WorkResult{
+              .success = true,
+              .items_processed = 128,
+          },
   });
 
   batch.started();
   batch.ended(quent::batch::Ended{
-      .result = quent::records::WorkResult{
-          .success = true,
-          .items_processed = 512,
-      },
+      .result =
+          quent::records::WorkResult{
+              .success = true,
+              .items_processed = 512,
+          },
   });
   return 0;
 }

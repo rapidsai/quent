@@ -6,23 +6,29 @@ on:
     paths:
       - "**/*.rs"
       - "**/*.py"
+      - "**/*.pyi"
       - "**/CMakeLists.txt"
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - "**/pyproject.toml"
       - "crates/yaml/examples/**/*.yaml"
       - "pixi.toml"
+      - "pixi.lock"
+      - "ruff.toml"
       - ".github/workflows/python.yml"
   pull_request:
     paths:
       - "**/*.rs"
       - "**/*.py"
+      - "**/*.pyi"
       - "**/CMakeLists.txt"
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - "**/pyproject.toml"
       - "crates/yaml/examples/**/*.yaml"
       - "pixi.toml"
+      - "pixi.lock"
+      - "ruff.toml"
       - ".github/workflows/python.yml"
 
 env:
@@ -45,6 +51,8 @@ jobs:
       - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
+      - name: Check Python formatting
+        run: pixi run --locked format-python-check
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |

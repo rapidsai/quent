@@ -1,0 +1,11 @@
+[package]
+name = "quent-bench-cpp-empty-loop"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+quent-bench-cpp-common = { path = "../common" }
+quent-bench-types = { path = "../../../types" }
+serde_json.workspace = true

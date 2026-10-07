@@ -1,5 +1,7 @@
 [workspace]
 resolver = "3"
+# Keep the binding generators in their own workspace when used as path dependencies.
+exclude = ["experimental/vibe/codegen/cpp", "experimental/vibe/codegen/python"]
 members = [
     # Application-agnostic crates
     "crates/analyzer",
@@ -23,6 +25,13 @@ members = [
     "benchmarks/implementations/rust/common",
     "benchmarks/implementations/rust/quent",
     "benchmarks/implementations/rust/empty_loop",
+    "benchmarks/implementations/quent-common",
+    "benchmarks/implementations/cpp/common",
+    "benchmarks/implementations/cpp/quent",
+    "benchmarks/implementations/cpp/empty_loop",
+    "benchmarks/implementations/python/common",
+    "benchmarks/implementations/python/quent",
+    "benchmarks/implementations/python/empty_loop",
     "crates/open",
     "crates/time",
     "crates/ui",

@@ -13,13 +13,13 @@ int main() {
   auto thread = context.thread_observer()->handle();
   thread.registered(quent::thread::Registered{.pool = pool.id()});
 
-  auto running = context.task_observer()->handle().running(
-      quent::task::Running{
-          .thread = quent::refs::ThreadUsageRef{
+  auto running = context.task_observer()->handle().running(quent::task::Running{
+      .thread =
+          quent::refs::ThreadUsageRef{
               .target = thread.id(),
               .data = quent::records::ThreadUsage{},
           },
-      });
+  });
   auto completed = std::move(running).completed();
   return 0;
 }

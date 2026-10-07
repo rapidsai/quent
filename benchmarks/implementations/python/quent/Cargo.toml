@@ -1,0 +1,29 @@
+[package]
+name = "quent-bench-python-quent"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+name = "quent_bench_python"
+crate-type = ["cdylib"]
+test = false
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+pyo3.workspace = true
+quent-bench-python-common = { path = "../common" }
+quent-bench-quent-common = { path = "../../quent-common" }
+quent-bench-types = { path = "../../../types" }
+quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
+quent-instrumentation = { path = "../../../../crates/instrumentation", features = ["io-ndjson", "io-msgpack", "io-postcard"] }
+quent-io = { path = "../../../../crates/io", default-features = false, features = ["ndjson", "msgpack", "postcard"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tempfile = "3"
+
+[build-dependencies]
+pyo3-build-config = "0.29"
+quent-instrumentation-build = { path = "../../../../crates/instrumentation-build" }
+quent-schema-codegen-python = { path = "../../../../experimental/vibe/codegen/python" }
+quent-yaml = { path = "../../../../crates/yaml" }

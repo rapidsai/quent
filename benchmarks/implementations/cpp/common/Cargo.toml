@@ -1,0 +1,13 @@
+[package]
+name = "quent-bench-cpp-common"
+version.workspace = true
+edition.workspace = true
+publish = false
+links = "quent_bench_cpp_common"
+
+[dependencies]
+cxx = "1"
+quent-bench-types = { path = "../../../types" }
+
+[build-dependencies]
+cxx-build = "1"

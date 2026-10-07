@@ -25,6 +25,16 @@ These commands check the workspace's default members on every supported
 platform. Full `--workspace` checks also include opt-in NVTX and
 language-bridge crates and are intended for Linux.
 
+Check hand-written C++ and Python sources, including benchmarks and examples:
+
+```bash
+pixi run format-cpp-check
+pixi run format-python-check
+```
+
+Apply formatting with `pixi run format-cpp` and `pixi run format-python`.
+These use the pinned clang-format (LLVM style) and Ruff versions from Pixi.
+
 Check Markdown with the version used by CI:
 
 ```bash

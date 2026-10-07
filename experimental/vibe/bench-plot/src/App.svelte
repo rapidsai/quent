@@ -15,7 +15,7 @@
   let currentUrl = $state<string | null>(null);
   let error = $state('');
   let loading = $state(true);
-  let selectedLanguage = $state<BenchLanguage>('rust');
+  let excludedLanguages = $state<BenchLanguage[]>([]);
   let excludedThreads = $state<number[]>([]);
   let plotGridElement = $state<HTMLDivElement | undefined>(undefined);
   let plotScrollbarElement = $state<HTMLDivElement | undefined>(undefined);
@@ -26,12 +26,13 @@
   let selectionVersion = '';
 
   let languages = $derived(current ? availableLanguages(current) : []);
+  let selectedLanguages = $derived(languages.filter((language) => !excludedLanguages.includes(language)));
   let discardedCases = $derived(current?.cases.filter((item) =>
-    caseLanguage(item) === selectedLanguage && hasDiscardedCalls(item)) ?? []);
+    selectedLanguages.includes(caseLanguage(item)) && hasDiscardedCalls(item)) ?? []);
   let visibleDiscarded = $derived(discardedCases.some((item) =>
     (plotPreference.includeNoop || !isNoopCase(item)) && !excludedThreads.includes(item.threads)));
   let colors = $derived(frameworkColors(current?.cases.map((item) => item.implementation) ?? []));
-  let groups = $derived(current ? payloadGroups(current, selectedLanguage, plotPreference.includeNoop,
+  let groups = $derived(current ? payloadGroups(current, selectedLanguages, plotPreference.includeNoop,
     plotPreference.includeDiscarded) : []);
   let emptyLoops = $derived(current?.cases.filter((item) => item.event_shape === null &&
     caseVisible(item)) ?? []);
@@ -112,8 +113,12 @@
     excludedThreads = visible ? excludedThreads.filter((value) => value !== threads) : [...excludedThreads, threads];
   }
 
+  function setLanguageVisible(language: BenchLanguage, visible: boolean): void {
+    excludedLanguages = visible ? excludedLanguages.filter((value) => value !== language) : [...excludedLanguages, language];
+  }
+
   function caseVisible(item: BenchCase): boolean {
-    return caseLanguage(item) === selectedLanguage &&
+    return selectedLanguages.includes(caseLanguage(item)) &&
       (plotPreference.includeNoop || !isNoopCase(item)) &&
       (plotPreference.includeDiscarded || !hasDiscardedCalls(item));
   }
@@ -130,8 +135,6 @@
       const embeddedReport = document.getElementById('quent-bench-report')?.textContent;
       if (embeddedReport) {
         const report = JSON.parse(embeddedReport) as BenchReport;
-        const reportLanguages = availableLanguages(report);
-        if (!reportLanguages.includes(selectedLanguage)) selectedLanguage = reportLanguages[0] ?? 'rust';
         current = report;
         currentUrl = URL.createObjectURL(new Blob([embeddedReport], { type: 'application/json' }));
         error = '';
@@ -149,8 +152,6 @@
         const reportResponse = await fetch(selection.current.url, { cache: 'no-store' });
         if (!reportResponse.ok) throw new Error(`Report: HTTP ${reportResponse.status}`);
         const report = await reportResponse.json() as BenchReport;
-        const reportLanguages = availableLanguages(report);
-        if (!reportLanguages.includes(selectedLanguage)) selectedLanguage = reportLanguages[0] ?? 'rust';
         current = report;
         currentUrl = selection.current.url;
       }
@@ -223,10 +224,12 @@
       {/if}
       {#if current}
         <fieldset class="flex flex-wrap items-center gap-4">
-          <legend class="sr-only">Language</legend>
+          <legend class="sr-only">Languages</legend>
           {#each languages as language}
             <label class="flex cursor-pointer items-center gap-2">
-              <input type="radio" class="radio radio-secondary radio-sm" name="language" value={language} bind:group={selectedLanguage} />
+              <input type="checkbox" class="toggle toggle-secondary toggle-sm" role="switch"
+                checked={selectedLanguages.includes(language)}
+                onchange={(event) => setLanguageVisible(language, event.currentTarget.checked)} />
               <span>{languageLabel(language)}</span>
             </label>
           {/each}
@@ -256,7 +259,7 @@
     <p class="alert alert-info" role="status">No benchmark reports found. Run <code>quent-bench</code> to create one.</p>
   {:else}
     <section class="mb-4 grid gap-2 md:grid-cols-2" aria-label="Run details">
-      <div class="card card-border bg-base-100 shadow-sm"><div class="card-body gap-1 p-3"><span class="badge badge-outline">Environment</span><strong>{current.system.cpu_model ?? 'Unknown CPU'}</strong><small class="text-base-content/60">{current.system.os} · {current.system.architecture} · {current.system.available_cpu_count ?? '?'} available CPUs</small>{#if selectedLanguage === 'rust'}<small class="text-base-content/60">{current.system.rustc_version ?? 'Rust version unavailable'}</small>{/if}</div></div>
+      <div class="card card-border bg-base-100 shadow-sm"><div class="card-body gap-1 p-3"><span class="badge badge-outline">Environment</span><strong>{current.system.cpu_model ?? 'Unknown CPU'}</strong><small class="text-base-content/60">{current.system.os} · {current.system.architecture} · {current.system.available_cpu_count ?? '?'} available CPUs</small>{#if selectedLanguages.includes('rust')}<small class="text-base-content/60">{current.system.rustc_version ?? 'Rust version unavailable'}</small>{/if}</div></div>
       <div class="card card-border bg-base-100 shadow-sm"><div class="card-body gap-1 p-3"><span class="badge badge-outline">Measurement</span><strong>{current.cases[0]?.num_batches} batches × {current.cases[0]?.batch_size} calls</strong><small class="text-base-content/60">Warmup: {current.cases[0]?.num_warmup_batches} batches · pause: {current.cases[0]?.batch_pause_interval_us} µs</small></div></div>
     </section>
     {#if !visibleGroups.length && !visibleEmptyLoops.length}
@@ -330,10 +333,10 @@
                   <span class="mt-1 block text-xs font-normal text-base-content/60">Timing overhead, not subtracted</span>
                 </th>
                 {#each visibleThreadCounts as threads}
-                  {@const item = visibleEmptyLoops.find((loop) => loop.threads === threads)}
+                  {@const items = sortCasesByAverage(visibleEmptyLoops.filter((loop) => loop.threads === threads))}
                   <td class="border border-base-300 align-top">
-                    {#if item}
-                      <BenchmarkPlot cases={[item]} title={`Empty loop, ${threads} ${threads === 1 ? 'thread' : 'threads'}`} mode={plotPreference.mode} {colors} />
+                    {#if items.length}
+                      <BenchmarkPlot cases={items} title={`Empty loop, ${threads} ${threads === 1 ? 'thread' : 'threads'}`} mode={plotPreference.mode} {colors} />
                     {/if}
                   </td>
                 {/each}

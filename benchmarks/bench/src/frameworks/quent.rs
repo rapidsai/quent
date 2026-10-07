@@ -4,11 +4,12 @@
 use std::{num::NonZeroUsize, path::PathBuf, process::Command};
 
 use clap::ValueEnum;
+use quent_bench_types::Language;
 
 use crate::{
     BenchResult, SharedArgs,
     case::{CaseRunner, run_child},
-    langs::rust,
+    langs,
     progress::BuildProgress,
     report::CaseResult,
 };
@@ -49,16 +50,21 @@ pub(crate) struct Args {
 
 /// Defines one case for each requested exporter, event shape, and thread count.
 pub(crate) fn cases(
+    language: Language,
     shared: &SharedArgs,
     options: &Args,
     progress: &mut BuildProgress,
 ) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
-    let executable = rust::binary("quent-bench-rust-quent", progress)?;
+    let executable = langs::binary(
+        &format!("quent-bench-{}-quent", language.as_ref()),
+        progress,
+    )?;
     let mut cases = Vec::new();
     for exporter in &options.exporter {
         for event_shape in &shared.event_shape {
             for threads in &shared.threads {
                 cases.push(Box::new(QuentCase {
+                    language,
                     executable: executable.clone(),
                     exporter: *exporter,
                     event_shape: *event_shape,
@@ -71,6 +77,7 @@ pub(crate) fn cases(
 }
 
 struct QuentCase {
+    language: Language,
     executable: PathBuf,
     exporter: Exporter,
     event_shape: quent_bench_types::EventShape,
@@ -80,7 +87,8 @@ struct QuentCase {
 impl CaseRunner for QuentCase {
     fn label(&self) -> String {
         format!(
-            "quent, {}, {}, threads={}",
+            "quent, {}, {}, {}, threads={}",
+            self.language.as_ref(),
             self.exporter.as_str(),
             self.event_shape.as_ref(),
             self.threads

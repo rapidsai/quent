@@ -10,15 +10,16 @@ int main() {
   auto memory = context.memory_observer()->handle();
   memory.created();
 
-  auto running = context.task_observer()->handle().running(
-      quent::task::Running{
-          .memory = quent::refs::MemoryUsageRef{
+  auto running = context.task_observer()->handle().running(quent::task::Running{
+      .memory =
+          quent::refs::MemoryUsageRef{
               .target = memory.id(),
-              .data = quent::records::MemoryUsage{
-                  .bytes = 512'000'000,
-              },
+              .data =
+                  quent::records::MemoryUsage{
+                      .bytes = 512'000'000,
+                  },
           },
-      });
+  });
   auto completed = std::move(running).completed();
   return 0;
 }

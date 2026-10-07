@@ -14,9 +14,25 @@ pixi run cargo run --release -p quent-bench -- --frameworks quent --empty-loop -
 separate process. Cases run sequentially so their global resources do not
 overlap. It prints a summary table and writes a JSON report.
 
+Rust is selected by default. To compare Rust and C++:
+
+```sh
+pixi run cargo run --release -p quent-bench -- --languages rust,cpp --empty-loop --threads 1,2,4
+```
+
+Use `--languages cpp` for C++ only. C++ implementations require a C++20 compiler,
+provided by the Pixi environment, and are built through Cargo with `cxx-build`.
+
+Use `--languages python` for Python only, or `--languages rust,cpp,python` to
+include all three languages. Python cases use `python3` from the active
+environment; set `PYO3_PYTHON` to choose another interpreter for both building
+the extension and running cases. Cargo builds the generated Python extension in
+release mode, and cases load it directly without installing a Python package.
+
 | Argument               | Default          | Meaning                                                                                 |
 | ---------------------- | ---------------- | --------------------------------------------------------------------------------------- |
 | `--frameworks`         | `quent`          | Frameworks to measure, as a comma-separated list. Other frameworks are WIP.             |
+| `--languages`          | `rust`           | Implementation languages, as a comma-separated list: `rust`, `cpp`, `python`.           |
 | `--empty-loop`         | Off              | Add an empty-loop measurement for each selected language.                               |
 | `--event-shape`        | All shapes below | Event payloads to measure, as a comma-separated list.                                   |
 | `--threads`            | `1`              | Concurrent caller threads, as comma-separated positive counts.                          |
@@ -52,6 +68,20 @@ Quent creates one context and observer pipeline per case, with one entity
 handle per thread. File exporters serialize and write during measurement.
 After draining, the benchmark counts exported records. The no-op path may drop
 prepared strings during timing.
+
+C++ uses the generated public façade with the same Rust instrumentation runtime.
+Its threads prepare C++ payloads outside timing and move them into façade calls.
+The timed calls include façade conversions, including string conversion, and
+CXX bridge overhead. Context creation and exporter shutdown are outside timing.
+
+Python calls the generated public API from Python threads using prepared Python
+values and keyword arguments. Timed batches include the Python call loop,
+one batch-function call, and PyO3 argument conversion. Interpreter startup,
+module loading, payload preparation, and exporter shutdown are outside timing.
+The empty-loop baseline uses the same Python batch schedule. On GIL-enabled
+CPython, threads contend for the GIL; these results do not represent parallel
+Python execution. The benchmark leaves the interpreter's GIL, thread switch
+interval, and garbage-collection settings unchanged.
 
 ### Event shapes
 
@@ -108,6 +138,10 @@ result is not subtracted from event measurements.
 
 ### Clock sources
 
+- **Python:** `time.perf_counter_ns()` reads a monotonic clock before and after
+  each measured batch, returning integer nanoseconds.
+- **C++:** `std::chrono::steady_clock::now()` reads a monotonic clock before and
+  after each measured batch; durations are converted to nanoseconds.
 - **Rust:** `std::time::Instant::now()` starts each measured batch and
   `Instant::elapsed()` ends it. On Linux, `Instant` currently uses
   `clock_gettime(CLOCK_MONOTONIC)`. On macOS, it uses

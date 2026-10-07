@@ -1,0 +1,24 @@
+[package]
+name = "quent-bench-cpp-quent"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+cxx = "1"
+quent-bench-cpp-common = { path = "../common" }
+quent-bench-quent-common = { path = "../../quent-common" }
+quent-bench-types = { path = "../../../types" }
+quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
+quent-instrumentation = { path = "../../../../crates/instrumentation", features = ["io-ndjson", "io-msgpack", "io-postcard"] }
+quent-io = { path = "../../../../crates/io", default-features = false, features = ["ndjson", "msgpack", "postcard"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tempfile = "3"
+
+[build-dependencies]
+cxx-build = "1"
+quent-instrumentation-build = { path = "../../../../crates/instrumentation-build" }
+quent-schema-codegen-cpp = { path = "../../../../experimental/vibe/codegen/cpp" }
+quent-yaml = { path = "../../../../crates/yaml" }

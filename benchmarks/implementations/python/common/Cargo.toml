@@ -1,0 +1,10 @@
+[package]
+name = "quent-bench-python-common"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+quent-bench-types = { path = "../../../types" }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true

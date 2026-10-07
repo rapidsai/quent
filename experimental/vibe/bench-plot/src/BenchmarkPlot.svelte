@@ -10,7 +10,7 @@
   import type { EChartsType } from 'echarts/core';
   import type { BenchCase, BoxSummary } from './report';
   import type { PlotMode } from './plotPreference.svelte';
-  import { batchAverages, boxSummary, caseAxisLabel, caseLabel, discardedCallCount, frameworkColor, hasDiscardedCalls, isNoopCase } from './report';
+  import { batchAverages, boxSummary, caseAxisLabel, caseLabel, caseLanguage, discardedCallCount, frameworkColor, hasDiscardedCalls, isNoopCase } from './report';
   import { jitterOffset } from './jitter';
 
   echarts.use([BarChart, BoxplotChart, ScatterChart, GraphicComponent, GridComponent, TooltipComponent, CanvasRenderer]);
@@ -25,7 +25,8 @@
   let element: HTMLDivElement;
   let chart = $state<EChartsType | undefined>(undefined);
 
-  let labels = $derived(cases.map(caseAxisLabel));
+  let showLanguages = $derived(new Set(cases.map(caseLanguage)).size > 1);
+  let labels = $derived(cases.map((item) => caseAxisLabel(item, showLanguages)));
   let current = $derived(mode === 'advanced' ? cases.map(boxSummary) : []);
   let samples = $derived(mode === 'advanced' ? cases.map(batchAverages) : []);
   const tickFormatter = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 3 });
@@ -43,7 +44,7 @@
 
   function render(current: BoxSummary[], samples: number[][], labels: string[], mode: PlotMode,
     colors: ReadonlyMap<string, string>) {
-    const grid = { left: 60, right: 14, top: 30, bottom: 84 };
+    const grid = { left: 60, right: 14, top: 30, bottom: showLanguages ? 100 : 84 };
     const bandWidth = Math.max(1, (element.clientWidth - grid.left - grid.right) / Math.max(1, labels.length));
     const noopBackgrounds = cases.flatMap((item, index) => isNoopCase(item) ? [{
       type: 'rect', silent: true, z: 0,
@@ -55,7 +56,7 @@
       axisLabel: { interval: 0, width: Math.min(70, Math.max(24, bandWidth - 4)), overflow: 'break',
         fontSize: 10, lineHeight: 12,
         formatter: (label: string) => {
-          const formatted = label.replace(' / ', '\n');
+          const formatted = label.replaceAll(' / ', '\n');
           return formatted.startsWith('⚠ ') ? `{warning|⚠} ${formatted.slice(2)}` : formatted;
         },
         rich: { warning: { color: '#B45309', fontSize: 15, fontWeight: 'bold', lineHeight: 16 } } },
@@ -73,7 +74,7 @@
           const source = cases[params.dataIndex];
           if (!source) return '';
           const discarded = discardedCallCount(source);
-          return `${caseLabel(source)}<br/>Average: ${source.average_ns_per_iteration.toFixed(2)} ns${discarded ? `<br/>Discarded calls: ${discarded}` : ''}`;
+          return `${caseLabel(source, showLanguages)}<br/>Average: ${source.average_ns_per_iteration.toFixed(2)} ns${discarded ? `<br/>Discarded calls: ${discarded}` : ''}`;
         } },
         series: [{ name: 'Average', type: 'bar', barMaxWidth: 72,
           label: { show: true, position: 'top', fontSize: 10, formatter: (params: { value: number }) =>
@@ -162,7 +163,7 @@
         const source = cases[params.dataIndex];
         if (!summary || !source) return '';
         const discarded = discardedCallCount(source);
-        return `${caseLabel(source)}<br/>Average: ${source.average_ns_per_iteration.toFixed(2)} ns<br/>Median: ${summary.median.toFixed(2)} ns${discarded ? `<br/>Discarded calls: ${discarded}` : ''}`;
+        return `${caseLabel(source, showLanguages)}<br/>Average: ${source.average_ns_per_iteration.toFixed(2)} ns<br/>Median: ${summary.median.toFixed(2)} ns${discarded ? `<br/>Discarded calls: ${discarded}` : ''}`;
       } },
       series,
     }, true);

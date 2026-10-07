@@ -78,20 +78,34 @@ impl MeasurementArgs {
 
 /// Identifies the implementation language of a benchmark case.
 #[derive(
-    Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize, strum::AsRefStr,
+    Clone,
+    Copy,
+    Debug,
+    Deserialize,
+    Eq,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    ValueEnum,
+    strum::AsRefStr,
 )]
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
 pub enum Language {
     Rust,
+    Cpp,
+    Python,
 }
 
-/// Identifies the implementation that produced a benchmark result.
+/// Identifies the framework or empty-loop baseline that produced a benchmark result.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, strum::AsRefStr)]
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
-pub enum Implementation {
+pub enum Framework {
     EmptyLoopRs,
+    EmptyLoopCpp,
+    EmptyLoopPython,
     Quent,
 }
 
@@ -119,13 +133,14 @@ pub enum EventShape {
 
 /// Records the settings and measured batch durations of one child-process case.
 ///
-/// - `I`: Implementation identifier type.
+/// - `F`: Framework identifier type.
 /// - `E`: Event exporting mechanism identifier type.
 /// - `S`: Event shape identifier type.
 #[derive(Debug, Deserialize, Serialize)]
-pub struct CaseResult<I, E, S> {
-    /// Names the benchmark implementation.
-    pub implementation: I,
+pub struct CaseResult<F, E, S> {
+    /// Names the benchmark framework or empty-loop baseline.
+    #[serde(rename = "implementation")]
+    pub framework: F,
     /// Language of the implementation executable.
     pub language: Language,
     /// Identifies how events are handled, or `None` when no output mechanism applies.
@@ -156,14 +171,14 @@ pub struct CaseResult<I, E, S> {
     pub average_ns_per_iteration: f64,
 }
 
-impl<I, E, S> CaseResult<I, E, S> {
+impl<F, E, S> CaseResult<F, E, S> {
     /// Builds a case result from the workload and measured batch durations.
     ///
     /// # Errors
     ///
     /// Returns an error if the total call count overflows `u64` or the discarded count exceeds it.
     pub fn try_new(
-        implementation: I,
+        framework: F,
         language: Language,
         exporter: Option<E>,
         event_shape: Option<S>,
@@ -186,7 +201,7 @@ impl<I, E, S> CaseResult<I, E, S> {
             / workload.batch.num_batches.get() as f64
             / workload.batch.batch_size.get() as f64;
         Ok(Self {
-            implementation,
+            framework,
             language,
             exporter,
             event_shape,

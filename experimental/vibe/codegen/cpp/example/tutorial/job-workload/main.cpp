@@ -18,10 +18,11 @@ int main() {
       .requested_threads = 4,
   });
   auto running = std::move(queued).running(quent::job::Running{
-      .worker = quent::refs::WorkerUsageRef{
-          .target = worker.id(),
-          .data = quent::records::WorkerUsage{.threads = 4},
-      },
+      .worker =
+          quent::refs::WorkerUsageRef{
+              .target = worker.id(),
+              .data = quent::records::WorkerUsage{.threads = 4},
+          },
   });
   auto completed = std::move(running).completed();
   return 0;

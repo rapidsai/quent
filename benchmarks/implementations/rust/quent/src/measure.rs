@@ -3,15 +3,16 @@
 
 use std::path::Path;
 
+use quent_bench_quent_common::discarded_events;
 use quent_bench_rust_common::measure_threads;
-use quent_bench_types::{EventShape, Implementation, Language, MeasurementArgs};
+use quent_bench_types::{EventShape, Framework, Language, MeasurementArgs};
 use quent_instrumentation::{
     Context, EventModel, ExporterOptions, FileSystemExporterOptions, HandleError,
     InstrumentedEntity, InstrumentedModel, Noop, ObserverBuilder, ObserverProvider,
     build_info::ModelSource,
 };
 
-use crate::{BenchResult, CaseResult, Exporter, models, verify};
+use crate::{BenchResult, CaseResult, Exporter, models};
 
 pub fn run_case(
     exporter: Exporter,
@@ -78,7 +79,7 @@ pub fn run_case(
         )?,
     };
     Ok(CaseResult::try_new(
-        Implementation::Quent,
+        Framework::Quent,
         Language::Rust,
         Some(exporter),
         Some(shape),
@@ -133,7 +134,6 @@ where
     drop(observer);
     drop(context);
 
-    let discarded_call_count =
-        verify::discarded_events(exporter, export_root, context_id, workload)?;
+    let discarded_call_count = discarded_events(exporter, export_root, context_id, workload)?;
     Ok((durations, discarded_call_count))
 }

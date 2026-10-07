@@ -5,13 +5,13 @@ use std::path::PathBuf;
 
 use chrono::Local;
 use comfy_table::{Attribute, Cell, CellAlignment, Color, Table, presets::UTF8_FULL};
-use quent_bench_types::{CaseResult as SharedCaseResult, Implementation};
+use quent_bench_types::{CaseResult as SharedCaseResult, Framework};
 use serde::Serialize;
 use statrs::statistics::{Data, OrderStatistics, Statistics};
 
 use crate::{BenchResult, EventShape, system::SystemProperties};
 
-pub(crate) type CaseResult = SharedCaseResult<Implementation, String, EventShape>;
+pub(crate) type CaseResult = SharedCaseResult<Framework, String, EventShape>;
 
 pub(crate) fn print_system(system: &SystemProperties) {
     let mut table = Table::new();
@@ -140,7 +140,7 @@ fn print_cases(cases: &[ReportedCase]) {
     table.load_style(UTF8_FULL);
     table.set_header(
         [
-            "Implementation",
+            "Framework",
             "Language",
             "Exporter",
             "Event",
@@ -159,7 +159,7 @@ fn print_cases(cases: &[ReportedCase]) {
         let result = &case.result;
         let stats = &case.batch_statistics;
         let row = vec![
-            Cell::new(result.implementation.as_ref()),
+            Cell::new(result.framework.as_ref()),
             Cell::new(result.language.as_ref()),
             Cell::new(result.exporter.as_deref().unwrap_or("—")),
             Cell::new(
@@ -180,7 +180,7 @@ fn print_cases(cases: &[ReportedCase]) {
         ];
         table.add_row(
             row.into_iter()
-                .map(|cell| cell.fg(implementation_color(result.implementation)))
+                .map(|cell| cell.fg(framework_color(result.framework)))
                 .collect::<Vec<_>>(),
         );
     }
@@ -195,10 +195,12 @@ fn header(label: &str) -> Cell {
         .add_attribute(Attribute::Bold)
 }
 
-fn implementation_color(implementation: Implementation) -> Color {
-    match implementation {
-        Implementation::EmptyLoopRs => Color::Yellow,
-        Implementation::Quent => Color::Green,
+fn framework_color(framework: Framework) -> Color {
+    match framework {
+        Framework::EmptyLoopRs | Framework::EmptyLoopCpp | Framework::EmptyLoopPython => {
+            Color::Yellow
+        }
+        Framework::Quent => Color::Green,
     }
 }
 

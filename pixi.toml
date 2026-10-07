@@ -12,7 +12,9 @@ nodejs = ">=24.11.0"
 pnpm = ">=11.19.0"
 cmake = ">=3.24"
 cxx-compiler = ">=1"
+clang-format = "=23.1.1"
 python = ">=3.11,<3.15"
+ruff = "=0.16.7"
 maturin = ">=1.14,<2"
 pytest = ">=8,<10"
 ty = ">=0.0.55"
@@ -24,6 +26,12 @@ mdbook = "0.5.4.*"
 
 [pypi-dependencies]
 rumdl = "*"
+
+[tasks]
+format-cpp = "git ls-files -z --cached --others --exclude-standard -- '*.cpp' '*.cc' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' | xargs -0 clang-format -i"
+format-cpp-check = "git ls-files -z --cached --others --exclude-standard -- '*.cpp' '*.cc' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' | xargs -0 clang-format --dry-run --Werror"
+format-python = "ruff format ."
+format-python-check = "ruff format --check ."
 
 [target.linux-64.dependencies]
 # `nvtx-sys` runs bindgen against its bundled headers during consumer builds.
