@@ -9,24 +9,26 @@ export type PaletteTheme = 'light' | 'dark';
 export type ColorPalette = readonly string[];
 
 export const COLOR_PALETTES = {
-  // Picked so the colors stay as far apart as possible from every other color
-  // (also under red-green color blindness), since we can't know which ones end
-  // up side by side. The worst pair is about 6 apart under color blindness
-  // (OKLab x100); the old palette had pairs that were almost identical.
-  // Neighbors in this list are also far apart, because a clash is resolved by
-  // moving to the next slot.
+  // Most colors share about the same saturation (OKLCH chroma ~0.14) so they
+  // look like one family. Brown is less saturated on purpose, to add a dark,
+  // earthy color. Colors differ by hue and by lightness (0.48 to 0.78), and
+  // the mix is balanced between warm and cool.
+  // The closest pair is about 10 apart (OKLab x100). We can't know which
+  // colors end up side by side, so neighbors in this list are also far apart,
+  // because a clash is resolved by moving to the next slot.
+  // Not re-checked for red-green color blindness since the saturation change.
   deterministic: [
-    '#2c87e2', // Blue
-    '#d6a62e', // Amber
-    '#0c602e', // Forest
-    '#538b00', // Lime
-    '#7c36b3', // Purple
-    '#5bc19d', // Mint
-    '#ac9eeb', // Periwinkle
-    '#079b8b', // Teal
-    '#9d2f70', // Magenta
-    '#bd6c57', // Terracotta
-    '#3162d8', // Royal blue
+    '#1a95d8', // Blue
+    '#e0af3b', // Amber
+    '#037e3f', // Forest
+    '#bf544b', // Red
+    '#8256af', // Purple
+    '#91b349', // Lime
+    '#9ba0ff', // Periwinkle
+    '#09a0a0', // Teal
+    '#ac4e87', // Magenta
+    '#e0843e', // Orange
+    '#8b4b00', // Brown
   ],
   timeline: {
     light: [
