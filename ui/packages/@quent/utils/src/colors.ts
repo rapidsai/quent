@@ -9,14 +9,6 @@ export type PaletteTheme = 'light' | 'dark';
 export type ColorPalette = readonly string[];
 
 export const COLOR_PALETTES = {
-  // Most colors share about the same saturation (OKLCH chroma ~0.14) so they
-  // look like one family. Brown is less saturated on purpose, to add a dark,
-  // earthy color. Colors differ by hue and by lightness (0.48 to 0.78), and
-  // the mix is balanced between warm and cool.
-  // The closest pair is about 10 apart (OKLab x100). We can't know which
-  // colors end up side by side, so neighbors in this list are also far apart,
-  // because a clash is resolved by moving to the next slot.
-  // Not re-checked for red-green color blindness since the saturation change.
   deterministic: [
     '#1a95d8', // Blue
     '#e0af3b', // Amber
