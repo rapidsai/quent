@@ -28,7 +28,6 @@ export const COLOR_PALETTES = {
     '#09a0a0', // Teal
     '#ac4e87', // Magenta
     '#e0843e', // Orange
-    '#8b4b00', // Brown
   ],
   timeline: {
     light: [
