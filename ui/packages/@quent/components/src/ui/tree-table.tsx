@@ -47,12 +47,12 @@ type FlatTreeRow = {
 const rowSurfaceClasses =
   'relative cursor-pointer transition-colors hover:bg-secondary/10 data-[selected=true]:bg-secondary/70';
 
-// Small left-edge accent dot used to indicate a row's relation to a hovered
-// query plan operator, without the visual weight of a full row background.
+// Thin left-edge accent bar used to indicate a row's relation to a hovered
+// query plan operator
 const RowIndicatorBar = () => (
   <div
     aria-hidden="true"
-    className="absolute left-1 top-1/2 z-20 size-1.5 -translate-y-1/2 rounded-full bg-primary"
+    className="absolute left-0 inset-y-0 w-[3px] bg-primary"
   />
 );
 
@@ -462,7 +462,7 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   highlightedItemIds?: Set<string>;
   /**
-   * Rows in this set render a left accent dot` — a light-weight indicator for
+   * Rows in this set render a left accent bar — a lighter-weight indicator for
    * relations that update frequently (e.g. hovering a query plan operator).
    */
   indicatorItemIds?: Set<string>;

@@ -12,6 +12,7 @@ import {
   collectVisibleEntries,
   findItemById,
   getAdaptiveNumBins,
+  longEntitiesRowId,
   transformResourceTree,
   type TreeTableItem,
 } from '@quent/components';
@@ -93,7 +94,16 @@ export function useResourceTimelinesTreeModel({
     () => transformResourceTree(entities, resourceTree),
     [resourceTree, entities]
   );
-  const indicatorItemIds = useHighlightedItemIds(rootItem);
+  const hoveredSubtreeIds = useHighlightedItemIds(rootItem);
+  // The "Entities" rows are injected after the tree is built, so add them
+  // explicitly alongside their resources.
+  const indicatorItemIds = useMemo(
+    () =>
+      hoveredSubtreeIds
+        ? new Set([...hoveredSubtreeIds, ...[...hoveredSubtreeIds].map(longEntitiesRowId)])
+        : undefined,
+    [hoveredSubtreeIds]
+  );
   const resourceFilterResult = useMemo(
     () => filterResourceTree(rootItem, entities, deferredResourceFilter),
     [deferredResourceFilter, entities, rootItem]
