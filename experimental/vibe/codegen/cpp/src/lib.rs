@@ -12,7 +12,7 @@ use std::path::{Component, Path, PathBuf};
 
 use common::{cxx_safe, model_path, path_pascal, path_snake, pretty, raw_ident, to_case};
 use convert_case::Case;
-use quent_constraints::{Report, validate};
+use quent_constraints::{validate, Report};
 use quent_fsm::{Fsm, FsmConstraint};
 use quent_ref_target::RefTargetConstraint;
 use quent_schema::Schema;
@@ -239,7 +239,7 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
                 && entity_name == "NvtxCapture"
                 && options.nvtx == NvtxSupport::Enabled
             // Schema and NVTX payloads must not share a filesystem/collector stream.
-            || options.nvtx == NvtxSupport::Enabled && entity.path().to_string() == "NvtxEvent"
+            || options.nvtx == NvtxSupport::Enabled && entity.path() == "NvtxEvent"
         {
             return Err(GenerateError::NameCollision { name: entity_name });
         }

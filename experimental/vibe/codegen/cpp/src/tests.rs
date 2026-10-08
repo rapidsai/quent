@@ -6,8 +6,8 @@ use quent_schema::test_utils::{entity, event};
 use quent_yaml::parse_from_str;
 
 use crate::{
-    Exporters, GenerateError, GeneratedFile, NvtxSupport, Options, bridge_module_declaration, emit,
-    write_bridge_files_to,
+    bridge_module_declaration, emit, write_bridge_files_to, Exporters, GenerateError,
+    GeneratedFile, NvtxSupport, Options,
 };
 
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
@@ -26,11 +26,9 @@ fn nvtx_support_is_opt_in_and_preserves_disabled_contract() {
     .unwrap();
     let context = files.iter().find(|file| file.name == "context.rs").unwrap();
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
-    assert!(
-        context
-            .content
-            .contains("fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>")
-    );
+    assert!(context
+        .content
+        .contains("fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>"));
     assert!(!context.content.contains("NvtxCapture"));
     assert!(!context.content.contains("nvtx_injection"));
     assert!(!context.content.contains("nvtx_bridge"));
@@ -85,7 +83,7 @@ fn generates_nvtx_capture_for_every_exporter() {
 fn nvtx_names_are_reserved_only_when_support_is_enabled() {
     for name in ["NvtxCapture", "NvtxEvent"] {
         let schema = parse_from_str(
-            &format!("quent: alpha\nmodel: Test\nentities:\n  {name}: {{ events: {{ emitted: {{}} }} }}\n"),
+            format!("quent: alpha\nmodel: Test\nentities:\n  {name}: {{ events: {{ emitted: {{}} }} }}\n"),
             None,
         )
         .unwrap()
@@ -124,11 +122,9 @@ fn generates_schema_driven_bridge() {
     assert!(worker.content.contains("pub fn declaration"));
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
     assert!(facade.content.contains("class Context final"));
-    assert!(
-        facade
-            .content
-            .contains("WorkerObserver> worker_observer() const")
-    );
+    assert!(facade
+        .content
+        .contains("WorkerObserver> worker_observer() const"));
     assert!(facade.content.contains("class EntityId final"));
     assert!(facade.content.contains("WorkerId id() const"));
     assert!(facade.content.contains("std::optional<"));
@@ -136,51 +132,37 @@ fn generates_schema_driven_bridge() {
     assert_eq!(facade.content.matches("struct Details {").count(), 1);
     assert!(facade.content.contains("class WorkerObserver final"));
     assert!(facade.content.contains("WorkerObserver::handle() const"));
-    assert!(
-        facade
-            .content
-            .contains("WorkerObserver::handle(WorkerId id) const")
-    );
+    assert!(facade
+        .content
+        .contains("WorkerObserver::handle(WorkerId id) const"));
     assert!(facade.content.contains("struct Worker final {}"));
-    assert!(
-        facade
-            .content
-            .contains("class Handle<::quent::Worker> final")
-    );
+    assert!(facade
+        .content
+        .contains("class Handle<::quent::Worker> final"));
     assert!(facade.content.contains("struct Thread final {}"));
     assert!(facade.content.contains("namespace quent::thread_state {"));
-    assert!(
-        facade
-            .content
-            .contains("class FsmHandle<::quent::Thread, ::quent::thread_state::Active> final")
-    );
+    assert!(facade
+        .content
+        .contains("class FsmHandle<::quent::Thread, ::quent::thread_state::Active> final"));
     assert!(facade.content.contains(
         "::quent::FsmHandle<::quent::Thread, ::quent::thread_state::Idle> idle(::quent::thread::Idle data) &&"
     ));
     assert!(facade.content.contains(
         "::quent::FsmHandle<::quent::Thread, ::quent::thread_state::Active> active() &&"
     ));
-    assert!(
-        facade
-            .content
-            .contains("class DynamicFsmHandle<::quent::Thread> final")
-    );
+    assert!(facade
+        .content
+        .contains("class DynamicFsmHandle<::quent::Thread> final"));
     assert!(facade.content.contains("ThreadId id() const"));
-    assert!(
-        facade
-            .content
-            .contains("DynamicFsmHandle<::quent::Thread> into_dynamic() &&")
-    );
-    assert!(
-        facade
-            .content
-            .contains("std::optional<FsmHandle<::quent::Thread, State>> try_into() &&")
-    );
-    assert!(
-        facade
-            .content
-            .contains("struct FsmStateIndex<::quent::Thread, ::quent::thread_state::Active>")
-    );
+    assert!(facade
+        .content
+        .contains("DynamicFsmHandle<::quent::Thread> into_dynamic() &&"));
+    assert!(facade
+        .content
+        .contains("std::optional<FsmHandle<::quent::Thread, State>> try_into() &&"));
+    assert!(facade
+        .content
+        .contains("struct FsmStateIndex<::quent::Thread, ::quent::thread_state::Active>"));
     assert!(!facade.content.contains("ThreadActiveHandle"));
     assert!(!facade.content.contains("friend class ThreadHandle"));
     assert!(!facade.content.contains("struct Active {"));
@@ -218,11 +200,9 @@ fn generates_schema_driven_bridge() {
         "std::vector<DynamicAttributes> values",
         "DynamicList value",
     ] {
-        assert!(
-            facade
-                .content
-                .contains(&format!("void add(std::string key, {value_type})"))
-        );
+        assert!(facade
+            .content
+            .contains(&format!("void add(std::string key, {value_type})")));
     }
     assert_eq!(facade.content.matches("void add(").count(), 28);
     assert!(!facade.content.contains("void add_u8("));
@@ -230,17 +210,13 @@ fn generates_schema_driven_bridge() {
         .iter()
         .find(|file| file.name == "dynamic_attributes.rs")
         .unwrap();
-    assert!(
-        dynamic
-            .content
-            .contains("pub struct DynamicAttributesStorage")
-    );
+    assert!(dynamic
+        .content
+        .contains("pub struct DynamicAttributesStorage"));
     assert!(dynamic.content.contains("pub struct DynamicListStorage"));
-    assert!(
-        dynamic
-            .content
-            .contains("pub storage: Vec<Box<DynamicAttributesStorage>>")
-    );
+    assert!(dynamic
+        .content
+        .contains("pub storage: Vec<Box<DynamicAttributesStorage>>"));
     assert!(!dynamic.content.contains("DynamicAttributeKind"));
     assert!(!dynamic.content.contains("pub struct DynamicAttribute {"));
     for function in [
@@ -519,25 +495,17 @@ fn preserves_schema_namespaces() {
         .iter()
         .find(|file| file.name == "api_request.rs")
         .unwrap();
-    assert!(
-        entity
-            .content
-            .contains("namespace = \"quent::detail::api::request\"")
-    );
-    assert!(
-        entity
-            .content
-            .contains("instrumentation::namespaced::api::Request")
-    );
+    assert!(entity
+        .content
+        .contains("namespace = \"quent::detail::api::request\""));
+    assert!(entity
+        .content
+        .contains("instrumentation::namespaced::api::Request"));
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
-    assert!(
-        facade
-            .content
-            .contains("namespace quent::api { struct Request final {}; }")
-    );
-    assert!(
-        facade
-            .content
-            .contains("class Handle<::quent::api::Request> final")
-    );
+    assert!(facade
+        .content
+        .contains("namespace quent::api { struct Request final {}; }"));
+    assert!(facade
+        .content
+        .contains("class Handle<::quent::api::Request> final"));
 }
