@@ -2,25 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { FiniteStateMachine, FsmTypeDecl, PaletteTheme, QueryEngineFsm } from '@quent/utils';
-import { createFsmTypeColorFn } from '@quent/utils';
+import {
+  createFsmTypeColorFn,
+  LONG_ENTITIES_ROW_TYPE,
+  longEntitiesRowId,
+  resourceIdFromLongEntitiesRowId,
+} from '@quent/utils';
 import { stackIntervalsIntoRows } from '../gantt-chart/utils';
 import type { LongEntityEntry, LongEntitySegment } from './types';
 
-/** Row type identifier for synthetic long-entities rows in the resource tree. */
-export const LONG_ENTITIES_ROW_TYPE = 'long-entities';
-const LONG_ENTITIES_ROW_ID_PREFIX = '__long_entities__';
-
-/** Id used for the synthetic long-entities row under a resource. */
-export function longEntitiesRowId(resourceId: string): string {
-  return `${LONG_ENTITIES_ROW_ID_PREFIX}${resourceId}`;
-}
-
-/** Extract the resource id from a long-entities row id, or null if it is not one. */
-export function resourceIdFromLongEntitiesRowId(id: string): string | null {
-  return id.startsWith(LONG_ENTITIES_ROW_ID_PREFIX)
-    ? id.slice(LONG_ENTITIES_ROW_ID_PREFIX.length)
-    : null;
-}
+export { LONG_ENTITIES_ROW_TYPE, longEntitiesRowId, resourceIdFromLongEntitiesRowId };
 
 /**
  * Convert an FSM's consecutive transition pairs into state-colored segments.

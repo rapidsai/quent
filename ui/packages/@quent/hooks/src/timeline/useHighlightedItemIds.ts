@@ -4,7 +4,7 @@
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
 import { hoveredWorkerIdAtom } from '../atoms/dag';
-import { operatorTimelineRowId } from '@quent/utils';
+import { longEntitiesRowId, operatorTimelineRowId } from '@quent/utils';
 
 /**
  * Minimal tree node interface for useHighlightedItemIds.
@@ -17,8 +17,7 @@ interface TreeNode {
 
 /**
  * Returns the set of item IDs in the subtree rooted at the currently
- * hovered worker node (plus the synthetic Operator timeline row under that worker),
- * or undefined when nothing is hovered.
+ * hovered worker node or undefined when nothing is hovered.
  */
 export function useHighlightedItemIds(rootItem: TreeNode): Set<string> | undefined {
   const hoveredWorkerId = useAtomValue(hoveredWorkerIdAtom);
@@ -33,6 +32,7 @@ export function useHighlightedItemIds(rootItem: TreeNode): Set<string> | undefin
     function collectSubtree(items: TreeNode[]) {
       for (const item of items) {
         ids.add(item.id);
+        ids.add(longEntitiesRowId(item.id));
         if (item.children) {
           collectSubtree(item.children);
         }

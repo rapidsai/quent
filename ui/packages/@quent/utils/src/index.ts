@@ -120,3 +120,15 @@ export function workerIdFromOperatorTimelineRowId(id: string): string | null {
     ? id.slice(OPERATOR_TIMELINE_ROW_ID_PREFIX.length)
     : null;
 }
+
+// Long-entities row ID utilities
+export const LONG_ENTITIES_ROW_TYPE = 'long-entities';
+const LONG_ENTITIES_ROW_ID_PREFIX = '__long_entities__';
+export function longEntitiesRowId(resourceId: string): string {
+  return `${LONG_ENTITIES_ROW_ID_PREFIX}${resourceId}`;
+}
+export function resourceIdFromLongEntitiesRowId(id: string): string | null {
+  return id.startsWith(LONG_ENTITIES_ROW_ID_PREFIX)
+    ? id.slice(LONG_ENTITIES_ROW_ID_PREFIX.length)
+    : null;
+}
