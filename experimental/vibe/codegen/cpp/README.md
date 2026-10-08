@@ -96,11 +96,11 @@ let options = quent_schema_codegen_cpp::Options {
 The consuming bridge crate then needs `nvtx-bridge` and `nvtx-injection` from
 the same Quent revision as its other Quent dependencies. The generator itself
 does not depend on these crates. The current `nvtx-injection` crate supports
-Linux 64-bit targets only, so NVTX-enabled consumer builds require that platform.
-Consumers choose how to attach injection:
-for example, enable `nvtx-injection`'s `static-injection` feature on Linux, or
-configure a supported runtime injection mechanism before the first NVTX call.
-The generator does not set `NVTX_INJECTION64_PATH`.
+Linux 64-bit targets only, so NVTX-enabled consumer builds require that
+platform. Consumers choose how to attach injection: for example, enable
+`nvtx-injection`'s `static-injection` feature on Linux, or configure a supported
+runtime injection mechanism before the first NVTX call. The generator does not
+set `NVTX_INJECTION64_PATH`.
 
 Generation support does not start capture. Enable capture explicitly when
 constructing an active exporter:
@@ -125,8 +125,8 @@ support.
 The context owns an additional NVTX observer using its context ID and exporter
 configuration. NVTX remains a separate event stream; no schema entities need to
 be added. The context retains the capture guard, drops it to stop capture before
-dropping the NVTX pipeline to drain and flush, and then drops its schema context.
-Moving the context preserves this ownership.
+dropping the NVTX pipeline to drain and flush, and then drops its schema
+context. Moving the context preserves this ownership.
 
 Hook registration is one-shot per process. Constructing another capture-enabled
 context returns an error without ending the first context's capture. Destroying
