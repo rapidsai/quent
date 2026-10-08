@@ -96,12 +96,9 @@ let options = quent_schema_codegen_cpp::Options {
 The consuming bridge crate then needs `quent-nvtx-bridge`, `quent-nvtx-events`,
 and `nvtx-injection` from the same Quent revision as its other Quent
 dependencies. The generator itself does not depend on these crates. The
-current `nvtx-injection` crate supports
-Linux 64-bit targets only, so NVTX-enabled consumer builds require that
-platform. Consumers choose how to attach injection: for example, enable
-`nvtx-injection`'s `static-injection` feature on Linux, or configure a supported
-runtime injection mechanism before the first NVTX call. The generator does not
-set `NVTX_INJECTION64_PATH`.
+current `nvtx-injection` crate supports Linux 64-bit targets only, so
+NVTX-enabled consumer builds require that platform. Enable `nvtx-injection`'s
+`static-injection` feature for in-process capture.
 
 Generation support does not start capture. Enable capture explicitly when
 constructing an active exporter:
@@ -110,7 +107,7 @@ constructing an active exporter:
 auto context = quent::Context::ndjson(
     "./events", quent::NvtxCapture::Enabled);
 // Run annotated work while context is alive.
-// Stop and join all NVTX producers before destroying context.
+// Events emitted during or after context destruction may not be exported.
 ```
 
 `msgpack`, `postcard`, and `collector` accept the same optional capture
@@ -134,10 +131,11 @@ Moving the context preserves this ownership.
 Hook registration is one-shot per process. Constructing another capture-enabled
 context returns an error without ending the first context's capture. Destroying
 the capturing context does not permit capture to restart. Disabled contexts do
-not claim the hook. Calls racing with shutdown may be discarded, so stop and
-join NVTX producers before destroying the context. Do not destroy the context
-on its exporter or Quent runtime worker: joining the capture worker there can
-deadlock.
+not claim the hook. Events emitted during context destruction may be discarded;
+events emitted after destruction are not exported. Stop and join NVTX producers
+before destroying the context if complete capture is required. Do not destroy
+the context on its exporter or Quent runtime worker: joining the capture worker
+there can deadlock.
 
 The readme example bridge offers a Cargo `nvtx` feature to demonstrate opt-in
 generation:

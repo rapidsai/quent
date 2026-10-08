@@ -12,8 +12,7 @@
 #include <string>
 #include <type_traits>
 
-// Ordinary NVTX C API, provided by nvtx-sys's bundled NVTX implementation.
-// No CUDA headers, GPU, profiler, or synthetic injection callback is involved.
+// Use the NVTX C entry points linked by nvtx-sys.
 extern "C" {
 void nvtxMarkA(const char *);
 int nvtxRangePushA(const char *);
@@ -100,20 +99,22 @@ extern "C" int quent_nvtx_cpp_run(const char *scenario_c, const char *root_c) {
     std::shared_ptr<quent::cluster::ClusterObserver> surviving_observer;
     {
       auto context = filesystem(
-          scenario == "duplicate" || scenario == "retained" ? "ndjson" : scenario,
+          scenario == "duplicate" || scenario == "retained" ? "ndjson"
+                                                            : scenario,
           root);
       remember_id(root, context.id());
       auto observer = context.cluster_observer();
       if (scenario == "retained")
         surviving_observer = observer;
       auto cluster = observer->handle(quent::cluster::ClusterId(context.id()));
-      cluster.declaration(quent::cluster::Declaration{.instance_name = "nvtx-fixture"});
+      cluster.declaration(
+          quent::cluster::Declaration{.instance_name = "nvtx-fixture"});
       annotate();
       if (scenario == "duplicate") {
         bool rejected = false;
         try {
-          auto second = quent::Context::ndjson(
-              root + "/second", quent::NvtxCapture::Enabled);
+          auto second = quent::Context::ndjson(root + "/second",
+                                               quent::NvtxCapture::Enabled);
         } catch (const rust::Error &) {
           rejected = true;
         }
