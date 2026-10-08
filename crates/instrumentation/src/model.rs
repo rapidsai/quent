@@ -4,6 +4,7 @@
 //! Instrumentation models and their contexts.
 
 use crate::{ContextExporter, ContextInner, InstrumentedEntity, Observer, Uuid};
+use std::num::NonZeroUsize;
 
 /// Provides typed access to an entity observer in a generated model.
 ///
@@ -42,7 +43,41 @@ pub trait ObserverBuilder<P>: InstrumentedModel {
     ) -> Result<Self::Observers, Box<dyn std::error::Error>>;
 }
 
-/// Instrumentation context for a generated model.
+/// Settings for an active context's asynchronous runtime.
+///
+/// Create options with [`Self::default`] and set the fields you want to change.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct RuntimeOptions {
+    /// Uses the available CPU count when unset, falling back to one worker if
+    /// that count cannot be determined.
+    pub worker_threads: Option<NonZeroUsize>,
+    /// Limits threads for blocking work, such as file writes in exporters,
+    /// separately from worker threads.
+    ///
+    /// Defaults to 512.
+    ///
+    /// Blocking threads are created as needed. Leave this unset unless you
+    /// really need to limit thread usage. Work waits when all threads are busy,
+    /// so a lower limit may slow file writes and flushing.
+    ///
+    /// Custom exporters can deadlock if their blocking tasks wait for other
+    /// work in the same pool and no thread is free to run it.
+    pub max_blocking_threads: Option<NonZeroUsize>,
+    /// Overrides the default runtime thread name, `quent-rt-worker`, when set.
+    pub thread_name: Option<String>,
+}
+
+/// Creates and holds the runtime and observers for an application's events.
+///
+/// Each active context creates its own asynchronous runtime and worker threads.
+/// Creating multiple active contexts therefore uses more threads and resources.
+/// No-op contexts do not create a runtime.
+///
+/// Observers and handles keep the runtime alive after the context is dropped.
+/// Dropping the last owner of an observer, including its handles, waits for
+/// queued events to be exported and its exporter to flush.
+/// Channel-specific shutdown guarantees are documented in `PERFORMANCE.md`.
 pub struct Context<M: InstrumentedModel> {
     observers: M::Observers,
     inner: ContextInner,
@@ -64,10 +99,39 @@ impl<M: quent_events::EventModel + InstrumentedModel> Context<M> {
         M: crate::build_info::ModelSource + ObserverBuilder<P>,
         P: ContextExporter,
     {
+        Self::try_with_id_and_options(id, provider, RuntimeOptions::default())
+    }
+
+    /// Creates a context using the supplied runtime settings.
+    ///
+    /// Runtime settings are ignored for a no-op exporter.
+    pub fn try_new_with_options<P>(
+        provider: P,
+        options: RuntimeOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: crate::build_info::ModelSource + ObserverBuilder<P>,
+        P: ContextExporter,
+    {
+        Self::try_with_id_and_options(Uuid::now_v7(), provider, options)
+    }
+
+    /// Creates a context using the supplied ID and runtime settings.
+    ///
+    /// Runtime settings are ignored for a no-op exporter.
+    pub fn try_with_id_and_options<P>(
+        id: Uuid,
+        provider: P,
+        options: RuntimeOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: crate::build_info::ModelSource + ObserverBuilder<P>,
+        P: ContextExporter,
+    {
         let inner = if provider.is_noop() {
             ContextInner::noop(id)
         } else {
-            ContextInner::try_new(id)?
+            ContextInner::try_new_with_options(id, options)?
         };
         provider.prepare_context(id, M::model_info());
         let observers = M::build_observers(&inner, &provider)?;

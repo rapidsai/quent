@@ -10,7 +10,7 @@
 mod fixtures;
 
 use fixtures::{mark, range_end, range_pop, range_push, range_start, span, span_id};
-use nvtx_analyzer::{NvtxModelBuilder, SpanKind};
+use quent_nvtx_analyzer::{NvtxModelBuilder, SpanKind};
 
 #[test]
 fn pushpop_nested_per_thread() {

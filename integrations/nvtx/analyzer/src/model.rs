@@ -11,9 +11,8 @@
 
 use std::collections::BTreeMap;
 
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::NvtxEvent;
 use quent_events::Event;
+use quent_nvtx_events::NvtxEvent;
 use quent_time::{OrderedCollector, TimeUnixNanoSec};
 
 use crate::anomalies::ReconstructionAnomalies;
@@ -176,7 +175,7 @@ impl NvtxModelBuilder {
     /// Events may arrive in any order and may reference handles registered
     /// anywhere in the stream. Incomplete pairs are represented rather than
     /// dropped or guessed — see the crate docs for what each case yields.
-    pub fn build(events: impl IntoIterator<Item = Event<NvtxEventEntity>>) -> NvtxModel {
+    pub fn build(events: impl IntoIterator<Item = Event<NvtxEvent>>) -> NvtxModel {
         // Pass 1a — materialize in timestamp order. Equal timestamps keep
         // arrival order, so replay is deterministic.
         let mut collector = OrderedCollector::default();
@@ -205,7 +204,7 @@ impl NvtxModelBuilder {
             trace_start = Some(trace_start.map_or(event.timestamp, |at| at.min(event.timestamp)));
             trace_end = trace_end.max(event.timestamp);
 
-            match event.data.0 {
+            match event.data {
                 NvtxEvent::RangeStart {
                     domain,
                     range_id,

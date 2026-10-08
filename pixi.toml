@@ -25,6 +25,9 @@ mdbook = "0.5.4.*"
 [pypi-dependencies]
 rumdl = "*"
 
+[activation]
+scripts = ["integrations/nvtx/activate-bindgen.sh"]
+
 [target.linux-64.dependencies]
 # `nvtx-sys` runs bindgen against its bundled headers during consumer builds.
 libclang = ">=18"

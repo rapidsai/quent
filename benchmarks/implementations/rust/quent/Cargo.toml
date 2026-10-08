@@ -5,6 +5,9 @@ edition.workspace = true
 publish = false
 build = "build.rs"
 
+[features]
+channel-per-thread = ["quent-instrumentation/channel-per-thread"]
+
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 quent-bench-rust-common = { path = "../common" }

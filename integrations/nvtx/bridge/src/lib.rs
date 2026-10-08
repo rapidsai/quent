@@ -1,33 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The thin bridge that lets captured NVTX events flow through Quent's typed
-//! event pipeline.
-//!
-//! It is one adapter: [`NvtxEventEntity`], a newtype over [`NvtxEvent`]
-//! implementing Quent's [`EventPayload`]. The orphan rule forbids that impl in
-//! either of *their* crates — the events crate stays Quent-agnostic for
-//! upstreaming — so it lives here.
-//!
-//! See `integrations/nvtx/example` for a complete, runnable capture.
+//! Forwards owned NVTX records to a Quent observer through a capture worker.
 
-use nvtx_events::NvtxEvent;
-use quent_events::EventPayload;
-use serde::{Deserialize, Serialize};
+mod capture;
+mod convert;
 
-/// A `#[serde(transparent)]` newtype over [`NvtxEvent`] implementing
-/// [`EventPayload`], naming the `"NvtxEvent"` entity stream. Transparent, so its
-/// serialized form is identical to a bare [`NvtxEvent`].
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(transparent)]
-pub struct NvtxEventEntity(pub NvtxEvent);
-
-impl EventPayload for NvtxEventEntity {
-    const NAME: &'static str = "NvtxEvent";
-}
-
-impl From<NvtxEvent> for NvtxEventEntity {
-    fn from(event: NvtxEvent) -> Self {
-        Self(event)
-    }
-}
+pub use capture::{Capture, CaptureError};
+pub use convert::convert;

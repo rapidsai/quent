@@ -3,7 +3,7 @@
 
 //! Hand-written, framework-free reconstruction core for captured NVTX events.
 //!
-//! Turns a stream of verbatim [`NvtxEvent`](nvtx_events::NvtxEvent)s — carried in
+//! Turns a stream of verbatim [`NvtxEvent`](quent_nvtx_events::NvtxEvent)s — carried in
 //! Quent's [`Event`](quent_events::Event) envelope — into an in-memory
 //! [`NvtxModel`] of plain [`NvtxSpan`]s.
 //!
@@ -40,4 +40,4 @@ pub use stats::{RangeStats, StatsKey};
 
 // Re-exported so consumers can read span attributes without depending on the
 // vocabulary crate directly. Carried verbatim, exactly as captured.
-pub use nvtx_events::{NvtxColor, NvtxPayload};
+pub use quent_nvtx_events::{NvtxColor, NvtxPayload};

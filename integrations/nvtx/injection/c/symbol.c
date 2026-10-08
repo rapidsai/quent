@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
- * Static-injection strong-symbol shim (secondary attach path).
+ * Static-injection strong-symbol shim.
  *
  * NVTX declares `InitializeInjectionNvtx2_fnptr` as a WEAK symbol
  * (nvtxDetail/nvtxInit.h). A statically-linked injection library "wins" by
@@ -11,9 +11,7 @@
  * this both avoids colliding with a consumer-owned public trampoline and lets
  * that trampoline forward into the exact same in-process hook state.
  *
- * Compiled ONLY under the `static-injection` cargo feature via `cc` in
- * build.rs; the default (cdylib / NVTX_INJECTION64_PATH) path never links it,
- * so linkage order is irrelevant for the primary attach path.
+ * Compiled only under the `static-injection` cargo feature via `cc` in build.rs.
  */
 
 /* Matches NVTX's NvtxInitializeInjectionNvtxFunc_t:

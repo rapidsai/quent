@@ -7,7 +7,7 @@
 mod fixtures;
 
 use fixtures::{mark, range_end, range_start, span};
-use nvtx_analyzer::{NvtxModelBuilder, SpanKind};
+use quent_nvtx_analyzer::{NvtxModelBuilder, SpanKind};
 
 #[test]
 fn startend_match_by_handle() {

@@ -37,7 +37,14 @@ local time.
 
 | Argument           | Default                        | Meaning                                       |
 | ------------------ | ------------------------------ | --------------------------------------------- |
+| `--quent-channel`  | `tokio,per-thread`                   | Select channel variants from a comma-separated list. |
 | `--quent-exporter` | `noop,ndjson,msgpack,postcard` | Select exporters from a comma-separated list. |
+
+`tokio` uses Quent's default unbounded mpsc channel and appears as `quent` in
+the report. `per-thread` enables the `channel-per-thread` Cargo feature and
+appears as `quent-per-thread`. Each variant is built separately and runs in a
+separate process. Their different shutdown guarantees are documented in
+[`crates/instrumentation/PERFORMANCE.md`](../crates/instrumentation/PERFORMANCE.md).
 
 Available `--quent-exporter` values:
 

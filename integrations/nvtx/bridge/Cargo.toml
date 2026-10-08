@@ -2,14 +2,25 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [package]
-name = "nvtx-bridge"
+name = "quent-nvtx-bridge"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-# The bridge is a single adapter type. It needs the NVTX event vocabulary, the
-# Quent `EventPayload` trait it implements, and serde for the transparent derive.
-nvtx-events = { path = "../events" }
+libc = "0.2"
+quent-nvtx-events = { path = "../events" }
+nvtx-injection = { path = "../injection" }
+nvtx-sys = { workspace = true }
 quent-events = { path = "../../../crates/events" }
-serde = { workspace = true }
+quent-instrumentation = { path = "../../../crates/instrumentation" }
+quent-time = { path = "../../../crates/time" }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+uuid = { workspace = true }
+
+[target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dev-dependencies]
+nvtx = { workspace = true }
+nvtx-injection = { path = "../injection", features = ["static-injection"] }
+quent-instrumentation = { path = "../../../crates/instrumentation", features = ["io-callback"] }
+tokio = { workspace = true, features = ["rt"] }

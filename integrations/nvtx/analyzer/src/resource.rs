@@ -8,7 +8,7 @@
 //!
 //! **The match key is the handle alone**, not `(domain, handle)` — forced by the
 //! vocabulary, since
-//! [`NvtxEvent::ResourceDestroy`](nvtx_events::NvtxEvent::ResourceDestroy)
+//! [`NvtxEvent::ResourceDestroy`](quent_nvtx_events::NvtxEvent::ResourceDestroy)
 //! carries only a handle because the underlying NVTX call does. Keying on the
 //! pair would not fail loudly: every destroy would miss its create and every
 //! resource would silently reconstruct as a leak with no end. The domain is

@@ -14,17 +14,29 @@ use crate::{
 ///
 /// The Cargo subprocess inherits the caller's environment, including an active Pixi environment.
 pub(crate) fn binary(package: &str, progress: &mut BuildProgress) -> BenchResult<PathBuf> {
-    progress.started(package);
-    let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
-        .args([
-            "build",
-            "--release",
-            "-p",
-            package,
-            "--message-format=json-render-diagnostics",
-        ])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .output()?;
+    binary_with_features(package, package, &[], progress)
+}
+
+/// Build a package with a selected feature set and return its executable path.
+pub(crate) fn binary_with_features(
+    package: &str,
+    label: &str,
+    features: &[&str],
+    progress: &mut BuildProgress,
+) -> BenchResult<PathBuf> {
+    progress.started(label);
+    let mut command = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
+    command.args([
+        "build",
+        "--release",
+        "-p",
+        package,
+        "--message-format=json-render-diagnostics",
+    ]);
+    for feature in features {
+        command.args(["--features", feature]);
+    }
+    let output = command.current_dir(env!("CARGO_MANIFEST_DIR")).output()?;
     if !output.status.success() {
         return Err(format!(
             "failed to build Rust implementation: {}",
@@ -43,7 +55,7 @@ pub(crate) fn binary(package: &str, progress: &mut BuildProgress) -> BenchResult
         }
     }
     let executable = executable.ok_or("Cargo did not report the Rust implementation binary")?;
-    progress.completed(package);
+    progress.completed(label);
     Ok(executable)
 }
 

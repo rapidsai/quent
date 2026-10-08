@@ -3,9 +3,11 @@
 
 //! Backing structures for generated instrumentation libraries.
 //!
-//! Instrumented application code should not import this crate directly unless
-//! there is a very special reason. Instead, it should interact with the
-//! generated instrumentation library only.
+//! Applications use generated libraries for model-specific instrumentation and
+//! can use this crate directly for shared types, traits, and exporter
+//! configuration.
+
+#![doc = include_str!("../PERFORMANCE.md")]
 
 #[cfg(feature = "io-collector")]
 #[doc(hidden)]
@@ -26,7 +28,7 @@ pub use context::ContextInner;
 pub use entity::{InstrumentedEntity, Observer};
 pub use fsm_handle::{FsmEvent, FsmHandleInner, FsmState, FsmStateMismatch, FsmTransitionError};
 pub use handle::{HandleError, HandleInner};
-pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider};
+pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider, RuntimeOptions};
 pub use noop::Noop;
 pub use observer::{EventSender, ObserverInner};
 pub use sidecar::{ContextExporter, write_sidecar};

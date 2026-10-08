@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The sync/async bridge across the runtime setups a client application can have:
-//! a `#[tokio::main]` app, a current-thread app, a plain sync app (no runtime),
-//! and an app with its own manually-managed runtime.
+//! Test synchronous bridging, runtime ownership, and observer lifetime.
 
 mod common;
 
@@ -22,8 +20,7 @@ fn fs_opts(root: &Path) -> ExporterOptions {
     ))
 }
 
-/// Build an active context for `root`, mirroring what a generated
-/// `{App}Context::try_new` does (minus sidecar write).
+/// Creates an active context and filesystem exporter options for `root`.
 fn active(root: &Path) -> (ContextInner, ExporterOptions, Uuid) {
     let id = Uuid::now_v7();
     let ctx = ContextInner::try_new(id).unwrap();
@@ -31,8 +28,7 @@ fn active(root: &Path) -> (ContextInner, ExporterOptions, Uuid) {
     (ctx, exporter_opts, id)
 }
 
-/// Build an observer through the one bridge: the context builds the exporter
-/// from the options (bound to its id) and hosts it on its runtime.
+/// Creates an observer using the context's synchronous bridge.
 fn build(ctx: &ContextInner, exporter_opts: &ExporterOptions) -> ObserverInner<TestEvent> {
     ctx.block_on(async { ctx.observer::<TestEvent>(exporter_opts).await })
         .unwrap()
@@ -58,8 +54,7 @@ fn assert_flushed(root: &Path, id: Uuid) {
     );
 }
 
-/// Plain sync app, no ambient runtime: the context spawns its own (`Owned`), and
-/// the bridge/drop block directly on it.
+/// Construction and drop-time flushing work without an ambient runtime.
 #[test]
 fn plain_sync_app() {
     let dir = tempfile::tempdir().unwrap();
@@ -67,12 +62,11 @@ fn plain_sync_app() {
     {
         let observer = build(&ctx, &exporter_opts);
         observer.emit(Uuid::now_v7(), TestEvent);
-    } // observer dropped on this non-runtime thread -> blocking flush
+    }
     assert_flushed(dir.path(), id);
 }
 
-/// `#[tokio::main]`-style app: an ambient multi-threaded runtime. The bridge and
-/// the drop-time flush run on a worker via `block_in_place`.
+/// Construction and drop-time flushing work inside a multi-threaded runtime.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn tokio_main_multi_thread() {
     let dir = tempfile::tempdir().unwrap();
@@ -80,50 +74,28 @@ async fn tokio_main_multi_thread() {
     {
         let observer = build(&ctx, &exporter_opts);
         observer.emit(Uuid::now_v7(), TestEvent);
-    } // observer dropped on a worker thread -> block_in_place flush
+    }
     assert_flushed(dir.path(), id);
 }
 
-/// `#[tokio::main(flavor = "current_thread")]` app: the bridge must block the only
-/// worker, which is impossible — pins the documented panic so it can't silently
-/// change.
+/// The synchronous bridge retains its documented current-thread runtime panic.
 #[tokio::test(flavor = "current_thread")]
-#[should_panic]
+#[should_panic(expected = "can call blocking only when running on the multi-threaded runtime")]
 async fn current_thread_runtime_panics() {
     let dir = tempfile::tempdir().unwrap();
     let (ctx, exporter_opts, _id) = active(dir.path());
     let _ = build(&ctx, &exporter_opts);
 }
 
-/// App that builds and manages its own runtime and runs everything inside it.
-#[test]
-fn self_managed_runtime() {
-    let dir = tempfile::tempdir().unwrap();
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_all()
-        .build()
-        .unwrap();
-    let id = rt.block_on(async {
-        let (ctx, exporter_opts, id) = active(dir.path());
-        let observer = build(&ctx, &exporter_opts);
-        observer.emit(Uuid::now_v7(), TestEvent);
-        drop(observer); // flush on a worker of `rt`
-        id
-    });
-    assert_flushed(dir.path(), id);
-}
-
-/// An `Owned`-runtime observer dropped from inside a *different* runtime: the last
-/// `Arc` to the owned runtime is released on a worker thread. Must not panic (the
-/// runtime shuts down without blocking) and must still flush.
+/// Dropping the final runtime owner inside an async context flushes without panicking.
 #[test]
 fn owned_runtime_observer_dropped_in_another_runtime() {
     let dir = tempfile::tempdir().unwrap();
     let (ctx, exporter_opts, id) = active(dir.path());
     let observer = build(&ctx, &exporter_opts);
     observer.emit(Uuid::now_v7(), TestEvent);
-    drop(ctx); // observer now solely keeps the owned runtime alive
+    // The observer is now the final owner of its runtime.
+    drop(ctx);
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
@@ -131,7 +103,30 @@ fn owned_runtime_observer_dropped_in_another_runtime() {
         .build()
         .unwrap();
     rt.block_on(async move {
-        drop(observer); // last owned-runtime Arc dropped on a worker of `rt`
+        drop(observer);
     });
+    assert_flushed(dir.path(), id);
+}
+
+/// The observer is created inside an application-owned runtime but keeps its own
+/// runtime alive after both the application runtime and its context are dropped.
+/// Events emitted afterward are still flushed on observer drop.
+#[test]
+fn observer_outlives_ambient_runtime_and_context() {
+    let dir = tempfile::tempdir().unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .unwrap();
+    let (ctx, observer, id) = rt.block_on(async {
+        let (ctx, exporter_opts, id) = active(dir.path());
+        let observer = build(&ctx, &exporter_opts);
+        (ctx, observer, id)
+    });
+    drop(rt);
+    drop(ctx);
+    observer.emit(Uuid::now_v7(), TestEvent);
+    drop(observer);
     assert_flushed(dir.path(), id);
 }
