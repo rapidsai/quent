@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { inferFieldFormatter, isNumericValue } from '@quent/utils';
+import {
+  aggregateNumericValues,
+  getAggregateValue,
+  inferFieldFormatter,
+  isNumericValue,
+} from '@quent/utils';
 import type { StatValue, ContinuousPaletteName } from '@quent/utils';
 import { continuousColor } from '@quent/utils';
 import type { GroupedDataTableSortFn } from './GroupedDataTable';
@@ -223,20 +228,7 @@ export function getSortValue(
   if (!agg || !agg.isNumeric) {
     return null;
   }
-  switch (aggMode) {
-    case 'sum':
-      return agg.sum;
-    case 'mean':
-      return agg.mean;
-    case 'min':
-      return agg.min;
-    case 'max':
-      return agg.max;
-    case 'stdev':
-      return agg.stdev;
-    default:
-      return agg.sum;
-  }
+  return getAggregateValue(agg, aggMode);
 }
 
 type Accumulator = {
@@ -314,39 +306,16 @@ export function buildPivotedRows(
     const aggs = new Map<string, PivotedRowAgg>();
     if (isAggregating) {
       for (const [stat, bucket] of group.aggBuckets) {
-        const onlyBigints = bucket.bigints.length > 0 && bucket.nums.length === 0;
-        const allNums = onlyBigints
-          ? bucket.bigints.map(Number)
-          : [...bucket.nums, ...bucket.bigints.map(Number)];
-        const hasNum = allNums.length > 0;
-
-        let sum: number | bigint | null = null;
-        let min: number | bigint | null = null;
-        let max: number | bigint | null = null;
-        let mean: number | null = null;
-        let stdev: number | null = null;
-
-        if (hasNum) {
-          if (onlyBigints) {
-            // Use bigint arithmetic for sum/min/max
-            sum = bucket.bigints.reduce((a, b) => a + b, 0n);
-            min = bucket.bigints.reduce((a, b) => (a < b ? a : b));
-            max = bucket.bigints.reduce((a, b) => (a > b ? a : b));
-            mean = Number(sum) / bucket.bigints.length;
-          } else {
-            sum = allNums.reduce((a, b) => a + b, 0);
-            min = Math.min(...allNums);
-            max = Math.max(...allNums);
-            mean = sum / allNums.length;
-          }
-          if (allNums.length > 1) {
-            const variance =
-              allNums.reduce((acc, v) => acc + (v - mean!) ** 2, 0) / (allNums.length - 1);
-            stdev = Math.sqrt(variance);
-          }
-        }
-
-        aggs.set(stat, { sum, mean, min, max, stdev, count: bucket.count, isNumeric: hasNum });
+        const aggregates = aggregateNumericValues([...bucket.nums, ...bucket.bigints]);
+        aggs.set(stat, {
+          sum: aggregates?.sum ?? null,
+          mean: aggregates?.mean ?? null,
+          min: aggregates?.min ?? null,
+          max: aggregates?.max ?? null,
+          stdev: aggregates?.stdev ?? null,
+          count: bucket.count,
+          isNumeric: aggregates !== null,
+        });
       }
     }
     result.push({

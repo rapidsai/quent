@@ -94,37 +94,28 @@ impl DbLoader {
     }
 
     /// Resolve the requested run to its integer primary key. An integer is used
-    /// directly; otherwise the value is treated as a `run_id` UUID and matched by
-    /// paging the run list (the API has no uuid filter, so this is a linear scan).
+    /// directly; otherwise the value is treated as a `run_id` UUID and matched
+    /// using the run_id query parameter.
     async fn resolve_run(&self, client: &Client) -> Result<i64> {
         if let Ok(id) = self.run.parse::<i64>() {
             return Ok(id);
         }
         let url = self.endpoint("api/benchmark-runs/");
-        let mut offset: i64 = 0;
-        loop {
-            let page: Paged<BenchmarkRunSummary> = self
-                .get_json(
-                    client,
-                    &url,
-                    &[("limit", "100"), ("offset", &offset.to_string())],
-                )
-                .await?;
-            // `run_id` is a UUID; compare case-insensitively so a differently-cased
-            // spelling still matches.
-            if let Some(found) = page
-                .items
-                .iter()
-                .find(|r| r.run_id.eq_ignore_ascii_case(&self.run))
-            {
-                return Ok(found.id);
-            }
-            offset += page.items.len() as i64;
-            if page.items.is_empty() || offset >= page.count {
-                return Err(OpenError::RunNotFound {
-                    run: self.run.clone(),
-                });
-            }
+        let page: Paged<BenchmarkRunSummary> = self
+            .get_json(client, &url, &[("run_id", &self.run)])
+            .await?;
+        // `run_id` is a UUID; compare case-insensitively so a differently-cased
+        // spelling still matches.
+        if let Some(found) = page
+            .items
+            .iter()
+            .find(|r| r.run_id.eq_ignore_ascii_case(&self.run))
+        {
+            Ok(found.id)
+        } else {
+            Err(OpenError::RunNotFound {
+                run: self.run.clone(),
+            })
         }
     }
 

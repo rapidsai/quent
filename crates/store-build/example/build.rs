@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let options = Options {
         // Generate `DemoEvent` so the example can load all model events through
         // one iterator. Entity-specific loading does not require this option.
-        umbrella_event: true,
+        combined_event: true,
         ..Options::default()
     };
     let generated = generate(&parsed.schema, &options)?;

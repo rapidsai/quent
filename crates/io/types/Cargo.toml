@@ -6,7 +6,7 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-quent-events = { path = "../../events" }
+quent-events = { path = "../../events", default-features = false }
 thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true

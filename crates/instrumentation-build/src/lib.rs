@@ -96,11 +96,11 @@ pub struct Options {
     /// `None`.
     pub file_name: Option<String>,
 
-    /// Emit model-wide umbrella event enums and implement the umbrella
+    /// Emit model-wide combined event enums and implement the combined
     /// capability for the generated model.
     ///
     /// No namespace enum is emitted without entity events, except at the root.
-    pub umbrella_event: bool,
+    pub combined_event: bool,
 
     /// Cargo package providing the analyzer for this model.
     pub analyzer_package: Option<String>,
@@ -122,7 +122,7 @@ impl Default for Options {
             record_derives: Default::default(),
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
-            umbrella_event: false,
+            combined_event: false,
             analyzer_package: None,
             collector_sink: false,
         }
@@ -374,7 +374,7 @@ mod path_tests {
     }
 
     #[test]
-    fn generates_event_only_umbrella_without_instrumentation() {
+    fn generates_event_only_combined_without_instrumentation() {
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
             .with_entity(entity("Query", [event("created", [])]))
@@ -382,13 +382,13 @@ mod path_tests {
             .unwrap();
         let opts = Options {
             instrumentation: false,
-            umbrella_event: true,
+            combined_event: true,
             ..Options::default()
         };
 
         let source = generate_str(&schema, &opts).unwrap();
 
-        assert!(source.contains("impl ::quent_events::ModelEvents for Demo"));
+        assert!(source.contains("impl ::quent_events::CombinedEventModel for Demo"));
         assert!(source.contains("pub enum DemoEvent"));
         assert!(!source.contains("quent_instrumentation"));
         assert!(!source.contains("pub struct Handle"));
@@ -507,7 +507,7 @@ mod path_tests {
         );
         assert!(source.contains("impl super::Handle<Query>"));
         assert!(source.contains("impl ::quent_instrumentation::InstrumentedEntity for Query"));
-        assert!(source.contains("impl ::quent_instrumentation::events::Entity for Query"));
+        assert!(source.contains("impl ::quent_instrumentation::events::EntityMarker for Query"));
         assert!(source.contains("type Context = super::Context<super::Demo>"));
         assert!(source.contains("pub struct DemoObservers"));
         assert!(source.contains("struct FooObservers"));

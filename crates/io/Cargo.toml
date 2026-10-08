@@ -16,7 +16,7 @@ clap = ["dep:clap", "dep:http"]
 async-trait.workspace = true
 clap = { version = "4.5.57", features = ["derive", "env"], optional = true }
 http = { workspace = true, optional = true }
-quent-events = { path = "../events" }
+quent-events = { path = "../events", default-features = false }
 quent-io-types = { path = "types" }
 quent-io-collector = { path = "collector", optional = true }
 quent-io-msgpack = { path = "msgpack", optional = true }

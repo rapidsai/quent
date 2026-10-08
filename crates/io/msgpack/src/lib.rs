@@ -11,7 +11,7 @@ use std::{
     path::PathBuf,
 };
 
-use quent_events::{EntityEvent, Event};
+use quent_events::{Event, EventPayload};
 use quent_io_types::{
     Exporter, ExporterError, ExporterResult, Importer, ImporterError, ImporterResult,
     MAX_FRAME_SIZE_BYTES,
@@ -47,7 +47,7 @@ pub struct MsgpackExporter {
 }
 
 impl MsgpackExporter {
-    pub async fn try_new<T: EntityEvent>(options: MsgpackExporterOptions) -> ExporterResult<Self> {
+    pub async fn try_new<T: EventPayload>(options: MsgpackExporterOptions) -> ExporterResult<Self> {
         let dir = options.dir.join(T::NAME);
         tokio::fs::create_dir_all(&dir).await?;
         let path = dir.join(format!("{}.{EXTENSION}", Uuid::now_v7()));
@@ -67,7 +67,7 @@ impl MsgpackExporter {
 #[async_trait::async_trait]
 impl<T> Exporter<T> for MsgpackExporter
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Serialize + Send + EventPayload + 'static,
 {
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
         let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;

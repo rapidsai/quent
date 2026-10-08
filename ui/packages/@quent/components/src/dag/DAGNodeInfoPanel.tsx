@@ -11,19 +11,16 @@ import {
   useSelectedOperatorsData,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
-import { OperatorColorBar, OperatorDataFlowBlock, OperatorDetailsBlock } from '../node-info';
-import { DataText } from '../ui/data-text';
+import { OperatorDataFlowBlock, OperatorDetailsBlock } from '../node-info';
 import { thinScrollbarClass } from '../ui/thin-scroll';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 export const DAGNodeInfoPanel = ({
-  isDark = false,
   quantitySpecs,
   fillHeight = false,
   onExpandedChange,
   onPreferredHeightChange,
 }: {
-  isDark?: boolean;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
   fillHeight?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -42,8 +39,6 @@ export const DAGNodeInfoPanel = ({
   const statsContentRef = useRef<HTMLDivElement>(null);
   const dataFlowContentRef = useRef<HTMLDivElement>(null);
   const hasSelection = selectedOperators.length > 0;
-  const showHeaders = selectedOperators.length > 1;
-  const selectedOperator = selectedOperators[0];
   const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
   const updateExpanded = useCallback(
     (expanded: boolean) => {
@@ -130,7 +125,6 @@ export const DAGNodeInfoPanel = ({
               operator={operator}
               meta={dataFlowMeta}
               frame={dataFlowFrame}
-              isDark={isDark}
               isOpen={isOperatorOpen}
               onOpenChange={setOperatorOpen}
             />
@@ -201,30 +195,6 @@ export const DAGNodeInfoPanel = ({
           <span className="text-xs text-muted-foreground font-medium flex-shrink-0">
             Operator Details
           </span>
-          {selectedOperator && (
-            <>
-              <span className="text-muted-foreground text-xs flex-shrink-0">·</span>
-              <div
-                data-testid="operator-details-title"
-                className="flex min-w-0 items-center gap-1.5 overflow-hidden"
-              >
-                {selectedOperators.map((operator, index) => (
-                  <span key={operator.nodeId} className="flex min-w-0 items-center gap-1">
-                    {index > 0 && <span className="text-muted-foreground text-xs shrink-0">,</span>}
-                    <OperatorColorBar operationType={operator.operationType} className="h-3 w-1" />
-                    <DataText className="text-xs font-medium truncate" title={operator.label}>
-                      {operator.label}
-                    </DataText>
-                    {!showHeaders && (
-                      <DataText className="text-xs text-muted-foreground capitalize px-1.5 py-0.5 bg-muted rounded flex-shrink-0">
-                        {operator.operationType}
-                      </DataText>
-                    )}
-                  </span>
-                ))}
-              </div>
-            </>
-          )}
         </div>
         <button
           onClick={() => updateExpanded(!isExpanded)}

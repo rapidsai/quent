@@ -6,7 +6,7 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-quent-events = { path = "../../events" }
+quent-events = { path = "../../events", default-features = false }
 quent-io-types = { path = "../types" }
 uuid.workspace = true
 

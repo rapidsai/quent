@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::{HandleInner, ObserverInner};
 
 /// Adds instrumentation context and handle types to an entity marker.
-pub trait InstrumentedEntity: quent_events::Entity + Sized {
+pub trait InstrumentedEntity: quent_events::EntityMarker + Sized {
     /// Instrumentation context containing this entity.
     type Context;
 
@@ -18,7 +18,7 @@ pub trait InstrumentedEntity: quent_events::Entity + Sized {
 
 /// Provides handles for an entity type through its shared event observer.
 pub struct Observer<E: InstrumentedEntity> {
-    inner: Arc<ObserverInner<E::Event>>,
+    inner: Arc<ObserverInner<E::Payload>>,
 }
 
 impl<E: InstrumentedEntity> Clone for Observer<E> {
@@ -35,7 +35,7 @@ impl<E: InstrumentedEntity> Observer<E> {
     /// Hidden because generated models construct observers; callers obtain them
     /// through their model context.
     #[doc(hidden)]
-    pub fn new(inner: Arc<ObserverInner<E::Event>>) -> Self {
+    pub fn new(inner: Arc<ObserverInner<E::Payload>>) -> Self {
         Self { inner }
     }
 
@@ -51,7 +51,7 @@ impl<E: InstrumentedEntity> Observer<E> {
 
     /// Forwards an existing event through this observer.
     #[doc(hidden)]
-    pub fn forward(&self, event: crate::Event<E::Event>) {
+    pub fn forward(&self, event: crate::Event<E::Payload>) {
         self.inner.send(event);
     }
 }

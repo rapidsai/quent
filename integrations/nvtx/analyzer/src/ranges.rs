@@ -15,7 +15,7 @@
 
 use rustc_hash::FxHashMap as HashMap;
 
-use nvtx_events::{NvtxColor, NvtxEventAttributes, NvtxPayload};
+use quent_nvtx_events::{NvtxColor, NvtxEventAttributes, NvtxPayload};
 use quent_time::TimeUnixNanoSec;
 use tracing::{debug, warn};
 

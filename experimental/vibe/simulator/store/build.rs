@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let generated = generate(
         &parsed.schema,
         &Options {
-            umbrella_event: true,
+            combined_event: true,
             filesystem: cfg!(feature = "filesystem"),
             ..Options::default()
         },

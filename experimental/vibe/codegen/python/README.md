@@ -52,3 +52,39 @@ Once-cardinality events on non-FSM entities expose `<event>_emitted()`
 predicates. Generated exceptions derive from `QuentError`. Nested options are
 rejected during generation because Python cannot distinguish `None` from
 `Some(None)`.
+
+## Embedded collector server
+
+Set `collector_server: true` in generator options to expose `start_collector()`
+and the `Collector` handle. The generated bridge needs a dependency on
+`quent-collector-python`, and its instrumentation model needs collector dispatch
+generation (`collector_sink: true`) and a `collector` feature enabling
+`quent-instrumentation/io-collector`. The collector output accepts the same
+filesystem `ExporterOptions` as local contexts.
+
+```python
+import application_events as quent
+
+with quent.start_collector(
+    quent.ExporterOptions.ndjson("events"),
+    bind_address="0.0.0.0:0",
+    advertised_host="collector.example",
+) as collector:
+    address = collector.address
+    # The application passes address to its collector clients.
+```
+
+The server uses Quent's existing gRPC collector protocol. `close()` stops
+accepting connections and waits for active client streams to end and for their
+exporter shutdown attempts to finish. Close client contexts and release all
+their observers and handles before closing the server so sender-side buffers can
+flush and client streams can end. `Context.close()` alone does not release
+retained observers or handles. Exporter write failures are logged; `close()`
+does not guarantee that data has been synced to disk.
+
+`close()` can block indefinitely if a client leaves a stream open or an exporter
+does not finish. `close(timeout=seconds)` bounds shutdown in seconds,
+including draining and flushing. It raises `TimeoutError` and stops remaining
+connections when the deadline expires; pending events may be lost and unfinished
+cleanup may continue in the background. The collector remains closed
+afterward, and repeated calls have no effect.

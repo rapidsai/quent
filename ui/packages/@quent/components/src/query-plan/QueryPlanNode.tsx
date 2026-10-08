@@ -20,8 +20,6 @@ import {
   useSelectedNodeLabelField,
   useNodeColoring,
   useNodeColorPalette,
-  useEffectiveHighlightedNodeIds,
-  useEffectiveHoveredStat,
   useSetHighlightedNodeIds,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
@@ -59,6 +57,10 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
    */
   flowBarVisible?: boolean;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
+  hoveredStatActive?: boolean;
+  hoveredStatValue?: number;
+  heatmapRange?: { min: number; max: number };
+  highlightedNodeIds?: ReadonlySet<string> | null;
 }
 
 const nodeVariants = cva(
@@ -78,17 +80,13 @@ const nodeVariants = cva(
 
 /** Memoized DAG node rendered inside ReactFlow. */
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
-  // Writes go to the source atom so the table (which reads from it directly)
-  // still sees DAG hovers; reads come from the effective atom so the chart
-  // doesn't dim when nothing visible would be highlighted.
   const setHighlightState = useSetHighlightedNodeIds();
-  const highlightState = useEffectiveHighlightedNodeIds();
-  const hoveredStat = useEffectiveHoveredStat();
   const [nodePalette] = useNodeColorPalette();
   const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const isDark = data.isDark ?? false;
-  const operatorId = data.metadata?.rawNode?.id ?? '';
-  const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
+  const operatorId = data.metadata?.rawNode?.id ?? data.nodeId;
+  const highlightedNodeIds = data.highlightedNodeIds ?? null;
+  const isHighlighted = highlightedNodeIds?.has(operatorId) === true;
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
   const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
@@ -130,21 +128,19 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
 
   const heatmapColor = useMemo(() => {
-    if (!hoveredStat) {
+    if (data.hoveredStatValue === undefined || !data.heatmapRange) {
       return undefined;
     }
-    const v = hoveredStat.values.get(operatorId);
-    if (v === undefined) {
-      return undefined;
-    }
-    const range = hoveredStat.max - hoveredStat.min;
-    const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
+    const { min, max } = data.heatmapRange;
+    const range = max - min;
+    const t = range > 0 ? (data.hoveredStatValue - min) / range : 0.5;
     return continuousColor(t, nodePalette, isDark);
-  }, [hoveredStat, operatorId, nodePalette, isDark]);
+  }, [data.heatmapRange, data.hoveredStatValue, nodePalette, isDark]);
 
   const opacityClass = getNodeOpacityClass({
-    hoveredStatValues: hoveredStat?.values,
-    highlightedNodeIds: highlightState.ids,
+    isHoveredStatActive: data.hoveredStatActive ?? false,
+    hasHoveredValue: data.hoveredStatValue !== undefined,
+    highlightedNodeIds,
     operatorId,
     isDimmed,
     isSelected,
@@ -222,7 +218,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         </div>
       )}
 
-      {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} isDark={isDark} />}
+      {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} />}
 
       {data.hasOutgoing && (
         <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />

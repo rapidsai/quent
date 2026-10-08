@@ -53,7 +53,10 @@ The first UUID identifies the instrumentation context. This keeps events from
 separate application runs or contexts isolated.
 
 Each entity event stream gets its own directory, such as `Task`, containing one
-or more UUID-named event files.
+or more event files. By convention, filesystem exporters give each file a
+UUIDv7 name, which provides a unique filename with a generation timestamp.
+The filename does not identify an entity: events for multiple `Task` instances
+can share a file, and each event's `id` identifies the instance it belongs to.
 
 After the minimal model emits `started` and `ended` through the NDJSON exporter,
 its `Task` file looks like this (with shortened example values):

@@ -38,12 +38,12 @@ pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
         #[derive(Debug, Clone, Copy)]
         pub struct #marker;
 
-        impl #runtime::EntityEvent for #event {
+        impl #runtime::EventPayload for #event {
             const NAME: &'static str = #stream_name;
         }
 
-        impl #events_runtime::Entity for #marker {
-            type Event = #event;
+        impl #events_runtime::EntityMarker for #marker {
+            type Payload = #event;
         }
     }
 }

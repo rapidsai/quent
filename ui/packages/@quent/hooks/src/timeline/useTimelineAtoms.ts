@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useId, useMemo } from 'react';
-import { useAtomValue, useSetAtom, useStore } from 'jotai';
+import { useAtomValue, useAtomValueRawSync, useSetAtom, useStore } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
 import {
   timelineDataMapAtom,
@@ -106,7 +106,7 @@ export function useZeroUtilizationResourceIds(): ReadonlySet<string> {
   }, [timelineDataMap, visibleEntries, activeSpan, selectedOperatorIds]);
 }
 
-export const useZoomRange = () => useAtomValue(zoomRangeAtom);
+export const useZoomRange = () => useAtomValueRawSync(zoomRangeAtom);
 export const useGetZoomRange = () => {
   const store = useStore();
   return useCallback(() => store.get(zoomRangeAtom), [store]);
@@ -116,7 +116,7 @@ export function useReadZoomRange() {
   const store = useStore();
   return useCallback(() => store.get(zoomRangeAtom), [store]);
 }
-export const useDebouncedZoomRange = () => useAtomValue(debouncedZoomRangeAtom);
+export const useDebouncedZoomRange = () => useAtomValueRawSync(debouncedZoomRangeAtom);
 export const useSetDebouncedZoomRange = () => useSetAtom(debouncedZoomRangeAtom);
 export const useLongEntityDensity = () => useAtomValue(longEntityDensityAtom);
 export const useSetLongEntityDensity = () => useSetAtom(longEntityDensityAtom);

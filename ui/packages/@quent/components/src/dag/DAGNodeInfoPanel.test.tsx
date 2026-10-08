@@ -163,7 +163,7 @@ describe('DAGNodeInfoPanel', () => {
       </Provider>
     );
 
-    await screen.findByTestId('operator-details-title');
+    await screen.findByTestId('operator-accordion-logical');
     expect(onExpandedChange).toHaveBeenLastCalledWith(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle operator details' }));
@@ -178,8 +178,8 @@ describe('DAGNodeInfoPanel', () => {
       </Provider>
     );
 
-    const title = await screen.findByTestId('operator-details-title');
-    expect(within(title).getByText('Logical join')).toHaveAttribute('title', 'Logical join');
+    const accordion = await screen.findByTestId('operator-accordion-logical');
+    expect(within(accordion).getByText('Logical join')).toHaveAttribute('title', 'Logical join');
     expect(screen.getByText('Build hash table')).toBeInTheDocument();
     expect(screen.getByText('Probe hash table')).toBeInTheDocument();
     expect(screen.getByText('build rows:')).toBeInTheDocument();
@@ -206,19 +206,21 @@ describe('DAGNodeInfoPanel', () => {
       </Provider>
     );
 
-    const title = await screen.findByTestId('operator-details-title');
-    expect(within(title).getByText('Table scan')).toHaveAttribute('title', 'Table scan');
-    expect(within(title).getByText('Hash join')).toHaveAttribute('title', 'Hash join');
+    const scanAccordion = await screen.findByTestId('operator-accordion-scan');
+    const joinAccordion = screen.getByTestId('operator-accordion-join');
+    expect(within(scanAccordion).getByText('Table scan')).toHaveAttribute('title', 'Table scan');
+    expect(within(joinAccordion).getByText('Hash join')).toHaveAttribute('title', 'Hash join');
     expect(screen.getByText('output rows:')).toBeInTheDocument();
     expect(screen.getByText('build rows:')).toBeInTheDocument();
     expect(screen.getByText('Probe hash table')).toBeInTheDocument();
     expect(screen.getByText('probe rows:')).toBeInTheDocument();
 
-    const titleBars = within(title).getAllByTestId('operator-color-bar');
-    expect(titleBars[0]).toHaveAttribute('data-operation-type', 'scan');
-    expect(titleBars[0]).toHaveStyle({ backgroundColor: getDeterministicColor('scan') });
-    expect(titleBars[1]).toHaveAttribute('data-operation-type', 'hashjoin');
-    expect(titleBars[1]).toHaveStyle({ backgroundColor: getDeterministicColor('hashjoin') });
+    const scanBar = within(scanAccordion).getAllByTestId('operator-color-bar')[0];
+    expect(scanBar).toHaveAttribute('data-operation-type', 'scan');
+    expect(scanBar).toHaveStyle({ backgroundColor: getDeterministicColor('scan') });
+    const joinBar = within(joinAccordion).getAllByTestId('operator-color-bar')[0];
+    expect(joinBar).toHaveAttribute('data-operation-type', 'hashjoin');
+    expect(joinBar).toHaveStyle({ backgroundColor: getDeterministicColor('hashjoin') });
   });
 
   it('collapses a selected operator without hiding the others', async () => {

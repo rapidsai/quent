@@ -4,7 +4,7 @@
 //! Analysis-time FSMs in Rust-native in-memory storage.
 
 pub use quent_dynamic_attributes::DynamicAttribute;
-use quent_events::{EntityEvent, Event};
+use quent_events::{Event, EventPayload};
 use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -21,7 +21,7 @@ use crate::{
 const INLINE_TRANSITION_CAPACITY: usize = 4;
 
 /// Trait for application-specific payloads of FSM transition events.
-pub trait TransitionEvent: EntityEvent {
+pub trait TransitionEvent: EventPayload {
     /// Return the name of the state transitioned into.
     fn name(&self) -> &'static str;
 
@@ -339,13 +339,13 @@ mod tests {
         is_final: bool,
     }
 
-    impl EntityEvent for TestTransition {
+    impl EventPayload for TestTransition {
         const NAME: &'static str = "TestTransition";
     }
 
     impl TransitionEvent for TestTransition {
         fn name(&self) -> &'static str {
-            <Self as EntityEvent>::NAME
+            <Self as EventPayload>::NAME
         }
 
         fn sequence(&self) -> u16 {

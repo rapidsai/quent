@@ -11,9 +11,9 @@ pub(crate) struct EngineAccumulator {
 }
 
 impl EntityEventAccumulator for EngineAccumulator {
-    type Event = schema::EngineEvent;
+    type Payload = schema::EngineEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         match event {
             schema::EngineEvent::Init {
                 implementation,

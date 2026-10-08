@@ -10,9 +10,9 @@ pub(crate) struct HostMemoryAccumulator {
 }
 
 impl EntityEventAccumulator for HostMemoryAccumulator {
-    type Event = schema::HostMemoryEvent;
+    type Payload = schema::HostMemoryEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         let schema::HostMemoryEvent::Declaration {
             instance_name,
             worker_id,

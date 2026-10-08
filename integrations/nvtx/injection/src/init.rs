@@ -9,10 +9,9 @@ use std::os::raw::{c_int, c_uint};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nvtx_events::NvtxEvent;
 use thiserror::Error;
 
-use crate::callbacks;
+use crate::{Record, callbacks};
 use nvtx_sys::ffi::{
     NvtxCallbackIdCore, NvtxCallbackIdCore2, NvtxCallbackModule, NvtxExportTableCallbacks,
     NvtxExportTableID, NvtxFunctionPointer, NvtxFunctionTable, NvtxGetExportTableFunc_t,
@@ -28,17 +27,21 @@ use nvtx_sys::ffi::{
     nvtxRangeStartA_impl_fntype, nvtxRangeStartEx_impl_fntype, nvtxRangeStartW_impl_fntype,
 };
 
-/// The stored capture hook. Sink-agnostic: it depends only on [`NvtxEvent`].
-type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
+// TODO(johanpel): Consider splitting this hook into typed functions for individual NVTX events.
+/// The process-lifetime hook for owned NVTX records.
+type Hook = Box<dyn Fn(Record) + Send + Sync + 'static>;
 
+/// Keeps the installed hook available to callbacks for the process lifetime.
 static HOOK: OnceLock<Hook> = OnceLock::new();
 
-/// Monotonic source of the NVTX handles/ids the injection layer synthesizes and
-/// hands back to the application: domain, registered-string, and resource handles
-/// plus range ids. Starts at `1` so `0` stays reserved for the default/NULL
-/// domain. In injection mode these values are opaque to NVTX (never
-/// dereferenced), so a synthetic counter is a valid handle source; they are
-/// captured verbatim.
+// NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
+// TODO(johanpel): Use the binding after https://github.com/NVIDIA/NVTX/pull/180 lands.
+const NVTX_NO_PUSH_POP_TRACKING: c_int = -2;
+
+/// Supplies range IDs and domain, string, and resource handles.
+///
+/// Callers use them as opaque values, and `0` is reserved for null handles and
+/// the default domain.
 static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 
 /// Return a fresh, process-unique, nonzero handle/id.
@@ -46,39 +49,11 @@ pub(crate) fn next_handle() -> u64 {
     NEXT_HANDLE.fetch_add(1, Ordering::Relaxed)
 }
 
-/// The calling thread's OS thread id, in the same id space `nvtxNameOsThread`
-/// (captured as [`NvtxEvent::NameThread`]) uses, so per-thread Push/Pop ranges
-/// resolve against a named thread. Read on the app thread from inside a callback.
-///
-/// The value is computed once per thread and cached in a thread-local so the
-/// syscall is not repeated on every push/pop. Works on all Linux architectures
-/// (x86-64, aarch64, …) — this crate is Linux-64-only per the `compile_error!`
-/// in `lib.rs`.
-pub(crate) fn current_thread_id() -> u32 {
-    thread_local! {
-        static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
-    }
-    CACHED_TID.with(|cell| *cell.get_or_init(compute_thread_id))
-}
-
-fn compute_thread_id() -> u32 {
-    // Use the raw `SYS_gettid` syscall rather than the glibc `gettid()` wrapper:
-    // the wrapper symbol is only exported by glibc >= 2.30, whereas the syscall
-    // works against every Linux libc (including the older conda sysroot in CI).
-    // Available on all Linux architectures including aarch64.
-    // SAFETY: `gettid` takes no arguments and cannot fail; it returns the calling
-    // thread's kernel task id (the Linux `gettid` id space).
-    unsafe { libc::syscall(libc::SYS_gettid) as u32 }
-}
-
 thread_local! {
-    /// Per-thread, per-domain count of currently-open push/pop ranges.
+    /// Tracks open push/pop ranges for each domain on this thread.
     ///
-    /// `nvtxDomainRangePushEx` returns the 0-based level of the range being
-    /// started and `nvtxDomainRangePop` the level of the range being ended;
-    /// the nesting stack is per-thread and per-domain. We mirror those return
-    /// values so an app that reads them observes faithful behavior instead of a
-    /// constant.
+    /// NVTX push/pop calls must return the correct nesting level before a hook
+    /// is installed, so the count is updated even when no event is delivered.
     static RANGE_DEPTH: std::cell::RefCell<std::collections::HashMap<u64, i32>> =
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
@@ -86,89 +61,79 @@ thread_local! {
 /// The 0-based nesting level of a `DomainRangePushEx` on this thread for
 /// `domain`, then increment the open-range depth. Returns the level of the
 /// range being started (NVTX `nvtxDomainRangePushEx` return semantics).
+///
+/// Returns `NVTX_NO_PUSH_POP_TRACKING` once this thread's TLS is destroyed,
+/// e.g. for NVTX emitted from a global destructor during process exit.
 pub(crate) fn range_push_level(domain: u64) -> c_int {
-    RANGE_DEPTH.with(|depth| {
-        let mut map = depth.borrow_mut();
-        let level = map.entry(domain).or_insert(0);
-        let started = *level;
-        *level += 1;
-        started
-    })
+    RANGE_DEPTH
+        .try_with(|depth| {
+            let mut map = depth.borrow_mut();
+            let level = map.entry(domain).or_insert(0);
+            let started = *level;
+            *level += 1;
+            started
+        })
+        .unwrap_or(NVTX_NO_PUSH_POP_TRACKING)
 }
 
 /// Decrement this thread's open-range depth for `domain` and return the 0-based
 /// level of the range being ended (NVTX `nvtxDomainRangePop` return semantics).
-/// An unbalanced pop saturates at level `0`.
+/// An unbalanced pop saturates at level `0`. Returns `NVTX_NO_PUSH_POP_TRACKING`
+/// once this thread's TLS is destroyed.
 pub(crate) fn range_pop_level(domain: u64) -> c_int {
-    RANGE_DEPTH.with(|depth| {
-        let mut map = depth.borrow_mut();
-        let level = map.entry(domain).or_insert(0);
-        *level = (*level - 1).max(0);
-        let result = *level;
-        // Drop the entry once this domain's stack is empty so the map tracks
-        // only domains with currently-open ranges, not every domain ever seen.
-        if result == 0 {
-            map.remove(&domain);
-        }
-        result
-    })
+    RANGE_DEPTH
+        .try_with(|depth| {
+            let mut map = depth.borrow_mut();
+            let level = map.entry(domain).or_insert(0);
+            *level = (*level - 1).max(0);
+            let result = *level;
+            // Drop the entry once this domain's stack is empty so the map tracks
+            // only domains with currently-open ranges, not every domain ever seen.
+            if result == 0 {
+                map.remove(&domain);
+            }
+            result
+        })
+        .unwrap_or(NVTX_NO_PUSH_POP_TRACKING)
 }
 
 /// Error returned by [`install_hook`].
 #[derive(Debug, Error)]
 pub enum InstallHookError {
-    /// A hook was already installed; installation is one-shot per process.
     #[error("an NVTX capture hook is already installed (install_hook is one-shot per process)")]
     AlreadyInstalled,
 }
 
-/// Install the process-global, sink-agnostic capture hook.
+/// Install a process-lifetime hook for owned [`Record`] values.
 ///
-/// The hook receives every converted [`NvtxEvent`]. It is stored in a
-/// [`OnceLock`], so it can be installed exactly once per process — matching the
-/// one-shot nature of NVTX injection.
+/// Installation is one-shot. The hook must:
+///
+/// - Be safe for concurrent calls on NVTX-emitting threads.
+/// - Never call NVTX APIs, which can re-enter the hook and cause infinite recursion.
+/// - Catch its own panics if recovery is required. An uncaught panic aborts the
+///   process at the C ABI boundary.
 ///
 /// # Errors
+///
 /// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
 pub fn install_hook<F>(hook: F) -> Result<(), InstallHookError>
 where
-    F: Fn(NvtxEvent) + Send + Sync + 'static,
+    F: Fn(Record) + Send + Sync + 'static,
 {
     HOOK.set(Box::new(hook))
         .map_err(|_| InstallHookError::AlreadyInstalled)
 }
 
-/// Dispatch a converted event to the installed hook, if any. Events that arrive
-/// before a hook is installed are dropped.
-pub(crate) fn dispatch(event: NvtxEvent) {
-    // Guard against hook-induced re-entry: if the hook (or code it calls) emits
-    // NVTX, it would recurse into this synchronous dispatch path and overflow
-    // the stack, bypassing the callbacks' panic barriers. Drop nested events.
-    // The RAII reset clears the flag even if the hook unwinds.
-    thread_local! {
-        static IN_DISPATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    }
-    if IN_DISPATCH.with(|g| g.replace(true)) {
-        return;
-    }
-    struct Reset;
-    impl Drop for Reset {
-        fn drop(&mut self) {
-            IN_DISPATCH.with(|g| g.set(false));
-        }
-    }
-    let _reset = Reset;
-
-    if let Some(hook) = HOOK.get() {
-        hook(event);
-    }
+/// Return the installed hook, if any.
+#[inline(always)]
+pub(crate) fn hook() -> Option<&'static Hook> {
+    HOOK.get()
 }
 
 /// NVTX injection entry point.
 ///
-/// NVTX loads this cdylib via `NVTX_INJECTION64_PATH` and calls this **once per
-/// NVTX-using image** in the process — the executable and each instrumented
-/// shared library keep their own NVTX state (per-image `nvtxGlobals`) and
+/// NVTX calls this once per NVTX-using image in the process. The executable
+/// and each instrumented shared library keep their own NVTX state, and
 /// initialize lazily before that image's first NVTX call, each passing its own
 /// export-table accessor. We must therefore install callbacks into *every*
 /// caller's tables, not just the first: a later image left uninstalled has its
@@ -183,7 +148,7 @@ pub(crate) fn dispatch(event: NvtxEvent) {
 // object file (rather than from this archive, whose symbols are commonly
 // localized with `--exclude-libs`). Give that build an internal ABI name so a
 // consumer-owned exported trampoline can forward into this exact hook state.
-// The runtime-loaded library keeps exporting NVTX's required public name.
+// The entry keeps NVTX's public name when `static-injection` is disabled.
 #[cfg_attr(
     feature = "static-injection",
     unsafe(export_name = "quent_InitializeInjectionNvtx2")
@@ -245,7 +210,7 @@ macro_rules! subscribe {
 /// (`nvtxMarkA`/`nvtxMarkEx`, `nvtxRangePushA`/`nvtxRangePushEx`, `nvtxRangePop`,
 /// `nvtxRangeStartA`/`nvtxRangeStartEx`/`nvtxRangeEnd`, `nvtxNameCategoryA`,
 /// `nvtxNameOsThreadA`), captured on the default domain (`0`). The corresponding
-/// default-domain wide-char (`*W`) calls are converted to UTF-8 and captured as
+/// default-domain wide-char (`*W`) calls are copied as owned code units and captured as
 /// well. Domain-scoped wide-name calls (`DomainCreateW`, `DomainRegisterStringW`,
 /// and `DomainNameCategoryW`) are not yet subscribed.
 ///
@@ -394,8 +359,8 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
 
     let done = installed.iter().filter(|&&ok| ok).count();
     if done < installed.len() {
-        // The cdylib installs no tracing subscriber, so surface the partial
-        // install rather than capturing a silently incomplete domain surface.
+        // No tracing subscriber is guaranteed during initialization, so
+        // surface partial installation rather than silently losing events.
         eprintln!(
             "nvtx-injection: installed {done}/{} CORE2 domain callbacks (table reports {size} \
              slots); the rest are domain calls the running NVTX does not expose and will not \
@@ -416,7 +381,7 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
 /// The classic NVTX API (`nvtxMarkA`, `nvtxRangePushA`, `nvtxRangePop`, …)
 /// dispatches through this table, not the CORE2 domain surface, so we capture it
 /// on the default domain (`0`). Both ASCII and wide-char (`*W`) strings are
-/// copied into owned UTF-8 strings. Best-effort: if the CORE table is
+/// copied into owned buffers. Best-effort: if the CORE table is
 /// unavailable, the default-domain surface simply isn't hooked (the domain
 /// surface is what gates init success).
 ///
@@ -426,8 +391,8 @@ unsafe fn install_core(get_module_table: GetModuleTableFn) {
     let Some((table, size)) =
         (unsafe { module_table(get_module_table, NvtxCallbackModule::NVTX_CB_MODULE_CORE) })
     else {
-        // The cdylib installs no tracing subscriber, so emit an unconditional
-        // diagnostic instead of failing quietly.
+        // No tracing subscriber is guaranteed during initialization, so emit
+        // an unconditional diagnostic instead of failing quietly.
         eprintln!(
             "nvtx-injection: NVTX CORE callback table unavailable; default-domain and OS-thread-name \
              events will not be captured"
@@ -508,7 +473,7 @@ unsafe fn install_core(get_module_table: GetModuleTableFn) {
         nvtxNameOsThreadA_impl_fntype
     );
 
-    // Wide-char (Unicode) surface: copied into owned UTF-8 strings while
+    // Wide-char (Unicode) surface: copied into owned code units while
     // preserving range nesting and synthesized ids.
     subscribe!(
         table,
@@ -578,20 +543,7 @@ unsafe fn set_callback(
 
 #[cfg(test)]
 mod tests {
-    use super::{current_thread_id, range_pop_level, range_push_level};
-
-    #[test]
-    fn current_thread_id_is_stable_and_nonzero() {
-        let first = current_thread_id();
-        let second = current_thread_id();
-        // A real OS thread id is never `0` (the value we use as "unstamped").
-        assert_ne!(first, 0, "current_thread_id must be nonzero");
-        // Two reads on the same thread must observe the same id.
-        assert_eq!(
-            first, second,
-            "current_thread_id must be stable within a thread"
-        );
-    }
+    use super::{range_pop_level, range_push_level};
 
     #[test]
     fn push_and_pop_report_zero_based_nesting_levels() {

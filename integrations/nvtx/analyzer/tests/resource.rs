@@ -11,7 +11,7 @@
 mod fixtures;
 
 use fixtures::{GENERIC_POINTER, range_push, resource, resource_create, resource_destroy};
-use nvtx_analyzer::{NvtxModelBuilder, NvtxSpan, SpanKind};
+use quent_nvtx_analyzer::{NvtxModelBuilder, NvtxSpan, SpanKind};
 
 /// A CUDA-extension resource class (`nvtxResourceCUDAType_t` lives at class 4),
 /// which the analyzer deliberately does not label.

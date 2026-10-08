@@ -62,17 +62,13 @@ function ToolbarHarness() {
   );
 }
 
-function OperatorSelectionCount() {
-  return <span data-testid="operator-count">{useSelectedOperatorIds().size}</span>;
-}
-
 function MultiOperatorToolbarHarness() {
   const selectedOperatorIds = useSelectedOperatorIds();
   const selectedOperators = useSelectedOperatorsData();
   const updateOperatorSelection = useOperatorSelectionActions();
 
   useEffect(() => {
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < 14; index += 1) {
       const number = index + 1;
       const id = `operator-${number}`;
       updateOperatorSelection({
@@ -141,35 +137,19 @@ function TwoOperatorToolbarHarness() {
 }
 
 describe('QueryToolbar', () => {
-  it('shows custom resource filters before the active operator filter', async () => {
+  it('renders query-level actions alongside the selected operators', async () => {
     render(
       <Provider>
         <SeedOperatorFilter />
-        <QueryToolbar filters={<input aria-label="Filter resources" />} />
+        <QueryToolbar>
+          <button type="button">Copy link</button>
+        </QueryToolbar>
       </Provider>
     );
 
-    const operatorFilter = await screen.findByText('Scan');
-    const resourceFilters = screen.getByRole('textbox', { name: 'Filter resources' });
-    expect(resourceFilters.compareDocumentPosition(operatorFilter)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
-    expect(screen.queryByText('No filters')).not.toBeInTheDocument();
-  });
-
-  it('clears only the operator filter', async () => {
-    const user = userEvent.setup();
-    render(
-      <Provider>
-        <SeedOperatorFilter />
-        <OperatorSelectionCount />
-        <QueryToolbar filters={<input aria-label="Filter resources" value="id:gpu-0" readOnly />} />
-      </Provider>
-    );
-
-    await user.click(await screen.findByRole('button', { name: 'Clear all operator filters' }));
-    expect(screen.getByTestId('operator-count')).toHaveTextContent('0');
-    expect(screen.getByRole('textbox', { name: 'Filter resources' })).toHaveValue('id:gpu-0');
+    expect(await screen.findByText('Scan')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+    expect(screen.queryByText('No active filters')).not.toBeInTheDocument();
   });
 
   it('clears the full operator selection and pinned details', async () => {
@@ -180,7 +160,7 @@ describe('QueryToolbar', () => {
       </Provider>
     );
 
-    await user.click(await screen.findByRole('button', { name: 'Clear all operator filters' }));
+    await user.click(await screen.findByRole('button', { name: 'Clear all filters' }));
 
     expect(screen.getByTestId('selected-count')).toHaveTextContent('0');
     expect(screen.getByTestId('selected-details')).toHaveTextContent('none');
@@ -194,25 +174,23 @@ describe('QueryToolbar', () => {
     );
 
     expect(await screen.findByText('Operator 1')).toBeInTheDocument();
-    expect(screen.getByText('Operator 2')).toBeInTheDocument();
-    expect(screen.getByText('Operator 3')).toBeInTheDocument();
-    expect(screen.queryByText('Operator 4')).not.toBeInTheDocument();
+    expect(screen.getByText('Operator 12')).toBeInTheDocument();
+    expect(screen.queryByText('Operator 13')).not.toBeInTheDocument();
     expect(screen.getByText('and 2 more')).toBeInTheDocument();
-    expect(screen.getByText('and 2 more')).toHaveAttribute('title', 'Operator 4, Operator 5');
-    expect(screen.getByTestId('operator-filter-badges')).toHaveClass('max-w-[40%]');
+    expect(screen.getByText('and 2 more')).toHaveAttribute('title', 'Operator 13, Operator 14');
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove Operator 2' }));
 
-    expect(screen.getByTestId('selected-count')).toHaveTextContent('4');
-    expect(screen.getByTestId('selected-data-count')).toHaveTextContent('4');
-    expect(screen.getByText('Operator 4')).toBeInTheDocument();
+    expect(screen.getByTestId('selected-count')).toHaveTextContent('13');
+    expect(screen.getByTestId('selected-data-count')).toHaveTextContent('13');
+    expect(screen.getByText('Operator 13')).toBeInTheDocument();
     expect(screen.getByText('and 1 more')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Clear all operator filters' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
 
     expect(screen.getByTestId('selected-count')).toHaveTextContent('0');
     expect(screen.getByTestId('selected-data-count')).toHaveTextContent('0');
-    expect(screen.getByText('No filters')).toBeInTheDocument();
+    expect(screen.getByText('No active filters')).toBeInTheDocument();
   });
 
   it('keeps remaining operator details after removing the last-clicked badge', async () => {

@@ -1,0 +1,15 @@
+[package]
+name = "quent-collector-python"
+edition.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+http.workspace = true
+pyo3.workspace = true
+quent-collector.workspace = true
+quent-collector-proto.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time"] }
+tokio-stream = { workspace = true, features = ["net"] }
+tonic.workspace = true
+uuid.workspace = true

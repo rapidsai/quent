@@ -38,6 +38,6 @@ quent-ui = { path = "../../../../crates/ui" }
 serde.workspace = true
 serde_json.workspace = true
 uuid = { workspace = true, features = ["js"] }
-wasm-bindgen = "=0.2.127"
-wasm-bindgen-futures = "=0.4.77"
+wasm-bindgen = "=0.2.128"
+wasm-bindgen-futures = "=0.4.78"
 tempfile = { version = "3", optional = true }

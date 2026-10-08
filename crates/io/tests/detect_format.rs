@@ -3,7 +3,7 @@
 
 #![cfg(feature = "msgpack")]
 
-use quent_events::EntityEvent;
+use quent_events::EventPayload;
 use quent_io::{Exporter, ExporterProvider, filesystem};
 use serde::Serialize;
 use uuid::Uuid;
@@ -11,7 +11,7 @@ use uuid::Uuid;
 #[derive(Serialize)]
 struct TestEvent;
 
-impl EntityEvent for TestEvent {
+impl EventPayload for TestEvent {
     const NAME: &'static str = "TestEvent";
 }
 

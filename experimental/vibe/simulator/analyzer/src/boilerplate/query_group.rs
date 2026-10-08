@@ -10,9 +10,9 @@ pub(crate) struct QueryGroupAccumulator {
 }
 
 impl EntityEventAccumulator for QueryGroupAccumulator {
-    type Event = schema::QueryGroupEvent;
+    type Payload = schema::QueryGroupEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         let schema::QueryGroupEvent::Declaration {
             instance_name,
             engine_id,

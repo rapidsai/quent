@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         serde: true,
         // Generate `DemoEvent`, which lets one typed callback receive events
         // from every entity in the model.
-        umbrella_event: true,
+        combined_event: true,
         ..Options::default()
     };
     let GenerateInfo { path, warnings } = generate(&parsed.schema, &opts)?;

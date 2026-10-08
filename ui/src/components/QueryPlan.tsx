@@ -39,6 +39,8 @@ import {
   useDataFlowSync,
   useDebouncedZoomRange,
   resolveDataFlowWindow,
+  COLOR_REGISTRY_KEYS,
+  useColorResolver,
 } from '@quent/hooks';
 import { MAX_TIMELINE_BINS, cn } from '@quent/utils';
 import {
@@ -112,11 +114,16 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     },
     { enabled: !!queryBundle && dataFlowWindow.end > dataFlowWindow.start }
   );
+  const dataFlowDimensionKeys = useMemo(
+    () => dataFlowResponse?.decl.dimension_keys.map(({ key }) => key) ?? [],
+    [dataFlowResponse]
+  );
+  useColorResolver(COLOR_REGISTRY_KEYS.DATA_FLOW_DIMENSIONS, dataFlowDimensionKeys);
   useDataFlowSync({ response: dataFlowResponse, queryBundle });
 
-  useDagNodeColoring(dagData.nodes, computeNodeColoring, isDark);
+  useDagNodeColoring(dagData.nodes, computeNodeColoring);
   useDagEdgeWidthConfig(dagData.edges, computeEdgeWidthConfig);
-  useDagEdgeColoring(dagData.edges, computeEdgeColoring, isDark);
+  useDagEdgeColoring(dagData.edges, computeEdgeColoring);
   const operatorStatFields = useOperatorStatFields(dagData.nodes, parseCustomStatistics);
   const portStatFields = usePortStatFields(dagData.edges);
 
@@ -171,7 +178,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   // handle loading and error states
   if (queryBundleLoading) {
     return (
-      <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
+      <div className="w-full flex flex-col h-full">
         <div className="flex justify-center items-center h-full text-muted-foreground">
           Loading query plan...
         </div>
@@ -187,7 +194,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   if (errorMessage) {
     return (
-      <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
+      <div className="w-full flex flex-col h-full">
         <div className="flex justify-center items-center h-full text-destructive">
           {errorMessage}
         </div>
@@ -277,7 +284,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   };
 
   return (
-    <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
+    <div className="w-full flex flex-col h-full">
       {/* my-2px lines it up with timeline rows */}
       <section className="my-[2px] flex min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-b px-1.5 py-2.5">
         <TreeSelect<QueryPlanDataItem>
@@ -352,7 +359,6 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           }}
         >
           <DAGNodeInfoPanel
-            isDark={isDark}
             quantitySpecs={queryBundle.quantity_specs}
             fillHeight
             onExpandedChange={setOperatorDetailsExpanded}

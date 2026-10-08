@@ -10,6 +10,41 @@ use crate::{Exporters, GenerateError, Options, emit, emit_stubs};
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
 
 #[test]
+fn generates_collector_server_factory_when_enabled() {
+    let schema = parse_from_str(DEMO, None).unwrap().schema;
+    let options = Options {
+        exporters: Exporters {
+            ndjson: true,
+            ..Default::default()
+        },
+        collector_server: true,
+        ..Options::default()
+    };
+    let bridge = emit(&schema, &options).unwrap().remove(0);
+    assert!(bridge.content.contains("pub fn start_collector("));
+    assert!(bridge.content.contains("Collector::start("));
+    let stubs = emit_stubs(&schema, &options).unwrap();
+    assert!(stubs[0].content.contains("class Collector:"));
+    assert!(stubs[0].content.contains("def start_collector("));
+}
+
+#[test]
+fn rejects_collector_server_without_filesystem_exporter() {
+    let schema = parse_from_str(DEMO, None).unwrap().schema;
+    let options = Options {
+        collector_server: true,
+        ..Options::default()
+    };
+    assert!(matches!(
+        emit(&schema, &options),
+        Err(GenerateError::InvalidOption {
+            option: "collector_server",
+            ..
+        })
+    ));
+}
+
+#[test]
 fn generates_schema_driven_bridge_and_stubs() {
     let schema = parse_from_str(DEMO, None).unwrap().schema;
     let options = Options {
@@ -21,6 +56,7 @@ fn generates_schema_driven_bridge_and_stubs() {
     let bridge = emit(&schema, &options).unwrap().remove(0);
     syn::parse_file(&bridge.content).unwrap();
     assert!(bridge.content.contains("pub struct PyWorkerHandle"));
+    assert!(!bridge.content.contains("pub fn start_collector("));
     assert!(bridge.content.contains("pub fn handle("));
     assert!(bridge.content.contains("pub struct PyThreadIdleHandle"));
     assert!(bridge.content.contains("pub struct PyThreadActiveHandle"));

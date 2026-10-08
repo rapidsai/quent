@@ -6,8 +6,10 @@ members = [
     "crates/dynamic-attributes",
     "crates/build-info",
     "crates/collector/server",
+    "crates/collector/python",
     "crates/collector/client",
     "crates/collector/proto",
+    "crates/channel",
     "crates/events",
     "crates/io",
     "crates/io/callback",
@@ -17,6 +19,11 @@ members = [
     "crates/io/postcard",
     "crates/io/types",
     "crates/instrumentation",
+    "benchmarks/bench",
+    "benchmarks/types",
+    "benchmarks/implementations/rust/common",
+    "benchmarks/implementations/rust/quent",
+    "benchmarks/implementations/rust/empty_loop",
     "crates/open",
     "crates/time",
     "crates/ui",
@@ -74,6 +81,7 @@ default-members = [
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
+    "crates/channel",
     "crates/events",
     "crates/io",
     "crates/io/callback",
@@ -120,7 +128,10 @@ prettyplease = "0.3.0"
 prost = "0.14.1"
 protox = "0.9.1"
 pyo3 = "0.29"
+quanta = "0.12.6"
+quent-collector = { path = "crates/collector/server" }
 quent-collector-client = { path = "crates/collector/client" }
+quent-collector-proto = { path = "crates/collector/proto" }
 quent-constraints = { path = "crates/constraints" }
 quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
 quent-events = { path = "crates/events" }
@@ -128,6 +139,7 @@ quent-resource = { path = "crates/resource" }
 quent-schema = { path = "crates/schema" }
 rmp-serde = "1"
 rustc-hash = "2"
+rtrb = "0.4.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 smallvec = {version = "1.15.1", features = ["serde"] }

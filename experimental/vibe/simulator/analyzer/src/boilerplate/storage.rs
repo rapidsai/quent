@@ -10,9 +10,9 @@ pub(crate) struct StorageAccumulator {
 }
 
 impl EntityEventAccumulator for StorageAccumulator {
-    type Event = schema::StorageEvent;
+    type Payload = schema::StorageEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         let schema::StorageEvent::Declaration {
             instance_name,
             worker_id,

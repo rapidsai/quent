@@ -1,4 +1,5 @@
 target/
+/benchmarks/results/
 /data/
 /events/
 .DS_Store

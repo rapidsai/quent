@@ -3,9 +3,11 @@
 
 //! Backing structures for generated instrumentation libraries.
 //!
-//! Instrumented application code should not import this crate directly unless
-//! there is a very special reason. Instead, it should interact with the
-//! generated instrumentation library only.
+//! Applications use generated libraries for model-specific instrumentation and
+//! can use this crate directly for shared types, traits, and exporter
+//! configuration.
+
+#![doc = include_str!("../PERFORMANCE.md")]
 
 #[cfg(feature = "io-collector")]
 #[doc(hidden)]
@@ -26,7 +28,7 @@ pub use context::ContextInner;
 pub use entity::{InstrumentedEntity, Observer};
 pub use fsm_handle::{FsmEvent, FsmHandleInner, FsmState, FsmStateMismatch, FsmTransitionError};
 pub use handle::{HandleError, HandleInner};
-pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider};
+pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider, RuntimeOptions};
 pub use noop::Noop;
 pub use observer::{EventSender, ObserverInner};
 pub use sidecar::{ContextExporter, write_sidecar};
@@ -40,7 +42,9 @@ pub use quent_dynamic_attributes::{
 };
 #[doc(hidden)]
 pub use quent_events as events;
-pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, ModelEvents};
+pub use quent_events::{
+    AnyEntity, CombinedEventModel, EntityMarker, EntityRef, Event, EventModel, EventPayload,
+};
 pub use quent_io::{ExporterOptions, ExporterProvider};
 #[cfg(any(feature = "io-ndjson", feature = "io-msgpack", feature = "io-postcard"))]
 pub use quent_io::{FileSystemExporterOptions, FileSystemFormat};
@@ -54,7 +58,7 @@ pub use quent_io_callback::EventCallback;
 mod tests {
     use super::*;
     use quent_build_info::ModelSource;
-    use quent_events::{EntityEvent, Event};
+    use quent_events::{Event, EventPayload};
     use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
     use uuid::Uuid;
 
@@ -72,11 +76,11 @@ mod tests {
     #[derive(Debug, serde::Serialize)]
     struct TestEvent;
 
-    impl EntityEvent for TestEvent {
+    impl EventPayload for TestEvent {
         const NAME: &'static str = "TestEvent";
     }
 
-    impl Model for TestModel {
+    impl EventModel for TestModel {
         const NAME: &'static str = "Test";
     }
 

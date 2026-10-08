@@ -79,6 +79,17 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
             "    @staticmethod\n    def collector(address: str) -> ExporterOptions: ...\n",
         );
     }
+    if options.collector_server {
+        output.push_str(concat!(
+            "\nclass Collector:\n",
+            "    @property\n    def address(self) -> str: ...\n",
+            "    @property\n    def closed(self) -> bool: ...\n",
+            "    def close(self, timeout: float | None = None) -> None: ...\n",
+            "    def __enter__(self) -> Collector: ...\n",
+            "    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None) -> None: ...\n",
+            "\ndef start_collector(output: ExporterOptions, *, bind_address: str = \"127.0.0.1:0\", advertised_host: str | None = None) -> Collector: ...\n",
+        ));
+    }
 
     for record in schema.records() {
         let name = format!("{}Dict", path_pascal(record.path()));

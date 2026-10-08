@@ -10,7 +10,7 @@ pub use quent_collector_client::{CollectorSink, deserialize_event, serialize_eve
 
 /// Routes serialized collector events into a generated model context.
 #[doc(hidden)]
-pub trait CollectorRouter: quent_events::Model + InstrumentedModel + Sized {
+pub trait CollectorRouter: quent_events::EventModel + InstrumentedModel + Sized {
     fn dispatch(
         context: &Context<Self>,
         entity: &str,

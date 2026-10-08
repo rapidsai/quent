@@ -57,8 +57,9 @@ jobs:
         run: |
           pixi run maturin develop --uv -m experimental/vibe/codegen/python/test/bridge/Cargo.toml
       - name: Run schema codegen Python tests
+        timeout-minutes: 5
         run: |
-          pixi run pytest -v experimental/vibe/codegen/python/test/
+          pixi run pytest -v -o faulthandler_timeout=60 experimental/vibe/codegen/python/test/
       - name: Build schema codegen Python example
         run: |
           pixi run maturin develop --uv -m experimental/vibe/codegen/python/example/readme/bridge/Cargo.toml

@@ -298,7 +298,7 @@ describe('EntitiesTable', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'Operator' }));
     fireEvent.click(screen.getByRole('option', { name: 'Operator One' }));
 
-    expect(screen.getByTestId('operator-details-title')).toHaveTextContent('Operator One');
+    expect(screen.getByTestId('operator-accordion-operator-1')).toHaveTextContent('Operator One');
   });
 
   it('supports selecting multiple operators from the dropdown', () => {

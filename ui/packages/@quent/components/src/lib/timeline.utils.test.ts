@@ -412,9 +412,10 @@ describe('findItemById', () => {
 // ---- buildTimelineMarks attributes ------------------------------------------
 
 import { buildTimelineMarks } from './timeline.utils';
-import type { DynamicValue, FiniteStateMachine } from '@quent/utils';
+import { getDeterministicColor, type DynamicValue, type FiniteStateMachine } from '@quent/utils';
 
 const taggedValue = (v: object) => v as unknown as DynamicValue;
+const colorState = (state: string) => getDeterministicColor(state);
 
 const THREAD_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 
@@ -443,7 +444,7 @@ const taskFsm: FiniteStateMachine = {
 
 describe('buildTimelineMarks attributes', () => {
   it('copies recorded and derived attributes onto marks', () => {
-    const marks = buildTimelineMarks([taskFsm], 'light', new Set([THREAD_ID]));
+    const marks = buildTimelineMarks([taskFsm], colorState, new Set([THREAD_ID]));
     expect(marks).toBeDefined();
     // Only the computing transition has a usage on the filtered resource.
     expect(marks).toHaveLength(1);
@@ -459,7 +460,7 @@ describe('buildTimelineMarks attributes', () => {
   });
 
   it('omits attribute keys for attribute-less transitions', () => {
-    const marks = buildTimelineMarks([taskFsm], 'light', null);
+    const marks = buildTimelineMarks([taskFsm], colorState, null);
     expect(marks).toHaveLength(2);
     const queueing = marks!.find(m => m.stateName === 'queueing')!;
     expect(queueing.derivedAttributes).toBeUndefined();
@@ -475,7 +476,7 @@ describe('buildTimelineMarks attributes', () => {
         return rest;
       }),
     } as unknown as FiniteStateMachine;
-    const marks = buildTimelineMarks([legacyFsm], 'light', new Set([THREAD_ID]));
+    const marks = buildTimelineMarks([legacyFsm], colorState, new Set([THREAD_ID]));
     expect(marks).toHaveLength(1);
     expect(marks![0]!.attributes).toBeUndefined();
     expect(marks![0]!.derivedAttributes).toBeUndefined();

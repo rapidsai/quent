@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generation of model markers and optional umbrella event enums.
+//! Generation of model markers and optional combined event enums.
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
@@ -21,20 +21,20 @@ pub(crate) fn generate(
     opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
     let model = generate_model(schema, namespace, opts);
-    let umbrella =
-        if opts.umbrella_event && (namespace.path().is_empty() || namespace.has_entities()) {
-            generate_umbrella(schema, namespace, opts)?
+    let combined =
+        if opts.combined_event && (namespace.path().is_empty() || namespace.has_entities()) {
+            generate_combined(schema, namespace, opts)?
         } else {
             quote! {}
         };
 
     Ok(quote! {
-        #umbrella
+        #combined
         #model
     })
 }
 
-fn generate_umbrella(
+fn generate_combined(
     schema: &Schema,
     namespace: &Namespace<'_>,
     opts: &Options,
@@ -120,12 +120,12 @@ fn generate_umbrella(
         }
     }
 
-    let model_umbrella = if namespace.path().is_empty() {
+    let model_combined = if namespace.path().is_empty() {
         let model = raw_ident(to_case(schema.name(), Case::Pascal));
         let runtime = opts.event_runtime();
         quote! {
-            impl #runtime::ModelEvents for #model {
-                type UmbrellaEvent = #event;
+            impl #runtime::CombinedEventModel for #model {
+                type CombinedEvent = #event;
             }
         }
     } else {
@@ -142,7 +142,7 @@ fn generate_umbrella(
 
         #(#entity_conversions)*
         #(#child_conversions)*
-        #model_umbrella
+        #model_combined
     })
 }
 
@@ -186,7 +186,7 @@ fn generate_model(schema: &Schema, namespace: &Namespace<'_>, opts: &Options) ->
             #analyzer_package
         }
 
-        impl #runtime::Model for #model {
+        impl #runtime::EventModel for #model {
             const NAME: &'static str = #model_name;
         }
     }
@@ -218,7 +218,7 @@ mod tests {
 
     fn options() -> Options {
         Options {
-            umbrella_event: true,
+            combined_event: true,
             ..Options::default()
         }
     }
@@ -266,16 +266,16 @@ mod tests {
     }
 
     #[test]
-    fn generates_model_without_umbrella_by_default() {
+    fn generates_model_without_combined_by_default() {
         let schema = SchemaBuilder::try_new("Demo").unwrap().build().unwrap();
         let namespaces = Namespace::root(&schema);
 
         let root = pretty(generate(&schema, &namespaces, &Options::default()).unwrap());
 
         assert!(root.contains("pub struct Demo"));
-        assert!(root.contains("impl ::quent_instrumentation::Model for Demo"));
+        assert!(root.contains("impl ::quent_instrumentation::EventModel for Demo"));
         assert!(!root.contains("DemoEvent"));
-        assert!(!root.contains("impl ::quent_instrumentation::ModelEvents for Demo"));
+        assert!(!root.contains("impl ::quent_instrumentation::CombinedEventModel for Demo"));
     }
 
     #[test]

@@ -3,7 +3,7 @@
 
 //! Umbrella crate providing unified exporter/importer creation.
 
-use quent_events::EntityEvent;
+use quent_events::EventPayload;
 
 use uuid::Uuid;
 
@@ -56,7 +56,7 @@ impl ExporterOptions {
 #[async_trait::async_trait]
 impl<T> ExporterProvider<T> for ExporterOptions
 where
-    T: serde::Serialize + Send + EntityEvent + 'static,
+    T: serde::Serialize + Send + EventPayload + 'static,
 {
     async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
         match self {
@@ -72,7 +72,7 @@ where
 #[async_trait::async_trait]
 impl<T> ExporterProvider<T> for ExporterOptions
 where
-    T: Send + EntityEvent + 'static,
+    T: Send + EventPayload + 'static,
 {
     async fn create_exporter(&self, _context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
         unreachable!("ExporterOptions has no enabled variants")

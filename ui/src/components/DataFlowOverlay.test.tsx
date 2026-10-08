@@ -165,7 +165,7 @@ function Harness({
     children ?? (
       <>
         <DagPlayhead />
-        <NodeFlowBar operatorId="op-1" isDark={false} />
+        <NodeFlowBar operatorId="op-1" />
       </>
     )
   );

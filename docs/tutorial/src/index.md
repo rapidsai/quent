@@ -4,9 +4,9 @@ Welcome to the Quent tutorial!
 
 ## What is Quent?
 
-Quent is a framework that helps build application-specific profiling tools in
-order to reduce the time to arrive to a conclusion about how an application is
-performing.
+Quent is a framework that helps build application-specific performance analysis
+tools in order to reduce the time to arrive to a conclusion about how an
+application is performing.
 
 Quent is typically used by developers, but the things you can build with it can
 also be leveraged by users.
@@ -28,7 +28,7 @@ At a very high level, using Quent work as follows:
 2. **Generate typed libraries.** From the schema, a code generation step
    produces a statically-typed _application-specific instrumentation library_
    and an (WIP) analysis library.
-3. **Capture events.** The application emits events through the generated
+3. **Emit events.** The application emits events through the generated
    instrumentation API at run-time. The instrumentation library exports the
    events through any of the provided exporters into their associated storage.
 4. **Analyze behavior.** An application-specific analysis service imports the
@@ -59,8 +59,8 @@ At a very high level, using Quent work as follows:
 
 ## Why use Quent?
 
-- You want to build a profiling tool that speaks in the same abstractions as
-  your application.
+- You want to build a performance analysis tool that speaks in the same
+  abstractions as your application.
 - You think answer questions about performance is best done through
   domain-specific or application-specific relationships found in your event
   data.
@@ -81,10 +81,11 @@ At a very high level, using Quent work as follows:
 
 - You cannot or do not want to modify the source code of your application.
 - Existing tools that help produce and analyze logs, metrics, traces, or
-  profiles already answer the questions you care about quickly enough.
+  (sampled) call stacks already answer the questions you care about quickly
+  enough.
 - A few log statements and analysis scripts provide all the structure you need.
-- You need a mature, stable profiling platform today. Quent is currently an
-  experimental alpha-stage project.
+- You need a mature, stable performance analysis platform today. Quent is
+  currently an experimental project.
 
 ## What this tutorial covers
 

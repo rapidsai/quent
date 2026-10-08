@@ -6,7 +6,7 @@
 #![allow(dead_code)]
 
 use quent_build_info::{BuildInfo, ModelSource};
-use quent_events::EntityEvent;
+use quent_events::EventPayload;
 use serde::{Deserialize, Serialize};
 
 /// Model marker, only used to supply provenance to `write_sidecar`.
@@ -24,6 +24,6 @@ impl ModelSource for TestModel {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TestEvent;
 
-impl EntityEvent for TestEvent {
+impl EventPayload for TestEvent {
     const NAME: &'static str = "TestEvent";
 }

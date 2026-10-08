@@ -3,7 +3,7 @@
 
 //! Analysis-time entities in Rust-native in-memory storage.
 
-use quent_events::Event;
+use quent_events::{Event, EventPayload};
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
@@ -12,10 +12,10 @@ use crate::{AnalyzerError, AnalyzerResult};
 /// Accumulates events of its associated entity event type.
 pub trait EntityEventAccumulator: Default {
     /// The event payload accumulated by this type.
-    type Event: quent_events::EntityEvent;
+    type Payload: EventPayload;
 
     /// Incorporates one event payload into the retained analysis.
-    fn push(&mut self, event: Self::Event);
+    fn push(&mut self, event: Self::Payload);
 }
 
 /// Rust-native struct wrapping around an application-specific
@@ -46,7 +46,7 @@ impl<A: EntityEventAccumulator> AnalyzedEntity<A> {
     /// # Errors
     ///
     /// Returns [`AnalyzerError::Validation`] if `id` is nil.
-    pub fn try_from_event(event: Event<A::Event>) -> AnalyzerResult<Self> {
+    pub fn try_from_event(event: Event<A::Payload>) -> AnalyzerResult<Self> {
         if event.id.is_nil() {
             Err(AnalyzerError::Validation(
                 "entity id cannot be nil".to_owned(),
@@ -69,7 +69,7 @@ impl<A: EntityEventAccumulator> AnalyzedEntity<A> {
     ///
     /// Returns [`AnalyzerError::Validation`] if the event ID differs from the
     /// entity ID.
-    pub fn push(&mut self, event: Event<A::Event>) -> AnalyzerResult<()> {
+    pub fn push(&mut self, event: Event<A::Payload>) -> AnalyzerResult<()> {
         if event.id != self.id {
             return Err(AnalyzerError::Validation(format!(
                 "event id {} does not match entity id {}",
@@ -94,7 +94,7 @@ impl<A: EntityEventAccumulator> crate::entity::Entity for AnalyzedEntity<A> {
     }
 
     fn type_name(&self) -> &str {
-        <A::Event as quent_events::EntityEvent>::NAME
+        <A::Payload as quent_events::EventPayload>::NAME
     }
 
     fn earliest_timestamp(&self) -> TimeUnixNanoSec {
@@ -108,14 +108,14 @@ impl<A: EntityEventAccumulator> crate::entity::Entity for AnalyzedEntity<A> {
 
 #[cfg(test)]
 mod tests {
-    use quent_events::EntityEvent;
+    use quent_events::EventPayload;
 
     use super::*;
     use crate::entity::Entity as _;
 
     struct Increment;
 
-    impl EntityEvent for Increment {
+    impl EventPayload for Increment {
         const NAME: &'static str = "Increment";
     }
 
@@ -123,9 +123,9 @@ mod tests {
     struct Counter(u32);
 
     impl EntityEventAccumulator for Counter {
-        type Event = Increment;
+        type Payload = Increment;
 
-        fn push(&mut self, _event: Self::Event) {
+        fn push(&mut self, _event: Self::Payload) {
             self.0 += 1;
         }
     }

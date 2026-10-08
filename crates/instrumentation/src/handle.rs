@@ -30,15 +30,15 @@ pub struct HandleInner<E: InstrumentedEntity> {
     id: crate::Uuid,
     /// One bit per once-cardinality event, set once that event is emitted.
     once_flags: u64,
-    observer: Arc<ObserverInner<E::Event>>,
+    observer: Arc<ObserverInner<E::Payload>>,
 }
 
 impl<E: InstrumentedEntity> HandleInner<E> {
-    pub(crate) fn new(observer: Arc<ObserverInner<E::Event>>) -> Self {
+    pub(crate) fn new(observer: Arc<ObserverInner<E::Payload>>) -> Self {
         Self::with_id(crate::Uuid::now_v7(), observer)
     }
 
-    pub(crate) fn with_id(id: crate::Uuid, observer: Arc<ObserverInner<E::Event>>) -> Self {
+    pub(crate) fn with_id(id: crate::Uuid, observer: Arc<ObserverInner<E::Payload>>) -> Self {
         Self {
             id,
             once_flags: 0,
@@ -75,7 +75,7 @@ impl<E: InstrumentedEntity> HandleInner<E> {
     ///
     /// Hidden because generated event methods provide the typed API.
     #[doc(hidden)]
-    pub fn emit(&self, event: E::Event) {
+    pub fn emit(&self, event: E::Payload) {
         self.observer.emit(self.id, event);
     }
 
@@ -90,7 +90,7 @@ impl<E: InstrumentedEntity> HandleInner<E> {
     pub fn emit_once<const INDEX: u32>(
         &mut self,
         event_name: &'static str,
-        event: E::Event,
+        event: E::Payload,
     ) -> Result<(), HandleError> {
         const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
         let mask = 1u64 << INDEX;

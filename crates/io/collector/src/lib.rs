@@ -4,7 +4,7 @@
 //! Exporter sending events to a Collector service
 
 use quent_collector_client::Client;
-use quent_events::{EntityEvent, Event};
+use quent_events::{Event, EventPayload};
 use quent_io_types::{Exporter, ExporterError, ExporterProvider, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
@@ -42,7 +42,7 @@ impl Options {
 #[async_trait::async_trait]
 impl<T> ExporterProvider<T> for Options
 where
-    T: Send + EntityEvent + 'static,
+    T: Send + EventPayload + 'static,
     T: serde::Serialize,
 {
     async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
@@ -65,7 +65,7 @@ pub struct CollectorExporter<T> {
 
 impl<T> CollectorExporter<T>
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Serialize + Send + EventPayload + 'static,
 {
     /// `source_context_id` identifies this stream to the collector, which
     /// reproduces the source's output under that id.
@@ -83,7 +83,7 @@ where
 #[async_trait::async_trait]
 impl<T> Exporter<T> for CollectorExporter<T>
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Serialize + Send + EventPayload + 'static,
 {
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
         let client = self.client.as_ref().ok_or(ExporterError::Shutdown)?;

@@ -61,7 +61,6 @@ export function createLongEntitiesTimelineSubRow({
           queryId={queryBundle.query_id}
           resourceId={resourceId}
           durationSeconds={queryBundle.duration_s}
-          fsmTypes={queryBundle.entities.fsm_types}
           isDark={isDark}
           onEntitySelect={onEntitySelect}
           selectedEntityId={selectedEntityId}

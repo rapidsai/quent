@@ -8,9 +8,8 @@
 //! Quent's strong-symbol C shim.
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // NVTX injection relies on ELF weak-symbol override / NVTX_INJECTION64_PATH,
-    // which is Linux 64-bit only. ARM Linux (aarch64) is supported — gettid and
-    // the ELF mechanism work there too.
+    // Static injection uses an ELF weak-symbol override, which is Linux 64-bit
+    // only. ARM Linux (aarch64) is supported too.
     let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let bits = std::env::var("CARGO_CFG_TARGET_POINTER_WIDTH").unwrap_or_default();
     if os != "linux" || bits != "64" {

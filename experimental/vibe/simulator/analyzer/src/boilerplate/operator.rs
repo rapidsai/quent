@@ -14,9 +14,9 @@ pub(crate) struct OperatorAccumulator {
 }
 
 impl EntityEventAccumulator for OperatorAccumulator {
-    type Event = schema::OperatorEvent;
+    type Payload = schema::OperatorEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         match event {
             schema::OperatorEvent::Declaration {
                 plan_id,

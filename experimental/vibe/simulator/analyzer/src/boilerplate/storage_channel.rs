@@ -10,9 +10,9 @@ pub(crate) struct StorageChannelAccumulator {
 }
 
 impl EntityEventAccumulator for StorageChannelAccumulator {
-    type Event = schema::StorageChannelEvent;
+    type Payload = schema::StorageChannelEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         let schema::StorageChannelEvent::Declaration {
             instance_name,
             worker_id,

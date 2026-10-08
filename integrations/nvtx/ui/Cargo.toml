@@ -2,20 +2,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [package]
-name = "nvtx-ui"
+name = "quent-nvtx-ui"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-nvtx-analyzer = { path = "../analyzer" }
+quent-nvtx-analyzer = { path = "../analyzer" }
 quent-time = { path = "../../../crates/time" }
 serde.workspace = true
 ts-rs.workspace = true
 
 [dev-dependencies]
-nvtx-bridge = { path = "../bridge" }
-nvtx-events = { path = "../events" }
+quent-nvtx-events = { path = "../events" }
 quent-events = { path = "../../../crates/events" }
 serde_json.workspace = true
 uuid.workspace = true

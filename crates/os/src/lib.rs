@@ -9,9 +9,9 @@
 //! object using its native ID.
 //!
 //! For example, integrations can correlate entities with external event streams
-//! from profilers such as NVTX. Such streams may be scoped by thread ID within
-//! one process or by process ID across multiple processes in one operating system
-//! context.
+//! such as captured NVTX annotations or CPU stack samples. Such streams may be
+//! scoped by thread ID within one process or by process ID across multiple
+//! processes in one operating system context.
 //!
 //! The constraint is not intended to attach process or thread IDs to arbitrary
 //! events. Model those values as ordinary typed or `dynamic` attributes.

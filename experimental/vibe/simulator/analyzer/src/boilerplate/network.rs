@@ -10,9 +10,9 @@ pub(crate) struct NetworkAccumulator {
 }
 
 impl EntityEventAccumulator for NetworkAccumulator {
-    type Event = schema::NetworkEvent;
+    type Payload = schema::NetworkEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         let schema::NetworkEvent::Declaration {
             instance_name,
             engine_id,

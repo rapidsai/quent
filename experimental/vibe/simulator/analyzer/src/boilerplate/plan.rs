@@ -13,9 +13,9 @@ pub(crate) struct PlanAccumulator {
 }
 
 impl EntityEventAccumulator for PlanAccumulator {
-    type Event = schema::PlanEvent;
+    type Payload = schema::PlanEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         let schema::PlanEvent::Declaration {
             parent,
             instance_name,

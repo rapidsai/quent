@@ -19,7 +19,7 @@ use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_fixed as fixed;
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::{Simulator, SimulatorEvent};
-use quent_store::event::{ModelEventStore, filesystem::Store};
+use quent_store::event::{CombinedEventLoader, filesystem::Loader};
 use quent_ui::timeline::{categorical::CategoricalTimelineRequest, request::TimelineConfig};
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
@@ -34,11 +34,14 @@ fn fixed_analyzer() -> SimulatorUiAnalyzer {
     let context_id = ctx.id();
     fixed::emit(&ctx);
     drop(ctx);
-    let events = Store::<Simulator>::new(output.path())
-        .events(context_id)
-        .unwrap()
-        .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()
-        .unwrap();
+    let events = Loader::<Simulator>::new(
+        output.path(),
+        quent_store::context::ContextSet::one(context_id),
+    )
+    .combined_events()
+    .unwrap()
+    .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()
+    .unwrap();
     SimulatorUiAnalyzer::try_new(fixed::ENGINE, events.into_iter()).unwrap()
 }
 

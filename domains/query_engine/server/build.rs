@@ -22,6 +22,8 @@ fn build_ui() -> Result<(), Box<dyn std::error::Error>> {
         "package.json",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",
+        ".prettierrc",
+        ".prettierignore",
         "tsconfig.base.json",
         "tsconfig.json",
         "tsconfig.node.json",
@@ -63,6 +65,7 @@ fn build_ui() -> Result<(), Box<dyn std::error::Error>> {
 
     quent_query_engine_ui_bindings::generate(&bindings_dir)?;
     run_pnpm(&["install", "--frozen-lockfile"])?;
+    run_pnpm(&["bindings:format"])?;
     run_pnpm(&["ci:build"])?;
 
     Ok(())

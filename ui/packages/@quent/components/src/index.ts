@@ -204,7 +204,7 @@ export type {
 export { TimelineRuler } from './timeline/TimelineRuler';
 export { TimelineSettingsPopover } from './timeline/TimelineSettingsPopover';
 export { TimelineSkeleton } from './timeline/TimelineSkeleton';
-export { TimelineToolbar } from './timeline/TimelineToolbar';
+export { TimelineActions, TimelineToolbar } from './timeline/TimelineToolbar';
 export { QueryToolbar } from './timeline/QueryToolbar';
 export { TooltipContent } from './timeline/TimelineTooltip';
 export type { TooltipItemNoun } from './timeline/TimelineTooltip';

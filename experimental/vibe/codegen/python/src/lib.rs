@@ -31,6 +31,8 @@ pub struct Options {
     pub io_path: String,
     pub dynamic_attributes_path: String,
     pub exporters: Exporters,
+    /// Expose a model-specific factory for an embedded collector server.
+    pub collector_server: bool,
 }
 
 /// Exporter constructors generated for a Python module.
@@ -67,6 +69,7 @@ impl Default for Options {
             io_path: "quent_io".to_owned(),
             dynamic_attributes_path: "quent_dynamic_attributes".to_owned(),
             exporters: Exporters::default(),
+            collector_server: false,
         }
     }
 }
@@ -103,7 +106,7 @@ pub enum GenerateError {
 pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, GenerateError> {
     validate_schema(schema)?;
     validate_options(options)?;
-    validate_names(schema)?;
+    validate_names(schema, options)?;
     validate_types(schema)?;
     let instrumentation = parse_path(&options.instrumentation_path)?;
     let runtime = parse_path(&options.runtime_path)?;
@@ -134,7 +137,7 @@ pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, Ge
 pub fn emit_stubs(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, GenerateError> {
     validate_schema(schema)?;
     validate_options(options)?;
-    validate_names(schema)?;
+    validate_names(schema, options)?;
     validate_types(schema)?;
     Ok(stubs::emit(schema, options))
 }
@@ -150,7 +153,7 @@ fn validate_schema(schema: &Schema) -> Result<(), GenerateError> {
     fsms.map_err(|error| GenerateError::InvalidSchema(error.to_string()))
 }
 
-fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
+fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateError> {
     let mut names = [
         "Context",
         "ContextClosedError",
@@ -175,6 +178,10 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     .map(str::to_owned)
     .collect::<std::collections::BTreeSet<_>>();
     let mut references = std::collections::BTreeMap::<String, String>::new();
+    if options.collector_server {
+        reserve_name(&mut names, "Collector".to_owned())?;
+        reserve_name(&mut names, "start_collector".to_owned())?;
+    }
     for record in schema.records() {
         reserve_name(&mut names, format!("{}Dict", path_pascal(record.path())))?;
         validate_python_fields(record.fields().map(|field| field.name().as_ref()))?;
@@ -246,6 +253,14 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
 }
 
 fn validate_options(options: &Options) -> Result<(), GenerateError> {
+    if options.collector_server
+        && !(options.exporters.ndjson || options.exporters.msgpack || options.exporters.postcard)
+    {
+        return Err(GenerateError::InvalidOption {
+            option: "collector_server",
+            reason: "requires a filesystem exporter constructor".to_owned(),
+        });
+    }
     if options.module_name.is_empty()
         || options
             .module_name
@@ -706,6 +721,32 @@ fn context(
             }
         }
     });
+    let collector_start = options.collector_server.then(|| {
+        quote! {
+            #[pyfunction]
+            #[pyo3(signature = (output, *, bind_address = "127.0.0.1:0", advertised_host = None))]
+            pub fn start_collector(
+                output: PyRef<'_, PyExporterOptions>,
+                bind_address: &str,
+                advertised_host: Option<&str>,
+            ) -> PyResult<::quent_collector_python::Collector> {
+                let output = match &output.inner {
+                    ExporterKind::Options(#io::ExporterOptions::FileSystem(options)) => {
+                        #io::ExporterOptions::FileSystem(options.clone())
+                    }
+                    _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                        "collector output must be a filesystem exporter",
+                    )),
+                };
+                ::quent_collector_python::Collector::start(
+                    bind_address,
+                    advertised_host,
+                    move |id| <#context_ty>::try_with_id(id, output.clone())
+                        .map_err(|error| error.to_string()),
+                )
+            }
+        }
+    });
     quote! {
         #[allow(dead_code)]
         enum ExporterKind { Noop, #option_variant }
@@ -719,6 +760,7 @@ fn context(
         }
 
         #exporter_py_methods
+        #collector_start
 
         /// Owns observer factories for one telemetry context.
         #[pyclass(name = "Context")]
@@ -1280,6 +1322,12 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
         }
         handles
     });
+    let collector_registration = options.collector_server.then(|| {
+        quote! {
+            module.add_class::<::quent_collector_python::Collector>()?;
+            module.add_function(wrap_pyfunction!(start_collector, module)?)?;
+        }
+    });
     quote! {
         #[pymodule(name = #export_name)]
         pub fn #rust_name(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1309,6 +1357,7 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             module.add_class::<PyDynamicValue>()?;
             module.add_class::<PyExporterOptions>()?;
             module.add_class::<PyContext>()?;
+            #collector_registration
             #(module.add_class::<#observers>()?;)*
             #(module.add_class::<#handles>()?;)*
             Ok(())

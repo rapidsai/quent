@@ -1,0 +1,8 @@
+[package]
+name = "quent-bench-rust-common"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+quent-bench-types = { path = "../../../types" }

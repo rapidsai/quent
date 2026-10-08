@@ -3,13 +3,16 @@ name = "quent-time"
 version.workspace = true
 edition.workspace =  true
 publish.workspace = true
+
 [features]
 default = []
+clock-quanta = ["dep:quanta"]
 ts = ["ts-rs", "serde"]
 # Internal: timestamp() override for the deterministic event emitter.
 __test-clock-override = []
 
 [dependencies]
+quanta = { workspace = true, optional = true }
 thiserror.workspace = true
 serde = { workspace = true, optional = true }
 ts-rs = { workspace = true, optional = true }

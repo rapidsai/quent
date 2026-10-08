@@ -1,16 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRouter } from '@tanstack/react-router';
+import { useRouter, type ErrorComponentProps } from '@tanstack/react-router';
 import { Button } from '@quent/components';
 
-interface RouteErrorProps {
-  error: Error;
-}
-
-export function RouteError({ error }: RouteErrorProps) {
+export function RouteError({ error }: ErrorComponentProps) {
   const router = useRouter();
-  const message = error.message || 'An unexpected error occurred.';
+  const message =
+    error instanceof Error && error.message ? error.message : 'An unexpected error occurred.';
 
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-48 gap-4 p-8 text-center">

@@ -22,19 +22,28 @@
 </p>
 
 Quent helps build dedicated performance analysis tools tailored to your
-application. You and your agents first define a _schema_ of _events_ with
-_attributes_ emitted from your data and control flow abstractions (called
-_entities_) at runtime.
+application in order to reduce the time it takes you to arrive to conclusions
+about performance.
 
-Quent then turns the _schema_ into a dedicated _instrumentation library_. This
-instrumentation library not only has a type-safe API but also uses a statically
+You first define a _schema_ of _events_ and their _attributes_ describing the
+things you want to observe (called _entities_) at runtime.
+
+Quent then turns the _schema_ into a dedicated low-latency _instrumentation
+library_. This instrumentation library has a type-safe API and a statically
 typed export path for maximum performance.
 
-The intended architecture also includes a statically typed _analysis library_
-generated from the schema. This library is a work in progress and is not
-currently available. It will support querying stored events by attribute values
-and enriching those events with semantics provided by what we call _semantic
-modules_.
+Quent also turns the _schema_ into a statically typed _analysis library_
+([WIP](https://github.com/rapidsai/quent/issues/516)).
+It will support querying stored events while enriching those events with
+semantics provided by what we call _semantic modules_ (see below).
+
+Quent's schema-centric approach aims to ensure that across the entire
+performance analysis stack, all the way from the instrumentation side down to
+analysis and visualization, everything stays in sync. This provides extensive
+guardrails for humans and agents to build application-specific performance
+analysis tools. No more event definitions drifting between producers and
+consumers. No more instrumentation changes silently breaking analysis. No more
+tools interpreting the same events differently.
 
 <p align="center">
 <img src="docs/figures/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="512">
@@ -42,11 +51,12 @@ modules_.
 
 [Semantic modules](#semantic-modules) are curated vertical slices of Quent’s
 stack. Each semantic module can contribute semantics around basic schema
-elements (e.g. on events or attributes), and potentially add support for those
-semantics in instrumentation or analysis code generation. Semantic modules can
-also include curated visualizations for user interfaces, querying events through
-CLIs or MCP endpoints to support agent-in-the-loop optimization efforts, and
-more.
+elements (i.e. entities, events, and their attributes), and potentially add
+additional support for those semantics in instrumentation or analysis code
+generation. This helps provide more guardrails during instrumentation or
+analysis. Semantic modules can also include visualizations for user interfaces,
+querying events through CLIs or MCP endpoints to support agent-in-the-loop
+optimization efforts, and more.
 
 Quent is currently developed around the use case of accelerated data-processing
 engines. An elaborate example of how Quent is used to produce a domain-specific
@@ -57,7 +67,7 @@ analysis toolchain with a user interface in this domain is shown below:
 ## Try it
 
 To quickly get an idea of what the framework can do, open the
-[live query-engine profiler UI](https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline).
+[live query-engine performance analysis UI](https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline).
 It runs a simulated query-engine workload entirely in your browser and requires
 no installation.
 
@@ -87,33 +97,6 @@ is a browser-based YAML schema editor and visualization tool. Use it to edit
 example schemas and explore how Quent models entities, events, finite-state
 machines, resources, and their relationships without installing anything.
 
-## Why
-
-Quent is built to address a growing complexity gap between complex modern
-accelerated and distributed systems software and low-level profiling tools.
-
-Highly dynamic software systems (take query engines, for example) have a lot of
-"stuff" to do before the heavy computation actually starts inside accelerators.
-All that "stuff" is complex, highly layered, and very custom-tailored. This may
-include asynchronous execution engines, multi-layered workload schedulers,
-out-of-core execution support, caching, and much more. All these things need to
-exist before considering the computational kernels executed on accelerators. At
-the same time, this software must not bottleneck the raw computational and I/O
-performance that accelerated
-systems nowadays provide. Looking at all this abstract machinery with
-traditional profiling tools is, however, both hard and time-consuming, since
-these tools provide incredibly detailed call-stack traces that add a lot of
-noise, greatly inflate storage requirements, and typically do not "speak the
-same language" as the abstractions in the system's software architecture.
-
-The goal of profiling tools built with Quent is to reduce time to conclusion
-(TTC) for these applications by allowing developers to start performance
-analysis from code they work with every day, have full control over, and have
-already formed mental models for. This helps narrow the analysis first in a
-familiar environment before reaching for other excellent low-level profiling
-tools such as Linux Perf, NVIDIA Nsight Systems or Nsight Compute for deeper
-system-level or closer-to-hardware analysis.
-
 ## Status
 
 Quent is an experimental alpha-stage project and is changing quickly. It is
@@ -128,65 +111,44 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
 
 ## Semantic modules
 
-Semantic modules are already composable parts of Quent's architecture and the
-primary mechanism by which the framework intends to evolve features. New
-semantic modules can expand its capabilities without requiring corresponding
-changes to the core framework or breaking existing module compositions.
+Semantic modules provide composable parts that you can add to the performance
+analysis tool you're building with Quent. Each module defines specific telemetry
+concepts and rules. Its associated instrumentation, analysis, and visualization
+components use those same definitions. The goal is for generated instrumentation
+and analysis code to use the same schema-defined types and enforce the same
+semantic rules. Invalid uses can then be rejected early, giving both developers
+and agents consistent constraints throughout the stack.
 
-Quent assumes coding agents will become a common way to assemble
-application-specific tooling. For now, this avoids the need for elaborate
-extension mechanisms that encode every possible composition. Developers can
-provide ordinary glue code, either directly or with an agent, to combine
-semantic modules into a dedicated performance analysis tool.
+The repository includes these general-purpose semantic modules:
 
-Using an agent is optional. The same interfaces and artifacts are intended to
-remain understandable, reviewable, and usable by developers working without
-one. Semantic modules keep this flexible composition coherent. Each module
-defines specific telemetry concepts and rules. Its associated instrumentation,
-analysis, and visualization components use those same definitions. The intended
-architecture preserves these definitions through end-to-end static typing, from
-the schema to generated instrumentation and analysis code. Invalid uses can then
-be rejected early, giving both developers and agents consistent constraints
-throughout the stack.
-
-The repository currently includes semantic modules useful across a wide variety
-of applications.
-
-- [`quent-fsm`](crates/fsm/): describes the potential sequences of events by
-  modeling entities as finite-state machines.
-  - Through this semantic module, the instrumentation library can be generated
-    such that invalid transitions are already rejected at compile time, and/or
-    an analysis library can validate whether FSM transition events followed the
-    described topology.
-- [`quent-resource`](crates/resource/): defines resources such as memories,
-  channels, and processing elements, and how other entities can use them.
-  - Through this semantic module, an analysis library can provide functionality
-    that checks whether resources were saturated above some threshold for a
-    certain duration, or it can generate data for a resource utilization
-    timeline visualization.
+- [`quent-fsm`](crates/fsm/): models valid event sequences as finite-state
+  machines, supporting compile-time transition checks and analysis-time
+  validation.
+- [`quent-resource`](crates/resource/): models resources such as memories,
+  channels, and processing elements, and their usage by entities. Supports
+  utilization timelines and checks for saturation above a threshold for a
+  specified duration.
 - [`quent-log`](crates/log/): defines entity-scoped logging sinks with ordered
   severity levels and arbitrary event attributes.
-- [`quent-ref-target`](crates/ref-target/): constrains references to other
-  entities to be of a certain type.
-- [`quent-ref-tree`](crates/ref-tree/): allows forming hierarchies of
-  event-emitting entities to, e.g., provide the canonical path of performance
-  analysis exploration through all event data from a UI.
+- [`quent-ref-target`](crates/ref-target/): restricts entity references to a
+  specified entity type.
+- [`quent-ref-tree`](crates/ref-tree/): defines entity hierarchies that provide
+  a canonical path for exploring related events.
 - [`quent-os`](crates/os/): identifies entities as operating-system processes
-  and threads so their events can be correlated with external event streams.
+  and threads for correlation with external event streams.
 
-Semantic modules can address application- or domain-specific concerns. For
-example, applications like query engines often capture their computational path
-via directed acyclic graphs. By capturing rules for how a schema should
-represent vertices and edges, and how data flow across edges can be captured,
-an analysis component can quickly find all associated events, and a UI component
-can visually render the graph and data flowing across edges over time as shown
-in the example above.
+Modules can also address domain-specific concerns. For example, a query-engine
+module can define how a schema represents a directed acyclic graph and data flow
+across its edges, enabling analysis to locate associated events and a UI to
+visualize data flow over time.
 
-Quent does not currently provide a mechanism for plugging third-party semantic
-modules yet. A plugin mechanism may allow externally authored semantic modules
-in the future.
+Quent does not currently support third-party semantic module plugins, but this
+may become a feature in the future.
 
 ## Quick example
+
+For C++ and Python examples, see the
+[tutorial](https://rapidsai.github.io/quent/tutorial/).
 
 ### Schema definition
 

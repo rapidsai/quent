@@ -233,7 +233,7 @@ export function GanttChart<T extends GanttDatum>({
           </div>
         )}
       </HiddenScroll>
-      {showPlayhead && <PlayheadLine instance={chartInstance} />}
+      {showPlayhead && <PlayheadLine instance={chartInstance} draggable />}
       {expansion?.canResize && (
         <Button
           type="button"

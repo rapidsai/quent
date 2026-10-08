@@ -19,10 +19,7 @@ import {
   selectedDagLayoutDirectionAtom,
   selectedOperatorsDataAtom,
   highlightedNodeIdsAtom,
-  effectiveHighlightedNodeIdsAtom,
-  effectiveHoveredStatAtom,
   hoveredStatAtom,
-  dagDisplayedNodeIdsAtom,
 } from '../atoms/dagControls';
 
 export function useSelectedColorField() {
@@ -81,21 +78,9 @@ export function useSetHighlightedNodeIds() {
   return useSetAtom(highlightedNodeIdsAtom);
 }
 
-export function useEffectiveHighlightedNodeIds() {
-  return useAtomValue(effectiveHighlightedNodeIdsAtom);
-}
-
-export function useEffectiveHoveredStat() {
-  return useAtomValue(effectiveHoveredStatAtom);
-}
-
 export function useHoveredStat() {
   return useAtom(hoveredStatAtom);
 }
 export function useSetHoveredStat() {
   return useSetAtom(hoveredStatAtom);
-}
-
-export function useSetDagDisplayedNodeIds() {
-  return useSetAtom(dagDisplayedNodeIdsAtom);
 }

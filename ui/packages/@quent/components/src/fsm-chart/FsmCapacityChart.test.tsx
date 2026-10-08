@@ -74,7 +74,8 @@ const TWO_TRANSITIONS = [
 /** Open a combobox by its accessible name and pick the option with the given text. */
 async function selectOption(comboboxName: string, optionName: string) {
   const user = userEvent.setup();
-  await user.click(screen.getByRole('combobox', { name: comboboxName }));
+  screen.getByRole('combobox', { name: comboboxName }).focus();
+  await user.keyboard('{ArrowDown}');
   await user.click(await screen.findByRole('option', { name: optionName }));
 }
 
@@ -225,7 +226,8 @@ describe('FsmCapacityChart', () => {
       render(<FsmCapacityChart {...defaultProps} transitions={transitions} />);
 
       const user = userEvent.setup();
-      await user.click(screen.getByRole('combobox', { name: 'Select capacity' }));
+      screen.getByRole('combobox', { name: 'Select capacity' }).focus();
+      await user.keyboard('{ArrowDown}');
       const options = (await screen.findAllByRole('option')).map(o => o.textContent);
       expect(options).toContain('capacity_bytes');
       expect(options).toContain('unit');

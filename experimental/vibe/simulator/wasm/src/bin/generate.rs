@@ -9,7 +9,7 @@ use quent_events::Event;
 use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::{Simulator, SimulatorEvent};
-use quent_store::event::{ModelEventStore, filesystem::Store};
+use quent_store::event::{CombinedEventLoader, filesystem::Loader};
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
 
@@ -26,9 +26,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ))?;
     let context_id = context.id();
     quent_simulator::simulate(context, Default::default());
-    let events = Store::<Simulator>::new(event_dir.path())
-        .events(context_id)?
-        .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()?;
+    let events = Loader::<Simulator>::new(
+        event_dir.path(),
+        quent_store::context::ContextSet::one(context_id),
+    )
+    .combined_events()?
+    .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()?;
     if let Some(parent) = output
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())

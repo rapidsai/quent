@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useCallback } from 'react';
-import {
-  QueryToolbar,
-  PivotedStatTable,
-  PivotTableToolbar,
-  getSchemaStatNames,
-} from '@quent/components';
+import { PivotedStatTable, PivotTableToolbar, getSchemaStatNames } from '@quent/components';
 import { formatStatWithQuantity } from '@quent/utils';
 import type {
   PivotedRow,
@@ -353,7 +348,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <QueryToolbar />
       <div className="shrink-0 flex flex-col border-b border-border bg-card">
         <PivotTableToolbar
           indexConfig={indexConfig}

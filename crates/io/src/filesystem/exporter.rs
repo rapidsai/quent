@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use quent_events::EntityEvent;
+use quent_events::EventPayload;
 use quent_io_types::{Exporter, ExporterProvider, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
@@ -32,7 +32,7 @@ impl Options {
 #[async_trait::async_trait]
 impl<T> ExporterProvider<T> for Options
 where
-    T: Send + EntityEvent + 'static,
+    T: Send + EventPayload + 'static,
     T: Serialize,
 {
     async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {

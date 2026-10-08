@@ -136,7 +136,7 @@ impl<E: InstrumentedEntity> From<HandleInner<E>> for FsmHandleInner<E> {
 impl<E> FsmHandleInner<E>
 where
     E: InstrumentedEntity,
-    E::Event: FsmEvent,
+    E::Payload: FsmEvent,
 {
     /// Emits `event` with the next wrapping transition sequence number.
     ///
@@ -144,7 +144,7 @@ where
     /// in-place transitions on dynamic-state FSM handles; application code uses
     /// the generated transition methods instead.
     #[doc(hidden)]
-    pub fn transition_mut(&mut self, mut event: E::Event) {
+    pub fn transition_mut(&mut self, mut event: E::Payload) {
         let (sequence, next) = self.sequence.advance();
         event.set_sequence(sequence);
         self.handle.emit(event);
@@ -157,7 +157,7 @@ where
     /// to implement typestate transitions that return the target-state handle;
     /// application code uses the generated transition methods instead.
     #[doc(hidden)]
-    pub fn transition(mut self, event: E::Event) -> Self {
+    pub fn transition(mut self, event: E::Payload) -> Self {
         self.transition_mut(event);
         self
     }

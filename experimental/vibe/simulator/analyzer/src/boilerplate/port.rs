@@ -11,9 +11,9 @@ pub(crate) struct PortAccumulator {
 }
 
 impl EntityEventAccumulator for PortAccumulator {
-    type Event = schema::PortEvent;
+    type Payload = schema::PortEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         match event {
             schema::PortEvent::Declaration {
                 operator_id,

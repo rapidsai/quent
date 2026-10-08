@@ -10,9 +10,9 @@ pub(crate) struct GpuAccumulator {
 }
 
 impl EntityEventAccumulator for GpuAccumulator {
-    type Event = schema::GpuEvent;
+    type Payload = schema::GpuEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         let schema::GpuEvent::Declaration {
             instance_name,
             worker_id,

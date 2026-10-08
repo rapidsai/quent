@@ -8,13 +8,18 @@ edition.workspace = true
 publish.workspace = true
 
 [lib]
-# cdylib = the NVTX_INJECTION64_PATH runtime attach path (primary);
-# rlib   = the static/link-time path and in-process unit tests.
 crate-type = ["rlib"]
 
+[[test]]
+name = "late_hook"
+required-features = ["static-injection"]
+
+[[test]]
+name = "shutdown"
+required-features = ["static-injection"]
+harness = false
+
 [dependencies]
-libc = "0.2"
-nvtx-events = { path = "../events" }
 # `tools` exposes NVTX's callback-subscription and injection ABI.
 nvtx-sys = { workspace = true, features = ["tools"] }
 thiserror = { workspace = true }
@@ -24,11 +29,13 @@ thiserror = { workspace = true }
 # `static-injection` strong-symbol shim. `nvtx-sys` also compiles bundled C code.
 cc = { workspace = true, optional = true }
 
+[dev-dependencies]
+libc = "0.2"
+nvtx = { workspace = true }
+
 [features]
-# static-injection: attach the injection in-process at link time instead of at
-# runtime. The default attach path is the cdylib NVTX `dlopen`s via
-# `NVTX_INJECTION64_PATH`; with this feature a strong
+# `static-injection` attaches injection in-process at link time. A strong
 # `InitializeInjectionNvtx2_fnptr` is linked into the consuming image and points
-# at Quent's internal initializer, so that image initializes injection at its
-# first NVTX call. Linux-only. See the crate docs ("Attach modes").
+# at the injection initializer, so that image initializes injection at its
+# first NVTX call. Linux-only.
 static-injection = ["dep:cc"]

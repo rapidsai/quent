@@ -3,4 +3,8 @@
 
 //! Typed access to stored data.
 
+pub mod context;
+pub mod entity;
 pub mod event;
+
+pub use entity::{EntityHandle, EntityStore};

@@ -10,9 +10,9 @@ pub(crate) struct TaskExecutorAccumulator {
 }
 
 impl EntityEventAccumulator for TaskExecutorAccumulator {
-    type Event = schema::TaskExecutorEvent;
+    type Payload = schema::TaskExecutorEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         let schema::TaskExecutorEvent::Declaration {
             instance_name,
             worker_id,

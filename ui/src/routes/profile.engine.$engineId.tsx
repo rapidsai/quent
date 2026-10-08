@@ -3,15 +3,21 @@
 
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
 import { Provider } from 'jotai';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { QueryPlan } from '@/components/QueryPlan';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
-import { COLOR_REGISTRY_KEYS, useHydrateColorRegistry, type ColorRegistry } from '@quent/hooks';
-import { DeepLinkBoundary } from '@/features/deep-link';
+import { QueryColorRegistry } from '@/components/QueryColorRegistry';
 import {
-  buildDeterministicColorMap,
+  QueryToolbar,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@quent/components';
+import { CopyLinkButton, DeepLinkBoundary } from '@/features/deep-link';
+import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
+import {
   unpackEntityRef,
   type EntityRef,
+  type PaletteTheme,
   type QueryBundle,
   type ResourceTree,
 } from '@quent/utils';
@@ -45,24 +51,10 @@ function defaultRootResourceType(queryBundle: QueryBundle<EntityRef> | undefined
   return resourceId ? (queryBundle.entities.resources[resourceId]?.type_name ?? null) : null;
 }
 
-function QueryColorRegistry({
-  operatorTypes,
-  children,
-}: {
-  operatorTypes: readonly string[];
-  children: ReactNode;
-}) {
-  const registry = useMemo<ColorRegistry>(
-    () =>
-      new Map([[COLOR_REGISTRY_KEYS.OPERATOR_TYPES, buildDeterministicColorMap(operatorTypes)]]),
-    [operatorTypes]
-  );
-  useHydrateColorRegistry(registry);
-  return children;
-}
-
 function ProfileLayout() {
   const { engineId } = Route.useParams();
+  const { theme } = useTheme();
+  const paletteTheme: PaletteTheme = theme === THEME_DARK ? 'dark' : 'light';
 
   // Match the query layout route (covers all /query/$queryId/* children)
   const queryMatch = useMatch({
@@ -118,34 +110,41 @@ function ProfileLayout() {
       encodedState={encodedState}
       isQueryReady={isQueryReady}
     >
-      <ResizablePanelGroup orientation="horizontal" className="h-full min-w-0">
-        <ResizablePanel defaultSize="33%" minSize="15%" collapsible collapsedSize="0%">
-          {queryId && queryId !== '' ? (
-            <QueryPlan queryId={queryId} engineId={engineId} />
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              Select a query to view the execution plan
-            </div>
-          )}
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel
-          defaultSize="67%"
-          minSize="20%"
-          collapsible
-          collapsedSize="0%"
-          className="min-w-0 overflow-x-hidden overflow-y-auto h-[calc(100vh-4rem)]"
-        >
-          <Outlet />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+      <div className="flex h-[calc(100vh-4rem)] min-w-0 flex-col">
+        {queryId && (
+          <QueryToolbar>
+            <CopyLinkButton />
+          </QueryToolbar>
+        )}
+        <ResizablePanelGroup orientation="horizontal" className="min-h-0 min-w-0 flex-1">
+          <ResizablePanel defaultSize="33%" minSize="15%" collapsible collapsedSize="0%">
+            {queryId && queryId !== '' ? (
+              <QueryPlan queryId={queryId} engineId={engineId} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Select a query to view the execution plan
+              </div>
+            )}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel
+            defaultSize="67%"
+            minSize="20%"
+            collapsible
+            collapsedSize="0%"
+            className="min-w-0 overflow-x-hidden overflow-y-auto"
+          >
+            <Outlet />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
     </DeepLinkBoundary>
   );
 
   return (
     <Provider key={`${engineId}:${queryId ?? ''}:${providerPayload ?? ''}`}>
       {queryBundle ? (
-        <QueryColorRegistry operatorTypes={queryBundle.unique_operator_names}>
+        <QueryColorRegistry queryBundle={queryBundle} paletteTheme={paletteTheme}>
           {content}
         </QueryColorRegistry>
       ) : (

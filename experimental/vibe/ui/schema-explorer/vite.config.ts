@@ -46,7 +46,8 @@ export default defineConfig(({ command }) => ({
     },
   },
   resolve: {
-    dedupe: ['svelte'],
+    // CodeMirror extensions require the same state constructors across packages.
+    dedupe: ['svelte', '@codemirror/state'],
     ...(command === 'serve'
       ? {
           alias: [

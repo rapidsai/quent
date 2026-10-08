@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { FiniteStateMachine, FsmTypeDecl, PaletteTheme, QueryEngineFsm } from '@quent/utils';
+import type { ColorResolver, FiniteStateMachine, QueryEngineFsm } from '@quent/utils';
 import {
-  createFsmTypeColorFn,
   LONG_ENTITIES_ROW_TYPE,
   longEntitiesRowId,
   resourceIdFromLongEntitiesRowId,
@@ -66,17 +65,14 @@ function buildSegments(
  */
 export function buildLongEntityEntries(
   items: QueryEngineFsm[],
-  fsmTypes: { [key in string]?: FsmTypeDecl } | undefined,
-  theme: PaletteTheme,
+  colorFsmState: ColorResolver,
   resourceIdsForFilter?: ReadonlySet<string> | null,
   selectedOperatorIds?: ReadonlySet<string> | null
 ): LongEntityEntry[] {
-  const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
   const hasOperatorFilter = (selectedOperatorIds?.size ?? 0) > 0;
-
   const entries: LongEntityEntry[] = [];
   for (const fsm of items) {
-    const segments = buildSegments(fsm, colorFsm, resourceIdsForFilter);
+    const segments = buildSegments(fsm, colorFsmState, resourceIdsForFilter);
     if (segments.length === 0) {
       continue;
     }

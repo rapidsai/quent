@@ -209,7 +209,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
       </td>
     );
   }
-  const displayVal = agg[display.aggMode as Exclude<AggMode, 'value'>] ?? null;
+  const displayVal = numVal;
   return (
     <td
       className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono"
@@ -356,9 +356,9 @@ export function PivotedStatTable<TRow>({
           max = v;
         }
       }
-      return { name: statName, values, min, max };
+      return { name: statName, values, min, max, aggMode: isAggregating ? aggMode : 'sum' };
     },
-    [statsByItem]
+    [statsByItem, isAggregating, aggMode]
   );
 
   const pivotedRows = useMemo(

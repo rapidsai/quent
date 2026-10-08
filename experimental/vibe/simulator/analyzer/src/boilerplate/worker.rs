@@ -11,9 +11,9 @@ pub(crate) struct WorkerAccumulator {
 }
 
 impl EntityEventAccumulator for WorkerAccumulator {
-    type Event = schema::WorkerEvent;
+    type Payload = schema::WorkerEvent;
 
-    fn push(&mut self, event: Self::Event) {
+    fn push(&mut self, event: Self::Payload) {
         match event {
             schema::WorkerEvent::Init {
                 parent_engine_id,

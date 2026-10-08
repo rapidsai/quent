@@ -8,8 +8,8 @@ export type { QuentProviderProps } from './QuentProvider';
 // Query-scoped deterministic color registries
 export {
   COLOR_REGISTRY_KEYS,
+  ColorRegistryProvider,
   useColorResolver,
-  useHydrateColorRegistry,
 } from './colors/colorRegistry';
 export type { ColorRegistry, ColorRegistryKey } from './colors/colorRegistry';
 
@@ -92,13 +92,12 @@ export {
   useSelectedOperatorsData,
   useHighlightedNodeIds,
   useSetHighlightedNodeIds,
-  useEffectiveHighlightedNodeIds,
-  useEffectiveHoveredStat,
   useHoveredStat,
   useSetHoveredStat,
-  useSetDagDisplayedNodeIds,
 } from './dag/dagControlSelectors';
 export type { HoveredStatInfo, HighlightedNodeIdsState } from './atoms/dagControls';
+export { resolveHoveredStatValue } from './dag/hoveredStatValue';
+export type { ResolvedHoveredStatValue } from './dag/hoveredStatValue';
 export type { SelectedOperatorData, SelectedOperatorGroupData } from '@quent/utils';
 
 // Data-flow overlay hooks (HOOKS-02: selector hooks over private atoms)

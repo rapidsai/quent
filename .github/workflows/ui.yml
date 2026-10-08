@@ -153,6 +153,7 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
+      - run: pixi run pnpm --dir ui install --frozen-lockfile
       - run: pixi run cargo run -p quent-query-engine-ui-bindings --locked
       - name: Generate base bindings
         run: |
@@ -182,6 +183,8 @@ jobs:
           else
             base_bindings=base/examples/simulator/server/ts-bindings
           fi
+          pixi run pnpm --dir ui exec prettier --config .prettierrc --write \
+            "../$base_bindings/**/*.ts" "generated/ts-bindings/**/*.ts"
           diff --recursive --unified=3 "$base_bindings" \
             ui/generated/ts-bindings > ts-bindings.diff || diff_status=$?
           if [ "$diff_status" -gt 1 ]; then

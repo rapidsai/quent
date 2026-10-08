@@ -34,7 +34,6 @@ import {
 import { CopyLinkButton } from './CopyLinkButton';
 import { DeepLinkBoundary } from './DeepLinkBoundary';
 import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
-import { DEEP_LINK_NAV_SLOT_ID } from './deepLink.constants';
 import { useDeepLink } from './deepLink.context';
 
 const BOUNDARY_PROPS = {
@@ -538,7 +537,6 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <>
-        <div id={DEEP_LINK_NAV_SLOT_ID} />
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
@@ -598,7 +596,6 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <>
-        <div id={DEEP_LINK_NAV_SLOT_ID} />
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
@@ -667,7 +664,6 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <>
-        <div id={DEEP_LINK_NAV_SLOT_ID} />
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS} activeTab="entities">
             <SeedEntitiesState state={tableState} />
@@ -702,7 +698,6 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <>
-        <div id={DEEP_LINK_NAV_SLOT_ID} />
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
