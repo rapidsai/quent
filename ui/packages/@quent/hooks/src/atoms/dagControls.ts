@@ -145,14 +145,14 @@ export const dagHeatmapRangeAtom = atom<HeatmapRange | null>(get => {
   let max = -Infinity;
   for (const [nodeId, relatedOperatorIds] of groups) {
     const resolved = resolveHoveredStatValue(stat, nodeId, relatedOperatorIds);
-    if (!resolved) {
+    if (resolved === undefined) {
       continue;
     }
-    if (resolved.value < min) {
-      min = resolved.value;
+    if (resolved < min) {
+      min = resolved;
     }
-    if (resolved.value > max) {
-      max = resolved.value;
+    if (resolved > max) {
+      max = resolved;
     }
   }
   if (min === Infinity) {

@@ -7,6 +7,7 @@ import {
   ENTITY_REF_TO_ENTITIES_KEY,
   parseCustomStatistics,
   parsePortStatistics,
+  resolveOperatorStat,
 } from './queryBundle.utils';
 
 // ---- entityRefToEntitiesKey -----------------------------------------------
@@ -158,6 +159,53 @@ describe('parseCustomStatistics', () => {
     const keys = result.map(r => r.key);
     expect(keys).toContain('rows');
     expect(keys).toContain('bytes');
+  });
+});
+
+// ---- resolveOperatorStat ---------------------------------------------------
+
+function makeQuantifiedOperator(field: string, value: number, quantity?: string) {
+  return {
+    statistics: {
+      custom_statistics: {
+        [field]: { value: makeTagged('UInt64', value), quantity: quantity ?? null },
+      },
+    },
+  };
+}
+
+describe('resolveOperatorStat', () => {
+  it('returns the direct statistic without aggregating related values', () => {
+    expect(
+      resolveOperatorStat(
+        makeQuantifiedOperator('bytes', 10, 'bytes'),
+        [makeQuantifiedOperator('bytes', 20, 'bytes')],
+        'bytes'
+      )
+    ).toEqual({ value: 10, quantity: 'bytes' });
+  });
+
+  it('aggregates related values with a shared quantity', () => {
+    expect(
+      resolveOperatorStat(
+        undefined,
+        [
+          makeQuantifiedOperator('bytes', 10, 'bytes'),
+          makeQuantifiedOperator('bytes', 20, 'bytes'),
+        ],
+        'bytes'
+      )
+    ).toEqual({ value: 30, quantity: 'bytes' });
+  });
+
+  it('omits the quantity when related statistics disagree', () => {
+    expect(
+      resolveOperatorStat(
+        undefined,
+        [makeQuantifiedOperator('size', 10, 'bytes'), makeQuantifiedOperator('size', 20, 'rows')],
+        'size'
+      )
+    ).toEqual({ value: 30 });
   });
 });
 

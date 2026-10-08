@@ -3,8 +3,8 @@
 
 import {
   EntityRefKey,
+  aggregateToNumber,
   isNumericValue,
-  resolveGroupedValue,
   unwrapTaggedValue,
   type AggMode,
 } from '@quent/utils';
@@ -53,8 +53,6 @@ export function parseCustomStatistics(
 
 export interface ResolvedOperatorStat {
   value: StatValue;
-  /** 'aggregated' when derived from related operators rather than the node's own statistic. */
-  source: 'direct' | 'aggregated';
   quantity?: string;
 }
 
@@ -72,21 +70,29 @@ export function resolveOperatorStat(
   aggMode: AggMode = 'sum'
 ): ResolvedOperatorStat | undefined {
   const own = parseCustomStatistics(rawNode).find(s => s.key === field);
+  if (own?.value != null) {
+    return {
+      value: own.value,
+      ...(own.quantity !== undefined ? { quantity: own.quantity } : {}),
+    };
+  }
   const related = (relatedOperators ?? []).flatMap(operator => {
     const stat = parseCustomStatistics(operator).find(s => s.key === field);
     return stat?.value != null && isNumericValue(stat.value) ? [stat] : [];
   });
-  const resolved = resolveGroupedValue(
-    own?.value,
+  const value = aggregateToNumber(
     related.map(s => s.value as number | bigint),
     aggMode
   );
-  if (!resolved) {
+  if (value === undefined) {
     return undefined;
   }
-  const quantity =
-    resolved.source === 'direct' ? own?.quantity : related.find(s => s.quantity)?.quantity;
-  return { ...resolved, ...(quantity ? { quantity } : {}) };
+  const quantity = related[0]?.quantity;
+  const hasConsistentQuantity = related.every(stat => stat.quantity === quantity);
+  return {
+    value,
+    ...(hasConsistentQuantity && quantity !== undefined ? { quantity } : {}),
+  };
 }
 
 export function parsePortStatistics(rawPort: unknown): Array<{ key: string; value: StatValue }> {

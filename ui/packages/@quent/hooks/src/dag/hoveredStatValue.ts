@@ -1,22 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { resolveGroupedValue } from '@quent/utils';
+import { aggregateToNumber } from '@quent/utils';
 import type { HoveredStatInfo } from '../atoms/dagControls';
-
-export interface ResolvedHoveredStatValue {
-  value: number;
-  /**
-   * 'direct' when the operator itself had an entry in the hovered stat
-   * (e.g. a physical operator that's also a pivot-table row); 'aggregated'
-   * when it was derived from related operators (e.g. a logical-plan node).
-   * Aggregated values live on a different scale than raw item values (a sum
-   * across several operators routinely exceeds any single item's max), so
-   * callers must not compare them against `hoveredStat.min`/`max` directly —
-   * see `dagHeatmapRangeAtom`.
-   */
-  source: 'direct' | 'aggregated';
-}
 
 /**
  * Resolves the hovered-stat value for a DAG node. Physical operators that
@@ -30,10 +16,14 @@ export function resolveHoveredStatValue(
   hoveredStat: HoveredStatInfo,
   operatorId: string,
   relatedOperatorIds: readonly string[] = []
-): ResolvedHoveredStatValue | undefined {
+): number | undefined {
+  const direct = hoveredStat.values.get(operatorId);
+  if (direct !== undefined) {
+    return direct;
+  }
   const related = relatedOperatorIds.flatMap(id => {
     const v = hoveredStat.values.get(id);
     return v === undefined ? [] : [v];
   });
-  return resolveGroupedValue(hoveredStat.values.get(operatorId), related, hoveredStat.aggMode);
+  return aggregateToNumber(related, hoveredStat.aggMode);
 }

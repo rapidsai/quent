@@ -102,7 +102,6 @@ export {
 } from './dag/dagControlSelectors';
 export type { HoveredStatInfo, HighlightedNodeIdsState, HeatmapRange } from './atoms/dagControls';
 export { resolveHoveredStatValue } from './dag/hoveredStatValue';
-export type { ResolvedHoveredStatValue } from './dag/hoveredStatValue';
 export type { SelectedOperatorData, SelectedOperatorGroupData } from '@quent/utils';
 
 // Data-flow overlay hooks (HOOKS-02: selector hooks over private atoms)

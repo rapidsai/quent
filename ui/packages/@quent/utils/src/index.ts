@@ -115,13 +115,7 @@ export {
 
 export { AGG_MODES } from './aggMode';
 export type { AggMode } from './aggMode';
-export {
-  aggregateNumericValues,
-  aggregateToNumber,
-  getAggregateValue,
-  resolveGroupedValue,
-} from './statAggregation';
-export type { GroupedValue } from './statAggregation';
+export { aggregateNumericValues, aggregateToNumber, getAggregateValue } from './statAggregation';
 export type { NumericAggregates } from './statAggregation';
 
 // Operator timeline row ID utilities

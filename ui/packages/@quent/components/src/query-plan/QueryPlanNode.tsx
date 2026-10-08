@@ -141,7 +141,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   }, [hoveredStat, operatorId, data.metadata?.relatedOperatorIds]);
 
   const heatmapColor = useMemo(() => {
-    if (!hoveredStat || !resolvedHoveredValue) {
+    if (!hoveredStat || resolvedHoveredValue === undefined) {
       return undefined;
     }
     // Normalize against every currently-displayed node's resolved value
@@ -151,7 +151,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     // reported what it shows.
     const { min, max } = dagHeatmapRange ?? hoveredStat;
     const range = max - min;
-    const t = range > 0 ? (resolvedHoveredValue.value - min) / range : 0.5;
+    const t = range > 0 ? (resolvedHoveredValue - min) / range : 0.5;
     return continuousColor(t, nodePalette, isDark);
   }, [hoveredStat, resolvedHoveredValue, dagHeatmapRange, nodePalette, isDark]);
 
