@@ -4,6 +4,7 @@ members = [
     "cpp",
     "cpp/test",
     "cpp/test/lists",
+    "cpp/test/nvtx",
     "python",
     "python/test/bridge",
     "tutorial-build",

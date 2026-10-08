@@ -17,6 +17,17 @@ quent-instrumentation = {
 quent-io = { path = "../../../../../../../crates/io", default-features = false, features = ["ndjson"] }
 quent-readme-example = { path = "../../../../../../../examples/readme" }
 
+[features]
+nvtx = ["dep:nvtx-bridge", "dep:nvtx-injection"]
+
+[dependencies.nvtx-bridge]
+path = "../../../../../../../integrations/nvtx/bridge"
+optional = true
+
+[dependencies.nvtx-injection]
+path = "../../../../../../../integrations/nvtx/injection"
+optional = true
+
 [build-dependencies]
 cxx-build = "1"
 quent-schema-codegen-cpp = { path = "../../.." }

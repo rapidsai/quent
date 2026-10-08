@@ -52,7 +52,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       - name: Test schema codegen C++
-        run: pixi run cargo test --manifest-path experimental/vibe/codegen/Cargo.toml -p quent-demo-cpp-test -p quent-cpp-list-test
+        run: pixi run cargo test --manifest-path experimental/vibe/codegen/Cargo.toml -p quent-schema-codegen-cpp -p quent-demo-cpp-test -p quent-cpp-list-test -p quent-nvtx-cpp-test
+      - name: Build NVTX-enabled example bridge
+        run: pixi run cargo build --manifest-path experimental/vibe/codegen/Cargo.toml -p quent-demo-cpp-bridge --features nvtx --locked
       - name: Build and run schema codegen C++ tutorials
         run: |
           for manifest in experimental/vibe/codegen/cpp/example/tutorial/*/bridge/Cargo.toml; do

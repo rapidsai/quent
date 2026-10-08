@@ -9,6 +9,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let options = quent_schema_codegen_cpp::Options {
         crate_name: "quent-demo-cpp-bridge".to_owned(),
         instrumentation_path: "quent_readme_example".to_owned(),
+        nvtx: if cfg!(feature = "nvtx") {
+            quent_schema_codegen_cpp::NvtxSupport::Enabled
+        } else {
+            quent_schema_codegen_cpp::NvtxSupport::Disabled
+        },
         exporters: quent_schema_codegen_cpp::Exporters {
             ndjson: true,
             ..Default::default()

@@ -36,6 +36,18 @@ pub struct Options {
     pub dynamic_attributes_path: String,
     /// Exporter constructors to expose in the generated API.
     pub exporters: Exporters,
+    /// Whether generated contexts can capture NVTX events.
+    pub nvtx: NvtxSupport,
+}
+
+/// Optional NVTX capture support in generated bindings.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NvtxSupport {
+    /// Preserve the API without NVTX dependencies.
+    #[default]
+    Disabled,
+    /// Allow active exporters to capture NVTX events.
+    Enabled,
 }
 
 /// Exporter constructors generated for a bridge.
@@ -74,6 +86,7 @@ impl Default for Options {
             io_path: "quent_io".to_owned(),
             dynamic_attributes_path: "quent_dynamic_attributes".to_owned(),
             exporters: Exporters::default(),
+            nvtx: NvtxSupport::Disabled,
         }
     }
 }
@@ -115,7 +128,7 @@ pub enum GenerateError {
 pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, GenerateError> {
     validate_schema(schema)?;
     validate_options(options)?;
-    validate_names(schema)?;
+    validate_names(schema, options)?;
     let instrumentation = parse_path(&options.instrumentation_path)?;
     let runtime = parse_path(&options.runtime_path)?;
     let io = parse_path(&options.io_path)?;
@@ -188,7 +201,7 @@ fn validate_options(options: &Options) -> Result<(), GenerateError> {
     Ok(())
 }
 
-fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
+fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateError> {
     let mut file_names = ["uuid", "dynamic_attributes", "context"]
         .into_iter()
         .map(str::to_owned)
@@ -222,6 +235,11 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
                 "Context",
             ]
             .contains(&entity_name.as_str())
+            || entity.path().namespace().is_empty()
+                && entity_name == "NvtxCapture"
+                && options.nvtx == NvtxSupport::Enabled
+            // Schema and NVTX payloads must not share a filesystem/collector stream.
+            || options.nvtx == NvtxSupport::Enabled && entity.path().to_string() == "NvtxEvent"
         {
             return Err(GenerateError::NameCollision { name: entity_name });
         }
@@ -428,6 +446,17 @@ fn context_file(
     let include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
     let namespace = &detail_namespace;
     let uuid_namespace = format!("{detail_namespace}::uuid");
+    let nvtx_enabled = options.nvtx == NvtxSupport::Enabled;
+    let nvtx_declaration = if nvtx_enabled {
+        "    #[derive(Debug, Clone, Copy, PartialEq, Eq)]\n    enum NvtxCapture { Disabled, Enabled }\n"
+    } else {
+        ""
+    };
+    let nvtx_parameter = if nvtx_enabled {
+        ", nvtx_capture: NvtxCapture"
+    } else {
+        ""
+    };
     let mut exporter_declarations =
         String::from("        #[Self = \"ExporterOptions\"] fn none() -> Box<ExporterOptions>;\n");
     if options.exporters.ndjson {
@@ -459,10 +488,10 @@ pub mod ffi {{
         include!("{include}");
         type UUID = super::super::uuid::ffi::UUID;
     }}
-    extern "Rust" {{
+{nvtx_declaration}    extern "Rust" {{
         type ExporterOptions;
 {exporter_declarations}        type Context;
-        fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>;
+        fn create_context(options: Box<ExporterOptions>{nvtx_parameter}) -> Result<Box<Context>>;
         fn id(self: &Context) -> UUID;
     }}
 }}
@@ -473,7 +502,39 @@ pub mod ffi {{
         .any()
         .then(|| quote! { Options(#io::ExporterOptions), });
     let option_match = options.exporters.any().then(|| {
-        quote! { ExporterKind::Options(options) => <#context_ty>::try_new(options), }
+        if nvtx_enabled {
+            quote! {
+                ExporterKind::Options(options) => {
+                    let inner = <#context_ty>::try_new(options.clone())
+                        .map_err(|error| error.to_string())?;
+                    if nvtx_capture == ffi::NvtxCapture::Enabled {
+                        let context_id = inner.id();
+                        let runtime = #runtime::ContextInner::try_new(inner.id())
+                            .map_err(|error| error.to_string())?;
+                        let pipeline = runtime.block_on(
+                            runtime.observer::<nvtx_bridge::NvtxEventEntity>(&options)
+                        ).map_err(|error| error.to_string())?;
+                        let sender = pipeline.sender();
+                        let capture = nvtx_injection::install_hook(
+                            move |event| sender.emit(context_id, event)
+                        ).map_err(|error| error.to_string())?;
+                        Ok(Box::new(Context {
+                            _nvtx_capture: Some(capture),
+                            _nvtx_observer: Some(pipeline),
+                            inner,
+                        }))
+                    } else {
+                        Ok(Box::new(Context {
+                            _nvtx_capture: None,
+                            _nvtx_observer: None,
+                            inner,
+                        }))
+                    }
+                }
+            }
+        } else {
+            quote! { ExporterKind::Options(options) => <#context_ty>::try_new(options), }
+        }
     });
     let mut exporter_methods = Vec::new();
     if options.exporters.ndjson {
@@ -522,6 +583,45 @@ pub mod ffi {{
                 }
             }
         });
+    // Rust drops fields in declaration order: disable capture before flushing
+    // the NVTX pipeline, then release the schema context.
+    let nvtx_fields = nvtx_enabled.then(|| {
+        quote! {
+            _nvtx_capture: Option<nvtx_injection::CaptureGuard>,
+            _nvtx_observer: Option<#runtime::ObserverInner<nvtx_bridge::NvtxEventEntity>>,
+        }
+    });
+    let create_context = if nvtx_enabled {
+        quote! {
+            pub fn create_context(
+                options: Box<ExporterOptions>,
+                nvtx_capture: ffi::NvtxCapture,
+            ) -> Result<Box<Context>, String> {
+                match options.inner {
+                    ExporterKind::Noop => {
+                        let inner = <#context_ty>::try_new(#runtime::Noop)
+                            .map_err(|error| error.to_string())?;
+                        Ok(Box::new(Context {
+                            _nvtx_capture: None,
+                            _nvtx_observer: None,
+                            inner,
+                        }))
+                    }
+                    #option_match
+                }
+            }
+        }
+    } else {
+        quote! {
+            pub fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>, String> {
+                let inner = match options.inner {
+                    ExporterKind::Noop => <#context_ty>::try_new(#runtime::Noop),
+                    #option_match
+                }.map_err(|error| error.to_string())?;
+                Ok(Box::new(Context { inner }))
+            }
+        }
+    };
     let tokens = quote! {
         enum ExporterKind {
             Noop,
@@ -536,20 +636,17 @@ pub mod ffi {{
             #filesystem_helper
         }
 
-        pub struct Context { pub(crate) inner: #context_ty }
+        pub struct Context {
+            #nvtx_fields
+            pub(crate) inner: #context_ty
+        }
 
         unsafe impl cxx::ExternType for Context {
             type Id = cxx::type_id!(#type_id);
             type Kind = cxx::kind::Opaque;
         }
 
-        pub fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>, String> {
-            let inner = match options.inner {
-                ExporterKind::Noop => <#context_ty>::try_new(#runtime::Noop),
-                #option_match
-            }.map_err(|error| error.to_string())?;
-            Ok(Box::new(Context { inner }))
-        }
+        #create_context
 
         impl Context {
             pub fn id(&self) -> super::uuid::ffi::UUID { self.inner.id().into() }

@@ -79,3 +79,68 @@ Observers and handles retain their scoped telemetry runtime independently of
 shutdown waits until the last observer or handle is destroyed. Once-cardinality
 events on non-FSM entities expose `<event>_emitted()` predicates on their
 handles.
+
+## Optional NVTX capture
+
+NVTX support is disabled by default. To generate an NVTX-capable bridge, set
+the generation option:
+
+```rust
+let options = quent_schema_codegen_cpp::Options {
+    nvtx: quent_schema_codegen_cpp::NvtxSupport::Enabled,
+    // Set crate_name, instrumentation_path, and exporters for your application.
+    ..Default::default()
+};
+```
+
+The consuming bridge crate then needs `nvtx-bridge` and `nvtx-injection` from
+the same Quent revision as its other Quent dependencies. The generator itself
+does not depend on these crates. The current `nvtx-injection` crate supports
+Linux 64-bit targets only, so NVTX-enabled consumer builds require that platform.
+Consumers choose how to attach injection:
+for example, enable `nvtx-injection`'s `static-injection` feature on Linux, or
+configure a supported runtime injection mechanism before the first NVTX call.
+The generator does not set `NVTX_INJECTION64_PATH`.
+
+Generation support does not start capture. Enable capture explicitly when
+constructing an active exporter:
+
+```cpp
+auto context = quent::Context::ndjson(
+    "./events", quent::NvtxCapture::Enabled);
+// Run annotated work while context is alive.
+// Stop and join all NVTX producers before destroying context.
+```
+
+`msgpack`, `postcard`, and `collector` accept the same optional capture
+parameter. It defaults to `NvtxCapture::Disabled`; `Context::none()` never
+captures, including the raw bridge's no-op exporter branch. When generation
+support is disabled, the existing factory signatures are unchanged.
+
+Collector capture also requires the receiving collector to route the
+`NvtxEvent` stream. A schema-only generated collector does not provide that
+route automatically; enabling capture on the sender does not add receiver
+support.
+
+The context owns an additional NVTX observer using its context ID and exporter
+configuration. NVTX remains a separate event stream; no schema entities need to
+be added. The context retains the capture guard, drops it to stop capture before
+dropping the NVTX pipeline to drain and flush, and then drops its schema context.
+Moving the context preserves this ownership.
+
+Hook registration is one-shot per process. Constructing another capture-enabled
+context returns an error without ending the first context's capture. Destroying
+the capturing context does not permit capture to restart. Disabled contexts do
+not claim the hook. Callbacks already admitted may still run during shutdown,
+so guard ownership is not a substitute for stopping and joining producers.
+
+The readme example bridge offers a Cargo `nvtx` feature to demonstrate opt-in
+generation:
+
+```sh
+cargo build --manifest-path experimental/vibe/codegen/Cargo.toml \
+    -p quent-demo-cpp-bridge --features nvtx
+```
+
+Its existing example calls still default to capture disabled. The enabled
+compiled regression fixture exercises runtime selection and capture separately.

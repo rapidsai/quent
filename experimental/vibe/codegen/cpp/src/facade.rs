@@ -9,7 +9,7 @@ use quent_ref_target::RefTarget;
 use quent_schema::{Annotations, Cardinality, DataType, Entity, Event, Field, Path, Schema};
 
 use crate::common::{cxx_safe, path_pascal, path_snake, to_case};
-use crate::{GenerateError, GeneratedFile, Options};
+use crate::{GenerateError, GeneratedFile, NvtxSupport, Options};
 
 pub(crate) fn emit(schema: &Schema, options: &Options) -> Result<GeneratedFile, GenerateError> {
     let mut output = String::from("#pragma once\n");
@@ -576,6 +576,11 @@ fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String)
 
 fn emit_context_declaration(schema: &Schema, options: &Options, output: &mut String) {
     let namespace = &options.namespace;
+    if options.nvtx == NvtxSupport::Enabled {
+        output.push_str(&format!(
+            "namespace {namespace} {{\nusing NvtxCapture = detail::NvtxCapture;\n}}  // namespace {namespace}\n\n"
+        ));
+    }
     output.push_str(&format!(
         r#"namespace {namespace} {{
 class Context final {{
@@ -586,17 +591,22 @@ class Context final {{
   static Context none();
 "#
     ));
-    if options.exporters.ndjson {
-        output.push_str("  static Context ndjson(std::string output_dir);\n");
-    }
-    if options.exporters.msgpack {
-        output.push_str("  static Context msgpack(std::string output_dir);\n");
-    }
-    if options.exporters.postcard {
-        output.push_str("  static Context postcard(std::string output_dir);\n");
-    }
-    if options.exporters.collector {
-        output.push_str("  static Context collector(std::string address);\n");
+    let nvtx_parameter = if options.nvtx == NvtxSupport::Enabled {
+        ", NvtxCapture nvtx_capture = NvtxCapture::Disabled"
+    } else {
+        ""
+    };
+    for (enabled, name, argument) in [
+        (options.exporters.ndjson, "ndjson", "output_dir"),
+        (options.exporters.msgpack, "msgpack", "output_dir"),
+        (options.exporters.postcard, "postcard", "output_dir"),
+        (options.exporters.collector, "collector", "address"),
+    ] {
+        if enabled {
+            output.push_str(&format!(
+                "  static Context {name}(std::string {argument}{nvtx_parameter});\n"
+            ));
+        }
     }
     output.push_str("\n  Uuid id() const { return inner_->id(); }\n");
     for entity in schema.entities() {
@@ -899,32 +909,36 @@ fn public_event_fields<'a>(entity: &Entity, event: &'a Event) -> impl Iterator<I
 
 fn emit_context_methods(schema: &Schema, options: &Options, output: &mut String) {
     let namespace = &options.namespace;
+    let nvtx_enabled = options.nvtx == NvtxSupport::Enabled;
+    let none_capture = if nvtx_enabled {
+        ", NvtxCapture::Disabled"
+    } else {
+        ""
+    };
     output.push_str(&format!(
         r#"namespace {namespace} {{
 inline Context Context::none() {{
-  return Context(detail::create_context(detail::ExporterOptions::none()));
+  return Context(detail::create_context(detail::ExporterOptions::none(){none_capture}));
 }}
 "#
     ));
-    if options.exporters.ndjson {
-        output.push_str(
-            "inline Context Context::ndjson(std::string output_dir) {\n  return Context(detail::create_context(\n      detail::ExporterOptions::ndjson(::rust::String(std::move(output_dir)))));\n}\n",
-        );
-    }
-    if options.exporters.msgpack {
-        output.push_str(
-            "inline Context Context::msgpack(std::string output_dir) {\n  return Context(detail::create_context(\n      detail::ExporterOptions::msgpack(::rust::String(std::move(output_dir)))));\n}\n",
-        );
-    }
-    if options.exporters.postcard {
-        output.push_str(
-            "inline Context Context::postcard(std::string output_dir) {\n  return Context(detail::create_context(\n      detail::ExporterOptions::postcard(::rust::String(std::move(output_dir)))));\n}\n",
-        );
-    }
-    if options.exporters.collector {
-        output.push_str(
-            "inline Context Context::collector(std::string address) {\n  return Context(detail::create_context(\n      detail::ExporterOptions::collector(::rust::String(std::move(address)))));\n}\n",
-        );
+    let nvtx_parameter = if nvtx_enabled {
+        ", NvtxCapture nvtx_capture"
+    } else {
+        ""
+    };
+    let nvtx_argument = if nvtx_enabled { ", nvtx_capture" } else { "" };
+    for (enabled, name, argument) in [
+        (options.exporters.ndjson, "ndjson", "output_dir"),
+        (options.exporters.msgpack, "msgpack", "output_dir"),
+        (options.exporters.postcard, "postcard", "output_dir"),
+        (options.exporters.collector, "collector", "address"),
+    ] {
+        if enabled {
+            output.push_str(&format!(
+                "inline Context Context::{name}(std::string {argument}{nvtx_parameter}) {{\n  return Context(detail::create_context(\n      detail::ExporterOptions::{name}(::rust::String(std::move({argument}))){nvtx_argument}));\n}}\n"
+            ));
+        }
     }
     for entity in schema.entities() {
         let public_namespace = public_entity_namespace(entity, options);

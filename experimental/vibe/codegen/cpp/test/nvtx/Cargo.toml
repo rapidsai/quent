@@ -1,0 +1,25 @@
+[package]
+name = "quent-nvtx-cpp-test"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+# The injection crate (including the runtime attach path) supports Linux64 only.
+# Keep the existing, ungated disabled bridge fixture in ../ unchanged.
+[target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dependencies]
+cxx = "1"
+nvtx-bridge = { path = "../../../../../../integrations/nvtx/bridge" }
+nvtx-events = { path = "../../../../../../integrations/nvtx/events" }
+nvtx-injection = { path = "../../../../../../integrations/nvtx/injection", features = ["static-injection"] }
+quent-dynamic-attributes = { path = "../../../../../../crates/dynamic-attributes" }
+quent-instrumentation = { path = "../../../../../../crates/instrumentation", features = ["serde", "io-ndjson", "io-msgpack", "io-postcard", "io-collector"] }
+quent-io = { path = "../../../../../../crates/io", features = ["ndjson", "msgpack", "postcard", "collector"] }
+quent-readme-example = { path = "../../../../../../examples/readme" }
+uuid = "1"
+tempfile = "3"
+serde_json = "1"
+
+[build-dependencies]
+cxx-build = "1"
+quent-schema-codegen-cpp = { path = "../.." }
+quent-yaml = { path = "../../../../../../crates/yaml" }
