@@ -18,10 +18,9 @@ fn compiled_nvtx_capture_requires_linux64() {
 mod tests {
     use std::{ffi::CString, path::Path, process::Command};
 
-    use nvtx_bridge::NvtxEventEntity;
-    use nvtx_events::{NvtxEvent, NvtxMessage};
     use quent_instrumentation::Event;
     use quent_io::{FileSystemFormat, ImporterProvider};
+    use quent_nvtx_events::{NvtxEvent, NvtxMessage};
     use uuid::Uuid;
 
     unsafe extern "C" {
@@ -115,7 +114,7 @@ mod tests {
             _ => FileSystemFormat::Ndjson,
         };
         let context_dir = capture_root.join(id.to_string());
-        let events: Vec<Event<NvtxEventEntity>> = quent_io::filesystem::importer::Options {
+        let events: Vec<Event<NvtxEvent>> = quent_io::filesystem::importer::Options {
             format,
             path: context_dir.join("NvtxEvent"),
         }
@@ -133,31 +132,31 @@ mod tests {
             events.iter().all(|event| event.id == id),
             "NVTX event IDs differ from the owning context"
         );
-        assert!(matches!(&events[0].data.0, NvtxEvent::Mark { .. }));
-        assert_message(&events[0].data.0, "captured-mark");
-        assert_message(&events[1].data.0, "captured-push");
-        assert_message(&events[3].data.0, "captured-start");
+        assert!(matches!(&events[0].data, NvtxEvent::Mark { .. }));
+        assert_message(&events[0].data, "captured-mark");
+        assert_message(&events[1].data, "captured-push");
+        assert_message(&events[3].data, "captured-start");
         let NvtxEvent::RangePush {
             thread_id, domain, ..
-        } = &events[1].data.0
+        } = &events[1].data
         else {
             panic!("expected push");
         };
-        assert!(matches!(&events[2].data.0,
+        assert!(matches!(&events[2].data,
             NvtxEvent::RangePop { thread_id: popped, domain: popped_domain }
             if popped == thread_id && popped_domain == domain));
         let NvtxEvent::RangeStart {
             range_id, domain, ..
-        } = &events[3].data.0
+        } = &events[3].data
         else {
             panic!("expected start");
         };
-        assert!(matches!(&events[4].data.0,
+        assert!(matches!(&events[4].data,
             NvtxEvent::RangeEnd { range_id: ended, domain: ended_domain }
             if ended == range_id && ended_domain == domain));
         if scenario == "duplicate" {
-            assert!(matches!(&events[5].data.0, NvtxEvent::Mark { .. }));
-            assert_message(&events[5].data.0, "first-still-active");
+            assert!(matches!(&events[5].data, NvtxEvent::Mark { .. }));
+            assert_message(&events[5].data, "first-still-active");
         }
         if matches!(
             scenario.as_str(),

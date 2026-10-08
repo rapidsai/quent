@@ -93,9 +93,10 @@ let options = quent_schema_codegen_cpp::Options {
 };
 ```
 
-The consuming bridge crate then needs `nvtx-bridge` and `nvtx-injection` from
-the same Quent revision as its other Quent dependencies. The generator itself
-does not depend on these crates. The current `nvtx-injection` crate supports
+The consuming bridge crate then needs `quent-nvtx-bridge`, `quent-nvtx-events`,
+and `nvtx-injection` from the same Quent revision as its other Quent
+dependencies. The generator itself does not depend on these crates. The
+current `nvtx-injection` crate supports
 Linux 64-bit targets only, so NVTX-enabled consumer builds require that
 platform. Consumers choose how to attach injection: for example, enable
 `nvtx-injection`'s `static-injection` feature on Linux, or configure a supported
@@ -122,17 +123,21 @@ Collector capture also requires the receiving collector to route the
 route automatically; enabling capture on the sender does not add receiver
 support.
 
-The context owns an additional NVTX observer using its context ID and exporter
-configuration. NVTX remains a separate event stream; no schema entities need to
-be added. The context retains the capture guard, drops it to stop capture before
-dropping the NVTX pipeline to drain and flush, and then drops its schema
-context. Moving the context preserves this ownership.
+The context owns a `quent_nvtx_bridge::Capture` using its context ID and
+exporter configuration. Capture queues owned injection records and converts
+them to `quent_nvtx_events::NvtxEvent` on a worker that owns the observer.
+NVTX remains a separate event stream; no schema entities need to be added.
+Dropping the context closes and drains the capture queue, joins the worker,
+and waits for the observer to flush before releasing the schema context.
+Moving the context preserves this ownership.
 
 Hook registration is one-shot per process. Constructing another capture-enabled
 context returns an error without ending the first context's capture. Destroying
 the capturing context does not permit capture to restart. Disabled contexts do
-not claim the hook. Callbacks already admitted may still run during shutdown,
-so guard ownership is not a substitute for stopping and joining producers.
+not claim the hook. Calls racing with shutdown may be discarded, so stop and
+join NVTX producers before destroying the context. Do not destroy the context
+on its exporter or Quent runtime worker: joining the capture worker there can
+deadlock.
 
 The readme example bridge offers a Cargo `nvtx` feature to demonstrate opt-in
 generation:

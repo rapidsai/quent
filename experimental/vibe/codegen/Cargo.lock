@@ -908,28 +908,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvtx-bridge"
-version = "0.1.0"
-dependencies = [
- "nvtx-events",
- "quent-events",
- "serde",
-]
-
-[[package]]
-name = "nvtx-events"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "nvtx-injection"
 version = "0.1.0"
 dependencies = [
  "cc",
- "libc",
- "nvtx-events",
  "nvtx-sys",
  "thiserror",
 ]
@@ -1330,11 +1312,12 @@ version = "0.0.0"
 dependencies = [
  "cxx",
  "cxx-build",
- "nvtx-bridge",
  "nvtx-injection",
  "quent-dynamic-attributes",
  "quent-instrumentation",
  "quent-io",
+ "quent-nvtx-bridge",
+ "quent-nvtx-events",
  "quent-readme-example",
  "quent-schema-codegen-cpp",
  "quent-yaml",
@@ -1527,23 +1510,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-nvtx-bridge"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "nvtx-injection",
+ "nvtx-sys",
+ "quent-events",
+ "quent-instrumentation",
+ "quent-nvtx-events",
+ "quent-time",
+ "thiserror",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "quent-nvtx-cpp-test"
 version = "0.0.0"
 dependencies = [
  "cxx",
  "cxx-build",
- "nvtx-bridge",
- "nvtx-events",
  "nvtx-injection",
  "quent-dynamic-attributes",
  "quent-instrumentation",
  "quent-io",
+ "quent-nvtx-bridge",
+ "quent-nvtx-events",
  "quent-readme-example",
  "quent-schema-codegen-cpp",
  "quent-yaml",
  "serde_json",
  "tempfile",
  "uuid",
+]
+
+[[package]]
+name = "quent-nvtx-events"
+version = "0.1.0"
+dependencies = [
+ "quent-events",
+ "serde",
 ]
 
 [[package]]

@@ -12,7 +12,7 @@ use std::path::{Component, Path, PathBuf};
 
 use common::{cxx_safe, model_path, path_pascal, path_snake, pretty, raw_ident, to_case};
 use convert_case::Case;
-use quent_constraints::{validate, Report};
+use quent_constraints::{Report, validate};
 use quent_fsm::{Fsm, FsmConstraint};
 use quent_ref_target::RefTargetConstraint;
 use quent_schema::Schema;
@@ -509,24 +509,21 @@ pub mod ffi {{
                         .map_err(|error| error.to_string())?;
                     if nvtx_capture == ffi::NvtxCapture::Enabled {
                         let context_id = inner.id();
-                        let runtime = #runtime::ContextInner::try_new(inner.id())
+                        let runtime = #runtime::ContextInner::try_new(context_id)
                             .map_err(|error| error.to_string())?;
-                        let pipeline = runtime.block_on(
-                            runtime.observer::<nvtx_bridge::NvtxEventEntity>(&options)
+                        let observer = runtime.block_on(
+                            runtime.observer::<quent_nvtx_events::NvtxEvent>(&options)
                         ).map_err(|error| error.to_string())?;
-                        let sender = pipeline.sender();
-                        let capture = nvtx_injection::install_hook(
-                            move |event| sender.emit(context_id, event)
+                        let capture = quent_nvtx_bridge::Capture::install(
+                            context_id, observer
                         ).map_err(|error| error.to_string())?;
                         Ok(Box::new(Context {
                             _nvtx_capture: Some(capture),
-                            _nvtx_observer: Some(pipeline),
                             inner,
                         }))
                     } else {
                         Ok(Box::new(Context {
                             _nvtx_capture: None,
-                            _nvtx_observer: None,
                             inner,
                         }))
                     }
@@ -583,12 +580,11 @@ pub mod ffi {{
                 }
             }
         });
-    // Rust drops fields in declaration order: disable capture before flushing
-    // the NVTX pipeline, then release the schema context.
+    // Rust drops fields in declaration order: drain the capture worker and flush
+    // its observer before releasing the schema context.
     let nvtx_fields = nvtx_enabled.then(|| {
         quote! {
-            _nvtx_capture: Option<nvtx_injection::CaptureGuard>,
-            _nvtx_observer: Option<#runtime::ObserverInner<nvtx_bridge::NvtxEventEntity>>,
+            _nvtx_capture: Option<quent_nvtx_bridge::Capture>,
         }
     });
     let create_context = if nvtx_enabled {
@@ -603,7 +599,6 @@ pub mod ffi {{
                             .map_err(|error| error.to_string())?;
                         Ok(Box::new(Context {
                             _nvtx_capture: None,
-                            _nvtx_observer: None,
                             inner,
                         }))
                     }

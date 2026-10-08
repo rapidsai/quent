@@ -8,8 +8,8 @@ publish.workspace = true
 # Keep the existing, ungated disabled bridge fixture in ../ unchanged.
 [target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dependencies]
 cxx = "1"
-nvtx-bridge = { path = "../../../../../../integrations/nvtx/bridge" }
-nvtx-events = { path = "../../../../../../integrations/nvtx/events" }
+quent-nvtx-bridge = { path = "../../../../../../integrations/nvtx/bridge" }
+quent-nvtx-events = { path = "../../../../../../integrations/nvtx/events" }
 nvtx-injection = { path = "../../../../../../integrations/nvtx/injection", features = ["static-injection"] }
 quent-dynamic-attributes = { path = "../../../../../../crates/dynamic-attributes" }
 quent-instrumentation = { path = "../../../../../../crates/instrumentation", features = ["serde", "io-ndjson", "io-msgpack", "io-postcard", "io-collector"] }

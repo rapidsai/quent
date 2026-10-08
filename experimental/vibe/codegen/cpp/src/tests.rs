@@ -6,8 +6,8 @@ use quent_schema::test_utils::{entity, event};
 use quent_yaml::parse_from_str;
 
 use crate::{
-    bridge_module_declaration, emit, write_bridge_files_to, Exporters, GenerateError,
-    GeneratedFile, NvtxSupport, Options,
+    Exporters, GenerateError, GeneratedFile, NvtxSupport, Options, bridge_module_declaration, emit,
+    write_bridge_files_to,
 };
 
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
@@ -26,12 +26,15 @@ fn nvtx_support_is_opt_in_and_preserves_disabled_contract() {
     .unwrap();
     let context = files.iter().find(|file| file.name == "context.rs").unwrap();
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
-    assert!(context
-        .content
-        .contains("fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>"));
+    assert!(
+        context
+            .content
+            .contains("fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>")
+    );
     assert!(!context.content.contains("NvtxCapture"));
     assert!(!context.content.contains("nvtx_injection"));
     assert!(!context.content.contains("nvtx_bridge"));
+    assert!(!context.content.contains("quent_nvtx_events"));
     assert!(!facade.content.contains("NvtxCapture"));
 }
 
@@ -53,14 +56,24 @@ fn generates_nvtx_capture_for_every_exporter() {
         assert!(context.content.contains("enum NvtxCapture"));
         assert!(context.content.contains("nvtx_capture: NvtxCapture"));
         assert_eq!(
-            context.content.contains("nvtx_injection::install_hook"),
+            context
+                .content
+                .contains("quent_nvtx_bridge::Capture::install("),
             exporters.any(),
         );
+        assert_eq!(
+            context
+                .content
+                .contains("observer::<quent_nvtx_events::NvtxEvent>"),
+            exporters.any(),
+        );
+        assert!(!context.content.contains("nvtx_injection"));
+        assert!(!context.content.contains("_nvtx_observer"));
         let fields = &context.content[context.content.find("pub struct Context {").unwrap()..];
-        let guard = fields.find("_nvtx_capture:").unwrap();
-        let pipeline = fields.find("_nvtx_observer:").unwrap();
+        assert!(fields.contains("_nvtx_capture: Option<quent_nvtx_bridge::Capture>"));
+        let capture = fields.find("_nvtx_capture:").unwrap();
         let inner = fields.find("pub(crate) inner:").unwrap();
-        assert!(guard < pipeline && pipeline < inner);
+        assert!(capture < inner);
         assert!(facade.content.contains("NvtxCapture::Disabled"));
         for (enabled, name) in [
             (exporters.ndjson, "ndjson"),
@@ -122,9 +135,11 @@ fn generates_schema_driven_bridge() {
     assert!(worker.content.contains("pub fn declaration"));
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
     assert!(facade.content.contains("class Context final"));
-    assert!(facade
-        .content
-        .contains("WorkerObserver> worker_observer() const"));
+    assert!(
+        facade
+            .content
+            .contains("WorkerObserver> worker_observer() const")
+    );
     assert!(facade.content.contains("class EntityId final"));
     assert!(facade.content.contains("WorkerId id() const"));
     assert!(facade.content.contains("std::optional<"));
@@ -132,37 +147,51 @@ fn generates_schema_driven_bridge() {
     assert_eq!(facade.content.matches("struct Details {").count(), 1);
     assert!(facade.content.contains("class WorkerObserver final"));
     assert!(facade.content.contains("WorkerObserver::handle() const"));
-    assert!(facade
-        .content
-        .contains("WorkerObserver::handle(WorkerId id) const"));
+    assert!(
+        facade
+            .content
+            .contains("WorkerObserver::handle(WorkerId id) const")
+    );
     assert!(facade.content.contains("struct Worker final {}"));
-    assert!(facade
-        .content
-        .contains("class Handle<::quent::Worker> final"));
+    assert!(
+        facade
+            .content
+            .contains("class Handle<::quent::Worker> final")
+    );
     assert!(facade.content.contains("struct Thread final {}"));
     assert!(facade.content.contains("namespace quent::thread_state {"));
-    assert!(facade
-        .content
-        .contains("class FsmHandle<::quent::Thread, ::quent::thread_state::Active> final"));
+    assert!(
+        facade
+            .content
+            .contains("class FsmHandle<::quent::Thread, ::quent::thread_state::Active> final")
+    );
     assert!(facade.content.contains(
         "::quent::FsmHandle<::quent::Thread, ::quent::thread_state::Idle> idle(::quent::thread::Idle data) &&"
     ));
     assert!(facade.content.contains(
         "::quent::FsmHandle<::quent::Thread, ::quent::thread_state::Active> active() &&"
     ));
-    assert!(facade
-        .content
-        .contains("class DynamicFsmHandle<::quent::Thread> final"));
+    assert!(
+        facade
+            .content
+            .contains("class DynamicFsmHandle<::quent::Thread> final")
+    );
     assert!(facade.content.contains("ThreadId id() const"));
-    assert!(facade
-        .content
-        .contains("DynamicFsmHandle<::quent::Thread> into_dynamic() &&"));
-    assert!(facade
-        .content
-        .contains("std::optional<FsmHandle<::quent::Thread, State>> try_into() &&"));
-    assert!(facade
-        .content
-        .contains("struct FsmStateIndex<::quent::Thread, ::quent::thread_state::Active>"));
+    assert!(
+        facade
+            .content
+            .contains("DynamicFsmHandle<::quent::Thread> into_dynamic() &&")
+    );
+    assert!(
+        facade
+            .content
+            .contains("std::optional<FsmHandle<::quent::Thread, State>> try_into() &&")
+    );
+    assert!(
+        facade
+            .content
+            .contains("struct FsmStateIndex<::quent::Thread, ::quent::thread_state::Active>")
+    );
     assert!(!facade.content.contains("ThreadActiveHandle"));
     assert!(!facade.content.contains("friend class ThreadHandle"));
     assert!(!facade.content.contains("struct Active {"));
@@ -200,9 +229,11 @@ fn generates_schema_driven_bridge() {
         "std::vector<DynamicAttributes> values",
         "DynamicList value",
     ] {
-        assert!(facade
-            .content
-            .contains(&format!("void add(std::string key, {value_type})")));
+        assert!(
+            facade
+                .content
+                .contains(&format!("void add(std::string key, {value_type})"))
+        );
     }
     assert_eq!(facade.content.matches("void add(").count(), 28);
     assert!(!facade.content.contains("void add_u8("));
@@ -210,13 +241,17 @@ fn generates_schema_driven_bridge() {
         .iter()
         .find(|file| file.name == "dynamic_attributes.rs")
         .unwrap();
-    assert!(dynamic
-        .content
-        .contains("pub struct DynamicAttributesStorage"));
+    assert!(
+        dynamic
+            .content
+            .contains("pub struct DynamicAttributesStorage")
+    );
     assert!(dynamic.content.contains("pub struct DynamicListStorage"));
-    assert!(dynamic
-        .content
-        .contains("pub storage: Vec<Box<DynamicAttributesStorage>>"));
+    assert!(
+        dynamic
+            .content
+            .contains("pub storage: Vec<Box<DynamicAttributesStorage>>")
+    );
     assert!(!dynamic.content.contains("DynamicAttributeKind"));
     assert!(!dynamic.content.contains("pub struct DynamicAttribute {"));
     for function in [
@@ -495,17 +530,25 @@ fn preserves_schema_namespaces() {
         .iter()
         .find(|file| file.name == "api_request.rs")
         .unwrap();
-    assert!(entity
-        .content
-        .contains("namespace = \"quent::detail::api::request\""));
-    assert!(entity
-        .content
-        .contains("instrumentation::namespaced::api::Request"));
+    assert!(
+        entity
+            .content
+            .contains("namespace = \"quent::detail::api::request\"")
+    );
+    assert!(
+        entity
+            .content
+            .contains("instrumentation::namespaced::api::Request")
+    );
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
-    assert!(facade
-        .content
-        .contains("namespace quent::api { struct Request final {}; }"));
-    assert!(facade
-        .content
-        .contains("class Handle<::quent::api::Request> final"));
+    assert!(
+        facade
+            .content
+            .contains("namespace quent::api { struct Request final {}; }")
+    );
+    assert!(
+        facade
+            .content
+            .contains("class Handle<::quent::api::Request> final")
+    );
 }

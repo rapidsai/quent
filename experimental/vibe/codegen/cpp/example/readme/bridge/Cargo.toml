@@ -18,10 +18,14 @@ quent-io = { path = "../../../../../../../crates/io", default-features = false, 
 quent-readme-example = { path = "../../../../../../../examples/readme" }
 
 [features]
-nvtx = ["dep:nvtx-bridge", "dep:nvtx-injection"]
+nvtx = ["dep:quent-nvtx-bridge", "dep:quent-nvtx-events", "dep:nvtx-injection"]
 
-[dependencies.nvtx-bridge]
+[dependencies.quent-nvtx-bridge]
 path = "../../../../../../../integrations/nvtx/bridge"
+optional = true
+
+[dependencies.quent-nvtx-events]
+path = "../../../../../../../integrations/nvtx/events"
 optional = true
 
 [dependencies.nvtx-injection]
