@@ -13,7 +13,6 @@
 //!   so the stream can carry them later without a vocabulary-breaking change. No
 //!   capture path emits them today.
 
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// The payload union carried on core `nvtxEventAttributes`, captured verbatim
@@ -21,8 +20,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Carries the raw `NVTX_PAYLOAD_TYPE_*` tag alongside the scalar value the
 /// union holds. Interpretation/decoding is deferred to the analyzer.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 pub struct NvtxPayload {
     /// Raw `NVTX_PAYLOAD_TYPE_*` tag, preserved verbatim.
     pub payload_type: i32,
@@ -34,8 +32,7 @@ pub struct NvtxPayload {
 ///
 /// Each variant mirrors one member of NVTX's payload union; values are captured
 /// as-is with no reinterpretation.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 pub enum NvtxPayloadValue {
     /// `ullValue` — unsigned 64-bit integer.
     UnsignedInt64(u64),
@@ -62,8 +59,7 @@ pub enum NvtxPayloadValue {
 /// payload-extension data in a later phase without a vocabulary-breaking change,
 /// but they are **not** wired into [`NvtxEvent`](crate::NvtxEvent) and no capture
 /// path emits them yet.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum PayloadExtensionEvent {
     /// Register a payload schema (`nvtxPayloadSchemaRegister`).
     SchemaRegister {

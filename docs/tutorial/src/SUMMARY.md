@@ -25,4 +25,5 @@
     - [Log Sink](instrumentation/modules/log-sink/index.md)
     - [Operating System](instrumentation/modules/operating-system/index.md)
     - [Combining modules](instrumentation/modules/combining/index.md)
+  - [Performance](instrumentation/performance.md)
 - [Analysis](analysis/index.md)

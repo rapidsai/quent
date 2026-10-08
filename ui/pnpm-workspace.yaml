@@ -32,3 +32,7 @@ allowBuilds:
   esbuild: true
   msw: true
   protobufjs: true
+
+overrides:
+  # solid-js@1.9.15 pins seroval to ~1.5.4, excluding patched releases.
+  'solid-js>seroval': ^1.6.3

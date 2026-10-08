@@ -10,18 +10,16 @@ export type ColorPalette = readonly string[];
 
 export const COLOR_PALETTES = {
   deterministic: [
-    '#3b82f6', // Blue
-    '#a855f7', // Purple
-    '#22c55e', // Green
-    '#f97316', // Orange
-    '#ef4444', // Red
-    '#4f46e5', // Indigo
-    '#f59e0b', // Amber
-    '#14b8a6', // Teal
-    '#06b6d4', // Cyan
-    '#8b5cf6', // Violet
-    '#ec4899', // Pink
-    '#10b981', // Emerald
+    '#1a95d8', // Blue
+    '#e0af3b', // Amber
+    '#037e3f', // Forest
+    '#bf544b', // Red
+    '#8256af', // Purple
+    '#91b349', // Lime
+    '#9ba0ff', // Periwinkle
+    '#09a0a0', // Teal
+    '#ac4e87', // Magenta
+    '#e0843e', // Orange
   ],
   timeline: {
     light: [

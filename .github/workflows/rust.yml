@@ -59,6 +59,8 @@ jobs:
       - run: pixi run cargo fmt --all -- --check
       - run: pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: pixi run cargo test --workspace --all-features --locked --all-targets
+      - run: pixi run cargo clippy -p quent-instrumentation --all-targets --locked -- -D warnings
+      - run: pixi run cargo test -p quent-instrumentation --locked
       - run: pixi run cargo test -p quent-store --no-default-features --features io-ndjson --locked
       - run: pixi run cargo build --workspace --all-features --locked --release
       - run: pixi run cargo run -p quent-instrumentation-build-example --locked

@@ -8,13 +8,15 @@
     "build": "pnpm wasm:build && vite build",
     "precheck": "pnpm --filter @quent/schema-viewer build",
     "check": "pnpm wasm:build && svelte-check --workspace ./src --tsconfig ../tsconfig.json --config ../vite.config.ts && tsc --noEmit",
-    "lint": "eslint --config ../eslint.config.js \"src/**/*.ts\" vite.config.ts",
+    "lint": "eslint --config ../eslint.config.js \"src/**/*.ts\" \"e2e/**/*.ts\" vite.config.ts playwright.config.ts",
+    "test:e2e": "playwright test",
     "wasm:build": "sh scripts/build-yaml-wasm.sh",
     "wasm:test": "pnpm wasm:build && node scripts/verify-yaml-wasm.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-yaml": "^6.1.3",
+    "@codemirror/state": "^6.7.5",
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.43.12",
     "@quent/schema-viewer": "workspace:*",
@@ -23,6 +25,7 @@
     "svelte": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@sveltejs/vite-plugin-svelte": "catalog:",
     "@tailwindcss/vite": "^4.3.3",
     "daisyui": "^5.7.42",

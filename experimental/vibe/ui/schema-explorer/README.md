@@ -44,3 +44,16 @@ Rust and `wasm-bindgen` tools.
 
 The browser export is implemented by the sibling `yaml-wasm` crate, which
 depends on `quent-yaml` without changing that crate.
+
+## Browser tests
+
+After building the workspace, run the production editor smoke test:
+
+```sh
+pixi run --frozen pnpm --dir experimental/vibe/ui --filter @quent-experimental/schema-explorer exec playwright install chromium
+pixi run --frozen pnpm --dir experimental/vibe/ui --filter @quent-experimental/schema-explorer test:e2e
+```
+
+The Pages workflow runs this test with `SCHEMA_EXPLORER_BASE=/quent/schema/`
+for both the build and test. It checks editor rendering, typing, and example
+switching, and fails on browser exceptions or console errors.

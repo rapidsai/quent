@@ -20,13 +20,9 @@ import {
   useSelectedNodeLabelField,
   useNodeColoring,
   useNodeColorPalette,
-  useEffectiveHighlightedNodeIds,
-  useEffectiveHoveredStat,
-  useDagHeatmapRange,
   useSetHighlightedNodeIds,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
-  resolveHoveredStatValue,
 } from '@quent/hooks';
 import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { resolveOperatorStat } from '../lib/queryBundle.utils';
@@ -61,6 +57,10 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
    */
   flowBarVisible?: boolean;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
+  hoveredStatActive?: boolean;
+  hoveredStatValue?: number;
+  heatmapRange?: { min: number; max: number };
+  highlightedNodeIds?: ReadonlySet<string> | null;
 }
 
 const nodeVariants = cva(
@@ -80,18 +80,13 @@ const nodeVariants = cva(
 
 /** Memoized DAG node rendered inside ReactFlow. */
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
-  // Writes go to the source atom so the table (which reads from it directly)
-  // still sees DAG hovers; reads come from the effective atom so the chart
-  // doesn't dim when nothing visible would be highlighted.
   const setHighlightState = useSetHighlightedNodeIds();
-  const highlightState = useEffectiveHighlightedNodeIds();
-  const hoveredStat = useEffectiveHoveredStat();
-  const dagHeatmapRange = useDagHeatmapRange();
   const [nodePalette] = useNodeColorPalette();
   const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const isDark = data.isDark ?? false;
-  const operatorId = data.metadata?.rawNode?.id ?? '';
-  const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
+  const operatorId = data.metadata?.rawNode?.id ?? data.nodeId;
+  const highlightedNodeIds = data.highlightedNodeIds ?? null;
+  const isHighlighted = highlightedNodeIds?.has(operatorId) === true;
   const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
   const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(
@@ -133,32 +128,20 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const bgColor =
     fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
 
-  const resolvedHoveredValue = useMemo(() => {
-    if (!hoveredStat) {
-      return undefined;
-    }
-    return resolveHoveredStatValue(hoveredStat, operatorId, data.metadata?.relatedOperatorIds);
-  }, [hoveredStat, operatorId, data.metadata?.relatedOperatorIds]);
-
   const heatmapColor = useMemo(() => {
-    if (!hoveredStat || resolvedHoveredValue === undefined) {
+    if (data.hoveredStatValue === undefined || !data.heatmapRange) {
       return undefined;
     }
-    // Normalize against every currently-displayed node's resolved value
-    // (direct or aggregated) so a plain operator and a node grouping a
-    // nested subplan are colored on the same scale. Falls back to the
-    // table's own range only in the brief window before the DAG has
-    // reported what it shows.
-    const { min, max } = dagHeatmapRange ?? hoveredStat;
+    const { min, max } = data.heatmapRange;
     const range = max - min;
-    const t = range > 0 ? (resolvedHoveredValue - min) / range : 0.5;
+    const t = range > 0 ? (data.hoveredStatValue - min) / range : 0.5;
     return continuousColor(t, nodePalette, isDark);
-  }, [hoveredStat, resolvedHoveredValue, dagHeatmapRange, nodePalette, isDark]);
+  }, [data.heatmapRange, data.hoveredStatValue, nodePalette, isDark]);
 
   const opacityClass = getNodeOpacityClass({
-    isHoveredStatActive: hoveredStat !== null,
-    hasHoveredValue: resolvedHoveredValue !== undefined,
-    highlightedNodeIds: highlightState.ids,
+    isHoveredStatActive: data.hoveredStatActive ?? false,
+    hasHoveredValue: data.hoveredStatValue !== undefined,
+    highlightedNodeIds,
     operatorId,
     isDimmed,
     isSelected,

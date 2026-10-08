@@ -8,3 +8,4 @@ own risk.
 ## Experiments
 
 - [Intricate query-engine simulator](simulator/)
+- [Benchmark plot viewer](bench-plot/)

@@ -36,9 +36,7 @@ import {
   useEdgeColorPalette,
   useSelectedEdgeWidthField,
   useSelectedEdgeColorField,
-  useEffectiveHighlightedNodeIds,
-  useSetDagDisplayedNodeIds,
-  useSetDagNodeGroups,
+  useHighlightedNodeIds,
   useSelectedDagLayoutDirection,
   useDataFlowEnabled,
   useDataFlowMeta,
@@ -51,6 +49,7 @@ import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNo
 import { DAGLegend } from './DAGLegend';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
+import { resolveDagHeatmap, resolveDagHighlightedNodeIds } from './dagInteraction';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import {
   continuousColor,
@@ -99,10 +98,16 @@ const VariableWidthEdge = ({
   const edgeColoring = useEdgeColoring();
   const edgePalette = useEdgeColorPalette()[0];
   const selectedOperatorIds = useSelectedOperatorIds();
-  const highlightedNodeIds = useEffectiveHighlightedNodeIds().ids;
+  const interactionData = data as
+    | {
+        isDark?: boolean;
+        highlightedNodeIds?: ReadonlySet<string> | null;
+      }
+    | undefined;
+  const highlightedNodeIds = interactionData?.highlightedNodeIds ?? null;
   const [edgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField] = useSelectedEdgeColorField();
-  const isDark = (data as { isDark?: boolean })?.isDark ?? false;
+  const isDark = interactionData?.isDark ?? false;
 
   let strokeWidth = EDGE_STROKE_WIDTH_DEFAULT;
   if (edgeWidthConfig) {
@@ -314,8 +319,7 @@ const FlowLayout = ({
   const { fitView } = useReactFlow();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
-  const setDagDisplayedNodeIds = useSetDagDisplayedNodeIds();
-  const setDagNodeGroups = useSetDagNodeGroups();
+  const [highlightState] = useHighlightedNodeIds();
   const selectedOperatorIds = useSelectedOperatorIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
   const dataFlowEnabled = useDataFlowEnabled();
@@ -372,32 +376,6 @@ const FlowLayout = ({
     }
     updateOperatorSelection({ type: 'hydrate', selections: resolved.selections });
   }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
-
-  // Publish the set of operator IDs visible in this DAG, and each node's
-  // related operator IDs, so other consumers (effective highlight/heatmap
-  // atoms) can decide whether a hover-driven dim/color is meaningful for
-  // what's currently on screen. A logical-plan node has no stat value of its
-  // own — only one aggregated from its related physical operators — so both
-  // the displayed-ids set and the group map need to account for it.
-  useEffect(() => {
-    const ids = new Set<string>();
-    const groups = new Map<string, readonly string[]>();
-    for (const node of data.nodes) {
-      ids.add(node.id);
-      const relatedOperatorIds = node.metadata?.relatedOperatorIds;
-      const related = Array.isArray(relatedOperatorIds) ? (relatedOperatorIds as string[]) : [];
-      groups.set(node.id, related);
-      for (const relatedId of related) {
-        ids.add(relatedId);
-      }
-    }
-    setDagDisplayedNodeIds(ids);
-    setDagNodeGroups(groups);
-    return () => {
-      setDagDisplayedNodeIds(new Set());
-      setDagNodeGroups(new Map());
-    };
-  }, [data.nodes, setDagDisplayedNodeIds, setDagNodeGroups]);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {
@@ -560,10 +538,45 @@ const FlowLayout = ({
     };
   }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection, flowBarVisible]);
 
+  const dagHeatmap = useMemo(
+    () => resolveDagHeatmap(highlightState.hoveredStat, data.nodes),
+    [data.nodes, highlightState.hoveredStat]
+  );
+  const highlightedNodeIds = useMemo(
+    () => resolveDagHighlightedNodeIds(highlightState.ids, data.nodes),
+    [data.nodes, highlightState.ids]
+  );
+  const renderedNodes = useMemo(
+    () =>
+      nodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          hoveredStatActive: dagHeatmap !== null,
+          hoveredStatValue: dagHeatmap?.values.get(node.id),
+          heatmapRange: dagHeatmap?.range,
+          highlightedNodeIds,
+        },
+      })),
+    [dagHeatmap, highlightedNodeIds, nodes]
+  );
+  const renderedEdges = useMemo(
+    () =>
+      edges.map(edge => ({
+        ...edge,
+        data: {
+          ...edge.data,
+          isDark,
+          highlightedNodeIds,
+        },
+      })),
+    [edges, highlightedNodeIds, isDark]
+  );
+
   return (
     <ReactFlow
-      nodes={nodes}
-      edges={edges}
+      nodes={renderedNodes}
+      edges={renderedEdges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}

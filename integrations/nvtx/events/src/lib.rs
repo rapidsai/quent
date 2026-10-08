@@ -3,26 +3,22 @@
 
 //! Verbatim, application-agnostic NVTX event vocabulary.
 //!
-//! Every downstream NVTX crate speaks this shared contract: the injection cdylib
-//! produces [`NvtxEvent`]s and the bridge forwards them to a consumer. Events are
-//! captured **verbatim** — every handle (domain / category / resource /
-//! registered-string id) is a raw integer, and no name resolution or payload
-//! decoding happens at capture time. Handles are resolved from the event stream
-//! by a later analysis stage.
+//! The bridge converts owned injection records into [`NvtxEvent`]s. Domain,
+//! category, resource, and registered-string handles remain raw integers. The
+//! analyzer resolves their names from the event stream later.
 //!
-//! The crate deliberately depends on nothing product-specific (optionally only
-//! `serde`, behind the default `serde` feature) so it stays cleanly separable and
-//! could be offered upstream to the NVTX Rust crates later. Adapting these events
-//! into a consumer's pipeline — entity naming, the event wrapper — is the bridge
-//! crate's responsibility, not this crate's.
+//! [`NvtxEvent`] also names its Quent event stream.
+//! This crate is scheduled for removal once Quent generates NVTX event
+//! definitions from its schema. See [#76](https://github.com/rapidsai/quent/issues/76).
 
 mod attributes;
 mod payload;
 
+use quent_events::EventPayload;
+
 pub use attributes::{NvtxColor, NvtxEventAttributes, NvtxMessage};
 pub use payload::{NvtxPayload, NvtxPayloadValue, PayloadExtensionEvent};
 
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// A verbatim NVTX core event.
@@ -30,8 +26,7 @@ use serde::{Deserialize, Serialize};
 /// Every variant mirrors one core NVTX call kind. Handles are raw integers,
 /// captured with no resolution. The default (NULL) domain is represented as a
 /// `domain` of `0`.
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum NvtxEvent {
     /// `nvtxDomainRangePushEx` — open a nested (per-thread) range.
     RangePush {
@@ -127,4 +122,8 @@ pub enum NvtxEvent {
         /// Raw resource handle being destroyed.
         handle: u64,
     },
+}
+
+impl EventPayload for NvtxEvent {
+    const NAME: &'static str = "NvtxEvent";
 }

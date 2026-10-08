@@ -13,10 +13,9 @@ use quent_io::filesystem::{Format, importer};
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-use super::{
-    EntityEventLoader, EntityEventStore, EventIterator, ModelEventLoader, ModelEventStore,
-    StoredEntity,
-};
+use crate::context::ContextSet;
+
+use super::{CombinedEventLoader, EntityMarkerInModel, EventIterator, EventLoader};
 
 /// Result returned by filesystem event stores.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -51,11 +50,20 @@ pub enum Error {
     },
 }
 
-/// Associates a generated model with its filesystem entity-event streams.
+/// Associates a generated model with its filesystem event importers.
+///
+/// # Code generation
+///
+/// `quent-store-build` implements this trait only when
+/// `quent_store_build::Options::filesystem` and
+/// `quent_store_build::Options::combined_event` are enabled.
+///
+/// For example, `impl Model for Demo` includes
+/// `EventImporter::<Demo>::import_for_entity::<Task>()`.
 #[doc(hidden)]
 pub trait Model: CombinedEventModel {
-    /// Returns the streams generated from the model schema.
-    fn event_streams() -> &'static [EventStream<Self>]
+    /// Returns the event importers generated from the model schema.
+    fn event_importers() -> &'static [EventImporter<Self>]
     where
         Self: Sized;
 }
@@ -63,33 +71,41 @@ pub trait Model: CombinedEventModel {
 type ImportFn<M> =
     fn(Vec<EventFile>) -> Result<EventIterator<<M as CombinedEventModel>::CombinedEvent, Error>>;
 
-/// Describes one entity-event stream in a generated analysis model.
+/// Imports one entity event payload type into a model's combined event type.
+///
+/// # Code generation
+///
+/// `quent-store-build` emits one importer per entity marker, such as
+/// `EventImporter::<Demo>::import_for_entity::<Task>()`.
 #[doc(hidden)]
-pub struct EventStream<M: CombinedEventModel> {
+pub struct EventImporter<M: CombinedEventModel> {
     entity: &'static str,
     import: ImportFn<M>,
 }
 
-impl<M: CombinedEventModel> EventStream<M> {
-    /// Creates a generated entity-event stream descriptor.
+impl<M: CombinedEventModel> EventImporter<M> {
+    /// Creates an importer for one entity marker in `M`.
     #[doc(hidden)]
-    pub const fn new(entity: &'static str, import: ImportFn<M>) -> Self {
-        Self { entity, import }
+    pub const fn import_for_entity<E>() -> Self
+    where
+        E: EntityMarkerInModel<M>,
+        E::Payload: DeserializeOwned + Into<M::CombinedEvent> + 'static,
+        M::CombinedEvent: 'static,
+    {
+        Self {
+            entity: E::Payload::NAME,
+            import: import_event_files::<M, E::Payload>,
+        }
     }
 }
 
-/// Identifies an event file and the importer required to decode it.
-#[doc(hidden)]
-pub struct EventFile {
+/// Identifies an event file and its encoding format.
+struct EventFile {
     format: Format,
     path: PathBuf,
 }
 
-/// Imports files containing entity events and converts them to the model combined type.
-#[doc(hidden)]
-pub fn import_event_files<M, E>(
-    files: Vec<EventFile>,
-) -> Result<EventIterator<M::CombinedEvent, Error>>
+fn import_event_files<M, E>(files: Vec<EventFile>) -> Result<EventIterator<M::CombinedEvent, Error>>
 where
     M: CombinedEventModel,
     E: DeserializeOwned + Into<M::CombinedEvent> + 'static,
@@ -101,16 +117,18 @@ where
 }
 
 /// Loads model events from filesystem exporter output.
-pub struct Store<M> {
+pub struct Loader<M> {
     root: PathBuf,
+    contexts: ContextSet,
     model: PhantomData<fn() -> M>,
 }
 
-impl<M> Store<M> {
-    /// Creates a store rooted at an exporter output directory.
-    pub fn new(root: impl Into<PathBuf>) -> Self {
+impl<M> Loader<M> {
+    /// Creates a loader for the selected contexts under an exporter output directory.
+    pub fn new(root: impl Into<PathBuf>, contexts: ContextSet) -> Self {
         Self {
             root: root.into(),
+            contexts,
             model: PhantomData,
         }
     }
@@ -119,52 +137,51 @@ impl<M> Store<M> {
     pub fn root(&self) -> &Path {
         &self.root
     }
+
+    /// Returns the selected contexts.
+    pub fn contexts(&self) -> &ContextSet {
+        &self.contexts
+    }
 }
 
-impl<M> EntityEventStore<M> for Store<M> {
-    type Error = Error;
-}
-
-impl<M, E> EntityEventLoader<E> for Store<M>
+impl<M, E> EventLoader<E> for Loader<M>
 where
     M: EventModel,
-    E: StoredEntity<M>,
+    E: EntityMarkerInModel<M>,
     E::Payload: DeserializeOwned + 'static,
 {
     type Error = Error;
 
-    fn load_entity_events(&self, context_id: Uuid) -> Result<EventIterator<E::Payload, Error>> {
-        let context = self.context(context_id)?;
-        Ok(import_files::<E::Payload>(event_files(
-            &context,
-            E::Payload::NAME,
-        )?))
+    fn events(&self) -> Result<EventIterator<E::Payload, Error>> {
+        let mut files = Vec::new();
+        for &context_id in self.contexts.as_slice() {
+            let context = self.context(context_id)?;
+            files.extend(event_files(&context, E::Payload::NAME)?);
+        }
+        Ok(import_files::<E::Payload>(files))
     }
 }
 
-impl<M: Model> ModelEventStore<M> for Store<M> {}
-
-impl<M> ModelEventLoader<M> for Store<M>
+impl<M> CombinedEventLoader<M> for Loader<M>
 where
     M: EventModel + Model + 'static,
 {
     type Error = Error;
 
-    fn load_model_events(
-        &self,
-        context_id: Uuid,
-    ) -> Result<EventIterator<M::CombinedEvent, Error>> {
-        let context = self.context(context_id)?;
+    fn combined_events(&self) -> Result<EventIterator<M::CombinedEvent, Error>> {
         let mut streams = Vec::new();
-        for descriptor in M::event_streams() {
-            let files = event_files(&context, descriptor.entity)?;
-            streams.push((descriptor.import)(files)?);
+        for &context_id in self.contexts.as_slice() {
+            let context = self.context(context_id)?;
+            for descriptor in M::event_importers() {
+                let files = event_files(&context, descriptor.entity)?;
+                streams.push((descriptor.import)(files)?);
+            }
         }
         Ok(Box::new(streams.into_iter().flatten()))
     }
 }
 
-impl<M> Store<M>
+impl<M> Loader<M>
 where
     M: EventModel,
 {
@@ -229,9 +246,9 @@ where
     }))
 }
 
-/// Returns recognized event files for `entity` in path order.
+/// Returns recognized event files for payload stream `entity` in path order.
 ///
-/// A missing or non-directory entity path produces an empty list. A recognized format whose
+/// A missing or non-directory stream path produces an empty list. A recognized format whose
 /// feature is disabled produces an error.
 fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
     let directory = context.join(entity);
@@ -316,23 +333,243 @@ fn format_feature(extension: &str) -> Option<&'static str> {
 mod tests {
     use std::fs;
 
-    use quent_build_info::ModelInfo;
-    use quent_events::EventModel;
-    #[cfg(feature = "io-ndjson")]
-    use serde::Deserialize;
+    use crate::entity::native;
+    use crate::entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore};
+    use quent_build_info::{BuildInfo, ModelInfo, ModelSource};
+    use quent_events::{CombinedEventModel, EntityMarker, Event, EventModel, EventPayload};
+    use quent_instrumentation::{ContextExporter, ContextInner};
+    use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+    use serde::{Deserialize, Serialize};
 
     use super::*;
 
     struct TestModel;
 
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
+    struct AlphaEvent(u8);
+
+    impl EventPayload for AlphaEvent {
+        const NAME: &'static str = "Alpha";
+    }
+
+    struct Alpha;
+
+    impl EntityMarker for Alpha {
+        type Payload = AlphaEvent;
+    }
+
+    impl EntityMarkerInModel<TestModel> for Alpha {}
+
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
+    struct BetaEvent(u8);
+
+    impl EventPayload for BetaEvent {
+        const NAME: &'static str = "Beta";
+    }
+
+    struct Beta;
+
+    impl EntityMarker for Beta {
+        type Payload = BetaEvent;
+    }
+
+    impl EntityMarkerInModel<TestModel> for Beta {}
+
+    #[derive(Debug, PartialEq)]
+    enum TestEvent {
+        Alpha(AlphaEvent),
+        Beta(BetaEvent),
+    }
+
+    impl From<AlphaEvent> for TestEvent {
+        fn from(event: AlphaEvent) -> Self {
+            Self::Alpha(event)
+        }
+    }
+
+    impl From<BetaEvent> for TestEvent {
+        fn from(event: BetaEvent) -> Self {
+            Self::Beta(event)
+        }
+    }
+
     impl EventModel for TestModel {
         const NAME: &'static str = "Test";
+    }
+
+    impl ModelSource for TestModel {
+        fn package() -> &'static str {
+            "quent-store"
+        }
+
+        fn source() -> BuildInfo {
+            BuildInfo::unknown()
+        }
+    }
+
+    impl CombinedEventModel for TestModel {
+        type CombinedEvent = TestEvent;
+    }
+
+    impl Model for TestModel {
+        fn event_importers() -> &'static [EventImporter<Self>] {
+            static IMPORTERS: &[EventImporter<TestModel>] = &[
+                EventImporter::import_for_entity::<Alpha>(),
+                EventImporter::import_for_entity::<Beta>(),
+            ];
+            IMPORTERS
+        }
+    }
+
+    fn context<M>(root: &Path, id: Uuid) -> (ContextInner, ExporterOptions)
+    where
+        M: EventModel + ModelSource,
+    {
+        let context = ContextInner::try_new(id).unwrap();
+        let options = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+            FileSystemFormat::Ndjson,
+            root.to_path_buf(),
+        ));
+        options.prepare_context(id, M::model_info());
+        (context, options)
+    }
+
+    fn export_events(root: &Path, id: Uuid) {
+        export_context_events(
+            root,
+            id,
+            [Event::new(Uuid::from_u128(11), 11, AlphaEvent(1))],
+            [Event::new(Uuid::from_u128(12), 1, BetaEvent(2))],
+        );
+    }
+
+    fn export_context_events(
+        root: &Path,
+        id: Uuid,
+        alpha_events: impl IntoIterator<Item = Event<AlphaEvent>>,
+        beta_events: impl IntoIterator<Item = Event<BetaEvent>>,
+    ) {
+        let (context, options) = context::<TestModel>(root, id);
+        let alpha = context
+            .block_on(context.observer::<AlphaEvent>(&options))
+            .unwrap();
+        let beta = context
+            .block_on(context.observer::<BetaEvent>(&options))
+            .unwrap();
+
+        for event in alpha_events {
+            alpha.send(event);
+        }
+        for event in beta_events {
+            beta.send(event);
+        }
+    }
+
+    #[test]
+    fn loads_all_model_events_without_relying_on_order() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Uuid::from_u128(2);
+        export_events(root.path(), id);
+
+        let store = Loader::<TestModel>::new(root.path(), ContextSet::one(id));
+        let events = store
+            .combined_events()
+            .unwrap()
+            .map(|event| event.map(|event| event.data))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        assert_eq!(events.len(), 2);
+        assert!(events.contains(&TestEvent::Alpha(AlphaEvent(1))));
+        assert!(events.contains(&TestEvent::Beta(BetaEvent(2))));
+    }
+
+    #[test]
+    fn loads_one_entity_type_as_concrete_events() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Uuid::from_u128(2);
+        export_events(root.path(), id);
+
+        let store = Loader::<TestModel>::new(root.path(), ContextSet::one(id));
+        let events = EventLoader::<Alpha>::events(&store)
+            .unwrap()
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].data, AlphaEvent(1));
+    }
+
+    #[test]
+    fn imports_selected_filesystem_events_into_memory_entities() {
+        let root = tempfile::tempdir().unwrap();
+        let first_context = Uuid::from_u128(1);
+        let second_context = Uuid::from_u128(2);
+        let excluded_context = Uuid::from_u128(3);
+        let first_entity = Uuid::from_u128(11);
+        let second_entity = Uuid::from_u128(12);
+        export_context_events(
+            root.path(),
+            first_context,
+            [
+                Event::new(first_entity, 20, AlphaEvent(1)),
+                Event::new(second_entity, 5, AlphaEvent(3)),
+            ],
+            [Event::new(first_entity, 30, BetaEvent(4))],
+        );
+        export_context_events(
+            root.path(),
+            second_context,
+            [Event::new(first_entity, 10, AlphaEvent(2))],
+            [],
+        );
+        export_context_events(
+            root.path(),
+            excluded_context,
+            [Event::new(first_entity, 1, AlphaEvent(99))],
+            [],
+        );
+        let contexts = ContextSet::try_new([second_context, first_context]).unwrap();
+        let store = Loader::<TestModel>::new(root.path(), contexts);
+        let events = EventLoader::<Alpha>::events(&store)
+            .unwrap()
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        let entities = native::Store::<Alpha>::new(events);
+
+        let handles = EntityStore::<Alpha>::entities(&entities)
+            .unwrap()
+            .collect::<Vec<_>>();
+
+        assert_eq!(handles.len(), 2);
+        assert!(handles.iter().any(|handle| handle.id() == first_entity));
+        assert!(handles.iter().any(|handle| handle.id() == second_entity));
+        let first_handle = EntityStore::<Alpha>::entity(&entities, first_entity)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            entities
+                .event_sequence(&first_handle)
+                .unwrap()
+                .events()
+                .iter()
+                .map(|event| event.data.0)
+                .collect::<Vec<_>>(),
+            [2, 1]
+        );
+        assert_eq!(
+            EntityStore::<Alpha>::entity(&entities, first_entity)
+                .unwrap()
+                .unwrap()
+                .id(),
+            first_entity
+        );
     }
 
     #[test]
     fn validates_context_and_model() {
         let root = tempfile::tempdir().unwrap();
-        let store = Store::<TestModel>::new(root.path());
+        let store = Loader::<TestModel>::new(root.path(), ContextSet::one(Uuid::from_u128(1)));
 
         let missing = Uuid::from_u128(1);
         assert!(matches!(

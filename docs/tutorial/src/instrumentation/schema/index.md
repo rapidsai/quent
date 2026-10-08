@@ -65,3 +65,20 @@ instance. A `once` event occurs at most once. A `multi` event may occur
 repeatedly.
 
 Cardinality exists to distinguish unique events from repeatable events.
+
+## Events and performance analysis
+
+While Quent provides generated instrumentation libraries for emitting events,
+event collection and event analysis are separate concerns. Quent's analysis
+does not depend on how events were collected, as long as they are represented
+by the schema and an adapter can load them for analysis. Other sources could
+include statistical profilers, instrumentation-based profilers, [NVTX] events,
+CUDA API calls captured through [CUPTI], [OpenTelemetry] signals, or [eBPF]
+probes.
+These are examples of possible sources, not a list of currently available Quent
+adapters.
+
+[NVTX]: https://nvidia.github.io/NVTX/
+[CUPTI]: https://docs.nvidia.com/cupti/
+[OpenTelemetry]: https://opentelemetry.io/docs/
+[eBPF]: https://ebpf.io/what-is-ebpf/

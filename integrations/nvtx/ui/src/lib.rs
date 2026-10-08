@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt;
 
-use nvtx_analyzer::{NvtxColor, NvtxModel, NvtxSpan, SpanId, SpanKind};
+use quent_nvtx_analyzer::{NvtxColor, NvtxModel, NvtxSpan, SpanId, SpanKind};
 use quent_time::{TimeUnixNanoSec, to_nanosecs, to_secs, to_secs_relative};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -1081,18 +1081,17 @@ mod decimal_u64_vec {
 
 #[cfg(test)]
 mod tests {
-    use nvtx_analyzer::NvtxModelBuilder;
-    use nvtx_bridge::NvtxEventEntity;
-    use nvtx_events::{NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage};
     use quent_events::Event;
+    use quent_nvtx_analyzer::NvtxModelBuilder;
+    use quent_nvtx_events::{NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage};
     use uuid::Uuid;
 
     use super::*;
 
     const QUERY_START_NS: u64 = 1_750_000_000_000_000_000;
 
-    fn event(timestamp: u64, event: NvtxEvent) -> Event<NvtxEventEntity> {
-        Event::new(Uuid::nil(), timestamp, NvtxEventEntity(event))
+    fn event(timestamp: u64, event: NvtxEvent) -> Event<NvtxEvent> {
+        Event::new(Uuid::nil(), timestamp, event)
     }
 
     fn attributes(name: &str, category: u32, color: Option<NvtxColor>) -> NvtxEventAttributes {
@@ -1108,11 +1107,11 @@ mod tests {
         to_secs(nanoseconds)
     }
 
-    fn query_event(offset: u64, nvtx_event: NvtxEvent) -> Event<NvtxEventEntity> {
+    fn query_event(offset: u64, nvtx_event: NvtxEvent) -> Event<NvtxEvent> {
         event(QUERY_START_NS + offset, nvtx_event)
     }
 
-    fn query_event_signed(offset: i64, nvtx_event: NvtxEvent) -> Event<NvtxEventEntity> {
+    fn query_event_signed(offset: i64, nvtx_event: NvtxEvent) -> Event<NvtxEvent> {
         let magnitude = offset.unsigned_abs();
         let timestamp = if offset.is_negative() {
             QUERY_START_NS - magnitude

@@ -118,10 +118,9 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
-            AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicStruct,
-            DynamicNull, DynamicValue, EntityRef, Event, HandleError, Noop, Observer, Uuid,
-            FsmTransitionError,
-            FsmStateMismatch,
+            AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicNull,
+            DynamicStruct, DynamicValue, EntityRef, Event, FsmStateMismatch, FsmTransitionError,
+            HandleError, Noop, Observer, RuntimeOptions, Uuid,
         };
     }
 }

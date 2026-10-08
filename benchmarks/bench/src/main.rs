@@ -8,7 +8,12 @@ mod progress;
 mod report;
 mod system;
 
-use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, process::Command};
+use std::{
+    collections::BTreeSet,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use clap::{Parser, ValueEnum};
 use quent_bench_types::{BatchArgs, EventShape, Language, MeasurementArgs};
@@ -83,15 +88,22 @@ impl SharedArgs {
 }
 
 impl Args {
-    fn case_runners(&self) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
+    fn case_runners(&self, binaries: &Path) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
         let mut runners = Vec::new();
         let languages = self
             .frameworks
             .iter()
             .map(|framework| framework.language())
             .collect::<BTreeSet<_>>();
+        let framework_builds = self
+            .frameworks
+            .iter()
+            .map(|framework| match framework {
+                Framework::Quent => self.quent.build_count(),
+            })
+            .sum::<usize>();
         let mut builds = BuildProgress::new(
-            self.frameworks.len() + if self.empty_loop { languages.len() } else { 0 },
+            framework_builds + if self.empty_loop { languages.len() } else { 0 },
         );
         if self.empty_loop {
             for language in languages {
@@ -108,6 +120,7 @@ impl Args {
                     runners.extend(frameworks::quent::cases(
                         &self.shared,
                         &self.quent,
+                        binaries,
                         &mut builds,
                     )?);
                 }
@@ -122,7 +135,8 @@ fn main() -> BenchResult<()> {
     let args = Args::parse();
     let shared = &args.shared;
     let system = system::properties()?;
-    let runners = args.case_runners()?;
+    let binaries = tempfile::tempdir()?;
+    let runners = args.case_runners(binaries.path())?;
     let total = runners.len();
     let mut cases = Vec::with_capacity(total);
     let mut progress = ProgressLine::new();

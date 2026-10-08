@@ -11,6 +11,11 @@ import type { HoveredStatInfo } from '../atoms/dagControls';
  * physical operators doing the work) have no entry of their own, so their
  * value is derived by aggregating their related operators' values with
  * `hoveredStat.aggMode`.
+ *
+ * Aggregated values are on a different scale than raw item values (a sum
+ * across operators can exceed any single item's max), so callers must derive
+ * a color range from every resolved value they display, not from
+ * `hoveredStat.min`/`max`.
  */
 export function resolveHoveredStatValue(
   hoveredStat: HoveredStatInfo,

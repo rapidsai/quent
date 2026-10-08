@@ -8,7 +8,6 @@
 //! resolves registered strings, domains, and categories from the event stream in
 //! a later phase.
 
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::payload::NvtxPayload;
@@ -18,8 +17,7 @@ use crate::payload::NvtxPayload;
 /// Registered messages keep only their raw handle, never resolved at capture
 /// time. The analyzer maps [`NvtxMessage::RegisteredHandle`] back to its string
 /// from the captured [`RegisterString`](crate::NvtxEvent::RegisterString) events.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum NvtxMessage {
     /// An immediate string message, copied verbatim at capture.
     String(String),
@@ -29,8 +27,7 @@ pub enum NvtxMessage {
 
 /// A verbatim NVTX color attribute: the raw `nvtxColorType_t` tag paired with
 /// the raw color value (e.g. `NVTX_COLOR_ARGB`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub struct NvtxColor {
     /// Raw `nvtxColorType_t` tag.
     pub color_type: i32,
@@ -43,8 +40,7 @@ pub struct NvtxColor {
 /// Only the members a consumer reconstructs from are retained (`category`, `color`,
 /// `message`, `payload`); all are stored verbatim with no capture-time
 /// resolution or decoding.
-#[derive(Debug, Clone, PartialEq, Default)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone, PartialEq, Default, Deserialize, Serialize)]
 pub struct NvtxEventAttributes {
     /// Raw category id (`0` = none). Namespaced by domain in the analyzer.
     pub category: u32,

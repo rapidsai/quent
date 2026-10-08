@@ -1734,56 +1734,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvtx-analyzer"
-version = "0.1.0"
-dependencies = [
- "nvtx-bridge",
- "nvtx-events",
- "nvtx-example",
- "quent-events",
- "quent-instrumentation",
- "quent-time",
- "rustc-hash",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "nvtx-bridge"
-version = "0.1.0"
-dependencies = [
- "nvtx-events",
- "quent-events",
- "serde",
-]
-
-[[package]]
-name = "nvtx-events"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "nvtx-example"
-version = "0.1.0"
-dependencies = [
- "libc",
- "nvtx",
- "nvtx-bridge",
- "nvtx-events",
- "nvtx-injection",
- "quent-instrumentation",
- "uuid",
-]
-
-[[package]]
 name = "nvtx-injection"
 version = "0.1.0"
 dependencies = [
  "cc",
  "libc",
- "nvtx-events",
+ "nvtx",
  "nvtx-sys",
  "thiserror",
 ]
@@ -1794,12 +1750,11 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "moka",
- "nvtx-analyzer",
- "nvtx-bridge",
- "nvtx-events",
- "nvtx-ui",
  "quent-events",
  "quent-io",
+ "quent-nvtx-analyzer",
+ "quent-nvtx-events",
+ "quent-nvtx-ui",
  "serde",
  "serde_json",
  "tempfile",
@@ -1818,21 +1773,6 @@ dependencies = [
  "bindgen",
  "cc",
  "widestring",
-]
-
-[[package]]
-name = "nvtx-ui"
-version = "0.1.0"
-dependencies = [
- "nvtx-analyzer",
- "nvtx-bridge",
- "nvtx-events",
- "quent-events",
- "quent-time",
- "serde",
- "serde_json",
- "ts-rs",
- "uuid",
 ]
 
 [[package]]
@@ -2248,6 +2188,7 @@ dependencies = [
  "serde_json",
  "statrs",
  "sysinfo",
+ "tempfile",
 ]
 
 [[package]]
@@ -2297,6 +2238,14 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "quent-channel"
+version = "0.1.0"
+dependencies = [
+ "rtrb",
+ "rustc-hash",
 ]
 
 [[package]]
@@ -2403,6 +2352,7 @@ dependencies = [
  "async-trait",
  "http",
  "quent-build-info",
+ "quent-channel",
  "quent-collector",
  "quent-collector-client",
  "quent-collector-proto",
@@ -2560,6 +2510,74 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-nvtx-analyzer"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "nvtx",
+ "nvtx-injection",
+ "quent-events",
+ "quent-instrumentation",
+ "quent-nvtx-bridge",
+ "quent-nvtx-events",
+ "quent-time",
+ "rustc-hash",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "quent-nvtx-bridge"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "nvtx",
+ "nvtx-injection",
+ "nvtx-sys",
+ "quent-events",
+ "quent-instrumentation",
+ "quent-nvtx-events",
+ "quent-time",
+ "thiserror",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "quent-nvtx-events"
+version = "0.1.0"
+dependencies = [
+ "quent-events",
+ "serde",
+]
+
+[[package]]
+name = "quent-nvtx-example"
+version = "0.1.0"
+dependencies = [
+ "nvtx",
+ "nvtx-injection",
+ "quent-instrumentation",
+ "quent-nvtx-bridge",
+ "quent-nvtx-events",
+ "uuid",
+]
+
+[[package]]
+name = "quent-nvtx-ui"
+version = "0.1.0"
+dependencies = [
+ "quent-events",
+ "quent-nvtx-analyzer",
+ "quent-nvtx-events",
+ "quent-time",
+ "serde",
+ "serde_json",
+ "ts-rs",
+ "uuid",
+]
+
+[[package]]
 name = "quent-open"
 version = "0.1.0"
 dependencies = [
@@ -2665,7 +2683,7 @@ dependencies = [
 name = "quent-query-engine-ui-bindings"
 version = "0.1.0"
 dependencies = [
- "nvtx-ui",
+ "quent-nvtx-ui",
  "quent-query-engine-ui",
  "quent-ui",
  "ts-rs",
@@ -2862,8 +2880,12 @@ version = "0.1.0"
 dependencies = [
  "quent-build-info",
  "quent-events",
+ "quent-instrumentation",
  "quent-io",
+ "quent-time",
+ "rustc-hash",
  "serde",
+ "smallvec",
  "tempfile",
  "thiserror",
  "tracing",
@@ -3189,6 +3211,12 @@ dependencies = [
  "rmp",
  "serde",
 ]
+
+[[package]]
+name = "rtrb"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9278fb35b3e730abe136e9b395b5b81b96d06b9f5478a50f0c8430a2237b22de"
 
 [[package]]
 name = "rust-embed"

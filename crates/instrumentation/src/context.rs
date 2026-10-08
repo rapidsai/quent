@@ -3,51 +3,52 @@
 
 //! The runtime host that observers of a model instance run on.
 
+use crate::RuntimeOptions;
 use crate::observer::{ObserverInner, spawn_forwarder};
 use quent_events::EventPayload;
 use quent_io::ExporterProvider;
 use std::future::Future;
+#[cfg(not(target_arch = "wasm32"))]
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime as TokioRuntime};
 use tracing::debug;
 use uuid::Uuid;
 
-/// The runtime an active context's observers run on.
-#[derive(Clone)]
+/// An owned runtime shared by an active context and its observers.
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-pub(crate) enum Runtime {
-    /// A handle to a runtime owned elsewhere (`#[tokio::main]`, a caller-managed
-    /// one) and kept alive by that owner.
-    Borrowed(Handle),
-    /// The runtime this context spawned, shared by the context and every observer
-    /// (hence `Arc`) and shut down by the last holder's `Drop`.
-    Owned {
-        handle: Handle,
-        /// `Option` only so `Drop` can move the `Arc` out of `&mut self`; `Some`
-        /// for the value's whole life until then.
-        runtime: Option<Arc<TokioRuntime>>,
-    },
+pub(crate) struct Runtime {
+    // Present until `Drop` takes ownership for non-blocking shutdown.
+    runtime: Option<TokioRuntime>,
 }
 
 impl Runtime {
     /// The handle observers spawn and block on.
-    pub(crate) fn handle(&self) -> Handle {
-        match self {
-            Self::Borrowed(handle) | Self::Owned { handle, .. } => handle.clone(),
+    pub(crate) fn handle(&self) -> &Handle {
+        // The runtime is always present until `Drop` takes it, after which this
+        // object is no longer accessible.
+        self.runtime.as_ref().unwrap().handle()
+    }
+
+    /// Drive `fut` to completion, blocking the calling thread.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a current-thread runtime.
+    pub(crate) fn block_on<F: Future>(&self, fut: F) -> F::Output {
+        #[cfg(not(target_arch = "wasm32"))]
+        if Handle::try_current().is_ok() {
+            return tokio::task::block_in_place(|| self.handle().block_on(fut));
         }
+        self.handle().block_on(fut)
     }
 }
 
 impl Drop for Runtime {
     fn drop(&mut self) {
-        // On the last holder of a spawned runtime, shut it down without blocking,
-        // since a blocking `Runtime` drop panics on a runtime worker thread.
-        // `into_inner` yields the Tokio runtime only when this was the final `Arc`.
-        // Safe to abandon tasks here: the observers' forwarders have already
-        // flushed by the time the last holder drops.
-        if let Self::Owned { runtime, .. } = self
-            && let Some(runtime) = runtime.take().and_then(Arc::into_inner)
-        {
+        // Observers flush before releasing their runtime ownership. Shut down
+        // without blocking because the final owner may drop in an async context.
+        if let Some(runtime) = self.runtime.take() {
             runtime.shutdown_background();
         }
     }
@@ -63,10 +64,10 @@ impl Drop for Runtime {
 /// Hidden because [`crate::Context`] provides the model-level API.
 ///
 /// What it is responsible for:
-/// - Resolving the runtime its observers run on. It borrows an ambient one if
-///   present, otherwise spawns its own (see [`Runtime`]).
-/// - Being the single sync→async bridge for async observer construction and
-///   the drop-time flush.
+/// - Initializing and retaining the runtime used by its observers, which share
+///   ownership until the final owner is dropped (see [`Runtime`]).
+/// - Constructing observers retained by [`crate::Context`] and providing the
+///   synchronous bridge for their construction and drop-time flush.
 ///
 /// # Panics
 ///
@@ -77,7 +78,7 @@ pub struct ContextInner {
     /// Unique identifier of this context.
     id: Uuid,
     /// The asynchronous runtime used by active observers.
-    runtime: Option<Runtime>,
+    runtime: Option<Arc<Runtime>>,
 }
 
 impl ContextInner {
@@ -86,10 +87,20 @@ impl ContextInner {
     ///
     /// Initializes the timestamp clock, which may block during its first calibration.
     pub fn try_new(id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::try_new_with_options(id, RuntimeOptions::default())
+    }
+
+    /// Constructs an active context with the supplied ID and runtime settings.
+    ///
+    /// Initializes the timestamp clock, which may block during its first calibration.
+    pub fn try_new_with_options(
+        id: Uuid,
+        options: RuntimeOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         quent_time::initialize_clock();
         Ok(Self {
             id,
-            runtime: Some(resolve_runtime()?),
+            runtime: Some(Arc::new(create_runtime(options)?)),
         })
     }
 
@@ -115,7 +126,7 @@ impl ContextInner {
     /// Panics on a current-thread runtime.
     pub fn block_on<F: Future>(&self, fut: F) -> F::Output {
         match self.runtime() {
-            Some(runtime) => drive(&runtime.handle(), fut),
+            Some(runtime) => runtime.block_on(fut),
             // A noop context has no runtime, but its async work is immediately
             // ready, so poll once. Invariant: the noop `observer()` future
             // must never pend (it early-returns before any `.await`). The
@@ -133,7 +144,7 @@ impl ContextInner {
     }
 
     /// The runtime backing an active context; `None` for noop.
-    fn runtime(&self) -> Option<&Runtime> {
+    fn runtime(&self) -> Option<&Arc<Runtime>> {
         self.runtime.as_ref()
     }
 
@@ -158,40 +169,39 @@ impl ContextInner {
     }
 }
 
-/// Resolve the runtime observers run on: borrow an ambient one if present,
-/// otherwise spawn a fresh owned runtime.
-fn resolve_runtime() -> Result<Runtime, Box<dyn std::error::Error>> {
+/// Create an owned runtime for the context and its observers.
+fn create_runtime(options: RuntimeOptions) -> Result<Runtime, Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
-    return Err("active instrumentation contexts are unsupported on wasm32".into());
+    {
+        let _ = options;
+        Err("active instrumentation contexts are unsupported on wasm32".into())
+    }
 
     #[cfg(not(target_arch = "wasm32"))]
-    if let Ok(handle) = Handle::try_current() {
-        debug!("using existing async runtime");
-        Ok(Runtime::Borrowed(handle))
-    } else {
+    {
         debug!("spawning new async runtime");
-        let runtime =
-            TokioRuntime::new().map_err(|e| format!("unable to spawn async runtime: {e}"))?;
-        Ok(Runtime::Owned {
-            handle: runtime.handle().clone(),
-            runtime: Some(Arc::new(runtime)),
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        builder.enable_all();
+        // Set the worker count explicitly so `TOKIO_WORKER_THREADS`, which users
+        // may set for their application's runtime, does not also affect this runtime.
+        let worker_threads = options
+            .worker_threads
+            .or_else(|| std::thread::available_parallelism().ok())
+            .map_or(1, NonZeroUsize::get);
+        builder.worker_threads(worker_threads);
+        builder.max_blocking_threads(options.max_blocking_threads.map_or(512, NonZeroUsize::get));
+        builder.thread_name(
+            options
+                .thread_name
+                .unwrap_or_else(|| "quent-rt-worker".to_owned()),
+        );
+        let runtime = builder
+            .build()
+            .map_err(|e| format!("unable to spawn async runtime: {e}"))?;
+        Ok(Runtime {
+            runtime: Some(runtime),
         })
     }
-}
-
-/// Drive `fut` to completion on `handle`'s runtime, blocking the current thread.
-///
-/// Off a runtime, it blocks directly. On a multi-threaded runtime worker it
-/// uses `block_in_place` so the scheduler keeps progressing.
-///
-/// # Panics
-/// On a current-thread runtime, this panics.
-pub(crate) fn drive<F: Future>(handle: &Handle, fut: F) -> F::Output {
-    #[cfg(not(target_arch = "wasm32"))]
-    if Handle::try_current().is_ok() {
-        return tokio::task::block_in_place(|| handle.block_on(fut));
-    }
-    handle.block_on(fut)
 }
 
 #[cfg(test)]
@@ -202,5 +212,61 @@ mod tests {
     fn noop_context_has_no_runtime() {
         let ctx = ContextInner::noop(Uuid::now_v7());
         assert!(ctx.runtime.is_none());
+    }
+
+    #[test]
+    fn runtime_uses_default_thread_name() {
+        let ctx = ContextInner::try_new(Uuid::now_v7()).unwrap();
+        let runtime = ctx.runtime().unwrap();
+        assert_eq!(
+            runtime.handle().metrics().num_workers(),
+            std::thread::available_parallelism().map_or(1, NonZeroUsize::get)
+        );
+        let thread_name = ctx.block_on(
+            runtime
+                .handle()
+                .spawn(async { std::thread::current().name().map(str::to_owned) }),
+        );
+        assert_eq!(thread_name.unwrap().as_deref(), Some("quent-rt-worker"));
+    }
+
+    #[test]
+    fn default_runtime_ignores_tokio_worker_threads() {
+        // Run in a separate process to avoid changing other tests' environment.
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "context::tests::runtime_uses_default_thread_name",
+            ])
+            .env("TOKIO_WORKER_THREADS", "0")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "default runtime failed with TOKIO_WORKER_THREADS=0:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+
+    #[test]
+    fn runtime_uses_configured_workers_and_thread_name() {
+        let ctx = ContextInner::try_new_with_options(
+            Uuid::now_v7(),
+            RuntimeOptions {
+                worker_threads: NonZeroUsize::new(1),
+                thread_name: Some("quent-test-worker".to_owned()),
+                ..RuntimeOptions::default()
+            },
+        )
+        .unwrap();
+        let runtime = ctx.runtime().unwrap();
+        assert_eq!(runtime.handle().metrics().num_workers(), 1);
+        let thread_name = ctx.block_on(
+            runtime
+                .handle()
+                .spawn(async { std::thread::current().name().map(str::to_owned) }),
+        );
+        assert_eq!(thread_name.unwrap().as_deref(), Some("quent-test-worker"));
     }
 }

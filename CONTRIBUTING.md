@@ -58,19 +58,19 @@ is enforced by CI. The format is:
 
 Allowed types:
 
-| Type       | When to use                                          |
-|------------|------------------------------------------------------|
-| `feat`     | A new feature                                        |
-| `fix`      | A bug fix                                            |
-| `docs`     | Documentation changes only                          |
-| `style`    | Formatting, whitespace — no logic changes            |
-| `refactor` | Code restructuring without behavior change           |
-| `perf`     | Performance improvements                             |
-| `test`     | Adding or updating tests                             |
-| `build`    | Build system or dependency changes                   |
-| `ci`       | CI configuration changes                             |
-| `chore`    | Maintenance tasks that don't fit another type        |
-| `revert`   | Reverts a previous commit                            |
+| Type       | When to use                                   |
+| ---------- | --------------------------------------------- |
+| `feat`     | A new feature                                 |
+| `fix`      | A bug fix                                     |
+| `docs`     | Documentation changes only                    |
+| `style`    | Formatting, whitespace — no logic changes     |
+| `refactor` | Code restructuring without behavior change    |
+| `perf`     | Performance improvements                      |
+| `test`     | Adding or updating tests                      |
+| `build`    | Build system or dependency changes            |
+| `ci`       | CI configuration changes                      |
+| `chore`    | Maintenance tasks that don't fit another type |
+| `revert`   | Reverts a previous commit                     |
 
 Examples:
 

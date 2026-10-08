@@ -15,12 +15,12 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use moka::{future::Cache as AsyncCache, sync::Cache as SyncCache};
-use nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
 use quent_events::{Event, EventPayload};
 use quent_io::filesystem::{self, Format};
 use quent_io::{ImporterOptions, ImporterProvider};
+use quent_nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
+use quent_nvtx_events::NvtxEvent;
+use quent_nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
@@ -54,15 +54,15 @@ pub type NvtxImporterResult<T> = Result<T, NvtxImporterError>;
 /// Loads only one context's NVTX entity stream. `None` means the stream is not
 /// available; `Some(Vec::new())` is a present but empty stream.
 pub type NvtxImporterFn =
-    dyn Fn(Uuid) -> NvtxImporterResult<Option<Vec<Event<NvtxEventEntity>>>> + Send + Sync;
+    dyn Fn(Uuid) -> NvtxImporterResult<Option<Vec<Event<NvtxEvent>>>> + Send + Sync;
 
 /// Import one context's NVTX stream from the standard filesystem layout.
 pub fn import_context_events(
     root: &Path,
     context_id: Uuid,
-) -> NvtxImporterResult<Option<Vec<Event<NvtxEventEntity>>>> {
+) -> NvtxImporterResult<Option<Vec<Event<NvtxEvent>>>> {
     let context_dir = root.join(context_id.to_string());
-    let stream_dir = context_dir.join(<NvtxEventEntity as EventPayload>::NAME);
+    let stream_dir = context_dir.join(<NvtxEvent as EventPayload>::NAME);
     if !stream_dir.is_dir() {
         return Ok(None);
     }
@@ -74,7 +74,7 @@ pub fn import_context_events(
     }
     let format = Format::detect(&context_dir)
         .ok_or_else(|| NvtxImporterError::new("unable to detect context stream format"))?;
-    let importer = <ImporterOptions as ImporterProvider<NvtxEventEntity>>::create_importer(
+    let importer = <ImporterOptions as ImporterProvider<NvtxEvent>>::create_importer(
         &ImporterOptions::FileSystem(filesystem::importer::Options {
             format,
             path: stream_dir,
@@ -289,7 +289,7 @@ mod tests {
 
     use axum::body::{Body, to_bytes};
     use axum::http::Request;
-    use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
+    use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
     use tempfile::tempdir;
     use tower::ServiceExt;
 
@@ -306,7 +306,7 @@ mod tests {
         format!("/api/nvtx/contexts/{context_id}/viewport?query_start={QUERY_START}")
     }
 
-    fn range_events(context_id: Uuid) -> Vec<Event<NvtxEventEntity>> {
+    fn range_events(context_id: Uuid) -> Vec<Event<NvtxEvent>> {
         let attributes = NvtxEventAttributes {
             message: Some(NvtxMessage::String("work".to_owned())),
             ..Default::default()
@@ -315,64 +315,64 @@ mod tests {
             Event::new(
                 context_id,
                 QUERY_START,
-                NvtxEventEntity(NvtxEvent::RangeStart {
+                NvtxEvent::RangeStart {
                     domain: 4,
                     range_id: 9,
                     attributes,
-                }),
+                },
             ),
             Event::new(
                 context_id,
                 RANGE_END,
-                NvtxEventEntity(NvtxEvent::RangeEnd {
+                NvtxEvent::RangeEnd {
                     domain: 4,
                     range_id: 9,
-                }),
+                },
             ),
         ]
     }
 
-    fn grouped_range_events(context_id: Uuid) -> Vec<Event<NvtxEventEntity>> {
+    fn grouped_range_events(context_id: Uuid) -> Vec<Event<NvtxEvent>> {
         let range = |domain, message: &str| {
             Event::new(
                 context_id,
                 QUERY_START,
-                NvtxEventEntity(NvtxEvent::RangeStart {
+                NvtxEvent::RangeStart {
                     domain,
                     range_id: 9,
                     attributes: NvtxEventAttributes {
                         message: Some(NvtxMessage::String(message.to_owned())),
                         ..Default::default()
                     },
-                }),
+                },
             )
         };
         let range_end = |domain| {
             Event::new(
                 context_id,
                 RANGE_END,
-                NvtxEventEntity(NvtxEvent::RangeEnd {
+                NvtxEvent::RangeEnd {
                     domain,
                     range_id: 9,
-                }),
+                },
             )
         };
         vec![
             Event::new(
                 context_id,
                 QUERY_START,
-                NvtxEventEntity(NvtxEvent::DomainCreate {
+                NvtxEvent::DomainCreate {
                     domain: 5,
                     name: "CCCL".to_owned(),
-                }),
+                },
             ),
             Event::new(
                 context_id,
                 QUERY_START,
-                NvtxEventEntity(NvtxEvent::DomainCreate {
+                NvtxEvent::DomainCreate {
                     domain: 172,
                     name: "CCCL".to_owned(),
-                }),
+                },
             ),
             range(5, "work from 5"),
             range(172, "work from 172"),
@@ -468,11 +468,11 @@ mod tests {
         assert_eq!(alternate["trace_end"], 0.5);
 
         let request = NvtxViewportRequest {
-            viewport: nvtx_ui::NvtxViewportWindow {
+            viewport: quent_nvtx_ui::NvtxViewportWindow {
                 start: 0.0,
                 end: 1.0,
             },
-            selections: vec![nvtx_ui::NvtxDomainSelection {
+            selections: vec![quent_nvtx_ui::NvtxDomainSelection {
                 domain_id: 4,
                 category_ids: vec![],
                 include_uncategorized: true,
@@ -526,11 +526,11 @@ mod tests {
         );
 
         let request = NvtxViewportRequest {
-            viewport: nvtx_ui::NvtxViewportWindow {
+            viewport: quent_nvtx_ui::NvtxViewportWindow {
                 start: 0.0,
                 end: 1.0,
             },
-            selections: vec![nvtx_ui::NvtxDomainSelection {
+            selections: vec![quent_nvtx_ui::NvtxDomainSelection {
                 domain_id: 5,
                 category_ids: vec![],
                 include_uncategorized: true,
@@ -641,7 +641,7 @@ mod tests {
         std::fs::create_dir_all(
             root.path()
                 .join(context_id.to_string())
-                .join(<NvtxEventEntity as EventPayload>::NAME),
+                .join(<NvtxEvent as EventPayload>::NAME),
         )
         .unwrap();
 
@@ -656,11 +656,11 @@ mod tests {
             Ok((context_id == present).then(|| range_events(context_id)))
         }));
         let request = NvtxViewportRequest {
-            viewport: nvtx_ui::NvtxViewportWindow {
+            viewport: quent_nvtx_ui::NvtxViewportWindow {
                 start: 0.0,
                 end: 1.0,
             },
-            selections: vec![nvtx_ui::NvtxDomainSelection {
+            selections: vec![quent_nvtx_ui::NvtxDomainSelection {
                 domain_id: 4,
                 category_ids: vec![],
                 include_uncategorized: false,

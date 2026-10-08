@@ -13,7 +13,7 @@ use fixtures::{
     GENERIC_POINTER, mark, range_end, range_pop, range_push, range_push_in_category, range_start,
     resource_create, resource_destroy,
 };
-use nvtx_analyzer::{NvtxModelBuilder, RangeStats, StatsKey};
+use quent_nvtx_analyzer::{NvtxModelBuilder, RangeStats, StatsKey};
 
 /// The key for an uncategorized range named `name` in `domain`.
 fn key(name: &str, domain: u64) -> StatsKey {

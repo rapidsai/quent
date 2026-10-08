@@ -7,7 +7,7 @@
 //! zero-duration span, or one whose close was never captured, be representable
 //! here — the shared framework would reject or panic on both.
 
-use nvtx_events::{NvtxColor, NvtxPayload};
+use quent_nvtx_events::{NvtxColor, NvtxPayload};
 use quent_time::TimeUnixNanoSec;
 
 /// A stable handle to an [`NvtxSpan`] within one reconstructed model.
@@ -111,7 +111,7 @@ fn label_identifier_type(identifier_type: i32) -> String {
 /// Map a raw category id onto the presence it encodes.
 ///
 /// Category `0` is NVTX's "no category" sentinel — an absence, not an id. Every
-/// consumer goes through here so the rule is stated once. `nvtx-events` would
+/// consumer goes through here so the rule is stated once. `quent-nvtx-events` would
 /// be the better home, since it already models `color`, `message`, and
 /// `payload` as `Option` and `category` is the one attribute left as a magic
 /// number.

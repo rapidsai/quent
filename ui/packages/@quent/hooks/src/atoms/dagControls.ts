@@ -16,7 +16,6 @@ import type {
 } from '@quent/utils';
 import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
-import { resolveHoveredStatValue } from '../dag/hoveredStatValue';
 
 /**
  * Stat-driven hover info shared between the pivot table and the DAG. Defined
@@ -60,106 +59,6 @@ export const hoveredStatAtom = atom(
     set(highlightedNodeIdsAtom, { ...get(highlightedNodeIdsAtom), hoveredStat: value });
   }
 );
-
-/**
- * IDs of operator nodes currently rendered in the DAG chart. Written by
- * `DAGChart` whenever its data changes; consumed by the effective
- * highlight/heatmap atoms below to decide whether a hover-driven dim is
- * actually meaningful.
- */
-export const dagDisplayedNodeIdsAtom = atom<Set<string>>(new Set<string>());
-
-function intersectsDisplayed(ids: Iterable<string>, displayed: Set<string>): boolean {
-  for (const id of ids) {
-    if (displayed.has(id)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * Highlight state for DAG consumers. Behaves like `highlightedNodeIdsAtom`,
- * except that when the highlight set has zero overlap with the nodes
- * currently shown in the DAG, `ids` is cleared. This prevents the DAG from
- * dimming everything just because (e.g.) a table-driven hover refers to
- * operators in a different plan.
- */
-export const effectiveHighlightedNodeIdsAtom = atom<HighlightedNodeIdsState>(get => {
-  const state = get(highlightedNodeIdsAtom);
-  if (state.ids === null) {
-    return state;
-  }
-  const displayed = get(dagDisplayedNodeIdsAtom);
-  // Until the DAG has reported what it shows, fall back to the source state
-  // so behavior is unchanged on first render.
-  if (displayed.size === 0) {
-    return state;
-  }
-  if (intersectsDisplayed(state.ids, displayed)) {
-    return state;
-  }
-  return { ...state, ids: null, source: null, primaryOperatorId: null };
-});
-
-/**
- * Heatmap-driving stat hover for DAG consumers. Cleared when none of the
- * stat's per-operator values are present in the displayed DAG, so the chart
- * doesn't go fully muted on a hover that affects no visible node.
- */
-export const effectiveHoveredStatAtom = atom<HoveredStatInfo | null>(get => {
-  const stat = get(highlightedNodeIdsAtom).hoveredStat;
-  if (!stat) {
-    return null;
-  }
-  const displayed = get(dagDisplayedNodeIdsAtom);
-  if (displayed.size === 0) {
-    return stat;
-  }
-  if (intersectsDisplayed(stat.values.keys(), displayed)) {
-    return stat;
-  }
-  return null;
-});
-
-/** Node id → related operator ids for nodes that group other operators (e.g. a logical node). */
-export const dagNodeGroupsAtom = atom<ReadonlyMap<string, readonly string[]>>(new Map());
-
-export interface HeatmapRange {
-  min: number;
-  max: number;
-}
-
-/**
- * Value range for coloring every displayed node, built from each node's
- * resolved value (direct or aggregated) so plain and grouped nodes share one
- * color scale. `null` when no stat is hovered or nothing resolves.
- */
-export const dagHeatmapRangeAtom = atom<HeatmapRange | null>(get => {
-  const stat = get(effectiveHoveredStatAtom);
-  if (!stat) {
-    return null;
-  }
-  const groups = get(dagNodeGroupsAtom);
-  let min = Infinity;
-  let max = -Infinity;
-  for (const [nodeId, relatedOperatorIds] of groups) {
-    const resolved = resolveHoveredStatValue(stat, nodeId, relatedOperatorIds);
-    if (resolved === undefined) {
-      continue;
-    }
-    if (resolved < min) {
-      min = resolved;
-    }
-    if (resolved > max) {
-      max = resolved;
-    }
-  }
-  if (min === Infinity) {
-    return null;
-  }
-  return { min, max };
-});
 
 /** Field to color each DAG node by */
 export const selectedColorField = atom<string | null>(null);

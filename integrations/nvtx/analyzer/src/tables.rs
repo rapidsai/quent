@@ -26,9 +26,8 @@ use std::collections::BTreeSet;
 
 use rustc_hash::FxHashMap as HashMap;
 
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_events::Event;
+use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_time::TimeUnixNanoSec;
 
 use crate::span::{NvtxCategory, NvtxDomain, NvtxThread, category_id};
@@ -113,10 +112,10 @@ impl ResolutionTables {
     ///
     /// Order-independent by construction, which is what makes a `RegisterString`
     /// that arrives *after* the range using its handle resolve correctly.
-    pub(crate) fn build(events: &[Event<NvtxEventEntity>]) -> Self {
+    pub(crate) fn build(events: &[Event<NvtxEvent>]) -> Self {
         let mut tables = Self::default();
         for event in events {
-            tables.observe(event.timestamp, &event.data.0);
+            tables.observe(event.timestamp, &event.data);
         }
         tables
     }
@@ -235,7 +234,7 @@ impl ResolutionTables {
     }
 
     /// Render a domain handle as a display name.
-    pub(crate) fn resolve_domain(&self, domain: u64) -> String {
+    fn resolve_domain(&self, domain: u64) -> String {
         if let Some(name) = self.domain_names.get(&domain) {
             return name.clone();
         }

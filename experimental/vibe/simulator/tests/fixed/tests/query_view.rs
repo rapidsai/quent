@@ -11,7 +11,7 @@ use quent_simulator::{SimulationConfig, simulate};
 use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::{Simulator, SimulatorEvent};
-use quent_store::event::{ModelEventStore, filesystem::Store};
+use quent_store::event::{CombinedEventLoader, filesystem::Loader};
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
 
@@ -38,11 +38,14 @@ fn builds_each_query_view_when_queries_share_resources() {
     let context_dir = output.path().join(context_id.to_string());
     let inventory = Viewer::context_inventory(&context_dir).unwrap();
     let engine_id = inventory.analysis_target_ids.into_iter().next().unwrap();
-    let events = Store::<Simulator>::new(output.path())
-        .events(context_id)
-        .unwrap()
-        .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()
-        .unwrap();
+    let events = Loader::<Simulator>::new(
+        output.path(),
+        quent_store::context::ContextSet::one(context_id),
+    )
+    .combined_events()
+    .unwrap()
+    .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()
+    .unwrap();
     let analyzer = SimulatorUiAnalyzer::try_new(engine_id, events.into_iter()).unwrap();
     let query_ids = analyzer
         .query_engine_model()

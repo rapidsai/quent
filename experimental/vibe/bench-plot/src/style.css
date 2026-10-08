@@ -1,0 +1,35 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default;
+}
+
+.plot-grid-scroll {
+  scrollbar-color: color-mix(in srgb, var(--color-base-content) 35%, var(--color-base-300)) var(--color-base-300);
+}
+
+.plot-grid-scroll::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.plot-grid-scroll::-webkit-scrollbar-track {
+  background: var(--color-base-300);
+}
+
+.plot-grid-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-base-content) 35%, var(--color-base-300));
+  border-radius: 9999px;
+}
+
+.plot-grid-body {
+  scrollbar-width: none;
+}
+
+.plot-grid-body::-webkit-scrollbar {
+  display: none;
+}

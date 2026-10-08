@@ -3,8 +3,8 @@
 The Operating System semantic module identifies a Quent entity as a specific
 operating-system process or thread. This allows entities to be correlated with
 data from general-purpose event sources that identify processes and threads by
-their native operating-system IDs rather than Quent UUIDs, such as NVTX or
-profiler data.
+their native operating-system IDs rather than Quent UUIDs, such as captured
+NVTX annotations or CPU stack samples.
 
 Use this module when:
 
@@ -12,8 +12,8 @@ Use this module when:
   worker process in a process pool.
 - An entity represents a specific operating-system thread, such as a worker or
   main thread.
-- The entity must be matched with data from a profiler, NVTX, or another source
-  that identifies processes and threads by native IDs.
+- The entity must be matched with captured NVTX annotations, CPU stack samples,
+  or another source that identifies processes and threads by native IDs.
 
 Do not use this module when:
 

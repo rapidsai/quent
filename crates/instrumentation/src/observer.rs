@@ -3,17 +3,20 @@
 
 //! Shared event forwarding state for entity observers.
 
-use crate::context::{Runtime, drive};
+use crate::context::Runtime;
 use quent_events::{Event, EventPayload};
 use quent_io::Exporter;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-use tokio::{
-    sync::mpsc::{UnboundedSender, unbounded_channel},
-    task::JoinHandle,
-};
+#[cfg(feature = "channel-per-thread")]
+use std::time::Duration;
+#[cfg(not(feature = "channel-per-thread"))]
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::task::JoinHandle;
+#[cfg(feature = "channel-per-thread")]
+use tokio::time::{MissedTickBehavior, interval};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use uuid::Uuid;
@@ -21,12 +24,52 @@ use uuid::Uuid;
 /// Wrapper around an optional channel sender.
 ///
 /// When the inner sender is `None` (i.e. the noop exporter is selected), `send`
-/// is a no-op that avoids any channel or event-forwarding overhead.
+/// is a no-op that avoids any channel or event-forwarding overhead. Active
+/// senders follow the transport's shutdown contract; see `PERFORMANCE.md`.
 pub struct EventSender<T> {
-    tx: Option<UnboundedSender<Event<T>>>,
+    tx: Option<TransportSender<T>>,
     /// Flag shared across clones to prevent potentially massive log spam from
     /// subseQUENT sender errors after the first.
     disable_error_log: Arc<AtomicBool>,
+}
+
+#[cfg(not(feature = "channel-per-thread"))]
+type TransportSender<T> = UnboundedSender<Event<T>>;
+
+#[cfg(feature = "channel-per-thread")]
+// The function pointer keeps the public sender methods callable for generic
+// `T`; construction proves `T: Send` once without adding a bound to callers.
+type SpscSend<T> = fn(&quent_channel::mpsc::Sender<Event<T>>, Event<T>) -> Result<(), Event<T>>;
+
+#[cfg(feature = "channel-per-thread")]
+struct TransportSender<T> {
+    tx: quent_channel::mpsc::Sender<Event<T>>,
+    send: SpscSend<T>,
+}
+
+#[cfg(feature = "channel-per-thread")]
+impl<T> Clone for TransportSender<T> {
+    fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+            send: self.send,
+        }
+    }
+}
+
+#[cfg(feature = "channel-per-thread")]
+impl<T> TransportSender<T> {
+    fn send(&self, event: Event<T>) -> Result<(), Event<T>> {
+        (self.send)(&self.tx, event)
+    }
+}
+
+#[cfg(feature = "channel-per-thread")]
+fn send_spsc<T: Send + 'static>(
+    tx: &quent_channel::mpsc::Sender<Event<T>>,
+    event: Event<T>,
+) -> Result<(), Event<T>> {
+    tx.send(event)
 }
 
 impl<T> std::fmt::Debug for EventSender<T> {
@@ -81,15 +124,18 @@ impl<T> EventSender<T> {
 /// lifecycle.
 #[doc(hidden)]
 pub struct ObserverInner<T> {
+    /// Queues events for export, or discards them for a no-op observer.
     events_sender: EventSender<T>,
+    /// Signals the forwarder to drain queued events and shut down the exporter.
     cancellation_token: CancellationToken,
-    forwarder_handle: Option<JoinHandle<()>>,
-    /// The runtime this pipeline's forwarder runs on; `None` for a no-op
-    /// pipeline. An `Owned` runtime is kept alive here for the pipeline's
-    /// lifetime, so its drop flush is valid even after the [`Context`] is gone.
+    /// Joined on drop to wait for export and shutdown.
     ///
-    /// [`Context`]: crate::Context
-    runtime: Option<Runtime>,
+    /// Absent for a no-op observer.
+    forwarder_handle: Option<JoinHandle<()>>,
+    /// Keeps the asynchronous runtime alive until flushing completes.
+    ///
+    /// Absent for a no-op observer.
+    runtime: Option<Arc<Runtime>>,
 }
 
 impl<T> ObserverInner<T> {
@@ -118,8 +164,8 @@ impl<T> ObserverInner<T> {
     ///
     /// Lets a `'static` producer emit into the pipeline while the caller keeps
     /// ownership (and still flushes on drop). The sender does not keep the
-    /// pipeline alive; sends after it is dropped are discarded (the first logs
-    /// an error via `tracing`, then further ones are suppressed).
+    /// pipeline alive; sends after it is dropped are discarded. The SPSC
+    /// transport may detect disconnection only at a segment switch.
     pub fn sender(&self) -> EventSender<T> {
         self.events_sender.clone()
     }
@@ -135,65 +181,47 @@ impl<T> Drop for ObserverInner<T> {
         };
 
         // The forwarder drains remaining events and flushes the exporter on
-        // cancellation; joining waits for that to finish. `drive` blocks here
+        // cancellation. Joining waits for that to finish. `block_on` blocks here
         // whether dropped off a runtime or on a multi-threaded worker.
-        if let Err(e) = drive(&runtime.handle(), forwarder_handle) {
+        if let Err(e) = runtime.block_on(forwarder_handle) {
             warn!("forwarder task failed: {e}");
         }
     }
 }
 
 /// Spawn the forwarder task for `exporter` on `runtime` and wrap it in an
-/// [`ObserverInner`]. The task drains and flushes the exporter on cancellation.
+/// [`ObserverInner`].
+///
+/// The task drains and flushes the exporter on cancellation.
 pub(crate) fn spawn_forwarder<T>(
-    runtime: &Runtime,
+    runtime: &Arc<Runtime>,
     mut exporter: Box<dyn Exporter<T>>,
 ) -> ObserverInner<T>
 where
     T: Send + EventPayload + 'static,
 {
+    #[cfg(feature = "channel-per-thread")]
+    let ticker = {
+        let _guard = runtime.handle().enter();
+        interval(Duration::from_millis(1))
+    };
     let cancellation_token = CancellationToken::new();
     let cloned_token = cancellation_token.clone();
+    #[cfg(not(feature = "channel-per-thread"))]
     let (events_sender, mut events_receiver) = unbounded_channel();
+    #[cfg(feature = "channel-per-thread")]
+    let (events_sender, mut events_receiver) = quent_channel::mpsc::unbounded_channel();
+    #[cfg(feature = "channel-per-thread")]
+    let events_sender = TransportSender {
+        tx: events_sender,
+        send: send_spsc::<T>,
+    };
 
     let forwarder_handle = runtime.handle().spawn(async move {
-        // Reused across batches; `drain_events` leaves it empty and it is reserved
-        // to a full batch before each receive.
-        let mut buffer = Vec::new();
-        loop {
-            let limit = exporter.batch_size_hint().get();
-            buffer.reserve(limit);
-            tokio::select! {
-                // Cancel-safe: if the cancellation branch wins, `buffer` is left
-                // untouched (no events are lost).
-                n = events_receiver.recv_many(&mut buffer, limit) => {
-                    // 0 means the channel is closed and drained.
-                    if n == 0 {
-                        break;
-                    }
-                    if let Err(e) = exporter.drain_events(&mut buffer).await {
-                        warn!("unable to export events: {e}");
-                    }
-                    debug_assert!(buffer.is_empty(), "drain_events must leave the buffer empty");
-                },
-                () = cloned_token.cancelled() => {
-                    events_receiver.close();
-                    // drain events that are buffered
-                    loop {
-                        let limit = exporter.batch_size_hint().get();
-                        buffer.reserve(limit);
-                        if events_receiver.recv_many(&mut buffer, limit).await == 0 {
-                            break;
-                        }
-                        if let Err(e) = exporter.drain_events(&mut buffer).await {
-                            warn!("unable to export events: {e}");
-                        }
-                        debug_assert!(buffer.is_empty(), "drain_events must leave the buffer empty");
-                    }
-                    break
-                },
-            }
-        }
+        #[cfg(not(feature = "channel-per-thread"))]
+        forward_tokio(&mut events_receiver, &mut exporter, &cloned_token).await;
+        #[cfg(feature = "channel-per-thread")]
+        forward_spsc(&mut events_receiver, &mut exporter, &cloned_token, ticker).await;
         // Tear down once, however the loop exited.
         if let Err(e) = exporter.shutdown().await {
             warn!("failed to shut down exporter: {e}");
@@ -207,13 +235,107 @@ where
         },
         cancellation_token,
         forwarder_handle: Some(forwarder_handle),
-        runtime: Some(runtime.clone()),
+        runtime: Some(Arc::clone(runtime)),
+    }
+}
+
+async fn export_buffer<T: Send + 'static>(
+    exporter: &mut Box<dyn Exporter<T>>,
+    buffer: &mut Vec<Event<T>>,
+) {
+    if let Err(e) = exporter.drain_events(buffer).await {
+        warn!("unable to export events: {e}");
+    }
+    debug_assert!(
+        buffer.is_empty(),
+        "drain_events must leave the buffer empty"
+    );
+}
+
+#[cfg(not(feature = "channel-per-thread"))]
+async fn forward_tokio<T: Send + 'static>(
+    receiver: &mut UnboundedReceiver<Event<T>>,
+    exporter: &mut Box<dyn Exporter<T>>,
+    cancellation: &CancellationToken,
+) {
+    let mut buffer = Vec::new();
+    loop {
+        let limit = exporter.batch_size_hint().get();
+        buffer.reserve(limit);
+        tokio::select! {
+            // Cancellation leaves `buffer` untouched; the shutdown branch
+            // drains it.
+            n = receiver.recv_many(&mut buffer, limit) => {
+                if n == 0 {
+                    break;
+                }
+                export_buffer(exporter, &mut buffer).await;
+            },
+            () = cancellation.cancelled() => {
+                receiver.close();
+                loop {
+                    let limit = exporter.batch_size_hint().get();
+                    buffer.reserve(limit);
+                    if receiver.recv_many(&mut buffer, limit).await == 0 {
+                        break;
+                    }
+                    export_buffer(exporter, &mut buffer).await;
+                }
+                break;
+            },
+        }
+    }
+}
+
+#[cfg(feature = "channel-per-thread")]
+async fn forward_spsc<T: Send + 'static>(
+    receiver: &mut quent_channel::mpsc::Receiver<Event<T>>,
+    exporter: &mut Box<dyn Exporter<T>>,
+    cancellation: &CancellationToken,
+    mut ticker: tokio::time::Interval,
+) {
+    let mut buffer = Vec::new();
+    // Idle polling leaves the producer's ordinary push path free of wake-ups.
+    // TODO(johanpel): Consider adaptive polling to reduce idle wakeups, trading
+    // off event delivery delay.
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    loop {
+        if cancellation.is_cancelled() {
+            break;
+        }
+        let limit = exporter.batch_size_hint();
+        buffer.reserve(limit.get());
+        if receiver.drain_into(&mut buffer, limit) != 0 {
+            export_buffer(exporter, &mut buffer).await;
+            tokio::task::yield_now().await;
+            continue;
+        }
+        tokio::select! {
+            () = cancellation.cancelled() => break,
+            _ = ticker.tick() => {},
+        }
+    }
+
+    // Closure fixes each queue's drain budget so concurrent sends cannot keep
+    // shutdown draining indefinitely.
+    receiver.close();
+    loop {
+        let limit = exporter.batch_size_hint();
+        buffer.reserve(limit.get());
+        if receiver.drain_into(&mut buffer, limit) == 0 {
+            break;
+        }
+        export_buffer(exporter, &mut buffer).await;
+        tokio::task::yield_now().await;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    use quent_io::{ExporterProvider, ExporterResult};
 
     struct TestEvent;
     impl EventPayload for TestEvent {
@@ -226,5 +348,126 @@ mod tests {
         assert!(observer.events_sender.tx.is_none());
         // Emitting is a silent no-op.
         observer.emit(Uuid::now_v7(), TestEvent);
+    }
+
+    struct SequenceEvent(usize);
+
+    impl EventPayload for SequenceEvent {
+        const NAME: &'static str = "SequenceEvent";
+    }
+
+    struct RecordingProvider(Arc<Mutex<Vec<usize>>>);
+
+    struct RecordingExporter(Arc<Mutex<Vec<usize>>>);
+
+    #[async_trait::async_trait]
+    impl ExporterProvider<SequenceEvent> for RecordingProvider {
+        async fn create_exporter(
+            &self,
+            _context_id: Uuid,
+        ) -> ExporterResult<Box<dyn Exporter<SequenceEvent>>> {
+            Ok(Box::new(RecordingExporter(Arc::clone(&self.0))))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Exporter<SequenceEvent> for RecordingExporter {
+        async fn push(&mut self, event: Event<SequenceEvent>) -> ExporterResult<()> {
+            self.0.lock().unwrap().push(event.data.0);
+            Ok(())
+        }
+
+        async fn shutdown(self: Box<Self>) -> ExporterResult<()> {
+            Ok(())
+        }
+    }
+
+    /// Checks that immediately completing exports let another task run before
+    /// normal or shutdown draining finishes.
+    #[cfg(feature = "channel-per-thread")]
+    #[test]
+    fn per_thread_forwarder_yields_between_batches() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        for shutting_down in [false, true] {
+            runtime.block_on(async {
+                const EVENTS: usize = 1_024;
+                let (sender, mut receiver) = quent_channel::mpsc::unbounded_channel();
+                for sequence in 0..EVENTS {
+                    assert!(
+                        sender
+                            .send(Event::new_now(Uuid::nil(), SequenceEvent(sequence)))
+                            .is_ok()
+                    );
+                }
+                let recorded = Arc::new(Mutex::new(Vec::new()));
+                let mut exporter: Box<dyn Exporter<SequenceEvent>> =
+                    Box::new(RecordingExporter(Arc::clone(&recorded)));
+                let cancellation = CancellationToken::new();
+                if shutting_down {
+                    cancellation.cancel();
+                }
+                let competing_task = tokio::spawn({
+                    let recorded = Arc::clone(&recorded);
+                    let cancellation = cancellation.clone();
+                    async move {
+                        let exported = recorded.lock().unwrap().len();
+                        cancellation.cancel();
+                        exported
+                    }
+                });
+                forward_spsc(
+                    &mut receiver,
+                    &mut exporter,
+                    &cancellation,
+                    interval(Duration::from_millis(1)),
+                )
+                .await;
+                let observed = competing_task.await.unwrap();
+                assert!(
+                    observed > 0 && observed < EVENTS,
+                    "other task ran after {observed} events"
+                );
+                assert_eq!(*recorded.lock().unwrap(), (0..EVENTS).collect::<Vec<_>>());
+            });
+        }
+    }
+
+    #[test]
+    fn final_owner_drop_exports_all_completed_sends() {
+        const THREADS: usize = 4;
+        const PER_THREAD: usize = 1_000;
+
+        let recorded = Arc::new(Mutex::new(Vec::new()));
+        let provider = RecordingProvider(Arc::clone(&recorded));
+        let context = crate::ContextInner::try_new(Uuid::now_v7()).unwrap();
+        let observer = context
+            .block_on(async { context.observer::<SequenceEvent>(&provider).await })
+            .unwrap();
+        let sender = observer.sender();
+        let mut workers = Vec::new();
+        for thread in 0..THREADS {
+            let sender = sender.clone();
+            workers.push(std::thread::spawn(move || {
+                for index in 0..PER_THREAD {
+                    sender.send(Event::new_now(
+                        Uuid::nil(),
+                        SequenceEvent(thread * PER_THREAD + index),
+                    ));
+                }
+            }));
+        }
+        for worker in workers {
+            worker.join().unwrap();
+        }
+        drop(observer);
+
+        let mut values = recorded.lock().unwrap().clone();
+        values.sort_unstable();
+        assert_eq!(values, (0..THREADS * PER_THREAD).collect::<Vec<_>>());
+        sender.send(Event::new_now(Uuid::nil(), SequenceEvent(usize::MAX)));
+        assert_eq!(recorded.lock().unwrap().len(), THREADS * PER_THREAD);
     }
 }
