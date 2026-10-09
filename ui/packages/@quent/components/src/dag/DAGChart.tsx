@@ -116,7 +116,7 @@ const VariableWidthEdge = ({
   if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      const t = normalizeLogScale(v, edgeWidthConfig.min, edgeWidthConfig.max);
+      const t = normalizeLogScale(v, edgeWidthConfig.logMin, edgeWidthConfig.max);
       strokeWidth = EDGE_STROKE_WIDTH_MIN + t * EDGE_STROKE_WIDTH_RANGE;
     }
   }
@@ -129,7 +129,7 @@ const VariableWidthEdge = ({
       if (v === undefined) {
         edgeDimmed = true;
       } else {
-        const t = normalizeLogScale(v, edgeColoring.min, edgeColoring.max);
+        const t = normalizeLogScale(v, edgeColoring.logMin, edgeColoring.max);
         edgeColor = continuousColor(t, edgePalette, isDark);
       }
     } else {

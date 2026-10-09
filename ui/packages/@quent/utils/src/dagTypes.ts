@@ -23,6 +23,8 @@ export type NodeColoring = ContinuousNodeColoring | CategoricalNodeColoring | nu
 export type EdgeWidthConfig = {
   values: Map<string, number>; // edgeId → numeric value
   min: number;
+  /** Lower bound for log scaling: the smallest positive value, so zeros don't stretch the scale. */
+  logMin: number;
   max: number;
 } | null;
 
@@ -30,6 +32,8 @@ export type ContinuousEdgeColoring = {
   type: 'continuous';
   values: Map<string, number>; // edgeId → numeric value
   min: number;
+  /** Lower bound for log scaling: the smallest positive value, so zeros don't stretch the scale. */
+  logMin: number;
   max: number;
 };
 

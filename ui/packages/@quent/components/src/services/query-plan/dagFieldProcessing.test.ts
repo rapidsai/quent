@@ -379,3 +379,45 @@ describe('computeNodeColoring with related operators', () => {
     expect(computeNodeColoring(nodes, 'kind')).toBeNull();
   });
 });
+
+// ---- log-scale lower bound -------------------------------------------------
+
+describe('logMin (lower bound for log scaling)', () => {
+  const rowsEdges = () => [
+    makeEdge('zero', [{ key: 'rows', value: 0 }]),
+    makeEdge('small', [{ key: 'rows', value: 100_000 }]),
+    makeEdge('large', [{ key: 'rows', value: 10_000_000 }]),
+  ];
+
+  it('width config ignores zeros for logMin but keeps the true min', () => {
+    const result = computeEdgeWidthConfig(rowsEdges(), 'rows');
+    expect(result).toMatchObject({ min: 0, logMin: 100_000, max: 10_000_000 });
+  });
+
+  it('continuous edge coloring ignores zeros for logMin but keeps the true min', () => {
+    const result = computeEdgeColoring(rowsEdges(), 'rows');
+    expect(result).toMatchObject({
+      type: 'continuous',
+      min: 0,
+      logMin: 100_000,
+      max: 10_000_000,
+    });
+  });
+
+  it('keeps the true min as logMin for signed data so negatives stay distinguishable', () => {
+    const edges = [-100, -1, 0, 1, 100].map((value, i) =>
+      makeEdge(`e${i}`, [{ key: 'delta', value }])
+    );
+    expect(computeEdgeColoring(edges, 'delta')).toMatchObject({
+      min: -100,
+      logMin: -100,
+      max: 100,
+    });
+  });
+
+  it('falls back to min when no value is positive', () => {
+    const edges = [makeEdge('a', [{ key: 'rows', value: 0 }])];
+    expect(computeEdgeWidthConfig(edges, 'rows')).toMatchObject({ min: 0, logMin: 0 });
+    expect(computeEdgeColoring(edges, 'rows')).toMatchObject({ min: 0, logMin: 0 });
+  });
+});

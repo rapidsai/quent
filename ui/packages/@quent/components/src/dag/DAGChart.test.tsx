@@ -75,7 +75,7 @@ vi.mock('@xyflow/react', async importOriginal => {
 
 const data: DAGData = {
   nodes: [],
-  edges: [0, 3, 15].map((value, index) => ({
+  edges: [0, 3, 15, 63].map((value, index) => ({
     id: `edge-${index}`,
     source: `node-${index}`,
     target: `node-${index + 1}`,
@@ -114,21 +114,28 @@ describe('DAGChart edge scaling', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Select bytes' }));
     await waitFor(() => {
-      expect(container.querySelector('#edge-1')).toHaveStyle({
-        strokeWidth: '13.5',
+      expect(container.querySelector('#edge-2')).toHaveStyle({
         stroke: continuousColor(0.5, 'blue'),
       });
     });
-    expect(container.querySelector('#edge-0')).toHaveStyle({
-      strokeWidth: '2',
-      stroke: continuousColor(0, 'blue'),
-    });
-    expect(container.querySelector('#edge-2')).toHaveStyle({
+    expect(
+      Number.parseFloat((container.querySelector('#edge-2') as SVGElement).style.strokeWidth)
+    ).toBeCloseTo(13.5, 6);
+    // The scale starts at the smallest positive value, so a zero and the
+    // smallest positive edge both sit at the bottom of the scale.
+    for (const id of ['#edge-0', '#edge-1']) {
+      expect(container.querySelector(id)).toHaveStyle({
+        strokeWidth: '2',
+        stroke: continuousColor(0, 'blue'),
+      });
+    }
+    expect(container.querySelector('#edge-3')).toHaveStyle({
       strokeWidth: '25',
       stroke: continuousColor(1, 'blue'),
     });
     expect(screen.getByText('bytes (log scale)')).toBeVisible();
     expect(screen.getByText('0 B')).toBeVisible();
-    expect(screen.getByText('15.00 B')).toBeVisible();
+    // The legend shows the true data range, including the zero edge.
+    expect(screen.getByText('63.00 B')).toBeVisible();
   });
 });
