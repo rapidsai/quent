@@ -150,6 +150,11 @@ impl<T> ObserverInner<T> {
         }
     }
 
+    /// Returns whether this observer was constructed without an export pipeline.
+    pub(crate) fn is_noop(&self) -> bool {
+        self.events_sender.tx.is_none()
+    }
+
     /// Send a pre-built event into this stream.
     pub fn send(&self, event: Event<T>) {
         self.events_sender.send(event);

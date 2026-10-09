@@ -9,8 +9,8 @@ import pytest
 import quent_codegen_test as quent
 
 
-def test_generated_api_accepts_general_mappings() -> None:
-    context = quent.Context()
+def test_generated_api_accepts_general_mappings(tmp_path: Path) -> None:
+    context = quent.Context(quent.ExporterOptions.ndjson(str(tmp_path)))
     assert isinstance(context.id, uuid.UUID)
     assert not context.closed
     assert not hasattr(quent, "Uuid")
@@ -126,6 +126,29 @@ def test_generated_api_accepts_general_mappings() -> None:
 
     detached_cluster = cluster_observer.handle()
     detached_cluster.declaration(instance_name="detached")
+
+
+def test_noop_skips_fsm_checks() -> None:
+    context = quent.Context()
+    cluster = context.cluster_observer().handle()
+    cluster.declaration(instance_name="cluster")
+    with pytest.raises(quent.EventAlreadyEmittedError):
+        cluster.declaration(instance_name="duplicate")
+
+    thread = context.thread_observer().handle().into_dynamic()
+    thread_id = thread.id
+
+    # Disabled capture permits missing initial events and repeated states.
+    thread.active()
+    thread.active()
+    assert thread.id == thread_id
+    with pytest.raises(quent.InvalidFsmStateError):
+        thread.try_into_idle()
+    active = thread.try_into_active()
+    assert active.id == thread_id
+    with pytest.raises(quent.HandleConsumedError):
+        thread.try_into_active()
+    context.close()
 
 
 def test_dynamic_attributes_preserve_insertion_order(tmp_path: Path) -> None:

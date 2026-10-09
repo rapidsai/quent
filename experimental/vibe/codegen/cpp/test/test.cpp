@@ -67,6 +67,26 @@ extern "C" int quent_demo_cpp_dynamic_try_into() {
   return initial ? 0 : 2;
 }
 
+extern "C" bool quent_cpp_noop_fsm() {
+  auto context = quent::Context::none();
+  auto dynamic = context.job_observer()->handle().into_dynamic();
+  const auto id = dynamic.id();
+
+  // A no-op handle can skip scheduling states and repeat a terminal event.
+  try {
+    dynamic.done();
+    dynamic.done();
+  } catch (const rust::Error &) {
+    return false;
+  }
+
+  if (std::move(dynamic).try_into<quent::job_state::Running>()) {
+    return false;
+  }
+  auto done = std::move(dynamic).try_into<quent::job_state::Done>();
+  return done && done->id() == id;
+}
+
 extern "C" int quent_demo_cpp_dynamic_values(const char *output_dir) {
   auto context = quent::Context::ndjson(output_dir);
   auto worker = context.worker_observer()->handle();
