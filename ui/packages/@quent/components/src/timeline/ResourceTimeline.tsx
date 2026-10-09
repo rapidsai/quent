@@ -85,7 +85,7 @@ export function ResourceTimeline({
   isDark,
   showPlayheadIndicator = false,
 }: ResourceTimelineProps) {
-  const colorCapacity = useColorResolver(COLOR_REGISTRY_KEYS.CAPACITIES);
+  const colorFsmType = useColorResolver(COLOR_REGISTRY_KEYS.FSM_TYPES);
   const colorFsmState = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
   const deferredReady = useDeferredReady();
   const zoomRange = useDebouncedZoomRange();
@@ -202,8 +202,8 @@ export function ResourceTimeline({
     const base = buildBinnedTimelineSeries(
       data.data,
       data.config,
-      colorCapacity,
       colorFsmState,
+      colorFsmType,
       resourceTypeDecl,
       quantitySpecs
     );
@@ -217,8 +217,8 @@ export function ResourceTimeline({
           const opResult = buildBinnedTimelineSeries(
             overlayPreloadedData.data,
             overlayPreloadedData.config,
-            colorCapacity,
             colorFsmState,
+            colorFsmType,
             resourceTypeDecl,
             quantitySpecs
           );
@@ -249,8 +249,8 @@ export function ResourceTimeline({
     resourceTypeDecl,
     quantitySpecs,
     operatorLabel,
-    colorCapacity,
     colorFsmState,
+    colorFsmType,
   ]);
 
   // Bridge the chart's atom-unaware `onHoverChange` callback into the shared

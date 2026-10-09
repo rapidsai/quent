@@ -7,6 +7,7 @@ export { clamp } from './math';
 export { parseJsonWithBigInt } from './parseJsonWithBigInt';
 export { getFsmTypeName, getResourceTypeName } from './timeline';
 export { workerDisplayName } from './worker';
+export { resolveResourceFsmType, resourceFsmChoices } from './resource';
 
 // Color utilities
 export {
@@ -33,6 +34,8 @@ export type {
   DeterministicColorResolver,
 } from './colors';
 export {
+  ALL_FSM_TYPES_COLOR_KEY,
+  ALL_FSM_TYPES_COLORS,
   COLOR_REGISTRY_KEYS,
   createColorRegistry,
   createColorRegistryEntry,

@@ -21,10 +21,21 @@ import {
   findItemById,
   computeVisibleMaxValue,
   deriveCapacityLabel,
+  buildBulkParamsForItem,
+  buildBinnedTimelineSeries,
+  transformResourceTree,
 } from './timeline.utils';
 import type { TimelineSeries, TimelineSeriesEntry } from '../timeline/types';
 import type { TreeTableItem } from '../resource-tree/types';
-import type { OperatorFilter, QuantitySpec, ResourceTypeDecl, TimelineRequest } from '@quent/utils';
+import type {
+  OperatorFilter,
+  QuantitySpec,
+  QueryEntities,
+  EntityRef,
+  ResourceTree,
+  ResourceTypeDecl,
+  TimelineRequest,
+} from '@quent/utils';
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -49,6 +60,186 @@ function makeTreeItem(id: string, children?: TreeTableItem[]): TreeTableItem {
 
 const baseConfig = { start: 0, end: 10, num_bins: 10 };
 const baseFilter = { entity_type_name: null };
+
+describe('buildBulkParamsForItem FSM selection', () => {
+  const resourceType: ResourceTypeDecl = {
+    name: 'thread',
+    capacities: [],
+    display_order: [{ Type: 'task' }, { Type: 'worker' }],
+  };
+  const entities = {
+    resource_types: { thread: resourceType },
+    resource_group_types: {},
+  } as unknown as QueryEntities;
+  const group: TreeTableItem = {
+    id: 'group',
+    type: 'ResourceGroup',
+    entity: null as never,
+    availableResourceTypes: ['thread'],
+  };
+  const resource: TreeTableItem = {
+    id: 'resource',
+    type: 'Resource',
+    entity: {
+      id: 'resource',
+      instance_name: 'thread-0',
+      type_name: 'thread',
+      parent_group_id: 'group',
+    },
+  };
+
+  it('uses the first declared FSM type in group and leaf requests', () => {
+    const groupRequest = buildBulkParamsForItem(group, new Map(), entities, baseConfig);
+    const leafRequest = buildBulkParamsForItem(resource, new Map(), entities, baseConfig);
+    expect('ResourceGroup' in groupRequest && groupRequest.ResourceGroup.entity_filter).toEqual({
+      entity_type_name: 'task',
+    });
+    expect('Resource' in leafRequest && leafRequest.Resource.entity_filter).toEqual({
+      entity_type_name: 'task',
+    });
+  });
+
+  it('uses the group declaration to choose its initial FSM type', () => {
+    const groupEntities = {
+      ...entities,
+      resource_group_types: {
+        worker: {
+          name: 'worker',
+          contains_resource_types: ['thread'],
+          display_order: [{ Type: 'worker' }, { Type: 'task' }],
+        },
+      },
+    };
+    const groupItem = {
+      ...group,
+      entity: {
+        id: 'group',
+        type_name: 'worker',
+        instance_name: 'worker-0',
+        parent_group_id: null,
+      },
+    };
+    const request = buildBulkParamsForItem(groupItem, new Map(), groupEntities, baseConfig);
+    expect('ResourceGroup' in request && request.ResourceGroup.entity_filter).toEqual({
+      entity_type_name: 'worker',
+    });
+  });
+
+  it('requests aggregate usage when All is the analyzer default', () => {
+    const request = buildBulkParamsForItem(
+      group,
+      new Map(),
+      {
+        ...entities,
+        resource_types: {
+          thread: {
+            ...resourceType,
+            display_order: ['All', { Type: 'task' }, { Type: 'worker' }],
+          },
+        },
+      },
+      baseConfig
+    );
+    expect('ResourceGroup' in request && request.ResourceGroup.entity_filter).toEqual({
+      entity_type_name: null,
+    });
+  });
+
+  it('requests the only FSM instead of All when a single FSM is declared', () => {
+    const request = buildBulkParamsForItem(
+      group,
+      new Map(),
+      {
+        ...entities,
+        resource_types: {
+          thread: { ...resourceType, display_order: ['All', { Type: 'task' }] },
+        },
+      },
+      baseConfig
+    );
+    expect('ResourceGroup' in request && request.ResourceGroup.entity_filter).toEqual({
+      entity_type_name: 'task',
+    });
+  });
+
+  it.each(['worker', null])('preserves explicit group selection %s', selection => {
+    const request = buildBulkParamsForItem(
+      group,
+      new Map(),
+      entities,
+      baseConfig,
+      new Map([['group', selection]])
+    );
+    expect('ResourceGroup' in request && request.ResourceGroup.entity_filter).toEqual({
+      entity_type_name: selection,
+    });
+  });
+});
+
+describe('transformResourceTree declaration order', () => {
+  const entities = {
+    resource_groups: {
+      group: { id: 'group', type_name: 'worker', instance_name: 'worker-0', parent_group_id: null },
+    },
+    resources: {
+      cpu: { id: 'cpu', type_name: 'CPU', instance_name: 'cpu-0', parent_group_id: 'group' },
+      gpu: { id: 'gpu', type_name: 'GPU', instance_name: 'gpu-0', parent_group_id: 'group' },
+    },
+    resource_group_types: {
+      worker: {
+        name: 'worker',
+        contains_resource_types: ['absent', 'GPU', 'CPU'],
+        display_order: [{ Type: 'task' }],
+      },
+    },
+  } as unknown as QueryEntities;
+  const tree: ResourceTree<EntityRef> = {
+    ResourceGroup: {
+      id: { ResourceGroup: 'group' },
+      children: [{ Resource: { Resource: 'cpu' } }, { Resource: { Resource: 'gpu' } }],
+    },
+  };
+
+  it('orders available resource types by their declaration, excluding absent types', () => {
+    expect(transformResourceTree(entities, tree).availableResourceTypes).toEqual(['GPU', 'CPU']);
+  });
+
+  it('retains tree order when no group declaration is provided', () => {
+    expect(
+      transformResourceTree({ ...entities, resource_group_types: {} }, tree).availableResourceTypes
+    ).toEqual(['CPU', 'GPU']);
+  });
+
+  it('uses the entity variant for group entities without a type_name field', () => {
+    const queryGroupEntities = {
+      ...entities,
+      query_group: { id: 'group', instance_name: 'queries', engine_id: null },
+      resource_group_types: { QueryGroup: entities.resource_group_types.worker },
+    };
+    const root = transformResourceTree(queryGroupEntities, {
+      ResourceGroup: { ...tree.ResourceGroup, id: { QueryGroup: 'group' } },
+    });
+    expect(root.availableResourceTypes).toEqual(['GPU', 'CPU']);
+    const request = buildBulkParamsForItem(
+      root,
+      new Map(),
+      {
+        ...queryGroupEntities,
+        resource_types: {
+          GPU: {
+            name: 'GPU',
+            capacities: [],
+            display_order: [{ Type: 'worker' }, { Type: 'task' }],
+          },
+        },
+      },
+      baseConfig
+    );
+    expect('ResourceGroup' in request && request.ResourceGroup.entity_filter).toEqual({
+      entity_type_name: 'task',
+    });
+  });
+});
 
 function makeResourceEntry(): TimelineRequest<OperatorFilter> {
   return {
@@ -185,7 +376,7 @@ describe('deriveCapacityLabel', () => {
     const resourceType: ResourceTypeDecl = {
       name: 'queue',
       capacities: [{ name: 'capacity_entries', kind: 'Occupancy', quantity: 'unit' }],
-      used_by: [],
+      display_order: [],
     };
     const unitSpec: QuantitySpec = {
       symbol: '',
@@ -480,5 +671,37 @@ describe('buildTimelineMarks attributes', () => {
     expect(marks).toHaveLength(1);
     expect(marks![0]!.attributes).toBeUndefined();
     expect(marks![0]!.derivedAttributes).toBeUndefined();
+  });
+});
+
+describe('buildBinnedTimelineSeries All colour', () => {
+  const config = {
+    bin_duration: 1,
+    num_bins: 2n,
+    span: { start: 0, end: 2 },
+  } as unknown as Parameters<typeof buildBinnedTimelineSeries>[1];
+  const colorFsmState = () => 'state-colour';
+  const colorFsmType = (value: string) => (value === 'All' ? 'all-colour' : 'other');
+
+  it('colours the aggregate series with the "All" FSM type colour', () => {
+    const { series } = buildBinnedTimelineSeries(
+      { Binned: { capacities_values: { unit: [1, 2] }, long_fsms: [] } } as never,
+      config,
+      colorFsmState,
+      colorFsmType
+    );
+    expect(series.unit?.color).toBe('all-colour');
+  });
+
+  it('keeps per-state colours when a named FSM is selected', () => {
+    const { series } = buildBinnedTimelineSeries(
+      {
+        BinnedByState: { capacities_states_values: { unit: { busy: [1, 2] } }, long_fsms: [] },
+      } as never,
+      config,
+      colorFsmState,
+      colorFsmType
+    );
+    expect(series.busy?.color).toBe('state-colour');
   });
 });

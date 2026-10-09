@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { EntityTypeKey } from '@quent/utils';
+import { EntityTypeKey, resolveResourceFsmType } from '@quent/utils';
 import { QueryBundle } from '@quent/utils';
 import { DEFAULT_TIMELINE_HEIGHT } from '../timeline/types';
 import type { EntityRef } from '@quent/utils';
@@ -41,13 +41,13 @@ export function UsageColumn({
   const resourceTypeDecl = resourceTypeName
     ? queryBundle.entities.resource_types[resourceTypeName]
     : undefined;
-  const usedBy = resourceTypeDecl?.used_by;
-  let fsmTypeName: string | undefined;
-  if (usedBy?.length === 1) {
-    fsmTypeName = usedBy[0];
-  } else if (resourceType === EntityTypeKey.ResourceGroup) {
-    fsmTypeName = selectedFsmTypes?.get(item.id) ?? undefined;
-  }
+  const fsmTypeName = resolveResourceFsmType(
+    resourceTypeDecl,
+    resourceType === EntityTypeKey.ResourceGroup ? selectedFsmTypes?.get(item.id) : undefined,
+    resourceType === EntityTypeKey.ResourceGroup
+      ? queryBundle.entities.resource_group_types[entityTypeName ?? item.type]
+      : undefined
+  );
   // Cell wrapper kept (without enter/leave) so click events still don't
   // propagate to the table-row click handler. Tooltip visibility is driven
   // by the chart's own pointermove via `timelineHoverAtom` — no row-level
@@ -64,7 +64,7 @@ export function UsageColumn({
         resourceId={item.id}
         resourceType={resourceType}
         durationSeconds={durationSeconds}
-        fsmTypeName={fsmTypeName}
+        fsmTypeName={fsmTypeName ?? undefined}
         resourceTypeName={selectedType}
         resourceTypeDecl={resourceTypeDecl}
         quantitySpecs={queryBundle.quantity_specs}

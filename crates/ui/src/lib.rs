@@ -14,6 +14,13 @@ pub mod paginate;
 pub mod quantity;
 pub mod timeline;
 
+/// An FSM filter offered by a resource timeline.
+#[derive(TS, Serialize, Clone, Debug, PartialEq, Eq)]
+pub enum FsmTypeSelection {
+    All,
+    Type(String),
+}
+
 /// A type of [`Resource`].
 #[derive(TS, Serialize, Clone, Debug, Default)]
 pub struct ResourceTypeDecl {
@@ -21,8 +28,18 @@ pub struct ResourceTypeDecl {
     pub name: String,
     /// The capacities of this type of Resource.
     pub capacities: Vec<quantity::CapacityDecl>,
-    /// The type names of the entities that used this Resource.
-    pub used_by: Vec<String>,
+    /// The available FSM filters in display order, with the first entry
+    /// selected initially.
+    pub display_order: Vec<FsmTypeSelection>,
+}
+
+impl ResourceTypeDecl {
+    /// Replaces the available FSM filters and their display order; the first
+    /// entry is selected initially.
+    pub fn with_display_order(mut self, display_order: impl Into<Vec<FsmTypeSelection>>) -> Self {
+        self.display_order = display_order.into();
+        self
+    }
 }
 
 impl From<&a::resource::ResourceTypeDecl> for ResourceTypeDecl {
@@ -41,7 +58,14 @@ impl From<&a::resource::ResourceTypeDecl> for ResourceTypeDecl {
                     quantity: cap.name.clone(),
                 })
                 .collect(),
-            used_by: value.used_by.iter().cloned().collect(),
+            display_order: std::iter::once(FsmTypeSelection::All)
+                .chain(
+                    value
+                        .used_by
+                        .iter()
+                        .map(|type_name| FsmTypeSelection::Type(type_name.to_string())),
+                )
+                .collect(),
         }
     }
 }
@@ -80,10 +104,29 @@ impl Resource {
 pub struct ResourceGroupTypeDecl {
     /// The name of the type of Resource Group
     pub name: String,
-    /// The type names of the entities that used Resource of this group.
-    pub used_by_entity_types: Vec<String>,
-    /// The resource type names in this group or its descendants.
+    /// The FSM filters in preferred display order.
+    ///
+    /// The UI initially selects the first entry applicable to the selected
+    /// resource type.
+    pub display_order: Vec<FsmTypeSelection>,
+    /// The resource type names in this group or its descendants, with the
+    /// preferred resource type first.
     pub contains_resource_types: Vec<String>,
+}
+
+impl ResourceGroupTypeDecl {
+    /// Replaces the FSM filter choices and their preferred display order.
+    pub fn with_display_order(mut self, display_order: impl Into<Vec<FsmTypeSelection>>) -> Self {
+        self.display_order = display_order.into();
+        self
+    }
+
+    /// Replaces the resource type preferences; the first type present in the
+    /// group is selected initially.
+    pub fn with_resource_type_order(mut self, resource_types: impl Into<Vec<String>>) -> Self {
+        self.contains_resource_types = resource_types.into();
+        self
+    }
 }
 
 /// A Group of [`Resource`]s.

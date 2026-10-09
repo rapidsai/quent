@@ -166,7 +166,7 @@ const makeBundle = (workerId: string | null = null): QueryBundle<EntityRef> =>
       plans: {},
       operators: {},
       ports: {},
-      resource_types: { [RESOURCE_TYPE]: { used_by: ['task'], capacities: [] } },
+      resource_types: { [RESOURCE_TYPE]: { display_order: [{ Type: 'task' }], capacities: [] } },
       resource_group_types: {},
       resources: {
         [RESOURCE_ID]: { id: RESOURCE_ID, instance_name: 'GPU 0', type_name: RESOURCE_TYPE },

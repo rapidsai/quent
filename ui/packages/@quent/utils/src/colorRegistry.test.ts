@@ -4,6 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import { COLOR_PALETTES, getDeterministicColorFromPalette } from './colors';
 import {
+  ALL_FSM_TYPES_COLOR_KEY,
+  ALL_FSM_TYPES_COLORS,
   COLOR_REGISTRY_KEYS,
   createColorRegistry,
   createColorRegistryEntry,
@@ -125,5 +127,32 @@ describe('color registry core', () => {
     expect(COLOR_PALETTES.timeline.dark).toContain(resolveState('running'));
     expect(COLOR_PALETTES.timeline.dark).toContain(resolveState('waiting'));
     expect(COLOR_PALETTES.timeline.dark).toContain(resolveState('unknown'));
+  });
+});
+
+describe('All FSM type colour', () => {
+  it.each(['light', 'dark'] as const)(
+    'is fixed and independent of FSM names in %s theme',
+    theme => {
+      const withNames = createColorRegistry(
+        [createColorRegistryEntry(COLOR_REGISTRY_KEYS.FSM_TYPES, ['task', 'worker'])],
+        theme
+      );
+      const empty = createColorRegistry([], theme);
+      for (const registry of [withNames, empty]) {
+        const resolve = createRegistryColorResolver(registry, COLOR_REGISTRY_KEYS.FSM_TYPES);
+        expect(resolve(ALL_FSM_TYPES_COLOR_KEY)).toBe(ALL_FSM_TYPES_COLORS[theme]);
+      }
+    }
+  );
+
+  it('is not reused by a real FSM type', () => {
+    const registry = createColorRegistry(
+      [createColorRegistryEntry(COLOR_REGISTRY_KEYS.FSM_TYPES, ['task', 'worker'])],
+      'light'
+    );
+    const resolve = createRegistryColorResolver(registry, COLOR_REGISTRY_KEYS.FSM_TYPES);
+    expect(resolve('task')).not.toBe(ALL_FSM_TYPES_COLORS.light);
+    expect(resolve('worker')).not.toBe(ALL_FSM_TYPES_COLORS.light);
   });
 });

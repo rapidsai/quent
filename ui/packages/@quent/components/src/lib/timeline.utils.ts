@@ -8,6 +8,8 @@ import {
   WHITE,
   withOpacity,
   unpackEntityRef,
+  resolveResourceFsmType,
+  ALL_FSM_TYPES_COLOR_KEY,
   type ColorResolver,
 } from '@quent/utils';
 import type {
@@ -71,8 +73,8 @@ export function getLongEntitiesThreshold(
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
-  colorCapacity: ColorResolver,
   colorFsmState: ColorResolver,
+  colorFsmType: ColorResolver,
   resourceTypeDecl?: ResourceTypeDecl,
   quantitySpecs?: { [key in string]?: QuantitySpec }
 ): {
@@ -109,12 +111,14 @@ export function buildBinnedTimelineSeries(
   const series: TimelineSeries = {};
 
   if ('Binned' in data) {
-    // ResourceTimelineBinned: capacities_values (flat: capacity → values)
+    // ResourceTimelineBinned: capacities_values (flat: capacity → values).
+    // This is the aggregate over all FSMs, so it uses the "All" FSM colour.
     const { capacities_values } = data.Binned;
+    const allFsmsColor = colorFsmType(ALL_FSM_TYPES_COLOR_KEY);
     for (const [capacity, values] of Object.entries(capacities_values)) {
       const formatter = getFormatter(capacity);
       series[capacity] = {
-        color: colorCapacity(capacity),
+        color: allFsmsColor,
         formatter,
         values: values ?? [],
         binDuration: bin_duration,
@@ -480,7 +484,15 @@ export const transformResourceTree = (
     const { variant, typeName, id } = unpackEntityRef(node.id);
     const entity = lookupEntity(entities, variant, id);
     const children = node.children.map(child => transformResourceTree(entities, child));
-    const availableResourceTypes = collectResourceTypesFromTree(children);
+    const containedResourceTypes = collectResourceTypesFromTree(children);
+    const groupTypeName = entity && 'type_name' in entity ? entity.type_name : typeName;
+    const declaredResourceTypes = groupTypeName
+      ? (entities.resource_group_types[groupTypeName]?.contains_resource_types ?? [])
+      : [];
+    const availableResourceTypes = [
+      ...declaredResourceTypes.filter(type => containedResourceTypes.includes(type)),
+      ...containedResourceTypes.filter(type => !declaredResourceTypes.includes(type)),
+    ];
 
     return {
       id,
@@ -521,23 +533,10 @@ export function findItemById(root: TreeTableItem, id: string): TreeTableItem | u
   return undefined;
 }
 
-/** Look up the FSM type name for a leaf resource from the query entities.
- *  If exactly 1 FSM uses this resource type, return that FSM name.
- *  If >1 FSM types use it, return null (all FSMs). */
-function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string | null {
-  const typeName =
-    item.entity && 'type_name' in item.entity ? (item.entity.type_name as string) : undefined;
-  const usedBy = typeName ? entities.resource_types[typeName]?.used_by : undefined;
-  if (usedBy && usedBy.length === 1) {
-    return usedBy[0]!;
-  }
-  return null;
-}
-
 /** Build TimelineRequest params for a single tree item.
  *  @param groupFsmFilters — per-item FSM filter for resource groups.
  *    Map value: null = aggregate all FSMs, string = filter to that FSM type.
- *    Missing key = fall back to first `used_by` entry (single-FSM) or null (multi-FSM).
+ *    Missing key = use the first declared FSM type available for the resource type.
  */
 export function buildBulkParamsForItem(
   item: TreeTableItem,
@@ -551,15 +550,20 @@ export function buildBulkParamsForItem(
   const resourceTypeName = isGroup
     ? selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''
     : undefined;
-  const usedBy = resourceTypeName ? entities.resource_types[resourceTypeName]?.used_by : undefined;
-  let fsmTypeName: string | null;
-  if (usedBy?.length === 1) {
-    fsmTypeName = usedBy[0]!;
-  } else if (isGroup) {
-    fsmTypeName = groupFsmFilters?.has(item.id) ? (groupFsmFilters.get(item.id) ?? null) : null;
-  } else {
-    fsmTypeName = lookupFsmTypeName(item, entities);
-  }
+  const typeName = isGroup
+    ? resourceTypeName
+    : item.entity && 'type_name' in item.entity
+      ? (item.entity.type_name as string)
+      : undefined;
+  const fsmTypeName = resolveResourceFsmType(
+    typeName ? entities.resource_types[typeName] : undefined,
+    isGroup ? groupFsmFilters?.get(item.id) : undefined,
+    isGroup
+      ? entities.resource_group_types[
+          item.entity && 'type_name' in item.entity ? item.entity.type_name : item.type
+        ]
+      : undefined
+  );
   if (isGroup) {
     return {
       ResourceGroup: {

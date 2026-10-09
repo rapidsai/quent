@@ -36,8 +36,8 @@ const worker = group('worker-a', 'Worker A', [gpu0, gpu1]);
 const root = group('query', 'Query resources', [worker, cpu0]);
 const entities = {
   resource_types: {
-    gpu: { name: 'gpu', used_by: ['task', 'transfer'], capacities: [] },
-    cpu: { name: 'cpu', used_by: ['task'], capacities: [] },
+    gpu: { name: 'gpu', display_order: [{ Type: 'task' }, { Type: 'transfer' }], capacities: [] },
+    cpu: { name: 'cpu', display_order: [{ Type: 'task' }], capacities: [] },
   },
 } satisfies Pick<QueryEntities, 'resource_types'>;
 

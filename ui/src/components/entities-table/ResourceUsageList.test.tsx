@@ -22,7 +22,7 @@ describe('ResourceUsageList', () => {
           Gpu: {
             name: 'Gpu',
             capacities: [{ name: 'memory', kind: 'Occupancy', quantity: 'bytes' }],
-            used_by: [],
+            display_order: [],
           },
         },
       },

@@ -11,44 +11,25 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  transformResourceTree,
 } from '@quent/components';
 import { CopyLinkButton, DeepLinkBoundary } from '@/features/deep-link';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
-import {
-  unpackEntityRef,
-  type EntityRef,
-  type PaletteTheme,
-  type QueryBundle,
-  type ResourceTree,
-} from '@quent/utils';
+import { type EntityRef, type PaletteTheme, type QueryBundle } from '@quent/utils';
 
 export const Route = createFileRoute('/profile/engine/$engineId')({
   component: ProfileLayout,
 });
 
-function entityRefId(ref: EntityRef): string {
-  return unpackEntityRef(ref).id;
-}
-
-function firstResourceId(tree: ResourceTree<EntityRef>): string | null {
-  if ('Resource' in tree) {
-    return entityRefId(tree.Resource);
-  }
-  for (const child of tree.ResourceGroup.children) {
-    const resourceId = firstResourceId(child);
-    if (resourceId) {
-      return resourceId;
-    }
-  }
-  return null;
-}
-
 function defaultRootResourceType(queryBundle: QueryBundle<EntityRef> | undefined): string | null {
   if (!queryBundle) {
     return null;
   }
-  const resourceId = firstResourceId(queryBundle.resource_tree);
-  return resourceId ? (queryBundle.entities.resources[resourceId]?.type_name ?? null) : null;
+  const root = transformResourceTree(queryBundle.entities, queryBundle.resource_tree);
+  return (
+    root.availableResourceTypes?.[0] ??
+    (root.entity && 'type_name' in root.entity ? root.entity.type_name : null)
+  );
 }
 
 function ProfileLayout() {

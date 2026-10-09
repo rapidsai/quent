@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ResourceGroup, Resource, cn } from '@quent/utils';
+import { ResourceGroup, Resource, cn, type FsmTypeSelection } from '@quent/utils';
 import { TreeTableItem } from './types';
 import { ResourceGroupRow } from './ResourceGroupRow';
 import { ResourceRow } from './ResourceRow';
@@ -10,7 +10,7 @@ type ResourceColumnProps = {
   item: TreeTableItem;
   selectedType: string;
   onTypeChange: (itemId: string, type: string) => void;
-  availableFsmTypes?: string[];
+  availableFsmTypes?: FsmTypeSelection[];
   selectedFsmType?: string | null;
   onFsmChange?: (itemId: string, fsmType: string | null) => void;
   className?: string;

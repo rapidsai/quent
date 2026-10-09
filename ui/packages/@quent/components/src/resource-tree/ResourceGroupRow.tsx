@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ResourceGroup } from '@quent/utils';
+import { ResourceGroup, type FsmTypeSelection } from '@quent/utils';
 import { InlineSelector } from './InlineSelector';
 import { DataText } from '../ui/data-text';
 
-const FSM_ALL = 'All';
+const FSM_ALL = '__all_fsms__';
 
 interface ResourceGroupRowProps {
   group: ResourceGroup;
@@ -13,7 +13,7 @@ interface ResourceGroupRowProps {
   availableResourceTypes?: string[];
   selectedType?: string;
   onTypeChange?: (itemId: string, type: string) => void;
-  availableFsmTypes?: string[];
+  availableFsmTypes?: FsmTypeSelection[];
   selectedFsmType?: string | null;
   onFsmChange?: (itemId: string, fsmType: string | null) => void;
   verbose?: boolean;
@@ -34,7 +34,10 @@ export const ResourceGroupRow = ({
   const fsmCount = availableFsmTypes?.length ?? 0;
   const hasOneFsm = fsmCount === 1;
   const hasMultipleFsms = fsmCount > 1;
-  const fsmOptions = hasMultipleFsms ? [FSM_ALL, ...(availableFsmTypes ?? [])] : [];
+  const fsmOptions = (availableFsmTypes ?? []).map(type => ({
+    value: type === 'All' ? FSM_ALL : type.Type,
+    label: type === 'All' ? 'All' : type.Type,
+  }));
 
   const showType = hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes;
   const showFsmStatic = hasOneFsm;
@@ -57,7 +60,7 @@ export const ResourceGroupRow = ({
           )}
           {showFsmStatic && (
             <span className="text-[11px] leading-none text-muted-foreground">
-              FSM: <DataText className="text-foreground">{availableFsmTypes![0]}</DataText>
+              FSM: <DataText className="text-foreground">{fsmOptions[0]!.label}</DataText>
             </span>
           )}
           {showFsmSelector && (

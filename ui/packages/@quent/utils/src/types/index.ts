@@ -87,3 +87,5 @@ export type { NvtxRangeStatistics } from '../../../../../generated/ts-bindings/N
 export type { NvtxViewportRequest } from '../../../../../generated/ts-bindings/NvtxViewportRequest';
 export type { NvtxViewportResponse } from '../../../../../generated/ts-bindings/NvtxViewportResponse';
 export type { NvtxViewportWindow } from '../../../../../generated/ts-bindings/NvtxViewportWindow';
+
+export type { FsmTypeSelection } from '../../../../../generated/ts-bindings/FsmTypeSelection';

@@ -41,7 +41,7 @@ const entitiesFixture: Pick<QueryEntities, 'resources' | 'resource_types'> = {
     },
   },
   resource_types: {
-    GPU: { name: 'GPU', capacities: [], used_by: ['Worker'] },
+    GPU: { name: 'GPU', capacities: [], display_order: [{ Type: 'Worker' }] },
   },
 };
 const entities = entitiesFixture as QueryEntities;
