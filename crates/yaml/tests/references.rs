@@ -48,7 +48,7 @@ fn ref_annotations<'s>(
 fn ref_emits_target_only() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Cluster:
@@ -71,7 +71,7 @@ entities:
 fn ref_can_carry_data() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Cluster:
@@ -113,7 +113,7 @@ fn scope_emits_target_and_tree() {
     // Cluster is the root (no scope), Engine is scoped by it — a valid tree.
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Cluster:

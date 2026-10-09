@@ -27,7 +27,7 @@ fn errors_of(src: &str) -> String {
 /// A memory resource used by a task FSM. Memory is bounded, so it
 /// carries a bounds event.
 const MEMORY_AND_TASK: &str = "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Memory:
@@ -82,7 +82,7 @@ fn resource_declaration_generates_records_and_carries_bounds() {
 fn unit_resource_generates_an_empty_usage_record() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Thread:
@@ -107,7 +107,7 @@ entities:
 fn an_fsm_can_also_be_a_unit_resource() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   Worker:
@@ -128,7 +128,7 @@ fsms:
 fn an_fsm_resource_carries_its_bounds_on_a_transition() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   Pool:
@@ -178,7 +178,7 @@ fn uses_carries_the_usage_record_on_a_targeted_reference() {
 fn an_fsm_final_state_cannot_start_a_resource_usage() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Memory:
@@ -207,7 +207,7 @@ fsms:
 fn uses_target_must_declare_a_resource() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 records:
   WorkerUsage:
@@ -238,7 +238,7 @@ fsms:
 fn generated_record_names_can_be_overridden() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 records:
   MemoryUsage:
@@ -309,7 +309,7 @@ fsms:
 fn resource_bounds_without_known_bounds_are_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Threads:
@@ -329,7 +329,7 @@ entities:
 fn generated_record_name_collision_is_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 records:
   MemoryUsage:
@@ -351,7 +351,7 @@ entities:
 fn resource_bounds_marker_must_be_true() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Memory:
@@ -371,7 +371,7 @@ entities:
 fn a_hand_written_resource_constraint_is_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Memory:
@@ -387,7 +387,7 @@ fn a_non_fsm_entity_using_a_resource_is_rejected() {
     // Requirement 3: only an FSM entity may use a resource.
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Thread:

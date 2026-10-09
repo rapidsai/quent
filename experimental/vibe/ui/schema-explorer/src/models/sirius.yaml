@@ -1,5 +1,5 @@
 # Generated entirely by coding agents from prompts without human review or refinement.
-quent: alpha
+quent: '0.1.0'
 model: SiriusQueryEngine
 doc: Extended Sirius telemetry model with GPU topology and batch lifecycles.
 

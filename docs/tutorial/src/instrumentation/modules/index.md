@@ -35,7 +35,7 @@ detail in the [Finite-State Machine lesson](finite-state-machine/index.md))
 contains state events and an opaque constraint describing its transitions:
 
 ```yaml
-quent: alpha
+quent: '0.1.0'
 model: query
 
 entities:
@@ -57,7 +57,7 @@ semantics more concisely, the YAML-based DSL provides module-specific syntax.
 For the example above, we can also write it as:
 
 ```yaml
-quent: alpha
+quent: '0.1.0'
 model: query
 
 fsms:

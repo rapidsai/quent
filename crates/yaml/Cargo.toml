@@ -15,6 +15,7 @@ quent-ref-target = { path = "../ref-target" }
 quent-ref-tree = { path = "../ref-tree" }
 quent-resource = { workspace = true }
 quent-schema = { path = "../schema" }
+semver = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = "1.0.1"
 thiserror = { workspace = true }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 const MODEL: &str = r#"
-quent: alpha
+quent: '0.1.0'
 model: cpp_list_test
 
 records:

@@ -1,8 +1,8 @@
 # Minimal model
 
-Every model declares the YAML format version and a model name. This model has
-one entity type, `Task`, with two events. Events are emitted at most once per
-entity instance unless the model says otherwise.
+Every model declares the Quent version used when writing the source and a model
+name. This model has one entity type, `Task`, with two events. Events are
+emitted at most once per entity instance unless the model says otherwise.
 
 ## YAML model
 

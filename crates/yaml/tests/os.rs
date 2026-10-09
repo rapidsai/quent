@@ -24,7 +24,7 @@ fn errors_of(src: &str) -> String {
 fn process_type_adds_canonical_record() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   MyProcess:
@@ -57,7 +57,7 @@ entities:
 fn os_type_may_be_used_in_an_annotated_field() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   MyProcess:
@@ -88,7 +88,7 @@ entities:
 fn thread_type_adds_canonical_record_when_scoped_under_process() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   MyProcess:
@@ -113,7 +113,7 @@ entities:
 fn process_and_main_thread_may_share_an_entity_without_a_scope_reference() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Main:
@@ -144,7 +144,7 @@ entities:
 fn process_record_on_multi_event_is_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   MyProcess:
@@ -163,7 +163,7 @@ entities:
 fn thread_without_process_ancestor_is_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   MyThread:
@@ -181,7 +181,7 @@ entities:
 fn nested_os_records_are_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Target:
@@ -210,7 +210,7 @@ entities:
 fn duplicate_os_records_in_one_event_are_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   MyProcess:

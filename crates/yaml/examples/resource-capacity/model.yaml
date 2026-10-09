@@ -1,4 +1,4 @@
-quent: alpha
+quent: '0.1.0'
 model: resource_capacity
 
 entities:

@@ -2955,6 +2955,7 @@ dependencies = [
  "quent-ref-tree",
  "quent-resource",
  "quent-schema",
+ "semver",
  "serde",
  "serde-saphyr",
  "thiserror",

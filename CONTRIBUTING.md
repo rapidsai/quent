@@ -84,6 +84,28 @@ chore(deps): bump tokio to 1.48
 Note: Individual commit messages within a PR do not need to follow this format —
 only the PR title is validated. Commits do need a DCO sign-off line (see below).
 
+## Versioning
+
+Quent follows [Semantic Versioning](https://semver.org/). Before 1.0, patch
+releases preserve compatibility and breaking changes require a minor bump.
+This covers publicly exposed interfaces:
+
+- YAML model sources
+- Rust, C++, and Python Instrumentation APIs
+- Analysis APIs
+- Analysis HTTP endpoints
+- Exporter formats
+- Reusable Frontend UI Component APIs
+
+After a release tag, the first breaking-change commit must bump the project
+version and update the YAML parser's supported version range, so YAML sources
+written afterwards can declare the new version without the parser rejecting
+them. Also see [YAML source
+compatibility](crates/yaml/README.md#compatibility-and-versioning-of-application-event-models-as-yaml-sources).
+
+Breaking-change PR descriptions must identify affected interfaces. Providing
+migration steps isn't mandatory yet until we reach 1.0.
+
 ## Use of AI Tools
 
 AI-assisted development tools are permitted, but contributors are expected to

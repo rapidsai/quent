@@ -22,7 +22,7 @@ fn errors_of(src: &str) -> String {
 }
 
 const MINIMAL: &str = "\
-quent: alpha
+quent: '0.1.0'
 model: Application
 logs:
   AppLog:
@@ -68,7 +68,7 @@ fn minimal_log_generates_ranked_repeatable_message_events() {
 fn complete_log_preserves_annotations_and_attribute_scopes() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: Application
 logs:
   AppLog:
@@ -144,7 +144,7 @@ logs:
 fn logging_context_uses_ordinary_attributes() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 logs:
   Log:
@@ -176,7 +176,7 @@ fn levels_must_be_nonempty_unique_valid_and_at_most_256() {
         ("[{ name: not-valid }]", "invalid name"),
     ] {
         let errors = errors_of(&format!(
-            "quent: alpha\nmodel: m\nlogs:\n  Log:\n    levels: {levels}\n"
+            "quent: '0.1.0'\nmodel: m\nlogs:\n  Log:\n    levels: {levels}\n"
         ));
         assert!(errors.contains(expected), "{errors}");
     }
@@ -185,7 +185,7 @@ fn levels_must_be_nonempty_unique_valid_and_at_most_256() {
         .map(|rank| format!("        - name: level{rank}\n"))
         .collect::<String>();
     let errors = errors_of(&format!(
-        "quent: alpha\nmodel: m\nlogs:\n  Log:\n    levels:\n{levels}"
+        "quent: '0.1.0'\nmodel: m\nlogs:\n  Log:\n    levels:\n{levels}"
     ));
     assert!(
         errors.contains("257 levels") && errors.contains("256"),
@@ -196,7 +196,7 @@ fn levels_must_be_nonempty_unique_valid_and_at_most_256() {
 #[test]
 fn user_attributes_cannot_collide_with_generated_fields() {
     let errors = errors_of(
-        "quent: alpha\nmodel: m\nlogs:\n  Log:\n    attributes: { message: string }\n    levels: [{ name: info }]\n",
+        "quent: '0.1.0'\nmodel: m\nlogs:\n  Log:\n    attributes: { message: string }\n    levels: [{ name: info }]\n",
     );
     assert!(errors.contains("conflicts"), "{errors}");
 }
@@ -205,7 +205,7 @@ fn user_attributes_cannot_collide_with_generated_fields() {
 fn level_attributes_cannot_repeat_common_attributes() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 logs:
   Log:
@@ -222,7 +222,7 @@ logs:
 fn initialization_event_can_attach_log_instance_to_os_process() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Process:
@@ -255,7 +255,7 @@ logs:
 #[test]
 fn non_level_event_cannot_reuse_a_level_name() {
     let errors = errors_of(
-        "quent: alpha\nmodel: m\nlogs:\n  Log:\n    events:\n      info: {}\n    levels: [{ name: info }]\n",
+        "quent: '0.1.0'\nmodel: m\nlogs:\n  Log:\n    events:\n      info: {}\n    levels: [{ name: info }]\n",
     );
     assert!(errors.contains("duplicate name \"info\""), "{errors}");
 }
@@ -263,21 +263,21 @@ fn non_level_event_cannot_reuse_a_level_name() {
 #[test]
 fn duplicate_entity_and_log_path_is_rejected() {
     let errors = errors_of(
-        "quent: alpha\nmodel: m\nentities:\n  Log:\n    events:\n      emitted: {}\nlogs:\n  Log:\n    levels: [{ name: info }]\n",
+        "quent: '0.1.0'\nmodel: m\nentities:\n  Log:\n    events:\n      emitted: {}\nlogs:\n  Log:\n    levels: [{ name: info }]\n",
     );
     assert!(errors.contains("duplicate type path `Log`"), "{errors}");
 }
 
 #[test]
 fn logs_must_use_supported_form() {
-    let _ = errors_of("quent: alpha\nmodel: m\nlogs:\n  Log:\n");
+    let _ = errors_of("quent: '0.1.0'\nmodel: m\nlogs:\n  Log:\n");
 }
 
 #[test]
 fn removed_context_shortcuts_are_rejected() {
     for field in ["target: true", "source: true"] {
         let errors = errors_of(&format!(
-            "quent: alpha\nmodel: m\nlogs:\n  Log:\n    {field}\n    levels: [{{ name: info }}]\n"
+            "quent: '0.1.0'\nmodel: m\nlogs:\n  Log:\n    {field}\n    levels: [{{ name: info }}]\n"
         ));
         assert!(errors.contains("unknown field"), "{errors}");
     }
@@ -287,7 +287,7 @@ fn removed_context_shortcuts_are_rejected() {
 fn hand_written_log_constraint_is_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Log:
@@ -304,7 +304,7 @@ entities:
 fn ordinary_entities_do_not_opt_in() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   Worker:

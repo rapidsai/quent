@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Select the schema language version.
-quent: alpha
+# Quent version used when writing this source.
+quent: '0.1.0'
 # Top-level name of the application event model. This name is re-used in various
 # generated marker types and provides the file name of the generated code.
 model: App

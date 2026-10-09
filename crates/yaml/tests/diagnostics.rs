@@ -6,7 +6,7 @@
 use quent_yaml::{Error, Origin, parse_from_str};
 
 const HEADER: &str = "\
-quent: alpha
+quent: '0.1.0'
 model: m
 ";
 
@@ -30,7 +30,7 @@ fn expect_raw(src: &str, needles: &[&str]) {
     );
 }
 
-/// Like [`expect_raw`], prefixing the standard `quent: alpha` / `model: m` header
+/// Like [`expect_raw`], prefixing the standard `quent: '0.1.0'` / `model: m` header
 /// so a test spells out only the body under scrutiny.
 #[track_caller]
 fn expect_error(body: &str, needles: &[&str]) {
@@ -44,7 +44,23 @@ fn bad_format_version() {
 quent: beta
 model: m
 ",
-        &["unsupported format version `beta`"],
+        &["unsupported Quent version `beta`"],
+    );
+}
+
+#[test]
+fn compatible_versions() {
+    for version in ["0.1.1", "alpha"] {
+        let source = format!("quent: '{version}'\nmodel: m\n");
+        assert!(parse_from_str(&source, None).is_ok(), "{version}");
+    }
+}
+
+#[test]
+fn unsupported_version() {
+    expect_raw(
+        "quent: '0.2.0'\nmodel: m\n",
+        &["unsupported Quent version `0.2.0`", ">=0.1, <0.2"],
     );
 }
 
@@ -162,7 +178,7 @@ constraints:
 fn syntax_error_has_a_location() {
     let Err(Error::Invalid(diagnostics)) = parse_from_str(
         "\
-quent: alpha
+quent: '0.1.0'
 model: [
 ",
         None,

@@ -22,7 +22,7 @@ fn errors_of(src: &str) -> String {
 }
 
 const QUERY: &str = "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   Query:
@@ -61,7 +61,7 @@ fn fsm_builds_events_and_derives_cardinality() {
 fn reserved_sequence_attribute_is_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   E:
@@ -80,7 +80,7 @@ fsms:
 fn duplicate_entity_and_fsm_path_is_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 entities:
   E:
@@ -100,7 +100,7 @@ fsms:
 fn fsm_needs_one_initial_state() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   E:
@@ -119,7 +119,7 @@ fsms:
 fn fsm_needs_a_final_state() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   E:
@@ -134,7 +134,7 @@ fsms:
 fn initial_state_cannot_also_be_final() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   E:
@@ -153,7 +153,7 @@ fn unreachable_state_is_rejected() {
     // `b` is a state but nothing reaches it from the initial state.
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   E:
@@ -170,7 +170,7 @@ fsms:
 fn exit_is_an_ordinary_state_with_attributes() {
     let schema = schema_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   E:
@@ -192,7 +192,7 @@ fsms:
 fn undeclared_exit_target_is_rejected() {
     let errors = errors_of(
         "\
-quent: alpha
+quent: '0.1.0'
 model: m
 fsms:
   E:

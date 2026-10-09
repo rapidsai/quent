@@ -27,12 +27,13 @@ use crate::diag::Diagnostics;
 use crate::extensions::{
     Elaborator as ExtensionElaborator, EventContext, FieldContext, FieldElaboration,
 };
+use crate::version;
 
 /// Lower `model` to a schema, reporting problems into `sink`.
 ///
 /// Lowering proceeds in the following phases:
 ///
-/// - Validate the format and model name, then prepare extension elaboration.
+/// - Validate the Quent version and model name, then prepare extension elaboration.
 /// - Lower declared records.
 /// - Lower entities and collect extension-generated records.
 /// - Elaborate extension-owned model declarations.
@@ -44,13 +45,7 @@ use crate::extensions::{
 /// contains no errors. Returns `None` when no schema can be built.
 pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
     // Validate model-level inputs.
-    if model.quent != "alpha" {
-        sink.error(
-            "quent",
-            format!("unsupported format version `{}`", model.quent),
-            Some("supported versions: alpha".to_string()),
-        );
-    }
+    version::validate(&model.quent, sink);
 
     let name = ident(&model.model, "model", sink);
     // Enter built-in extension elaboration. All extension-owned schema

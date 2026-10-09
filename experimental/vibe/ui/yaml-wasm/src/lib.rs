@@ -83,7 +83,7 @@ mod tests {
     fn restores_namespaced_declarations_and_references() {
         let schema = parse_schema_value(
             "\
-quent: alpha
+quent: '0.1.0'
 model: Namespaced
 entities:
   Root::Parent:
@@ -121,7 +121,7 @@ entities:
     fn parses_os_types() {
         let schema = parse_schema_value(
             "\
-quent: alpha
+quent: '0.1.0'
 model: OsRecords
 entities:
   Process:
@@ -159,7 +159,7 @@ entities:
     fn preserves_qualified_os_record_references() {
         let schema = parse_schema_value(
             "\
-quent: alpha
+quent: '0.1.0'
 model: OsRecords
 entities:
   Process:
@@ -197,7 +197,7 @@ entities:
     fn preserves_literal_namespace_separator() {
         const LITERAL: &str = "literal-quentQuentNamespaceSeparatorosQuentNamespaceSeparator-value";
         let schema = parse_schema_value(&format!(
-            "quent: alpha\nmodel: Literal\ndoc: {LITERAL}\nentities:\n  Item:\n    events:\n      created: {{}}\n"
+            "quent: '0.1.0'\nmodel: Literal\ndoc: {LITERAL}\nentities:\n  Item:\n    events:\n      created: {{}}\n"
         ))
         .expect("schema parses");
 

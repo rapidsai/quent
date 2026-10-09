@@ -96,7 +96,7 @@ fn generates_nvtx_capture_for_every_exporter() {
 fn nvtx_names_are_reserved_only_when_support_is_enabled() {
     for name in ["NvtxCapture", "NvtxEvent"] {
         let schema = parse_from_str(
-            format!("quent: alpha\nmodel: Test\nentities:\n  {name}: {{ events: {{ emitted: {{}} }} }}\n"),
+            format!("quent: '0.1.0'\nmodel: Test\nentities:\n  {name}: {{ events: {{ emitted: {{}} }} }}\n"),
             None,
         )
         .unwrap()
@@ -316,19 +316,19 @@ fn defaults_to_noop_exporter_only() {
 fn rejects_generated_name_collisions() {
     for schema in [
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 entities:
   Context: { events: { emitted: {} } }
 "#,
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 entities:
   Server: { events: { id: {} } }
 "#,
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 entities:
   Server:
@@ -337,13 +337,13 @@ entities:
       foo_bar: {}
 "#,
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 entities:
   Handle: { events: { emitted: {} } }
 "#,
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 entities:
   Worker:
@@ -351,7 +351,7 @@ entities:
       worker_id: { attributes: { value: u32 } }
 "#,
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 fsms:
   Job:
@@ -420,7 +420,7 @@ fn prunes_stale_generated_bridge_files() {
 fn orders_dependent_public_value_types() {
     let schema = parse_from_str(
         r#"
-quent: alpha
+quent: '0.1.0'
 model: ordered
 records:
   Envelope: { fields: { later: Later } }
@@ -445,7 +445,7 @@ entities:
 fn supports_boolean_list_conversion() {
     let schema = parse_from_str(
         r#"
-quent: alpha
+quent: '0.1.0'
 model: lists
 entities:
   Batch:
@@ -468,7 +468,7 @@ entities:
 fn escapes_rust_keyword_bridge_modules() {
     let schema = parse_from_str(
         r#"
-quent: alpha
+quent: '0.1.0'
 model: keywords
 entities:
   Type: { events: { emitted: {} } }

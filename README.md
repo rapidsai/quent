@@ -99,11 +99,10 @@ machines, resources, and their relationships without installing anything.
 
 ## Status
 
-Quent is an experimental alpha-stage project and is changing quickly. It is
-currently migrating from a PoC to a first beta release. Schema format, generated
-APIs, runtime, analysis components, and documentation may change without
-compatibility guarantees for now. There are no releases yet. Breaking changes
-and bugs are currently expected. Use this at your own risk.
+Quent is still experimental and in early beta. Functionality remains incomplete
+and bugs are expected. For now, it is distributed as a source-only Git tag. Also
+see our [versioning policy](CONTRIBUTING.md#versioning) and
+[model source compatibility](crates/yaml/README.md#compatibility-and-versioning-of-application-event-models-as-yaml-sources).
 
 At the same time, Quent is already used or being evaluated in pioneering engines
 such as the GPU-accelerated [SiriusDB](https://www.sirius-db.com/) and [cuDF
@@ -168,7 +167,7 @@ Quent's YAML-based source format is one way to capture your application event
 model:
 
 ```yaml
-quent: alpha # Version of Quent's YAML-based DSL
+quent: "0.1.0" # Version of Quent used when writing this source
 model: Hello # Name of the model
 
 entities:
@@ -231,7 +230,7 @@ example, every FSM has exactly one initial state, every transition target must
 be declared, and a state with no `to` transitions is final:
 
 ```yaml
-quent: alpha
+quent: "0.1.0"
 model: hello
 
 fsms:

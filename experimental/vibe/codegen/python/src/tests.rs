@@ -236,7 +236,7 @@ fn defaults_to_noop_exporter_only() {
 fn rejects_nested_options() {
     let schema = parse_from_str(
         r#"
-quent: alpha
+quent: '0.1.0'
 model: nested
 entities:
   Server:
@@ -263,7 +263,7 @@ entities:
 fn rejects_generated_name_collisions() {
     for schema in [
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 records:
   Typed: { fields: { value: u32 } }
@@ -271,13 +271,13 @@ entities:
   Server: { events: { emitted: {} } }
 "#,
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 entities:
   Server: { events: { id: {} } }
 "#,
         r#"
-quent: alpha
+quent: '0.1.0'
 model: collision
 entities:
   fooBar: { events: { emitted: {} } }

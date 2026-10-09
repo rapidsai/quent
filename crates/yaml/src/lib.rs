@@ -16,6 +16,7 @@ mod ast;
 mod diag;
 mod extensions;
 mod lower;
+mod version;
 
 pub use diag::{Diagnostic, Diagnostics, Origin};
 
@@ -39,6 +40,8 @@ pub enum Error {
 
 /// Parse and lower model source text into a validated [`Schema`].
 ///
+/// The `quent` field declares the Quent version used when writing the source.
+/// Accepts sources declaring Quent versions `>=0.1, <0.2` or the legacy `alpha` alias.
 /// Diagnostics name the source `source`, or leave it unnamed when `None`. See
 /// [`parse_from_file`] to read and name a file.
 pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Parsed, Error> {
