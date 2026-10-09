@@ -8,6 +8,7 @@ import {
   useSelectedEdgeColorField,
   useSelectedNodeLabelField,
   useSelectedDagLayoutDirection,
+  useSelectedEdgeScaleType,
   useNodeColorPalette,
   useEdgeColorPalette,
   useDataFlowEnabled,
@@ -24,11 +25,23 @@ import {
   statisticFieldLabel,
   NODE_LABEL_FIELD,
   DAG_LAYOUT_DIRECTION,
+  EDGE_SCALE_TYPE,
   type NodeLabelField,
   type StatisticField,
   type DagLayoutDirection,
+  type EdgeScaleType,
 } from '@quent/utils';
-import { Palette, Spline, Brush, Type, ArrowUpDown, Gauge, Tags, Layers } from 'lucide-react';
+import {
+  Palette,
+  Spline,
+  Brush,
+  Type,
+  ArrowUpDown,
+  ChartLine,
+  Gauge,
+  Tags,
+  Layers,
+} from 'lucide-react';
 import { PalettePicker } from './PalettePicker';
 import { ControlField, ControlGrid, ControlSection } from '../ui/control-grid';
 import { RequiredMultiSelectField } from '../ui/required-multi-select-field';
@@ -48,6 +61,11 @@ const NODE_LABEL_OPTIONS: SelectFieldOption[] = [
   { value: NODE_LABEL_FIELD.TYPE, label: 'Type' },
 ];
 
+const EDGE_SCALE_OPTIONS: SelectFieldOption[] = [
+  { value: EDGE_SCALE_TYPE.LOG, label: 'Log' },
+  { value: EDGE_SCALE_TYPE.LINEAR, label: 'Linear' },
+];
+
 const LAYOUT_DIRECTION_OPTIONS: SelectFieldOption[] = [
   { value: DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP, label: 'Bottom to top' },
   { value: DAG_LAYOUT_DIRECTION.TOP_TO_BOTTOM, label: 'Top to bottom' },
@@ -59,6 +77,7 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const [edgeWidthField, setEdgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField, setEdgeColorField] = useSelectedEdgeColorField();
   const [nodeLabelField, setNodeLabelField] = useSelectedNodeLabelField();
+  const [edgeScaleType, setEdgeScaleType] = useSelectedEdgeScaleType();
   const [layoutDirection, setLayoutDirection] = useSelectedDagLayoutDirection();
   const [nodePalette, setNodePalette] = useNodeColorPalette();
   const [edgePalette, setEdgePalette] = useEdgeColorPalette();
@@ -161,6 +180,17 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
               value={nodeLabelField}
               onValueChange={v => v && setNodeLabelField(v as NodeLabelField)}
               placeholder="Name"
+              clearable={false}
+              triggerClassName="h-6 text-xs"
+            />
+          </ControlField>
+          <ControlField label="Edge scale" icon={ChartLine}>
+            <SelectField
+              ariaLabel="Edge scale"
+              options={EDGE_SCALE_OPTIONS}
+              value={edgeScaleType}
+              onValueChange={v => v && setEdgeScaleType(v as EdgeScaleType)}
+              placeholder="Log"
               clearable={false}
               triggerClassName="h-6 text-xs"
             />

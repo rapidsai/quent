@@ -63,6 +63,16 @@ export const DAG_LAYOUT_DIRECTION = {
 
 export type DagLayoutDirection = (typeof DAG_LAYOUT_DIRECTION)[keyof typeof DAG_LAYOUT_DIRECTION];
 
+/** How edge values map to width and colour. */
+export const EDGE_SCALE_TYPE = {
+  /** Spreads values across orders of magnitude; the default. */
+  LOG: 'log',
+  /** Keeps true proportions between values. */
+  LINEAR: 'linear',
+} as const;
+
+export type EdgeScaleType = (typeof EDGE_SCALE_TYPE)[keyof typeof EDGE_SCALE_TYPE];
+
 /** A parsed struct keeps its identity even when it contains no fields. */
 export interface StatStruct {
   kind: 'struct';

@@ -11,14 +11,17 @@ import {
   useEdgeColorPalette,
   useSelectedColorField,
   useSelectedEdgeColorField,
+  useSelectedEdgeScaleType,
   useDataFlowEnabled,
   useDataFlowMeta,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
-import { cn, getLegendGradientStops } from '@quent/utils';
+import { cn, getLegendGradientStops, EDGE_SCALE_TYPE, type EdgeScaleType } from '@quent/utils';
 import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/utils';
+import { Badge } from '../ui/badge';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
+import { edgeScaleMidpoint } from './edgeScale';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
 
@@ -31,8 +34,16 @@ interface ContinuousLegendProps {
   palette: ContinuousPaletteName;
   isDark: boolean;
   formatValue?: (v: number) => string;
-  logarithmic?: boolean;
+  /** When set, a badge names the scale beside the title. */
+  scale?: EdgeScaleType;
+  /** When set, labels the value halfway along the bar, which shows how the scale bends. */
+  midValue?: number;
 }
+
+const SCALE_LABELS: Record<EdgeScaleType, string> = {
+  [EDGE_SCALE_TYPE.LOG]: 'Log',
+  [EDGE_SCALE_TYPE.LINEAR]: 'Linear',
+};
 
 const ContinuousLegend = ({
   field,
@@ -41,23 +52,33 @@ const ContinuousLegend = ({
   palette,
   isDark,
   formatValue,
-  logarithmic = false,
+  scale,
+  midValue,
 }: ContinuousLegendProps) => {
   const fmt = formatValue ?? inferFieldFormatter(statisticFieldName(field));
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-        {statisticFieldLabel(field)}
-        {logarithmic && ' (log scale)'}
-      </span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+          {statisticFieldLabel(field)}
+        </span>
+        {scale && (
+          <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">
+            {SCALE_LABELS[scale]}
+          </Badge>
+        )}
+      </div>
       <div
-        className="h-2 w-36 rounded-sm"
+        className={cn('h-2 rounded-sm', midValue === undefined ? 'w-36' : 'w-full min-w-36')}
         style={{
           background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
         }}
       />
-      <div className="flex justify-between">
+      <div className="flex justify-between gap-2">
         <span className="text-[10px] text-muted-foreground">{fmt(min)}</span>
+        {midValue !== undefined && (
+          <span className="text-[10px] text-muted-foreground">{fmt(midValue)}</span>
+        )}
         <span className="text-[10px] text-muted-foreground">{fmt(max)}</span>
       </div>
     </div>
@@ -190,6 +211,7 @@ function EdgeLegendContent({
   isDark: boolean;
   statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
+  const [scale] = useSelectedEdgeScaleType();
   if (!coloring || !field) {
     return null;
   }
@@ -202,7 +224,8 @@ function EdgeLegendContent({
         palette={palette}
         isDark={isDark}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
-        logarithmic
+        scale={scale}
+        midValue={edgeScaleMidpoint(coloring, scale)}
       />
     );
   }

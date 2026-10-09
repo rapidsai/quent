@@ -11,6 +11,7 @@ import {
   useDagEdgeWidthConfig,
   useEdgeColorPalette,
   useSelectedEdgeColorField,
+  useSelectedEdgeScaleType,
   useSelectedEdgeWidthField,
 } from '@quent/hooks';
 import { continuousColor } from '@quent/utils';
@@ -88,18 +89,22 @@ function EdgeConfiguration() {
   const [, setColorField] = useSelectedEdgeColorField();
   const [, setWidthField] = useSelectedEdgeWidthField();
   const [, setPalette] = useEdgeColorPalette();
+  const [, setScaleType] = useSelectedEdgeScaleType();
   useDagEdgeColoring(data.edges, computeEdgeColoring);
   useDagEdgeWidthConfig(data.edges, computeEdgeWidthConfig);
   return (
-    <button
-      onClick={() => {
-        setColorField('bytes');
-        setWidthField('bytes');
-        setPalette('blue');
-      }}
-    >
-      Select bytes
-    </button>
+    <>
+      <button
+        onClick={() => {
+          setColorField('bytes');
+          setWidthField('bytes');
+          setPalette('blue');
+        }}
+      >
+        Select bytes
+      </button>
+      <button onClick={() => setScaleType('linear')}>Use linear scale</button>
+    </>
   );
 }
 
@@ -133,9 +138,42 @@ describe('DAGChart edge scaling', () => {
       strokeWidth: '25',
       stroke: continuousColor(1, 'blue'),
     });
-    expect(screen.getByText('bytes (log scale)')).toBeVisible();
+    // The scale type is a badge beside the title, and the legend labels the log midpoint.
+    expect(screen.getByText('bytes')).toBeVisible();
+    expect(screen.getByText('Log')).toBeVisible();
+    expect(screen.getByText('15.00 B')).toBeVisible();
     expect(screen.getByText('0 B')).toBeVisible();
     // The legend shows the true data range, including the zero edge.
     expect(screen.getByText('63.00 B')).toBeVisible();
+  });
+
+  it('switches width, color and legend to a linear scale', async () => {
+    const { container } = render(
+      <Provider store={createStore()}>
+        <EdgeConfiguration />
+        <DAGChart data={data} isDark={false} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select bytes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use linear scale' }));
+
+    // 15 of a 0..63 range sits at 15/63 along the scale.
+    const t = 15 / 63;
+    await waitFor(() => {
+      expect(container.querySelector('#edge-2')).toHaveStyle({
+        stroke: continuousColor(t, 'blue'),
+      });
+    });
+    expect(
+      Number.parseFloat((container.querySelector('#edge-2') as SVGElement).style.strokeWidth)
+    ).toBeCloseTo(2 + t * 23, 6);
+    // Linear starts at the true minimum, so the smallest positive edge is no longer at the bottom.
+    expect(
+      Number.parseFloat((container.querySelector('#edge-1') as SVGElement).style.strokeWidth)
+    ).toBeGreaterThan(2);
+    expect(screen.getByText('Linear')).toBeVisible();
+    expect(screen.queryByText('Log')).toBeNull();
+    expect(screen.getByText('31.50 B')).toBeVisible();
   });
 });

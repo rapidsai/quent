@@ -3,7 +3,13 @@
 
 // Utilities
 export { cn } from './cn';
-export { clamp, normalizeLogScale, normalizeLogScale as normalizeEdgeWidth } from './math';
+export {
+  clamp,
+  logScaleValueAt,
+  normalizeLinearScale,
+  normalizeLogScale,
+  normalizeLogScale as normalizeEdgeWidth,
+} from './math';
 export { parseJsonWithBigInt } from './parseJsonWithBigInt';
 export { getFsmTypeName, getResourceTypeName } from './timeline';
 export { workerDisplayName } from './worker';
@@ -80,7 +86,7 @@ export { EntityTypeKey, unpackEntityRef } from './entityTypes';
 export type { EntityTypeValue, SingleEntity, EntityRefKey, EntityRefParts } from './entityTypes';
 
 // DAG coloring types (shared between @quent/hooks and @quent/components)
-export { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from './dagTypes';
+export { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION, EDGE_SCALE_TYPE } from './dagTypes';
 export type {
   ContinuousNodeColoring,
   CategoricalNodeColoring,
@@ -91,6 +97,7 @@ export type {
   EdgeColoring,
   NodeLabelField,
   DagLayoutDirection,
+  EdgeScaleType,
   StatValue,
   DAGNode,
   DAGEdge,

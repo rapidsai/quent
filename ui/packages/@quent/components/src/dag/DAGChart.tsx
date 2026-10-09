@@ -36,6 +36,7 @@ import {
   useEdgeColorPalette,
   useSelectedEdgeWidthField,
   useSelectedEdgeColorField,
+  useSelectedEdgeScaleType,
   useHighlightedNodeIds,
   useSelectedDagLayoutDirection,
   useDataFlowEnabled,
@@ -46,6 +47,7 @@ import {
 import { calculateLayout, NODE_LAYOUT_WIDTH, NODE_LAYOUT_HEIGHT, FLOW_BAR_HEIGHT } from './layout';
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
+import { normalizeEdgeValue } from './edgeScale';
 import { DAGLegend } from './DAGLegend';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
@@ -55,7 +57,6 @@ import {
   continuousColor,
   flattenStatistics,
   inferFieldFormatter,
-  normalizeLogScale,
   statisticFieldName,
   toggleOperatorSelection,
   type Operator,
@@ -110,13 +111,14 @@ const VariableWidthEdge = ({
   const highlightedNodeIds = interactionData?.highlightedNodeIds ?? null;
   const [edgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField] = useSelectedEdgeColorField();
+  const [edgeScaleType] = useSelectedEdgeScaleType();
   const isDark = interactionData?.isDark ?? false;
 
   let strokeWidth = EDGE_STROKE_WIDTH_DEFAULT;
   if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      const t = normalizeLogScale(v, edgeWidthConfig.logMin, edgeWidthConfig.max);
+      const t = normalizeEdgeValue(v, edgeWidthConfig, edgeScaleType);
       strokeWidth = EDGE_STROKE_WIDTH_MIN + t * EDGE_STROKE_WIDTH_RANGE;
     }
   }
@@ -129,7 +131,7 @@ const VariableWidthEdge = ({
       if (v === undefined) {
         edgeDimmed = true;
       } else {
-        const t = normalizeLogScale(v, edgeColoring.logMin, edgeColoring.max);
+        const t = normalizeEdgeValue(v, edgeColoring, edgeScaleType);
         edgeColor = continuousColor(t, edgePalette, isDark);
       }
     } else {
