@@ -41,6 +41,7 @@ use std::path::PathBuf;
 use quent_schema::Schema;
 use quote::quote;
 
+mod entities;
 mod event_loaders;
 
 /// Options controlling stored-event retrieval source generation.
@@ -66,11 +67,40 @@ pub struct Options {
     /// `quent-store` `io-*` feature.
     pub filesystem: bool,
 
+    /// Generate borrowing event handles, entity access traits, and
+    /// selected storage backends.
+    ///
+    /// `None` disables generation; an empty [`StorageSet`] generates only
+    /// handles and access traits.
+    ///
+    /// Types are emitted under `entity_events::<namespace>::<entity>`.
+    ///
+    /// Accessors return:
+    ///
+    /// - A handle for an entity's sole `Once` event.
+    /// - `Option<Handle>` for other `Once` events.
+    /// - An iterator of handles for `Multi` events.
+    ///
+    /// Handles expose the recorded timestamp and borrow fields directly.
+    /// Record fields are borrowed as whole records. A payload field named
+    /// `timestamp` uses `field_timestamp()` to avoid the timestamp accessor.
+    ///
+    /// Event names `id`, `type_name`, `properties`, and `events` are reserved.
+    pub entity_storage: Option<StorageSet>,
+
     /// Directory the generated file is written into.
     pub out_dir: PathBuf,
 
     /// File name to write; defaults to the lowercase schema name with a `.rs` extension.
     pub file_name: Option<String>,
+}
+
+/// Storage backends to generate alongside entity-specific event access.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct StorageSet {
+    /// Generate native in-memory storage that consumes owned event sequences.
+    pub native: bool,
+    // TODO(johanpel): Add options for Arrow and possibly other formats to directly query from here.
 }
 
 impl Default for Options {
@@ -81,6 +111,7 @@ impl Default for Options {
             record_derives: Default::default(),
             combined_event: true,
             filesystem: true,
+            entity_storage: None,
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
         }
@@ -92,6 +123,12 @@ impl Default for Options {
 pub enum GenerateError {
     #[error("filesystem loading requires combined-event generation")]
     FilesystemRequiresCombinedEvent,
+    #[error("generated entity-event name `{name}` conflicts between {first} and {second}")]
+    EntityEventsNameConflict {
+        name: String,
+        first: String,
+        second: String,
+    },
     #[error(transparent)]
     EventModel(#[from] quent_instrumentation_build::GenerateError),
     #[error("generated stored-event retrieval code did not form a valid Rust file")]
@@ -129,8 +166,8 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 ///
 /// # Errors
 ///
-/// Returns an error when the options are inconsistent, event generation fails, or the combined
-/// output is not valid Rust.
+/// Returns an error when the options are inconsistent, generated names conflict, event generation
+/// fails, or the combined output is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     if opts.filesystem && !opts.combined_event {
         return Err(GenerateError::FilesystemRequiresCombinedEvent);
@@ -148,6 +185,11 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let events = quent_instrumentation_build::generate_str(schema, &event_opts)?;
     let events =
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
+    let entity_events = opts
+        .entity_storage
+        .as_ref()
+        .map(|storage| entities::generate(schema, &event_opts, &events, storage))
+        .transpose()?;
 
     let loaders = event_loaders::generate(schema, opts.filesystem);
 
@@ -155,6 +197,8 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         #events
 
         #loaders
+
+        #entity_events
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;
 

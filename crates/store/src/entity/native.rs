@@ -12,12 +12,83 @@ use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
 use super::sequence::EventSequence;
-use super::{BorrowedEventSequenceStore, EntityHandle, EntityStore, OwnedEventSequenceStore};
+use super::{
+    BorrowedEventSequenceStore, EntityHandle, EntityStore, EventStorage, OwnedEventSequenceStore,
+};
+use crate::Error;
 
-/// Error returned when a handle's UUID is absent from an in-memory store.
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-#[error("entity {0} is not in this store")]
-pub struct MissingEntity(pub Uuid);
+/// Properties common to all stored entity types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EntityProperties {
+    pub id: Uuid,
+    pub earliest_timestamp: TimeUnixNanoSec,
+    pub latest_timestamp: TimeUnixNanoSec,
+    /// Counts events across all event types.
+    pub event_count: NonZeroUsize,
+}
+
+/// Storage for events of an entity E stored in S.
+#[doc(hidden)]
+pub struct NativeEntity<E: EntityMarker, S: EventStorage<E>> {
+    /// Properties of this entity that apply to every entity type.
+    properties: EntityProperties,
+    /// Events grouped by their schema event type.
+    event_storage: S,
+    marker: PhantomData<fn() -> E>,
+}
+
+impl<E: EntityMarker, S: EventStorage<E>> NativeEntity<E, S> {
+    /// Returns this entity's type-agnostic properties.
+    pub fn properties(&self) -> &EntityProperties {
+        &self.properties
+    }
+
+    /// Borrows the internal event storage.
+    #[doc(hidden)]
+    pub fn events(&self) -> &S {
+        &self.event_storage
+    }
+}
+
+impl<E: EntityMarker, S: EventStorage<E>> EntityHandle for NativeEntity<E, S> {
+    type Entity = E;
+
+    fn id(&self) -> Uuid {
+        self.properties.id
+    }
+}
+
+/// # Errors
+///
+/// Returns the first error from [`EventStorage::push`].
+impl<E: EntityMarker, S: EventStorage<E>> TryFrom<EventSequence<E>> for NativeEntity<E, S> {
+    type Error = Error;
+
+    fn try_from(sequence: EventSequence<E>) -> Result<Self, Self::Error> {
+        let mut entity = Self {
+            properties: EntityProperties {
+                id: sequence.id(),
+                earliest_timestamp: sequence.earliest_timestamp(),
+                latest_timestamp: sequence.latest_timestamp(),
+                event_count: sequence.event_count(),
+            },
+            event_storage: S::default(),
+            marker: PhantomData,
+        };
+        for event in sequence.into_events() {
+            entity.event_storage.push(event)?;
+        }
+        Ok(entity)
+    }
+}
+
+impl<E: EntityMarker, S: EventStorage<E>> std::fmt::Debug for NativeEntity<E, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativeEntity")
+            .field("properties", &self.properties)
+            .finish_non_exhaustive()
+    }
+}
 
 /// An owned handle for one entity marker.
 pub struct Handle<E> {
@@ -75,7 +146,7 @@ impl<E: EntityMarker> Store<E> {
 }
 
 impl<E: EntityMarker> EntityStore<E> for Store<E> {
-    type Error = MissingEntity;
+    type Error = Error;
     type Handle = Handle<E>;
 
     fn entities(&self) -> Result<impl Iterator<Item = Self::Handle>, Self::Error> {
@@ -96,21 +167,21 @@ impl<E: EntityMarker> EntityStore<E> for Store<E> {
         self.entities
             .get(&handle.id)
             .map(EventSequence::earliest_timestamp)
-            .ok_or(MissingEntity(handle.id))
+            .ok_or(Error::MissingEntity(handle.id))
     }
 
     fn latest_timestamp(&self, handle: &Self::Handle) -> Result<TimeUnixNanoSec, Self::Error> {
         self.entities
             .get(&handle.id)
             .map(EventSequence::latest_timestamp)
-            .ok_or(MissingEntity(handle.id))
+            .ok_or(Error::MissingEntity(handle.id))
     }
 
     fn num_events(&self, handle: &Self::Handle) -> Result<NonZeroUsize, Self::Error> {
         self.entities
             .get(&handle.id)
             .map(EventSequence::event_count)
-            .ok_or(MissingEntity(handle.id))
+            .ok_or(Error::MissingEntity(handle.id))
     }
 }
 
@@ -118,7 +189,7 @@ impl<E: EntityMarker> BorrowedEventSequenceStore<E> for Store<E> {
     fn event_sequence(&self, handle: &Self::Handle) -> Result<&EventSequence<E>, Self::Error> {
         self.entities
             .get(&handle.id)
-            .ok_or(MissingEntity(handle.id))
+            .ok_or(Error::MissingEntity(handle.id))
     }
 }
 
@@ -130,7 +201,7 @@ where
         self.entities
             .get(&handle.id)
             .cloned()
-            .ok_or(MissingEntity(handle.id))
+            .ok_or(Error::MissingEntity(handle.id))
     }
 }
 
@@ -204,23 +275,23 @@ mod tests {
         let other_store =
             Store::<Task>::new([Event::new(Uuid::from_u128(3), 4, TaskEvent("foreign"))]);
         let foreign_handle = other_store.entity(Uuid::from_u128(3)).unwrap().unwrap();
-        assert_eq!(
+        assert!(matches!(
             store.earliest_timestamp(&foreign_handle),
-            Err(MissingEntity(foreign_handle.id()))
-        );
-        assert_eq!(
+            Err(Error::MissingEntity(id)) if id == foreign_handle.id()
+        ));
+        assert!(matches!(
             store.latest_timestamp(&foreign_handle),
-            Err(MissingEntity(foreign_handle.id()))
-        );
-        assert_eq!(
+            Err(Error::MissingEntity(id)) if id == foreign_handle.id()
+        ));
+        assert!(matches!(
             store.num_events(&foreign_handle),
-            Err(MissingEntity(foreign_handle.id()))
+            Err(Error::MissingEntity(id)) if id == foreign_handle.id()
+        ));
+        assert!(
+            matches!(store.event_sequence(&foreign_handle), Err(Error::MissingEntity(id)) if id == foreign_handle.id())
         );
         assert!(
-            matches!(store.event_sequence(&foreign_handle), Err(MissingEntity(id)) if id == foreign_handle.id())
-        );
-        assert!(
-            matches!(store.event_sequence_owned(&foreign_handle), Err(MissingEntity(id)) if id == foreign_handle.id())
+            matches!(store.event_sequence_owned(&foreign_handle), Err(Error::MissingEntity(id)) if id == foreign_handle.id())
         );
         let shared_handle = Store::<Task>::new([Event::new(first, 9, TaskEvent("shared"))])
             .entity(first)

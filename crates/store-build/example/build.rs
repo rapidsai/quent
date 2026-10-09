@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use quent_store_build::{Options, generate};
+use quent_store_build::{Options, StorageSet, generate};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -22,6 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Generate `DemoEvent` so the example can load all model events through
         // one iterator. Entity-specific loading does not require this option.
         combined_event: true,
+        entity_storage: Some(StorageSet { native: true }),
         ..Options::default()
     };
     let generated = generate(&parsed.schema, &options)?;

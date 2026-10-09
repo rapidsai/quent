@@ -3,7 +3,8 @@
 
 //! Runs instrumentation and loads its filesystem-exported events.
 
-use demo::{Connection, ConnectionEvent, Demo, Server, ServerEvent};
+use demo::entity_events::connection::{ConnectionEvents, NativeConnectionEvents};
+use demo::{Connection, Demo, Server, ServerEvent};
 use quent_events::EventPayload;
 use quent_store::{
     context::ContextSet,
@@ -31,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let connections = native::Store::<Connection>::new(connection_events);
     let server_events = EventLoader::<Server>::events(&store)?.collect::<LoaderResult<Vec<_>>>()?;
     let servers = native::Store::<Server>::new(server_events);
-    print_connection_events(&connections, &servers)?;
+    print_connection_events(connections, &servers)?;
 
     Ok(())
 }
@@ -49,19 +50,35 @@ fn print_raw_connection_events(store: &Loader<Demo>) -> LoaderResult<()> {
 
 // Entity stores supply ordered events and allow references to be followed by UUID.
 fn print_connection_events(
-    connections: &native::Store<Connection>,
+    connections: native::Store<Connection>,
     servers: &native::Store<Server>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(connection) = connections.entities()?.next() {
-        println!("\n{} {} events:", ConnectionEvent::NAME, connection.id());
-        let events = connections.event_sequence(&connection)?;
-        for event in events.events() {
-            println!("  {event:?}");
-        }
-        let host_id = events.events().iter().find_map(|event| match &event.data {
-            ConnectionEvent::Opened { host, .. } => Some(host.target),
-            _ => None,
-        });
+    if let Some(sequence) = connections.into_sequences().next() {
+        // Group the owned sequence by event type without cloning its payloads.
+        // Conversion fails if a once-event occurs more than once.
+        let events = NativeConnectionEvents::try_from(sequence)?;
+
+        println!("\nConnection {} events:", events.id());
+
+        // `opened()` returns an optional handle; `data()` iterates over handles.
+        // Handles borrow fields from the original event and expose its timestamp.
+        println!(
+            "  opened: {:?}",
+            events
+                .opened()
+                .map(|event| (event.timestamp(), event.peer()))
+        );
+        println!(
+            "  data: {:?}",
+            events
+                .data()
+                .map(|event| (event.timestamp(), *event.bytes()))
+                .collect::<Vec<_>>()
+        );
+
+        // The opened event's host reference identifies a server by UUID.
+        let host_id = events.opened().map(|event| event.host().target);
+
         if let Some(host_id) = host_id
             && let Some(server) = servers.entity(host_id)?
         {

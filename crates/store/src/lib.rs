@@ -5,6 +5,9 @@
 
 pub mod context;
 pub mod entity;
+pub mod error;
 pub mod event;
 
 pub use entity::{EntityHandle, EntityStore};
+pub use error::Error;
+pub use quent_time::TimeUnixNanoSec;

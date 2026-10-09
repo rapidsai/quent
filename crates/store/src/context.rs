@@ -6,13 +6,7 @@
 use smallvec::SmallVec;
 use uuid::Uuid;
 
-/// Error returned when constructing a [`ContextSet`].
-#[derive(Clone, Copy, Debug, thiserror::Error, PartialEq, Eq)]
-pub enum ContextSetError {
-    /// No contexts were provided.
-    #[error("at least one context is required")]
-    Empty,
-}
+use crate::Error;
 
 /// An ordered, non-empty set of context IDs.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,8 +17,8 @@ impl ContextSet {
     ///
     /// # Errors
     ///
-    /// Returns [`ContextSetError::Empty`] when no IDs are provided.
-    pub fn try_new(ids: impl IntoIterator<Item = Uuid>) -> Result<Self, ContextSetError> {
+    /// Returns [`Error::EmptyContextSet`] when no IDs are provided.
+    pub fn try_new(ids: impl IntoIterator<Item = Uuid>) -> Result<Self, Error> {
         let mut unique = SmallVec::new();
         for id in ids {
             if !unique.contains(&id) {
@@ -32,7 +26,7 @@ impl ContextSet {
             }
         }
         if unique.is_empty() {
-            return Err(ContextSetError::Empty);
+            return Err(Error::EmptyContextSet);
         }
         Ok(Self(unique))
     }
@@ -57,7 +51,10 @@ mod tests {
         let first = Uuid::from_u128(1);
         let second = Uuid::from_u128(2);
 
-        assert_eq!(ContextSet::try_new([]), Err(ContextSetError::Empty));
+        assert!(matches!(
+            ContextSet::try_new([]),
+            Err(Error::EmptyContextSet)
+        ));
         assert_eq!(
             ContextSet::try_new([first, second, first])
                 .unwrap()

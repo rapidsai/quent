@@ -13,42 +13,13 @@ use quent_io::filesystem::{Format, importer};
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
+use crate::Error;
 use crate::context::ContextSet;
 
 use super::{CombinedEventLoader, EntityMarkerInModel, EventIterator, EventLoader};
 
 /// Result returned by filesystem event stores.
 pub type Result<T> = std::result::Result<T, Error>;
-
-/// An error encountered while loading filesystem events.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("context `{0}` was not found")]
-    ContextNotFound(Uuid),
-    #[error("context path `{0}` is not a directory")]
-    ContextNotDirectory(PathBuf),
-    #[error("context model `{actual}` does not match expected model `{expected}`")]
-    ModelMismatch { expected: String, actual: String },
-    #[error("event file `{path}` requires the `{feature}` feature for `{format}` data")]
-    DisabledFormat {
-        path: PathBuf,
-        format: String,
-        feature: &'static str,
-    },
-    #[error("failed to {operation} `{path}`: {source}")]
-    Io {
-        operation: &'static str,
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("failed to import events from `{path}`: {source}")]
-    Importer {
-        path: PathBuf,
-        #[source]
-        source: quent_io::ImporterError,
-    },
-}
 
 /// Associates a generated model with its filesystem event importers.
 ///
