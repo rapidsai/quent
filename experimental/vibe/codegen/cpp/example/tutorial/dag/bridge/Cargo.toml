@@ -1,0 +1,17 @@
+[package]
+name = "quent-tutorial-dag-cpp-bridge"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+test = false
+
+[dependencies]
+cxx = "1"
+quent-dynamic-attributes = { path = "../../../../../../../../crates/dynamic-attributes" }
+quent-instrumentation = { path = "../../../../../../../../crates/instrumentation" }
+
+[build-dependencies]
+quent-codegen-tutorial-build = { path = "../../../../../tutorial-build" }

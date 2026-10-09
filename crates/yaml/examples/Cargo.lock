@@ -316,6 +316,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-dag"
+version = "0.1.0"
+dependencies = [
+ "quent-constraints",
+ "quent-ref-target",
+ "quent-schema",
+ "rustc-hash",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-dynamic-attributes"
 version = "0.1.0"
 
@@ -488,6 +499,7 @@ version = "0.1.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
+ "quent-dag",
  "quent-fsm",
  "quent-log",
  "quent-os",

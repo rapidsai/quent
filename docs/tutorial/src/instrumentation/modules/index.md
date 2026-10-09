@@ -78,6 +78,8 @@ corresponding to the name of the semantic module. For example:
   model root.
 - [Resource](resource/index.md) uses `resource: ...` on an entity.
 - [Operating System](operating-system/index.md) uses `os: ...` as a field type.
+- [Directed Acyclic Graph](dag/index.md) uses `dag: ...` on entities and event
+  fields.
 
 Its value and any nested fields are specific to that mod, and are documented in
 more detail in the [YAML

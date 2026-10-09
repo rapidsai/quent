@@ -17,6 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "untyped-entity-references/model.yaml",
         "entity-references/model.yaml",
         "scoped-references/model.yaml",
+        "dag/model.yaml",
         "finite-state-machine/model.yaml",
         "fsm-dynamic-state/model.yaml",
         "fsm-self-loop/model.yaml",
