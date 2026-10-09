@@ -3,7 +3,6 @@
 
 import {
   aggregateToNumber,
-  flattenStatistics,
   isNumericValue,
   unwrapTaggedValue,
   type AggMode,
@@ -53,22 +52,19 @@ export function parseCustomStatistics(rawNode: unknown): Statistic[] {
  * (the same rule the pivot table column hover uses). Non-numeric statistics
  * are never aggregated.
  */
-export function resolveOperatorStat(
-  rawNode: unknown,
-  relatedOperators: readonly unknown[] | undefined,
+export function resolveStatisticFields(
+  ownFields: readonly StatisticField[],
+  relatedFields: readonly (readonly StatisticField[])[],
   field: string,
   aggMode: AggMode = 'sum'
 ): StatisticField | undefined {
-  const find = (raw: unknown) =>
-    flattenStatistics(parseCustomStatistics(raw)).find(s => s.key === field);
-
-  const own = find(rawNode);
+  const own = ownFields.find(statistic => statistic.key === field);
   if (own?.value != null) {
     return own;
   }
 
-  const related = (relatedOperators ?? []).flatMap(operator => {
-    const stat = find(operator);
+  const related = relatedFields.flatMap(fields => {
+    const stat = fields.find(statistic => statistic.key === field);
     return stat?.value != null && isNumericValue(stat.value) ? [stat] : [];
   });
   const value = aggregateToNumber(

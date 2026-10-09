@@ -3,11 +3,8 @@
 
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { DAGNode } from '@quent/utils';
+import { flattenStatistics, type DAGNode } from '@quent/utils';
 import { useOperatorStatFields } from './useDagControls';
-
-const parse = (raw: unknown) =>
-  (raw as { stats?: Array<{ key: string; value: unknown }> })?.stats ?? [];
 
 describe('useOperatorStatFields', () => {
   it('offers only numeric related-operator stats for grouped nodes', () => {
@@ -16,18 +13,22 @@ describe('useOperatorStatFields', () => {
       label: 'logical',
       type: 'operator',
       metadata: {
-        rawNode: { stats: [] },
-        relatedOperators: [
+        operatorStatistics: { statistics: [], fields: [] },
+        relatedOperatorStatistics: [
           {
-            stats: [
+            statistics: [
               { key: 'rows', value: 4 },
               { key: 'kind', value: 'scan' },
             ],
+            fields: flattenStatistics([
+              { key: 'rows', value: 4 },
+              { key: 'kind', value: 'scan' },
+            ]),
           },
         ],
       },
     };
-    const { result } = renderHook(() => useOperatorStatFields([node], parse));
+    const { result } = renderHook(() => useOperatorStatFields([node]));
     expect(result.current.map(f => f.key)).toEqual(['rows']);
   });
 
@@ -36,9 +37,15 @@ describe('useOperatorStatFields', () => {
       id: 'physical',
       label: 'physical',
       type: 'operator',
-      metadata: { rawNode: { stats: [{ key: 'kind', value: 'scan' }] } },
+      metadata: {
+        operatorStatistics: {
+          statistics: [{ key: 'kind', value: 'scan' }],
+          fields: flattenStatistics([{ key: 'kind', value: 'scan' }]),
+        },
+        relatedOperatorStatistics: [],
+      },
     };
-    const { result } = renderHook(() => useOperatorStatFields([node], parse));
+    const { result } = renderHook(() => useOperatorStatFields([node]));
     expect(result.current.map(f => f.key)).toEqual(['kind']);
   });
 });

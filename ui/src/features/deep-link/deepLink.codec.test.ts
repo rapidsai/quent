@@ -115,7 +115,7 @@ describe('deep-link codec', () => {
     });
   });
 
-  it('round-trips selections for statistic paths longer than the name limit', () => {
+  it('round-trips explicit statistic paths longer than the generic name limit', () => {
     const fieldId = statisticFieldId([
       ['Volume '.repeat(100), 0],
       ['bytes '.repeat(100), 2],

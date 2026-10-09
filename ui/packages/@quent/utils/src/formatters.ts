@@ -442,9 +442,11 @@ export function formatAttributeValue(key: string, value: unknown): string {
 /** Row/batch count statistics — use SI-scaled display (k/M/…). */
 export function isCountStat(name: string): boolean {
   return (
+    name === 'rows' ||
     name.includes('_rows') ||
     name.endsWith('_row') ||
     name.startsWith('rows_') ||
+    name === 'batches' ||
     name.includes('_batches') ||
     name.endsWith('_batch') ||
     name.startsWith('batches_')

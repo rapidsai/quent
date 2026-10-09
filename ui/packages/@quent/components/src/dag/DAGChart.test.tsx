@@ -14,7 +14,7 @@ import {
   useSelectedScaleType,
   useSelectedEdgeWidthField,
 } from '@quent/hooks';
-import { continuousColor } from '@quent/utils';
+import { continuousColor, flattenStatistics } from '@quent/utils';
 import type { DAGData } from '../services/query-plan/types';
 import {
   computeEdgeColoring,
@@ -76,12 +76,16 @@ vi.mock('@xyflow/react', async importOriginal => {
 
 const data: DAGData = {
   nodes: [],
-  edges: [0, 3, 15, 63].map((value, index) => ({
-    id: `edge-${index}`,
-    source: `node-${index}`,
-    target: `node-${index + 1}`,
-    portStats: [{ key: 'bytes', value }],
-  })),
+  edges: [0, 3, 15, 63].map((value, index) => {
+    const portStats = [{ key: 'bytes', value }];
+    return {
+      id: `edge-${index}`,
+      source: `node-${index}`,
+      target: `node-${index + 1}`,
+      portStats,
+      statisticFields: flattenStatistics(portStats),
+    };
+  }),
   queryData: [],
 };
 

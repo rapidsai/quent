@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
-import { resolveOperatorStat } from '../../lib/queryBundle.utils';
+import { resolveStatisticFields } from '../../lib/queryBundle.utils';
 import {
   buildDeterministicColorMap,
   createDeterministicColorResolver,
   isNumericValue,
-  flattenStatistics,
 } from '@quent/utils';
 
 /**
@@ -33,9 +32,14 @@ export function computeNodeColoring(nodes: DAGNode[], field: string | null): Nod
   }
 
   const entries = nodes.flatMap(node => {
-    const stat = resolveOperatorStat(
-      node.metadata?.rawNode,
-      node.metadata?.relatedOperators as unknown[] | undefined,
+    const operatorStatistics = node.metadata?.operatorStatistics;
+    const relatedOperatorStatistics = node.metadata?.relatedOperatorStatistics;
+    if (!operatorStatistics || !relatedOperatorStatistics) {
+      return [];
+    }
+    const stat = resolveStatisticFields(
+      operatorStatistics.fields,
+      relatedOperatorStatistics.map(statistics => statistics.fields),
       field
     );
     if (stat?.value == null) {
@@ -75,7 +79,7 @@ export function computeEdgeColoring(edges: DAGEdge[], field: string | null): Edg
   }
 
   const entries = edges.flatMap(edge => {
-    const stat = flattenStatistics(edge.portStats ?? []).find(s => s.key === field);
+    const stat = edge.statisticFields?.find(statistic => statistic.key === field);
     if (stat?.value == null) {
       return [];
     }
@@ -114,7 +118,7 @@ export function computeEdgeWidthConfig(edges: DAGEdge[], field: string | null): 
   }
 
   const entries = edges.flatMap(edge => {
-    const stat = flattenStatistics(edge.portStats ?? []).find(s => s.key === field);
+    const stat = edge.statisticFields?.find(statistic => statistic.key === field);
     if (
       stat?.value == null ||
       !isNumericValue(stat.value) ||

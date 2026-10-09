@@ -18,6 +18,8 @@ import {
   type Operator,
   type DagLayoutDirection,
   type QuantitySpec,
+  type DAGStatisticSet,
+  type Statistic,
 } from '@quent/utils';
 import {
   useSelectedNodeLabelField,
@@ -27,7 +29,7 @@ import {
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
-import { resolveOperatorStat } from '../lib/queryBundle.utils';
+import { resolveStatisticFields } from '../lib/queryBundle.utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 import { getNodeOpacityClass } from './nodeOpacity';
@@ -40,6 +42,9 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
     rawNode?: Operator;
     relatedOperatorIds?: string[];
     relatedOperators?: Operator[];
+    aggregatedStatistics?: Statistic[];
+    operatorStatistics?: DAGStatisticSet;
+    relatedOperatorStatistics?: DAGStatisticSet[];
     operatorWorkerLabels?: Record<string, string | undefined>;
   };
   hasIncoming?: boolean;
@@ -108,8 +113,16 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return data.label;
   }, [nodeLabelField, data]);
 
+  const operatorStatistics = data.metadata?.operatorStatistics;
+  const relatedOperatorStatistics = data.metadata?.relatedOperatorStatistics;
   const colorFieldStat = colorField
-    ? resolveOperatorStat(data.metadata?.rawNode, data.metadata?.relatedOperators, colorField)
+    ? operatorStatistics && relatedOperatorStatistics
+      ? resolveStatisticFields(
+          operatorStatistics.fields,
+          relatedOperatorStatistics.map(statistics => statistics.fields),
+          colorField
+        )
+      : undefined
     : undefined;
   const colorFieldValue = colorFieldStat?.value ?? null;
   const formattedColorFieldValue =

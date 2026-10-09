@@ -5,6 +5,8 @@
 // These are kept in @quent/utils to avoid circular dependencies between
 // @quent/hooks (which holds DAG atoms) and @quent/components (which holds DAG rendering).
 
+import type { StatisticField } from './statisticFields';
+
 export type ContinuousNodeColoring = {
   type: 'continuous';
   values: Map<string, number>; // operatorId → numeric value
@@ -95,6 +97,11 @@ export function isStatStruct(value: StatValue): value is StatStruct {
   );
 }
 
+export interface DAGStatisticSet {
+  statistics: Statistic[];
+  fields: StatisticField[];
+}
+
 export interface DAGNode {
   id: string;
   label: string;
@@ -104,6 +111,9 @@ export interface DAGNode {
     estimates?: unknown[];
     identifier?: string;
     rawNode?: unknown;
+    aggregatedStatistics?: Statistic[];
+    operatorStatistics?: DAGStatisticSet;
+    relatedOperatorStatistics?: DAGStatisticSet[];
     stageId?: string;
     [key: string]: unknown;
   };
@@ -120,4 +130,6 @@ export interface DAGEdge {
   targetPortName?: string;
   targetPortStats?: Statistic[];
   portStats?: Array<{ key: string; value: StatValue }>; // from source port
+  statisticFields?: StatisticField[];
+  targetStatisticFields?: StatisticField[];
 }

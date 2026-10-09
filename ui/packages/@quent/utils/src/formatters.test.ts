@@ -439,6 +439,11 @@ describe('isBytesStat', () => {
 // ---------------------------------------------------------------------------
 
 describe('isCountStat', () => {
+  it('returns true for bare row and batch names', () => {
+    expect(isCountStat('rows')).toBe(true);
+    expect(isCountStat('batches')).toBe(true);
+  });
+
   it('returns true for names containing _rows', () => {
     expect(isCountStat('output_rows')).toBe(true);
     expect(isCountStat('input_rows_filtered')).toBe(true);
@@ -492,6 +497,7 @@ describe('inferFieldFormatter', () => {
     const fmtRows = inferFieldFormatter('output_rows');
     expect(fmtRows(500)).toBe('500.00 ');
     expect(fmtRows(1500)).toBe('1.50 k');
+    expect(inferFieldFormatter('rows')(8_237_168)).toBe('8.24 M');
 
     const fmtBatches = inferFieldFormatter('spill_batches');
     expect(fmtBatches(2000)).toBe('2.00 k');

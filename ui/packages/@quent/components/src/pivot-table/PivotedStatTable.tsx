@@ -4,7 +4,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { OnChangeFn, SortingState } from '@tanstack/react-table';
 import { GroupedDataTable } from './GroupedDataTable';
-import { cn, type QuantitySpec } from '@quent/utils';
+import { cn, type StatValue } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
 import type {
   DataHeaderProps,
@@ -161,7 +161,7 @@ function GroupCell({
 }
 
 function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
-  const { display, interaction, derived } = usePivotTableRenderContext();
+  const { display, interaction, renderConfig, derived } = usePivotTableRenderContext();
   const numVal = getSortValue(row, stat, display.isAggregating, display.aggMode);
   const range = derived.columnRanges.get(stat);
   const bg =
@@ -183,7 +183,8 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
     onMouseEnter: () => interaction.setHoveredStat(derived.buildHoveredStatInfo(stat)),
     onMouseLeave: () => interaction.setHoveredStat(null),
   };
-  const quantitySpecs = display.quantitySpecs;
+  const formatValue = (value: StatValue, statName: string, quantity?: string) =>
+    renderConfig.formatValue?.(value, statName, quantity) ?? formatStatValue(value, statName);
   if (!display.isAggregating) {
     const entries = row.values.get(stat) ?? [];
     return (
@@ -193,9 +194,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
         {...statCellProps}
       >
         {entries.length
-          ? entries
-              .map(entry => formatStatValue(entry.value, entry.key, quantitySpecs, entry.quantity))
-              .join(', ')
+          ? entries.map(entry => formatValue(entry.value, entry.key, entry.quantity)).join(', ')
           : '-'}
       </td>
     );
@@ -219,7 +218,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
       style={{ backgroundColor: bg, boxShadow: cellHighlight }}
       {...statCellProps}
     >
-      {formatStatValue(displayVal, stat, quantitySpecs, agg.quantity)}
+      {formatValue(displayVal, stat, agg.quantity)}
     </td>
   );
 }
@@ -254,7 +253,6 @@ interface PivotedStatTableProps<TRow> {
   /** Optional controlled sort state, forwarded to the underlying GroupedDataTable. */
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
-  quantitySpecs?: Record<string, QuantitySpec | undefined>;
 }
 
 export function PivotedStatTable<TRow>({
@@ -275,7 +273,6 @@ export function PivotedStatTable<TRow>({
   onReorderStat,
   sorting,
   onSortingChange,
-  quantitySpecs,
 }: PivotedStatTableProps<TRow>) {
   const [nodePalette] = useNodeColorPalette();
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
@@ -291,6 +288,7 @@ export function PivotedStatTable<TRow>({
   const effectiveRenderConfig = useMemo(
     (): PivotTableRenderConfig => ({
       getGroupTypeColor: renderConfig?.getGroupTypeColor,
+      formatValue: renderConfig?.formatValue,
     }),
     [renderConfig]
   );
@@ -571,9 +569,8 @@ export function PivotedStatTable<TRow>({
       aggMode,
       colorPalette: nodePalette,
       darkMode: isDark,
-      quantitySpecs,
     }),
-    [isAggregating, aggMode, nodePalette, isDark, quantitySpecs]
+    [isAggregating, aggMode, nodePalette, isDark]
   );
   const dndContextValue = useMemo(
     () => ({

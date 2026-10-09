@@ -10,7 +10,10 @@ const NODES: DAGNode[] = [
     id: 'logical',
     label: 'Logical join',
     type: 'join',
-    metadata: { relatedOperatorIds: ['physical-1', 'physical-2'] },
+    metadata: {
+      relatedOperatorIds: ['physical-1', 'physical-2'],
+      aggregatedStatistics: [{ key: 'rows', value: 30 }],
+    },
   },
   {
     id: 'other',
@@ -38,6 +41,7 @@ describe('resolveSelectedOperatorsFromNodes', () => {
         operatorIds: new Set(['other']),
       },
     ]);
+    expect(resolved.selections[0].selectedData.statistics).toEqual([{ key: 'rows', value: 30 }]);
     expect(resolved.unresolvedOperatorIds).toEqual(new Set());
   });
 

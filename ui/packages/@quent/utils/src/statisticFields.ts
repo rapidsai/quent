@@ -10,29 +10,20 @@ export interface StatisticField extends Statistic {
   path: StatisticFieldPath;
 }
 
-const FIELD_ID_PREFIX = '__quent_stat_';
-const MAX_FLAT_ID_LENGTH = 256;
-const pathEncoder = new TextEncoder();
+const FIELD_PATH_PREFIX = '__quent_stat_path__:';
 
-/** Stable bounded identity derived from names and sibling occurrences, never values. */
+/** Flat names stay readable; structured or repeated fields use their explicit path. */
 export function statisticFieldId(path: StatisticFieldPath): string {
   const [name, occurrence] = path[0];
   if (
     path.length === 1 &&
     occurrence === 0 &&
     name.length > 0 &&
-    name.length <= MAX_FLAT_ID_LENGTH &&
-    !name.startsWith(FIELD_ID_PREFIX)
+    !name.startsWith(FIELD_PATH_PREFIX)
   ) {
     return name;
   }
-  // A 128-bit FNV-1a fingerprint keeps arbitrarily long paths out of deep links.
-  let hash = 0x6c62272e07bb014262b821756295c58dn;
-  const prime = (1n << 88n) + 0x13bn;
-  for (const byte of pathEncoder.encode(JSON.stringify(path))) {
-    hash = BigInt.asUintN(128, (hash ^ BigInt(byte)) * prime);
-  }
-  return `${FIELD_ID_PREFIX}${hash.toString(16).padStart(32, '0')}`;
+  return `${FIELD_PATH_PREFIX}${JSON.stringify(path)}`;
 }
 
 export function statisticFieldLabel(field: StatisticField | string): string {
@@ -48,8 +39,18 @@ export function statisticFieldLabel(field: StatisticField | string): string {
     .join(' › ');
 }
 
-export function statisticFieldName(field: StatisticField | string): string {
-  return typeof field === 'string' ? field : field.path[field.path.length - 1][0];
+export function statisticFieldName(
+  field: StatisticField | string | null | undefined,
+  fields?: readonly StatisticField[]
+): string {
+  if (field == null) {
+    return '';
+  }
+  if (typeof field !== 'string') {
+    return field.path[field.path.length - 1][0];
+  }
+  const resolvedField = fields?.find(candidate => candidate.key === field);
+  return resolvedField ? statisticFieldName(resolvedField) : field;
 }
 
 /** Scalar metric projection only; the inspection tree stays ordered and intact. */

@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
+import { flattenStatistics } from '@quent/utils';
 import {
   entityRefToEntitiesKey,
   ENTITY_REF_TO_ENTITIES_KEY,
   parseCustomStatistics,
   parsePortStatistics,
-  resolveOperatorStat,
+  resolveStatisticFields,
 } from './queryBundle.utils';
 
 // ---- entityRefToEntitiesKey -----------------------------------------------
@@ -176,7 +177,7 @@ describe('parseCustomStatistics', () => {
   });
 });
 
-// ---- resolveOperatorStat ---------------------------------------------------
+// ---- resolveStatisticFields ------------------------------------------------
 
 function makeQuantifiedOperator(field: string, value: number, quantity?: string) {
   return {
@@ -188,12 +189,14 @@ function makeQuantifiedOperator(field: string, value: number, quantity?: string)
   };
 }
 
-describe('resolveOperatorStat', () => {
+const operatorFields = (operator: unknown) => flattenStatistics(parseCustomStatistics(operator));
+
+describe('resolveStatisticFields', () => {
   it('returns the direct statistic without aggregating related values', () => {
     expect(
-      resolveOperatorStat(
-        makeQuantifiedOperator('bytes', 10, 'bytes'),
-        [makeQuantifiedOperator('bytes', 20, 'bytes')],
+      resolveStatisticFields(
+        operatorFields(makeQuantifiedOperator('bytes', 10, 'bytes')),
+        [operatorFields(makeQuantifiedOperator('bytes', 20, 'bytes'))],
         'bytes'
       )
     ).toMatchObject({ key: 'bytes', value: 10, quantity: 'bytes' });
@@ -201,11 +204,11 @@ describe('resolveOperatorStat', () => {
 
   it('aggregates related values with a shared quantity', () => {
     expect(
-      resolveOperatorStat(
-        undefined,
+      resolveStatisticFields(
+        [],
         [
-          makeQuantifiedOperator('bytes', 10, 'bytes'),
-          makeQuantifiedOperator('bytes', 20, 'bytes'),
+          operatorFields(makeQuantifiedOperator('bytes', 10, 'bytes')),
+          operatorFields(makeQuantifiedOperator('bytes', 20, 'bytes')),
         ],
         'bytes'
       )
@@ -214,16 +217,22 @@ describe('resolveOperatorStat', () => {
 
   it('omits the quantity when related statistics disagree', () => {
     expect(
-      resolveOperatorStat(
-        undefined,
-        [makeQuantifiedOperator('size', 10, 'bytes'), makeQuantifiedOperator('size', 20, 'rows')],
+      resolveStatisticFields(
+        [],
+        [
+          operatorFields(makeQuantifiedOperator('size', 10, 'bytes')),
+          operatorFields(makeQuantifiedOperator('size', 20, 'rows')),
+        ],
         'size'
       )
     ).toMatchObject({ key: 'size', value: 30 });
     expect(
-      resolveOperatorStat(
-        undefined,
-        [makeQuantifiedOperator('size', 10, 'bytes'), makeQuantifiedOperator('size', 20, 'rows')],
+      resolveStatisticFields(
+        [],
+        [
+          operatorFields(makeQuantifiedOperator('size', 10, 'bytes')),
+          operatorFields(makeQuantifiedOperator('size', 20, 'rows')),
+        ],
         'size'
       )?.quantity
     ).toBeUndefined();

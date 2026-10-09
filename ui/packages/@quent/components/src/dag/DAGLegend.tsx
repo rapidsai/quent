@@ -33,12 +33,12 @@ import type { ContinuousPaletteName } from '@quent/utils';
 const MAX_CATEGORICAL_ENTRIES = 8;
 
 interface ContinuousLegendProps {
-  field: string | StatisticField;
+  label: string;
   min: number;
   max: number;
   palette: ContinuousPaletteName;
   isDark: boolean;
-  formatValue?: (v: number) => string;
+  formatValue: (v: number) => string;
   /** When set, a badge names the scale beside the title. */
   scale?: ScaleType;
   /** When set, labels the value halfway along the bar, which shows how the scale bends. */
@@ -51,7 +51,7 @@ const SCALE_LABELS: Record<ScaleType, string> = {
 };
 
 const ContinuousLegend = ({
-  field,
+  label,
   min,
   max,
   palette,
@@ -59,36 +59,33 @@ const ContinuousLegend = ({
   formatValue,
   scale,
   midValue,
-}: ContinuousLegendProps) => {
-  const fmt = formatValue ?? inferFieldFormatter(statisticFieldName(field));
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-          {statisticFieldLabel(field)}
-        </span>
-        {scale && (
-          <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">
-            {SCALE_LABELS[scale]}
-          </Badge>
-        )}
-      </div>
-      <div
-        className={cn('h-2 rounded-sm', midValue === undefined ? 'w-36' : 'w-full min-w-36')}
-        style={{
-          background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
-        }}
-      />
-      <div className="flex justify-between gap-2">
-        <span className="text-[10px] text-muted-foreground">{fmt(min)}</span>
-        {midValue !== undefined && (
-          <span className="text-[10px] text-muted-foreground">{fmt(midValue)}</span>
-        )}
-        <span className="text-[10px] text-muted-foreground">{fmt(max)}</span>
-      </div>
+}: ContinuousLegendProps) => (
+  <div className="flex flex-col gap-1">
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+        {label}
+      </span>
+      {scale && (
+        <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">
+          {SCALE_LABELS[scale]}
+        </Badge>
+      )}
     </div>
-  );
-};
+    <div
+      className={cn('h-2 rounded-sm', midValue === undefined ? 'w-36' : 'w-full min-w-36')}
+      style={{
+        background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
+      }}
+    />
+    <div className="flex justify-between gap-2">
+      <span className="text-[10px] text-muted-foreground">{formatValue(min)}</span>
+      {midValue !== undefined && (
+        <span className="text-[10px] text-muted-foreground">{formatValue(midValue)}</span>
+      )}
+      <span className="text-[10px] text-muted-foreground">{formatValue(max)}</span>
+    </div>
+  </div>
+);
 
 interface CategoricalLegendProps {
   field: string | StatisticField;
@@ -167,9 +164,11 @@ export const CategoricalLegend = ({
 function resolveFormatter(
   field: string | StatisticField,
   statQuantitySpecs: Record<string, QuantitySpec>
-): ((v: number) => string) | undefined {
+): (v: number) => string {
   const spec = statQuantitySpecs[typeof field === 'string' ? field : field.key];
-  return spec ? (v: number) => formatQuantity(v, spec, 'Occupancy') : undefined;
+  return spec
+    ? (v: number) => formatQuantity(v, spec, 'Occupancy')
+    : inferFieldFormatter(statisticFieldName(field));
 }
 
 function NodeLegendContent({
@@ -192,7 +191,7 @@ function NodeLegendContent({
   if (coloring.type === 'continuous') {
     return (
       <ContinuousLegend
-        field={field}
+        label={statisticFieldLabel(field)}
         min={coloring.min}
         max={coloring.max}
         palette={palette}
@@ -226,7 +225,7 @@ function EdgeLegendContent({
   if (coloring.type === 'continuous') {
     return (
       <ContinuousLegend
-        field={field}
+        label={statisticFieldLabel(field)}
         min={coloring.min}
         max={coloring.max}
         palette={palette}

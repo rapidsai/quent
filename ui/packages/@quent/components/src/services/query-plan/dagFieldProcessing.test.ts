@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import { statisticFieldId, type DAGNode, type DAGEdge } from '@quent/utils';
+import { flattenStatistics, statisticFieldId, type DAGNode, type DAGEdge } from '@quent/utils';
+import { parseCustomStatistics } from '../../lib/queryBundle.utils';
 import {
   computeNodeColoring,
   computeEdgeColoring,
@@ -17,19 +18,29 @@ function makeNode(id: string, stats: Record<string, unknown> = {}): DAGNode {
     value: { key, value },
     quantity: null,
   }));
+  const rawNode = { statistics: { custom_statistics: customStatistics } };
+  const statistics = parseCustomStatistics(rawNode);
   return {
     id,
     label: id,
     type: 'operator',
     metadata: {
-      rawNode: { statistics: { custom_statistics: customStatistics } },
+      rawNode,
+      operatorStatistics: { statistics, fields: flattenStatistics(statistics) },
+      relatedOperatorStatistics: [],
     },
   };
 }
 
 /** Build a DAGEdge with optional portStats. */
 function makeEdge(id: string, portStats: DAGEdge['portStats'] = []): DAGEdge {
-  return { id, source: 's', target: 't', portStats };
+  return {
+    id,
+    source: 's',
+    target: 't',
+    portStats,
+    statisticFields: flattenStatistics(portStats),
+  };
 }
 
 function tagged(variant: string, value: unknown) {
@@ -333,19 +344,24 @@ it('excludes negative, nonfinite and missing volume without treating missing as 
 
 function makeGroupNode(id: string, related: Array<Record<string, unknown>>): DAGNode {
   const node = makeNode(id);
+  const relatedOperators = related.map(stats => ({
+    statistics: {
+      custom_statistics: Object.entries(stats).map(([key, value]) => ({
+        value: { key, value },
+        quantity: null,
+      })),
+    },
+  }));
   return {
     ...node,
     metadata: {
       ...node.metadata,
       relatedOperatorIds: related.map((_, i) => `${id}-r${i}`),
-      relatedOperators: related.map(stats => ({
-        statistics: {
-          custom_statistics: Object.entries(stats).map(([key, value]) => ({
-            value: { key, value },
-            quantity: null,
-          })),
-        },
-      })),
+      relatedOperators,
+      relatedOperatorStatistics: relatedOperators.map(operator => {
+        const statistics = parseCustomStatistics(operator);
+        return { statistics, fields: flattenStatistics(statistics) };
+      }),
     },
   };
 }
@@ -363,11 +379,13 @@ describe('computeNodeColoring with related operators', () => {
 
   it('prefers a node’s own value over aggregating related operators', () => {
     const group = makeGroupNode('group', [{ rows: tagged('UInt64', 50) }]);
+    const own = makeNode('group', { rows: tagged('UInt64', 7) });
     const node = {
       ...group,
       metadata: {
         ...group.metadata,
-        rawNode: makeNode('group', { rows: tagged('UInt64', 7) }).metadata!.rawNode,
+        rawNode: own.metadata!.rawNode,
+        operatorStatistics: own.metadata!.operatorStatistics,
       },
     };
     const result = computeNodeColoring([node], 'rows');
