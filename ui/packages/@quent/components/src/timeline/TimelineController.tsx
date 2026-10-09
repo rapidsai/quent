@@ -414,7 +414,14 @@ export function TimelineController({
   const containerDims = useMemo(() => ({ width: '100%', height: `${height}px` }), [height]);
 
   return (
-    <TimelinePointerArea ref={containerRef} style={containerDims} range={pointerRange}>
+    <TimelinePointerArea
+      ref={containerRef}
+      style={containerDims}
+      range={pointerRange}
+      data-testid="timeline-controller"
+      data-zoom-start={zoomRange.start}
+      data-zoom-end={zoomRange.end}
+    >
       <EChartsReactCore
         echarts={echarts}
         theme={themeName}

@@ -94,6 +94,7 @@ export function PivotTableToolbar({
               onDrop={e => dragDrop.handleDrop(e, key)}
               onDragEnd={dragDrop.handleDragEnd}
               onClick={() => onToggleIndex(key)}
+              aria-pressed={enabled}
               className={cn(
                 'text-xs px-2 py-0.5 rounded border transition-colors cursor-pointer active:cursor-grabbing select-none whitespace-nowrap h-full',
                 {

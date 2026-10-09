@@ -21,6 +21,7 @@ pre-commit = ">=4"
 rust-std-wasm32-unknown-unknown = "1.97.0.*"
 wasm-bindgen-cli = "0.2.128.*"
 mdbook = "0.5.4.*"
+ffmpeg = ">=7,<9"
 
 [pypi-dependencies]
 rumdl = "*"
