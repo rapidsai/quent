@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Resolve compatibility capabilities from the ancestry of pinned revisions.
+//! Resolve compatibility capabilities from pinned revision ancestry and trees.
 
 use std::path::Path;
 use std::process::Stdio;
@@ -12,8 +12,9 @@ use crate::error::{OpenError, Result};
 use crate::spec::GitPin;
 
 const CANDIDATE_REF: &str = "refs/quent-open/candidate";
+const SOURCE_REMOTE: &str = "quent-open-source";
 
-/// A pinned revision fetched into a local bare repository for ancestry checks.
+/// A pinned revision fetched into a local bare repository for compatibility checks.
 pub struct PinnedRevision<'a> {
     repository: &'a Path,
 }
@@ -34,18 +35,109 @@ impl<'a> PinnedRevision<'a> {
         }
 
         let remote = pin.cargo_url();
+        let remote_exists = Command::new("git")
+            .arg("--git-dir")
+            .arg(repository)
+            .args(["remote", "get-url", SOURCE_REMOTE])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await
+            .map_err(|source| OpenError::Spawn {
+                what: "inspect revision cache remote".into(),
+                source,
+            })?
+            .success();
+        let operation = if remote_exists { "set-url" } else { "add" };
         run_git(
             Command::new("git")
                 .arg("--git-dir")
                 .arg(repository)
-                .args(["fetch", "--force", "--no-tags", "--filter=tree:0"])
-                .arg(&remote)
+                .args(["remote", operation, SOURCE_REMOTE])
+                .arg(&remote),
+            "configure revision cache remote",
+        )
+        .await?;
+        run_git(
+            Command::new("git").arg("--git-dir").arg(repository).args([
+                "config",
+                &format!("remote.{SOURCE_REMOTE}.promisor"),
+                "true",
+            ]),
+            "configure revision cache promisor",
+        )
+        .await?;
+        run_git(
+            Command::new("git").arg("--git-dir").arg(repository).args([
+                "config",
+                &format!("remote.{SOURCE_REMOTE}.partialclonefilter"),
+                "blob:none",
+            ]),
+            "configure revision cache filter",
+        )
+        .await?;
+        run_git(
+            Command::new("git")
+                .arg("--git-dir")
+                .arg(repository)
+                // Package detection needs the pinned tree but not source blobs.
+                .args(["fetch", "--force", "--no-tags", "--filter=blob:none"])
+                .arg(SOURCE_REMOTE)
                 .arg(format!("+{}:{CANDIDATE_REF}", pin.commit)),
             "fetch pinned revision",
         )
         .await?;
 
         Ok(Self { repository })
+    }
+
+    /// Return whether `path` exists in the exact pinned revision tree.
+    pub async fn contains_path(&self, path: &str) -> Result<bool> {
+        let output = Command::new("git")
+            .arg("--git-dir")
+            .arg(self.repository)
+            .args(["ls-tree", "--name-only", CANDIDATE_REF, "--"])
+            .arg(path)
+            .stdin(Stdio::null())
+            .output()
+            .await
+            .map_err(|source| OpenError::Spawn {
+                what: "git ls-tree".into(),
+                source,
+            })?;
+        if !output.status.success() {
+            return Err(OpenError::Revision {
+                operation: "inspect pinned revision tree".into(),
+                status: command_status(&output),
+            });
+        }
+        Ok(!output.stdout.is_empty())
+    }
+
+    /// Read a UTF-8 file from the exact pinned revision.
+    pub async fn read_file(&self, path: &str) -> Result<String> {
+        let output = Command::new("git")
+            .arg("--git-dir")
+            .arg(self.repository)
+            .args(["show", &format!("{CANDIDATE_REF}:{path}")])
+            .stdin(Stdio::null())
+            .output()
+            .await
+            .map_err(|source| OpenError::Spawn {
+                what: "git show".into(),
+                source,
+            })?;
+        if !output.status.success() {
+            return Err(OpenError::Revision {
+                operation: format!("read `{path}` from pinned revision"),
+                status: command_status(&output),
+            });
+        }
+        String::from_utf8(output.stdout).map_err(|error| OpenError::Revision {
+            operation: format!("decode `{path}` from pinned revision"),
+            status: error.to_string(),
+        })
     }
 
     /// Return whether `boundary` is an ancestor of this pinned revision.
@@ -198,6 +290,10 @@ mod tests {
             .unwrap();
         assert!(revision.contains(&boundary).await.unwrap());
         assert!(revision.is_strict_descendant_of(&boundary).await.unwrap());
+        assert!(revision.contains_path("boundary").await.unwrap());
+        assert!(revision.contains_path("descendant").await.unwrap());
+        assert!(!revision.contains_path("missing").await.unwrap());
+        assert_eq!(revision.read_file("boundary").await.unwrap(), "boundary");
 
         let boundary_pin = GitPin {
             remote: source.display().to_string(),

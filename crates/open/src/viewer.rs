@@ -31,6 +31,7 @@ pub struct ViewerGroup {
 /// A built viewer ready to serve: its binary, cache dir, and the contexts it covers.
 struct BuiltViewer {
     bin: PathBuf,
+    has_mcp_server: bool,
     crate_dir: PathBuf,
     contexts: Vec<PathBuf>,
     label: String,
@@ -98,11 +99,13 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
         &crate_dir,
         compatibility.io_package,
         compatibility.has_nvtx_routes,
+        compatibility.has_mcp_server,
         compatibility.context_indexing,
     )?;
-    let bin = cargo_build(&crate_dir).await?;
+    let bin = cargo_build(&crate_dir, WRAPPER_PACKAGE).await?;
     Ok(BuiltViewer {
         bin,
+        has_mcp_server: compatibility.has_mcp_server,
         crate_dir,
         contexts,
         label,
@@ -113,12 +116,21 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
 async fn serve_one(viewer: BuiltViewer, open_browser: bool, host: IpAddr) -> Result<()> {
     let BuiltViewer {
         bin,
+        has_mcp_server,
         crate_dir,
         contexts,
         label,
     } = viewer;
     let output_root = stage_output_root(&crate_dir, &contexts)?;
-    let result = serve(&output_root, &bin, &label, open_browser, host).await;
+    let result = serve(
+        &output_root,
+        &bin,
+        has_mcp_server,
+        &label,
+        open_browser,
+        host,
+    )
+    .await;
     // Best-effort cleanup of this run's staged root; keep the cached build.
     let _ = std::fs::remove_dir_all(&output_root);
     result
@@ -145,7 +157,7 @@ fn build_dir(spec: &ViewerSpec) -> Result<PathBuf> {
 /// The first build fetches the pinned git sources and compiles the embedded UI,
 /// which invokes `pnpm`/`node`; both must be on `PATH`. Subsequent builds reuse
 /// the cached `crate_dir`.
-async fn cargo_build(crate_dir: &Path) -> Result<PathBuf> {
+async fn cargo_build(crate_dir: &Path, target_name: &str) -> Result<PathBuf> {
     let log_path = crate_dir.join("build.log");
     let log = std::fs::File::create(&log_path)?;
     let mut child = Command::new("cargo")
@@ -187,22 +199,24 @@ async fn cargo_build(crate_dir: &Path) -> Result<PathBuf> {
         let mut detail = rendered_diagnostics(&json);
         detail.push_str(&std::fs::read_to_string(&log_path).unwrap_or_default());
         return Err(OpenError::Build {
+            what: format!("`{target_name}`"),
             status: format!("{status}\n{detail}"),
         });
     }
-    wrapper_executable(&json).ok_or_else(|| OpenError::Build {
-        status: format!("cargo build reported no `{WRAPPER_PACKAGE}` executable"),
+    built_executable(&json, target_name).ok_or_else(|| OpenError::Build {
+        what: format!("`{target_name}`"),
+        status: format!("cargo build reported no `{target_name}` executable"),
     })
 }
 
-/// Find the wrapper binary's path in cargo's `--message-format=json`
+/// Find a binary's path in cargo's `--message-format=json`
 /// `compiler-artifact` messages (avoids assuming a target-dir layout).
-fn wrapper_executable(stdout: &[u8]) -> Option<PathBuf> {
+fn built_executable(stdout: &[u8], target_name: &str) -> Option<PathBuf> {
     std::str::from_utf8(stdout).ok()?.lines().find_map(|line| {
         let msg: serde_json::Value = serde_json::from_str(line).ok()?;
-        let is_wrapper =
-            msg["reason"] == "compiler-artifact" && msg["target"]["name"] == WRAPPER_PACKAGE;
-        is_wrapper
+        let is_target =
+            msg["reason"] == "compiler-artifact" && msg["target"]["name"] == target_name;
+        is_target
             .then(|| msg["executable"].as_str().map(PathBuf::from))
             .flatten()
     })
@@ -280,6 +294,7 @@ fn symlink_dir(_src: &Path, _link: &Path) -> Result<()> {
 async fn serve(
     output_root: &Path,
     bin: &Path,
+    has_mcp_server: bool,
     label: &str,
     open_browser: bool,
     host: IpAddr,
@@ -287,11 +302,7 @@ async fn serve(
     let addr = free_port(host)?;
     // An unspecified host (`0.0.0.0`/`::`) is not browseable; show and probe the
     // matching loopback instead (the server may be bound v6-only on `::`).
-    let reachable = match addr.ip() {
-        IpAddr::V4(ip) if ip.is_unspecified() => (Ipv4Addr::LOCALHOST, addr.port()).into(),
-        IpAddr::V6(ip) if ip.is_unspecified() => (Ipv6Addr::LOCALHOST, addr.port()).into(),
-        _ => addr,
-    };
+    let reachable = reachable_addr(addr);
     let url = format!("http://{reachable}/");
 
     let mut child = Command::new(bin)
@@ -309,8 +320,12 @@ async fn serve(
             source,
         })?;
 
-    if wait_until_ready(reachable).await {
+    let ready = wait_until_ready(reachable).await;
+    if ready {
         println!("ready: {label}  {url}");
+        if has_mcp_server {
+            println!("mcp: {label}  {url}mcp");
+        }
         if open_browser && let Err(e) = open_browser_without_token(&url) {
             eprintln!("could not open a browser ({e}); open {url} manually");
         }
@@ -325,6 +340,14 @@ async fn serve(
         });
     }
     Ok(())
+}
+
+fn reachable_addr(addr: SocketAddr) -> SocketAddr {
+    match addr.ip() {
+        IpAddr::V4(ip) if ip.is_unspecified() => (Ipv4Addr::LOCALHOST, addr.port()).into(),
+        IpAddr::V6(ip) if ip.is_unspecified() => (Ipv6Addr::LOCALHOST, addr.port()).into(),
+        _ => addr,
+    }
 }
 
 /// Open `url` in the browser like [`open::that`], but scrub the db-mode API token
@@ -366,6 +389,34 @@ async fn wait_until_ready(addr: SocketAddr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unspecified_bind_addresses_are_announced_on_loopback() {
+        assert_eq!(
+            reachable_addr("0.0.0.0:4321".parse().unwrap()),
+            "127.0.0.1:4321".parse().unwrap()
+        );
+        assert_eq!(
+            reachable_addr("[::]:4321".parse().unwrap()),
+            "[::1]:4321".parse().unwrap()
+        );
+        assert_eq!(
+            reachable_addr("192.0.2.10:4321".parse().unwrap()),
+            "192.0.2.10:4321".parse().unwrap()
+        );
+    }
+
+    #[test]
+    fn selects_the_requested_generated_binary() {
+        let messages = concat!(
+            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"quent-open-viewer\"},",
+            "\"executable\":\"/tmp/viewer\"}\n"
+        );
+        assert_eq!(
+            built_executable(messages.as_bytes(), WRAPPER_PACKAGE),
+            Some(PathBuf::from("/tmp/viewer"))
+        );
+    }
 
     /// Compatibility gate, run explicitly in CI (the `open-compat` job in
     /// `rust.yml`): the quent-open being built must still open artifacts

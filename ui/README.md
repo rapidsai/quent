@@ -66,6 +66,11 @@ The app will be available at `http://localhost:5173`
 The `pnpm start` script is also available as an alias for the Vite development
 server, which is what the end-to-end test runner uses.
 
+`pnpm dev` and `pnpm start` launch only the frontend. To run the analyzer API,
+simulator, and MCP endpoint alongside Vite, follow the
+[query-engine development stack](../DEVELOPMENT.md#run-the-query-engine-development-stack)
+instructions.
+
 ### Build
 
 Build the production version:

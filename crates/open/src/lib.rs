@@ -5,6 +5,9 @@
 //!
 //! Given a context directory, read `model.qmi`, generate a viewer crate pinned
 //! to the recorded quent/analyzer commits, build and serve it, and open a browser.
+//! When available, each viewer mounts a streamable-HTTP MCP endpoint on its
+//! existing server. MCP is included only when the artifact's pinned Quent
+//! revision contains the `quent-mcp` package.
 //!
 //! The first viewer build fetches git sources and compiles the embedded UI.
 //! `git`, `pnpm`, and `node` must be on `PATH`.

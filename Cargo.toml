@@ -42,6 +42,8 @@ members = [
     "domains/query_engine/ui-bindings",
     # README example
     "examples/readme",
+    # Experimental MCP bridge
+    "experimental/vibe/quent-mcp",
     # Simulator crates
     "experimental/vibe/simulator/analyzer",
     "experimental/vibe/simulator/application",
@@ -129,6 +131,7 @@ prost = "0.14.1"
 protox = "0.9.1"
 pyo3 = "0.29"
 quanta = "0.12.6"
+rmcp = { version = "1.7.0", default-features = false }
 quent-collector = { path = "crates/collector/server" }
 quent-collector-client = { path = "crates/collector/client" }
 quent-collector-proto = { path = "crates/collector/proto" }
@@ -140,6 +143,7 @@ quent-schema = { path = "crates/schema" }
 rmp-serde = "1"
 rustc-hash = "2"
 rtrb = "0.4.0"
+schemars = "1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 smallvec = {version = "1.15.1", features = ["serde"] }

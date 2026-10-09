@@ -19,7 +19,9 @@ struct Cli {
     #[arg(long, global = true)]
     no_browser: bool,
 
-    /// Host/interface the viewer binds (`0.0.0.0` exposes it to other hosts).
+    /// Host/interface the viewer and MCP endpoint bind.
+    ///
+    /// Non-loopback MCP clients also require `QUENT_MCP_ALLOWED_HOSTS`.
     #[arg(long, global = true, default_value = "127.0.0.1")]
     host: IpAddr,
 

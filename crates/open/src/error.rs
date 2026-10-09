@@ -54,9 +54,9 @@ pub enum OpenError {
         source: std::io::Error,
     },
 
-    /// Building the generated viewer crate failed (non-zero `cargo build`).
-    #[error("building the viewer failed (cargo exited with {status})")]
-    Build { status: String },
+    /// Building a generated helper crate failed (non-zero `cargo build`).
+    #[error("building {what} failed (cargo exited with {status})")]
+    Build { what: String, status: String },
 
     /// Inspecting a pinned source revision failed.
     #[error("failed to {operation} ({status})")]

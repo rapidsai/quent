@@ -7,5 +7,6 @@ own risk.
 
 ## Experiments
 
+- [Quent MCP REST bridge](quent-mcp/)
 - [Intricate query-engine simulator](simulator/)
 - [Benchmark plot viewer](bench-plot/)

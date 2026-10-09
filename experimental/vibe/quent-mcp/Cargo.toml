@@ -1,0 +1,26 @@
+[package]
+name = "quent-mcp"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+axum = "0.8.7"
+clap = { version = "4.5", features = ["derive", "env"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+rmcp = { workspace = true, features = [
+    "server",
+    "macros",
+    "transport-io",
+    "transport-streamable-http-server",
+] }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-std", "macros", "net", "rt-multi-thread"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+uuid.workspace = true
+
+[dev-dependencies]
+rmcp = { workspace = true, features = ["client"] }

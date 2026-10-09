@@ -83,8 +83,9 @@ docker compose -f experimental/vibe/simulator/docker-compose.yml up --build
 Open the
 [simulated query timeline](http://localhost:8080/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline)
 after the services start. Docker Compose serves the UI and analysis API, and
-runs the simulator once to generate a sample query-engine dataset. Press
-`Ctrl+C` to stop the stack.
+runs the simulator once to generate a sample query-engine dataset. The same
+server exposes the agent-facing streamable-HTTP MCP endpoint at
+<http://localhost:8080/mcp>. Press `Ctrl+C` to stop the stack.
 
 For frontend development with Vite and hot reload, see the
 [development guide](DEVELOPMENT.md#run-the-ui-development-server).

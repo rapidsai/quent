@@ -91,14 +91,22 @@ where
     }
 
     if let Some(cors) = cors {
+        let mcp_session_id = axum::http::HeaderName::from_static("mcp-session-id");
         let cors = CorsLayer::new()
             .allow_origin(cors.parse::<axum::http::HeaderValue>().unwrap())
             .allow_methods([
                 axum::http::Method::GET,
                 axum::http::Method::POST,
+                axum::http::Method::DELETE,
                 axum::http::Method::OPTIONS,
             ])
-            .allow_headers([axum::http::header::CONTENT_TYPE]);
+            .allow_headers([
+                axum::http::header::CONTENT_TYPE,
+                mcp_session_id.clone(),
+                axum::http::HeaderName::from_static("mcp-protocol-version"),
+                axum::http::HeaderName::from_static("last-event-id"),
+            ])
+            .expose_headers([mcp_session_id]);
         http_routes = http_routes.layer(cors);
     }
 

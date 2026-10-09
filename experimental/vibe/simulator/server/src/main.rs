@@ -8,6 +8,7 @@ use nvtx_server::{import_context_events, routes as nvtx_routes};
 use quent_analyzer::context::index_contexts;
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
+use quent_mcp::{http_routes as mcp_routes, local_api_base};
 use quent_query_engine_analyzer::ui::QuentViewer;
 use quent_query_engine_server::{
     analyzer_service_router_with_routes, collector_service, initialize_tracing,
@@ -118,6 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_socket_addrs()?
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {analyzer_address}"))?;
+    let mcp_routes = mcp_routes(&local_api_base(analyzer_addr))?;
 
     // Index the exported contexts by engine instance: each engine's telemetry is
     // the engine's own context plus its workers' contexts.
@@ -153,7 +155,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 cors_address,
                 nvtx_routes(Box::new(move |context_id| {
                     import_context_events(&nvtx_output_dir, context_id)
-                })),
+                }))
+                .merge(mcp_routes),
             )?
             .into_make_service(),
         )

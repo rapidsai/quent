@@ -50,8 +50,10 @@ docker compose up --build
 ```
 
 The collector listens on port `7836`, and the analysis API listens on port
-`8080`. This development image intentionally omits the embedded UI so the
-frontend can run separately with Vite and hot reload.
+`8080`. The agent-facing streamable-HTTP MCP endpoint is available on the same
+server at `http://localhost:8080/mcp`. This development image intentionally
+omits the embedded UI so the frontend can run separately with Vite and hot
+reload.
 
 ## Run the UI development server
 
@@ -69,6 +71,9 @@ Rust types while the development server remains open.
 
 ## Run without Docker
 
+Run these commands from separate shells after entering `pixi shell`. If you are
+not using an activated Pixi shell, prefix each `cargo` command with `pixi run`.
+
 Start the simulator server with CORS enabled for Vite:
 
 ```bash
@@ -80,6 +85,9 @@ Generate a test dataset from another shell:
 ```bash
 cargo run -p quent-simulator -- --exporter collector
 ```
+
+The analyzer also serves the streamable-HTTP MCP endpoint at
+<http://localhost:8080/mcp>.
 
 ## Build with the bundled UI
 

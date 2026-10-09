@@ -8,7 +8,7 @@ use std::path::Path;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::error::Result;
+use crate::error::{OpenError, Result};
 use crate::revision;
 use crate::spec::ViewerSpec;
 
@@ -31,6 +31,8 @@ const NVTX_ROUTES_BOUNDARY: &str = "f40e69c2d4405c765c6270221e2a58e58ef704a6";
 ///
 /// Introduced after [commit `cee18e0`](https://github.com/rapidsai/quent/commit/cee18e047c5407dc91b8d9e6e150892444775bd1).
 const CONTEXT_INVENTORY_PREDECESSOR: &str = "cee18e047c5407dc91b8d9e6e150892444775bd1";
+/// Manifest path of the `quent-mcp` package.
+const MCP_PACKAGE_MANIFEST: &str = "experimental/vibe/quent-mcp/Cargo.toml";
 
 pub(crate) fn nvtx_code(enabled: bool) -> NvtxCode {
     if enabled {
@@ -117,6 +119,7 @@ pub(crate) struct ContextIndexingCode {
 
 pub(crate) struct WrapperCompatibility {
     pub(crate) has_nvtx_routes: bool,
+    pub(crate) has_mcp_server: bool,
     pub(crate) io_package: &'static str,
     pub(crate) context_indexing: ContextIndexing,
 }
@@ -125,6 +128,7 @@ impl WrapperCompatibility {
     pub(crate) async fn resolve(repository: &Path, spec: &ViewerSpec) -> Result<Self> {
         let revision = revision::PinnedRevision::fetch(repository, &spec.quent).await?;
         let has_nvtx_routes = revision.contains(NVTX_ROUTES_BOUNDARY).await?;
+        let has_mcp_server = contains_package(&revision, MCP_PACKAGE_MANIFEST, "quent-mcp").await?;
         let io_package = if revision.contains(IO_PACKAGE_BOUNDARY).await? {
             IO_PACKAGE
         } else {
@@ -140,8 +144,58 @@ impl WrapperCompatibility {
         };
         Ok(Self {
             has_nvtx_routes,
+            has_mcp_server,
             io_package,
             context_indexing,
         })
+    }
+}
+
+async fn contains_package(
+    revision: &revision::PinnedRevision<'_>,
+    manifest_path: &str,
+    package_name: &str,
+) -> Result<bool> {
+    if !revision.contains_path(manifest_path).await? {
+        return Ok(false);
+    }
+    let manifest = revision.read_file(manifest_path).await?;
+    manifest_declares_package(&manifest, manifest_path, package_name)
+}
+
+fn manifest_declares_package(
+    manifest: &str,
+    manifest_path: &str,
+    package_name: &str,
+) -> Result<bool> {
+    let manifest: toml::Value = toml::from_str(manifest).map_err(|error| OpenError::Revision {
+        operation: format!("parse `{manifest_path}` from pinned revision"),
+        status: error.to_string(),
+    })?;
+    Ok(manifest["package"]["name"].as_str() == Some(package_name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn package_detection_requires_the_exact_manifest_name() {
+        assert!(
+            manifest_declares_package(
+                "[package]\nname = \"quent-mcp\"\nversion = \"0.1.0\"\n",
+                MCP_PACKAGE_MANIFEST,
+                "quent-mcp",
+            )
+            .unwrap()
+        );
+        assert!(
+            !manifest_declares_package(
+                "[package]\nname = \"another-package\"\nversion = \"0.1.0\"\n",
+                MCP_PACKAGE_MANIFEST,
+                "quent-mcp",
+            )
+            .unwrap()
+        );
     }
 }
