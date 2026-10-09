@@ -17,12 +17,7 @@ import {
   useSetDebouncedZoomRange,
   useSetZoomRange,
 } from '@quent/hooks';
-import {
-  DAG_LAYOUT_DIRECTION,
-  EDGE_SCALE_TYPE,
-  NODE_LABEL_FIELD,
-  type Operator,
-} from '@quent/utils';
+import { DAG_LAYOUT_DIRECTION, SCALE_TYPE, NODE_LABEL_FIELD, type Operator } from '@quent/utils';
 import { toast } from '@quent/components';
 import {
   entitiesTableStateAtom,
@@ -489,8 +484,8 @@ export function DeepLinkBoundary({
     if (sharedView.dag.layoutDirection !== DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP) {
       dag.layoutDirection = sharedView.dag.layoutDirection;
     }
-    if (sharedView.dag.edgeScaleType !== EDGE_SCALE_TYPE.LOG) {
-      dag.edgeScaleType = sharedView.dag.edgeScaleType;
+    if (sharedView.dag.scaleType !== SCALE_TYPE.LOG) {
+      dag.scaleType = sharedView.dag.scaleType;
     }
     if (hasKeys(dag)) {
       state.dag = dag;

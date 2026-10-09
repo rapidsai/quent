@@ -36,7 +36,7 @@ import {
   useEdgeColorPalette,
   useSelectedEdgeWidthField,
   useSelectedEdgeColorField,
-  useSelectedEdgeScaleType,
+  useSelectedScaleType,
   useHighlightedNodeIds,
   useSelectedDagLayoutDirection,
   useDataFlowEnabled,
@@ -47,7 +47,6 @@ import {
 import { calculateLayout, NODE_LAYOUT_WIDTH, NODE_LAYOUT_HEIGHT, FLOW_BAR_HEIGHT } from './layout';
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { normalizeEdgeValue } from './edgeScale';
 import { DAGLegend } from './DAGLegend';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
@@ -63,6 +62,7 @@ import {
   type StatisticField,
   type QuantitySpec,
   type SelectedOperatorGroupData,
+  normalizeScaleValue,
 } from '@quent/utils';
 
 // Edge geometry constants
@@ -111,14 +111,14 @@ const VariableWidthEdge = ({
   const highlightedNodeIds = interactionData?.highlightedNodeIds ?? null;
   const [edgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField] = useSelectedEdgeColorField();
-  const [edgeScaleType] = useSelectedEdgeScaleType();
+  const [scaleType] = useSelectedScaleType();
   const isDark = interactionData?.isDark ?? false;
 
   let strokeWidth = EDGE_STROKE_WIDTH_DEFAULT;
   if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      const t = normalizeEdgeValue(v, edgeWidthConfig, edgeScaleType);
+      const t = normalizeScaleValue(v, edgeWidthConfig, scaleType);
       strokeWidth = EDGE_STROKE_WIDTH_MIN + t * EDGE_STROKE_WIDTH_RANGE;
     }
   }
@@ -131,7 +131,7 @@ const VariableWidthEdge = ({
       if (v === undefined) {
         edgeDimmed = true;
       } else {
-        const t = normalizeEdgeValue(v, edgeColoring, edgeScaleType);
+        const t = normalizeScaleValue(v, edgeColoring, scaleType);
         edgeColor = continuousColor(t, edgePalette, isDark);
       }
     } else {

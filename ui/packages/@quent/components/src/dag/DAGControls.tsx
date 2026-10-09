@@ -8,7 +8,7 @@ import {
   useSelectedEdgeColorField,
   useSelectedNodeLabelField,
   useSelectedDagLayoutDirection,
-  useSelectedEdgeScaleType,
+  useSelectedScaleType,
   useNodeColorPalette,
   useEdgeColorPalette,
   useDataFlowEnabled,
@@ -25,11 +25,11 @@ import {
   statisticFieldLabel,
   NODE_LABEL_FIELD,
   DAG_LAYOUT_DIRECTION,
-  EDGE_SCALE_TYPE,
+  SCALE_TYPE,
   type NodeLabelField,
   type StatisticField,
   type DagLayoutDirection,
-  type EdgeScaleType,
+  type ScaleType,
 } from '@quent/utils';
 import {
   Palette,
@@ -62,8 +62,8 @@ const NODE_LABEL_OPTIONS: SelectFieldOption[] = [
 ];
 
 const EDGE_SCALE_OPTIONS: SelectFieldOption[] = [
-  { value: EDGE_SCALE_TYPE.LOG, label: 'Log' },
-  { value: EDGE_SCALE_TYPE.LINEAR, label: 'Linear' },
+  { value: SCALE_TYPE.LOG, label: 'Log' },
+  { value: SCALE_TYPE.LINEAR, label: 'Linear' },
 ];
 
 const LAYOUT_DIRECTION_OPTIONS: SelectFieldOption[] = [
@@ -77,7 +77,7 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const [edgeWidthField, setEdgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField, setEdgeColorField] = useSelectedEdgeColorField();
   const [nodeLabelField, setNodeLabelField] = useSelectedNodeLabelField();
-  const [edgeScaleType, setEdgeScaleType] = useSelectedEdgeScaleType();
+  const [scaleType, setScaleType] = useSelectedScaleType();
   const [layoutDirection, setLayoutDirection] = useSelectedDagLayoutDirection();
   const [nodePalette, setNodePalette] = useNodeColorPalette();
   const [edgePalette, setEdgePalette] = useEdgeColorPalette();
@@ -184,12 +184,12 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
               triggerClassName="h-6 text-xs"
             />
           </ControlField>
-          <ControlField label="Edge scale" icon={ChartLine}>
+          <ControlField label="Scale" icon={ChartLine}>
             <SelectField
-              ariaLabel="Edge scale"
+              ariaLabel="Scale"
               options={EDGE_SCALE_OPTIONS}
-              value={edgeScaleType}
-              onValueChange={v => v && setEdgeScaleType(v as EdgeScaleType)}
+              value={scaleType}
+              onValueChange={v => v && setScaleType(v as ScaleType)}
               placeholder="Log"
               clearable={false}
               triggerClassName="h-6 text-xs"

@@ -11,11 +11,11 @@ import type {
   EdgeColoring,
   NodeLabelField,
   DagLayoutDirection,
-  EdgeScaleType,
+  ScaleType,
   SelectedOperatorGroupData,
   AggMode,
 } from '@quent/utils';
-import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION, EDGE_SCALE_TYPE } from '@quent/utils';
+import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION, SCALE_TYPE } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
 
 /**
@@ -80,7 +80,7 @@ export const selectedEdgeColorFieldAtom = atom<string | null>(null);
 export const edgeColoringAtom = atom<EdgeColoring>(null);
 
 /** How edge values map to width and colour (log or linear) */
-export const selectedEdgeScaleTypeAtom = atom<EdgeScaleType>(EDGE_SCALE_TYPE.LOG);
+export const selectedScaleTypeAtom = atom<ScaleType>(SCALE_TYPE.LOG);
 
 /** Which field to use as the primary label on each DAG node */
 export const selectedNodeLabelFieldAtom = atom<NodeLabelField>(NODE_LABEL_FIELD.NAME);

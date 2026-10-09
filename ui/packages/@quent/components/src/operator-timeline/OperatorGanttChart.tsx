@@ -11,11 +11,13 @@ import {
   useSetSelectedPlanId,
   useNodeColoringValue,
   useNodeColorPalette,
+  useSelectedScaleType,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
 import {
   continuousColor,
+  normalizeScaleValue,
   withOpacity,
   buildRelatedOperatorIdsById,
   resolveSelectedOperatorSelections,
@@ -65,6 +67,7 @@ export function OperatorGanttChart({
   const { textColor } = useTimelineEchartsTheme(isDark);
   const nodeColoring = useNodeColoringValue();
   const [nodePalette] = useNodeColorPalette();
+  const [scaleType] = useSelectedScaleType();
   const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const barLabelTextColor = textColor;
   const selectedOperatorIds = useSelectedOperatorIds();
@@ -110,10 +113,7 @@ export function OperatorGanttChart({
           styles.set(op.operatorId, { stroke: undefined, fieldDimmed: true });
           continue;
         }
-        const t =
-          nodeColoring.max > nodeColoring.min
-            ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
-            : 0.5;
+        const t = normalizeScaleValue(v, nodeColoring, scaleType);
         styles.set(op.operatorId, {
           stroke: continuousColor(t, nodePalette, isDark),
           fieldDimmed: false,
@@ -124,7 +124,7 @@ export function OperatorGanttChart({
       }
     }
     return styles;
-  }, [operators, nodeColoring, nodePalette, isDark]);
+  }, [operators, nodeColoring, nodePalette, isDark, scaleType]);
   const renderItem: GanttRenderItem = useCallback(
     (params, api) => {
       const layout = layoutGanttBar(params, api, {

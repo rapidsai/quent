@@ -421,3 +421,24 @@ describe('logMin (lower bound for log scaling)', () => {
     expect(computeEdgeColoring(edges, 'rows')).toMatchObject({ min: 0, logMin: 0 });
   });
 });
+
+describe('computeNodeColoring logMin', () => {
+  const nodesWith = (values: Array<number>) =>
+    values.map((v, i) => makeNode(`n${i}`, { rows: tagged('UInt64', v) }));
+
+  it('ignores zeros for logMin but keeps the true min', () => {
+    expect(computeNodeColoring(nodesWith([0, 100_000, 10_000_000]), 'rows')).toMatchObject({
+      type: 'continuous',
+      min: 0,
+      logMin: 100_000,
+      max: 10_000_000,
+    });
+  });
+
+  it('keeps the true min as logMin for signed data', () => {
+    expect(computeNodeColoring(nodesWith([-100, 0, 100]), 'rows')).toMatchObject({
+      min: -100,
+      logMin: -100,
+    });
+  });
+});

@@ -54,6 +54,7 @@ export function computeNodeColoring(nodes: DAGNode[], field: string | null): Nod
       type: 'continuous',
       values: new Map(entries.map(e => [e.id, Number(e.value)])),
       min: Math.min(...nums),
+      logMin: logScaleMin(nums),
       max: Math.max(...nums),
     };
   }

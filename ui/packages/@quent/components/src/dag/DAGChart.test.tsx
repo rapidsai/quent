@@ -11,7 +11,7 @@ import {
   useDagEdgeWidthConfig,
   useEdgeColorPalette,
   useSelectedEdgeColorField,
-  useSelectedEdgeScaleType,
+  useSelectedScaleType,
   useSelectedEdgeWidthField,
 } from '@quent/hooks';
 import { continuousColor } from '@quent/utils';
@@ -89,7 +89,7 @@ function EdgeConfiguration() {
   const [, setColorField] = useSelectedEdgeColorField();
   const [, setWidthField] = useSelectedEdgeWidthField();
   const [, setPalette] = useEdgeColorPalette();
-  const [, setScaleType] = useSelectedEdgeScaleType();
+  const [, setScaleType] = useSelectedScaleType();
   useDagEdgeColoring(data.edges, computeEdgeColoring);
   useDagEdgeWidthConfig(data.edges, computeEdgeWidthConfig);
   return (

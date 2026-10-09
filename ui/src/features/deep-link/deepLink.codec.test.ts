@@ -25,7 +25,7 @@ import {
   statisticFieldId,
   CONTINUOUS_PALETTES,
   DAG_LAYOUT_DIRECTION,
-  EDGE_SCALE_TYPE,
+  SCALE_TYPE,
   NODE_LABEL_FIELD,
 } from '@quent/utils';
 import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
@@ -71,7 +71,7 @@ const state: DeepLinkStateV3 = {
     edgeColorPalette: 'purple',
     nodeLabelField: 'type',
     layoutDirection: 'top-to-bottom',
-    edgeScaleType: 'linear',
+    scaleType: 'linear',
   },
   dataFlow: {
     enabled: false,
@@ -359,8 +359,8 @@ describe('deep-link state validation', () => {
     for (const layoutDirection of Object.values(DAG_LAYOUT_DIRECTION)) {
       expect(DeepLinkStateV3Schema.validate({ ...base, dag: { layoutDirection } })).toBe(true);
     }
-    for (const edgeScaleType of Object.values(EDGE_SCALE_TYPE)) {
-      expect(DeepLinkStateV3Schema.validate({ ...base, dag: { edgeScaleType } })).toBe(true);
+    for (const scaleType of Object.values(SCALE_TYPE)) {
+      expect(DeepLinkStateV3Schema.validate({ ...base, dag: { scaleType } })).toBe(true);
     }
     expect(OperatorGroupSchema.options).toEqual([...OPERATOR_TABLE_INDEX_ORDER]);
   });

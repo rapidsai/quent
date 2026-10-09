@@ -11,17 +11,22 @@ import {
   useEdgeColorPalette,
   useSelectedColorField,
   useSelectedEdgeColorField,
-  useSelectedEdgeScaleType,
+  useSelectedScaleType,
   useDataFlowEnabled,
   useDataFlowMeta,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
-import { cn, getLegendGradientStops, EDGE_SCALE_TYPE, type EdgeScaleType } from '@quent/utils';
+import {
+  cn,
+  getLegendGradientStops,
+  scaleMidpoint,
+  SCALE_TYPE,
+  type ScaleType,
+} from '@quent/utils';
 import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/utils';
 import { Badge } from '../ui/badge';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
-import { edgeScaleMidpoint } from './edgeScale';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
 
@@ -35,14 +40,14 @@ interface ContinuousLegendProps {
   isDark: boolean;
   formatValue?: (v: number) => string;
   /** When set, a badge names the scale beside the title. */
-  scale?: EdgeScaleType;
+  scale?: ScaleType;
   /** When set, labels the value halfway along the bar, which shows how the scale bends. */
   midValue?: number;
 }
 
-const SCALE_LABELS: Record<EdgeScaleType, string> = {
-  [EDGE_SCALE_TYPE.LOG]: 'Log',
-  [EDGE_SCALE_TYPE.LINEAR]: 'Linear',
+const SCALE_LABELS: Record<ScaleType, string> = {
+  [SCALE_TYPE.LOG]: 'Log',
+  [SCALE_TYPE.LINEAR]: 'Linear',
 };
 
 const ContinuousLegend = ({
@@ -180,6 +185,7 @@ function NodeLegendContent({
   isDark: boolean;
   statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
+  const [scale] = useSelectedScaleType();
   if (!coloring || !field) {
     return null;
   }
@@ -192,6 +198,8 @@ function NodeLegendContent({
         palette={palette}
         isDark={isDark}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
+        scale={scale}
+        midValue={scaleMidpoint(coloring, scale)}
       />
     );
   }
@@ -211,7 +219,7 @@ function EdgeLegendContent({
   isDark: boolean;
   statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
-  const [scale] = useSelectedEdgeScaleType();
+  const [scale] = useSelectedScaleType();
   if (!coloring || !field) {
     return null;
   }
@@ -225,7 +233,7 @@ function EdgeLegendContent({
         isDark={isDark}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
         scale={scale}
-        midValue={edgeScaleMidpoint(coloring, scale)}
+        midValue={scaleMidpoint(coloring, scale)}
       />
     );
   }
