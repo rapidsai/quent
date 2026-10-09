@@ -34,27 +34,45 @@ pub(crate) trait BinnedTimelineAggregator {
     fn finish(self) -> Self::Output;
 }
 
-/// A binned timeline built from numeric primitive values associated with a
-/// span.
-pub(crate) struct UnitAggregator {
-    config: BinnedSpan,
-    bins: Vec<f64>,
+/// Preserve a value's unit through weighting, accumulation, and export.
+pub(crate) trait BinValue: Copy {
+    fn zero(self) -> Self;
+    fn add_weighted(&mut self, value: Self, weight: f64);
+    fn finish(self) -> f64;
 }
 
-impl UnitAggregator {
-    pub(crate) fn new(config: BinnedSpan) -> Self {
+impl BinValue for f64 {
+    fn zero(self) -> Self {
+        0.0
+    }
+
+    fn add_weighted(&mut self, value: Self, weight: f64) {
+        *self += weight * value;
+    }
+
+    fn finish(self) -> f64 {
+        self
+    }
+}
+
+/// A binned timeline that preserves each value's unit during aggregation.
+pub(crate) struct UnitAggregator<Value = f64> {
+    config: BinnedSpan,
+    bins: Vec<Value>,
+}
+
+impl<Value: BinValue> UnitAggregator<Value> {
+    pub(crate) fn new(config: BinnedSpan, value: Value) -> Self {
         let capacity = config.num_bins().get() as usize;
         Self {
             config,
-            bins: std::iter::repeat_with(Default::default)
-                .take(capacity)
-                .collect(),
+            bins: vec![value.zero(); capacity],
         }
     }
 }
 
-impl BinnedTimelineAggregator for UnitAggregator {
-    type Item = f64;
+impl<Value: BinValue> BinnedTimelineAggregator for UnitAggregator<Value> {
+    type Item = Value;
     type Output = Vec<f64>;
 
     fn config(&self) -> BinnedSpan {
@@ -72,14 +90,14 @@ impl BinnedTimelineAggregator for UnitAggregator {
                 intersect_duration as f64 / self.config().bin_duration().get() as f64;
             assert!(overlap_fraction >= 0.0);
             assert!(overlap_fraction <= 1.0);
-            self.bins[index as usize] += overlap_fraction * item
+            self.bins[index as usize].add_weighted(item, overlap_fraction);
         }
 
         Ok(())
     }
 
     fn finish(self) -> Self::Output {
-        self.bins
+        self.bins.into_iter().map(BinValue::finish).collect()
     }
 }
 
@@ -113,7 +131,7 @@ where
     fn try_push(&mut self, span: SpanNanoSec, item: Self::Item) -> AnalyzerResult<()> {
         self.bins
             .entry(item.0)
-            .or_insert_with(|| UnitAggregator::new(self.config))
+            .or_insert_with(|| UnitAggregator::new(self.config, item.1))
             .try_push(span, item.1)
     }
 
@@ -138,7 +156,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut aggregator: UnitAggregator = UnitAggregator::new(config);
+        let mut aggregator: UnitAggregator = UnitAggregator::new(config, 0.0);
 
         aggregator.try_push(SpanNanoSec::try_new(0, 30).unwrap(), 10.0)?;
         aggregator.try_push(SpanNanoSec::try_new(20, 60).unwrap(), 10.0)?;

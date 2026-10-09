@@ -75,7 +75,7 @@ pub enum CapacityType {
 }
 
 impl CapacityType {
-    /// Interpret a value from a [`CapacityValue`] based on this [`CapacityType`].
+    /// Interpret a capacity value as occupancy or items per nanosecond.
     pub fn reinterpret_capacity_value(&self, value: u64, span: SpanNanoSec) -> f64 {
         match self {
             CapacityType::Occupancy => value as f64,

@@ -11,18 +11,112 @@ use uuid::Uuid;
 
 use crate::{
     AnalyzerResult,
-    resource::{CapacityValue, ResourceTypeDecl, Usage},
-    timeline::binned::{BinnedTimelineAggregator, KeyedAggregator},
+    resource::{CapacityType, CapacityValue, ResourceTypeDecl, Usage},
+    timeline::binned::{BinValue, BinnedTimelineAggregator, UnitAggregator},
 };
 
-/// Calculate a value to bin-aggregate depending on the [`CapacityType`].
-fn convert_capacity(
-    span: SpanNanoSec,
-    capacity_value: &CapacityValue,
-    resource_type: &ResourceTypeDecl,
-) -> AnalyzerResult<f64> {
-    let capacity_type = resource_type.try_capacity(capacity_value.name)?.kind;
-    Ok(capacity_type.reinterpret_capacity_value(capacity_value.value.unwrap_or_default(), span))
+const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
+
+/// Internal rate unit; scale only after span-weighted aggregation.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ItemsPerNanos(f64);
+
+impl ItemsPerNanos {
+    fn new(value: u64, span: SpanNanoSec) -> Self {
+        Self(value as f64 / span.duration() as f64)
+    }
+
+    fn per_second(self) -> f64 {
+        self.0 * NANOSECONDS_PER_SECOND
+    }
+}
+
+impl BinValue for ItemsPerNanos {
+    fn zero(self) -> Self {
+        Self(0.0)
+    }
+
+    fn add_weighted(&mut self, value: Self, weight: f64) {
+        self.0 += weight * value.0;
+    }
+
+    fn finish(self) -> f64 {
+        self.per_second()
+    }
+}
+
+/// A series has one capacity kind, so each bin vector has one value type.
+enum ResourceBins {
+    Occupancy(UnitAggregator<f64>),
+    Rate(UnitAggregator<ItemsPerNanos>),
+}
+
+impl ResourceBins {
+    fn new(config: BinnedSpan, kind: CapacityType) -> Self {
+        match kind {
+            CapacityType::Occupancy => Self::Occupancy(UnitAggregator::new(config, 0.0)),
+            CapacityType::Rate => Self::Rate(UnitAggregator::new(config, ItemsPerNanos(0.0))),
+        }
+    }
+
+    fn try_push(&mut self, span: SpanNanoSec, value: u64) -> AnalyzerResult<()> {
+        match self {
+            Self::Occupancy(bins) => bins.try_push(span, value as f64),
+            Self::Rate(bins) => bins.try_push(span, ItemsPerNanos::new(value, span)),
+        }
+    }
+
+    fn finish(self) -> Vec<f64> {
+        match self {
+            Self::Occupancy(bins) => bins.finish(),
+            Self::Rate(bins) => bins.finish(),
+        }
+    }
+}
+
+/// Resolve capacity kinds once per series; keep overlap mechanics shared.
+struct ResourceAggregator<'a, K> {
+    config: BinnedSpan,
+    resource_type: &'a ResourceTypeDecl,
+    bins: HashMap<K, ResourceBins>,
+}
+
+impl<'a, K: Eq + Hash> ResourceAggregator<'a, K> {
+    fn new(config: BinnedSpan, resource_type: &'a ResourceTypeDecl) -> Self {
+        Self {
+            config,
+            resource_type,
+            bins: HashMap::default(),
+        }
+    }
+
+    fn try_push(
+        &mut self,
+        span: SpanNanoSec,
+        key: K,
+        capacity: &CapacityValue,
+    ) -> AnalyzerResult<()> {
+        let Some(value) = capacity.value else {
+            return Ok(());
+        };
+
+        // The immutable declaration fixes the unit for every usage in this series.
+        let bins = match self.bins.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                let kind = self.resource_type.try_capacity(capacity.name)?.kind;
+                entry.insert(ResourceBins::new(self.config, kind))
+            }
+        };
+        bins.try_push(span, value)
+    }
+
+    fn finish(self) -> HashMap<K, Vec<f64>> {
+        self.bins
+            .into_iter()
+            .map(|(key, bins)| (key, bins.finish()))
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -40,8 +134,7 @@ pub struct ResourceTimelineByKey<'a, K> {
 }
 
 pub struct ResourceTimelineBuilder<'a> {
-    resource_type: &'a ResourceTypeDecl,
-    aggregator: KeyedAggregator<&'a str>,
+    aggregator: ResourceAggregator<'a, &'a str>,
     long_entities: HashSet<Uuid>,
     long_entities_threshold: Option<TimeNanoSec>,
 }
@@ -53,9 +146,8 @@ impl<'a> ResourceTimelineBuilder<'a> {
         long_entities_threshold: Option<TimeNanoSec>,
     ) -> AnalyzerResult<Self> {
         // Construct the aggregator.
-        let aggregator = KeyedAggregator::new(config);
+        let aggregator = ResourceAggregator::new(config, resource_type);
         Ok(Self {
-            resource_type,
             aggregator,
             long_entities: HashSet::default(),
             long_entities_threshold,
@@ -65,11 +157,8 @@ impl<'a> ResourceTimelineBuilder<'a> {
     pub fn try_push(&mut self, usage: &impl Usage<'a>) -> AnalyzerResult<()> {
         // TODO(johanpel): perf is fine for now but at some point we want to consider preventing all the hashmaps.
         for capacity in usage.capacities() {
-            if capacity.value.is_some() {
-                let value = convert_capacity(usage.span(), capacity, self.resource_type)?;
-                self.aggregator
-                    .try_push(usage.span(), (capacity.name, value))?
-            }
+            self.aggregator
+                .try_push(usage.span(), capacity.name, capacity)?;
         }
 
         if let Some(threshold) = self.long_entities_threshold
@@ -101,8 +190,7 @@ impl<'a> ResourceTimelineBuilder<'a> {
 }
 
 pub struct ResourceTimelineByKeyBuilder<'a, K> {
-    resource_type: &'a ResourceTypeDecl,
-    aggregator: KeyedAggregator<(K, &'a str)>,
+    aggregator: ResourceAggregator<'a, (K, &'a str)>,
     long_entities: HashSet<Uuid>,
     long_entities_threshold: Option<TimeNanoSec>,
 }
@@ -116,10 +204,9 @@ where
         config: BinnedSpan,
         long_entities_threshold: Option<TimeNanoSec>,
     ) -> AnalyzerResult<Self> {
-        let aggregator = KeyedAggregator::new(config);
+        let aggregator = ResourceAggregator::new(config, resource_type);
 
         Ok(Self {
-            resource_type,
             aggregator,
             long_entities: HashSet::default(),
             long_entities_threshold,
@@ -128,11 +215,8 @@ where
 
     pub fn try_push(&mut self, key: K, usage: &impl Usage<'a>) -> AnalyzerResult<()> {
         for capacity in usage.capacities() {
-            if capacity.value.is_some() {
-                let value = convert_capacity(usage.span(), capacity, self.resource_type)?;
-                self.aggregator
-                    .try_push(usage.span(), ((key.clone(), capacity.name), value))?
-            }
+            self.aggregator
+                .try_push(usage.span(), (key.clone(), capacity.name), capacity)?;
         }
 
         if let Some(threshold) = self.long_entities_threshold
@@ -185,6 +269,117 @@ mod tests {
     use quent_time::{SpanNanoSec, bin::BinnedSpan};
 
     const ROOT_RESOURCE_ID: Uuid = Uuid::from_u64_pair(0, 1);
+
+    #[test]
+    fn empty_rate_bins_stay_zero() {
+        let config = BinnedSpan::try_new(
+            SpanNanoSec::try_new(0, 100).unwrap(),
+            NonZero::new(2).unwrap(),
+        )
+        .unwrap();
+        let resource_type = ResourceTypeDecl::new("network", [CapacityDecl::new_rate("rate")]);
+        let mut aggregator = ResourceAggregator::new(config, &resource_type);
+
+        // Ignoring a zero-duration rate must not create NaNs.
+        aggregator
+            .try_push(
+                SpanNanoSec::try_new(50, 50).unwrap(),
+                "rate",
+                &CapacityValue::new("rate", 1),
+            )
+            .unwrap();
+        aggregator
+            .try_push(
+                SpanNanoSec::try_new(200, 300).unwrap(),
+                "rate",
+                &CapacityValue::new("rate", 100),
+            )
+            .unwrap();
+
+        assert_eq!(aggregator.finish()["rate"], [0.0, 0.0]);
+    }
+
+    #[test]
+    fn rate_aggregation_uses_nanos() {
+        let span = SpanNanoSec::try_new(0, 2_000_000_000).unwrap();
+        assert_eq!(ItemsPerNanos::new(100, span), ItemsPerNanos(0.000_000_05));
+    }
+
+    #[test]
+    fn rate_bins_per_second() {
+        const SECOND: u64 = 1_000_000_000;
+        const RATE: &str = "bytes";
+        const OCCUPANCY: &str = "connections";
+
+        let resource_type = ResourceTypeDecl::new(
+            "network",
+            &[
+                CapacityDecl::new_rate(RATE),
+                CapacityDecl::new_occupancy(OCCUPANCY),
+            ][..],
+        );
+        let config = BinnedSpan::try_new(
+            SpanNanoSec::try_new(SECOND, 5 * SECOND).unwrap(),
+            NonZero::new(4).unwrap(),
+        )
+        .unwrap();
+        let mut builder = ResourceTimelineBuilder::try_new(&resource_type, config, None).unwrap();
+        let mut keyed =
+            ResourceTimelineByKeyBuilder::try_new(&resource_type, config, None).unwrap();
+
+        // Clip the first span; split the second across bins and overlap both.
+        let mut fsms = InMemoryFsms::<RtFsm>::new();
+        for (start, end, bytes) in [(0, 3 * SECOND, 300), (SECOND + SECOND / 2, 4 * SECOND, 500)] {
+            fsms.insert(
+                RtFsm::try_new(
+                    Uuid::now_v7(),
+                    "transfer",
+                    "transfer",
+                    [
+                        RtFsmTransition {
+                            name: "using".into(),
+                            sequence: 0,
+                            usages: vec![RtFsmStateUsage::new(
+                                ROOT_RESOURCE_ID,
+                                &[
+                                    CapacityValue::new(RATE, bytes),
+                                    CapacityValue::new(OCCUPANCY, 1),
+                                ][..],
+                            )],
+                            timestamp: start,
+                            attributes: vec![],
+                        },
+                        RtFsmTransition {
+                            name: "exit".into(),
+                            sequence: 1,
+                            usages: vec![],
+                            timestamp: end,
+                            attributes: vec![],
+                        },
+                    ],
+                )
+                .unwrap(),
+            );
+        }
+        for usage in fsms.usages() {
+            builder.try_push(&usage).unwrap();
+            keyed.try_push("transfer", &usage).unwrap();
+        }
+
+        let timeline = builder.build();
+        let keyed_timeline = keyed.build();
+        assert_eq!(timeline.config, config);
+        assert_eq!(keyed_timeline.config, config);
+
+        // 100 bytes/s plus 200 bytes/s weighted by each bin's overlap.
+        for (capacity, expected) in [
+            (RATE, [200.0, 300.0, 200.0, 0.0]),
+            (OCCUPANCY, [1.5, 2.0, 1.0, 0.0]),
+        ] {
+            assert_eq!(timeline.data[capacity][..], expected);
+            assert_eq!(keyed_timeline.data[&("transfer", capacity)][..], expected);
+        }
+    }
 
     fn build_root_and_memory(resources: &mut TestResources, resource_id: Uuid) {
         resources.insert_type(ResourceTypeDecl::new(
