@@ -63,13 +63,18 @@ use the bridge to convert injection `Record`s.
 Create an observer, then pass it to `Capture::install` before the NVTX events to
 capture. See the [runnable example](example/src/main.rs) for the complete setup.
 
-Installation is one-shot. The hook remains installed after the capture is
-dropped, but events are discarded. An exporter that emits NVTX for every
-received NVTX event can generate an unbounded stream of events.
+Installation is one-shot. The hook remains installed after shutdown completes,
+but events are discarded. An exporter that emits NVTX for every received NVTX
+event can generate an unbounded stream of events.
 
 Stop and join NVTX-producing threads before dropping the capture if all events
 must be flushed. An in-flight callback may finish after shutdown begins, and
 its event may be discarded.
+
+Dropping a capture waits for its exporter to flush, including on a Quent runtime
+worker. If the capture is dropped inside its own exporter task, shutdown instead
+finishes asynchronously after that exporter call returns; the bridge worker
+keeps the observer and runtime alive until flushing completes.
 
 `static-injection` is requested in the manifest:
 

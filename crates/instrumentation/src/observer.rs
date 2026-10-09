@@ -160,6 +160,14 @@ impl<T> ObserverInner<T> {
         self.events_sender.emit(id, event);
     }
 
+    /// The task that exports this pipeline's events and flushes on shutdown.
+    ///
+    /// Bridges can use this to avoid waiting for the exporter from within that
+    /// same task. A no-op observer has no exporter task.
+    pub fn exporter_task_id(&self) -> Option<tokio::task::Id> {
+        self.forwarder_handle.as_ref().map(JoinHandle::id)
+    }
+
     /// A cloned [`EventSender`] feeding this pipeline.
     ///
     /// Lets a `'static` producer emit into the pipeline while the caller keeps
