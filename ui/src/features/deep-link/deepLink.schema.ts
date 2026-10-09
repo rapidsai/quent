@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   CONTINUOUS_PALETTES,
   DAG_LAYOUT_DIRECTION,
+  SCALE_TYPE,
   NODE_LABEL_FIELD,
   AGG_MODES,
 } from '@quent/utils';
@@ -177,16 +178,18 @@ const ResourceTreeSchema = z
   .strip();
 
 const ContinuousPaletteSchema = z.enum(enumKeys(CONTINUOUS_PALETTES));
+const StatisticFieldSchema = z.string().min(1);
 
 const DagControlsSchema = z
   .object({
-    nodeColorField: NameSchema.optional(),
+    nodeColorField: StatisticFieldSchema.optional(),
     nodeColorPalette: ContinuousPaletteSchema.optional(),
-    edgeWidthField: NameSchema.optional(),
-    edgeColorField: NameSchema.optional(),
+    edgeWidthField: StatisticFieldSchema.optional(),
+    edgeColorField: StatisticFieldSchema.optional(),
     edgeColorPalette: ContinuousPaletteSchema.optional(),
     nodeLabelField: z.enum(NODE_LABEL_FIELD).optional(),
     layoutDirection: z.enum(DAG_LAYOUT_DIRECTION).optional(),
+    scaleType: z.enum(SCALE_TYPE).optional(),
   })
   .strip();
 

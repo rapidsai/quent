@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { StatValue } from './dagTypes';
+import type { Statistic } from './dagTypes';
 import type { Operator, Plan, Worker } from './types';
 import { workerDisplayName } from './worker';
 
@@ -22,7 +22,8 @@ export interface SelectedOperatorData {
   nodeId: string;
   label: string;
   operationType: string;
-  statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
+  attributes?: Statistic[];
+  statistics: Statistic[];
   workerLabel?: string;
 }
 

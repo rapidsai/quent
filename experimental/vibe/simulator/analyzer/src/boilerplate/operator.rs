@@ -113,23 +113,14 @@ impl OperatorEntity for Operator {
             parent_operator_ids: data.parent_operator_ids.clone(),
             instance_name: data.instance_name.clone(),
             operator_type_name: data.type_name.clone(),
-            custom_attributes: data
-                .custom_attributes
-                .iter()
-                .map(|attribute| (attribute.key.clone(), attribute.value.clone()))
-                .collect(),
+            custom_attributes: data.custom_attributes.0.clone(),
             statistics: data.statistics.as_ref().map(|statistics| {
                 query_engine_ui::OperatorStatistics {
                     custom_statistics: statistics
                         .iter()
-                        .map(|attribute| {
-                            (
-                                attribute.key.clone(),
-                                query_engine_ui::OperatorStatistic {
-                                    value: attribute.value.clone(),
-                                    quantity: None,
-                                },
-                            )
+                        .map(|attribute| query_engine_ui::OperatorStatistic {
+                            value: attribute.clone(),
+                            quantity: None,
                         })
                         .collect(),
                 }
@@ -147,5 +138,49 @@ impl OperatorEntityMut for Operator {
             Some(existing) => existing.extend(&span),
             None => span,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quent_dynamic_attributes::{DynamicAttribute, DynamicStruct};
+
+    #[test]
+    fn ui_projection_preserves_producer_order_and_repeated_names() {
+        let fields = vec![
+            DynamicAttribute::u64("z", 3),
+            DynamicAttribute::structure(
+                "Work",
+                DynamicStruct(vec![
+                    DynamicAttribute::u64("second", 2),
+                    DynamicAttribute::u64("first", 1),
+                ]),
+            ),
+            DynamicAttribute::u64("z", 4),
+        ];
+        let operator = Operator::try_from_event(Event::new_now(
+            Uuid::from_u128(1),
+            schema::OperatorEvent::Statistics {
+                custom_attributes: fields.clone().into(),
+            },
+        ))
+        .unwrap();
+        let ui = operator.to_ui(TimeUnixNanoSec::default());
+        let statistics = ui.statistics.unwrap().custom_statistics;
+        assert_eq!(
+            statistics
+                .iter()
+                .map(|s| s.value.key.as_str())
+                .collect::<Vec<_>>(),
+            vec!["z", "Work", "z"]
+        );
+        assert_eq!(
+            statistics
+                .iter()
+                .map(|s| s.value.clone())
+                .collect::<Vec<_>>(),
+            fields
+        );
     }
 }

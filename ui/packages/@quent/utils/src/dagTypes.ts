@@ -1,16 +1,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { DynamicValue } from './types/index';
-
 // Pure-data types for DAG coloring, width configuration, and node/edge shapes.
 // These are kept in @quent/utils to avoid circular dependencies between
 // @quent/hooks (which holds DAG atoms) and @quent/components (which holds DAG rendering).
+
+import type { StatisticField } from './statisticFields';
 
 export type ContinuousNodeColoring = {
   type: 'continuous';
   values: Map<string, number>; // operatorId → numeric value
   min: number;
+  /** Lower bound for log scaling: the smallest positive value, so zeros don't stretch the scale. */
+  logMin: number;
   max: number;
 };
 
@@ -25,6 +27,8 @@ export type NodeColoring = ContinuousNodeColoring | CategoricalNodeColoring | nu
 export type EdgeWidthConfig = {
   values: Map<string, number>; // edgeId → numeric value
   min: number;
+  /** Lower bound for log scaling: the smallest positive value, so zeros don't stretch the scale. */
+  logMin: number;
   max: number;
 } | null;
 
@@ -32,6 +36,8 @@ export type ContinuousEdgeColoring = {
   type: 'continuous';
   values: Map<string, number>; // edgeId → numeric value
   min: number;
+  /** Lower bound for log scaling: the smallest positive value, so zeros don't stretch the scale. */
+  logMin: number;
   max: number;
 };
 
@@ -61,7 +67,40 @@ export const DAG_LAYOUT_DIRECTION = {
 
 export type DagLayoutDirection = (typeof DAG_LAYOUT_DIRECTION)[keyof typeof DAG_LAYOUT_DIRECTION];
 
-export type StatValue = DynamicValue | null;
+/** How edge values map to width and colour. */
+export const SCALE_TYPE = {
+  /** Spreads values across orders of magnitude; the default. */
+  LOG: 'log',
+  /** Keeps true proportions between values. */
+  LINEAR: 'linear',
+} as const;
+
+export type ScaleType = (typeof SCALE_TYPE)[keyof typeof SCALE_TYPE];
+
+/** A parsed struct keeps its identity even when it contains no fields. */
+export interface StatStruct {
+  kind: 'struct';
+  fields: Statistic[];
+}
+
+export interface Statistic {
+  key: string;
+  value: StatValue;
+  quantity?: string;
+}
+
+export type StatValue = string | number | bigint | boolean | null | StatStruct | StatValue[];
+
+export function isStatStruct(value: StatValue): value is StatStruct {
+  return (
+    typeof value === 'object' && value !== null && !Array.isArray(value) && value.kind === 'struct'
+  );
+}
+
+export interface DAGStatisticSet {
+  statistics: Statistic[];
+  fields: StatisticField[];
+}
 
 export interface DAGNode {
   id: string;
@@ -72,6 +111,9 @@ export interface DAGNode {
     estimates?: unknown[];
     identifier?: string;
     rawNode?: unknown;
+    aggregatedStatistics?: Statistic[];
+    operatorStatistics?: DAGStatisticSet;
+    relatedOperatorStatistics?: DAGStatisticSet[];
     stageId?: string;
     [key: string]: unknown;
   };
@@ -82,5 +124,12 @@ export interface DAGEdge {
   source: string;
   target: string;
   type?: 'smoothstep' | 'default' | 'straight';
+  sourcePortId?: string;
+  targetPortId?: string;
+  sourcePortName?: string;
+  targetPortName?: string;
+  targetPortStats?: Statistic[];
   portStats?: Array<{ key: string; value: StatValue }>; // from source port
+  statisticFields?: StatisticField[];
+  targetStatisticFields?: StatisticField[];
 }

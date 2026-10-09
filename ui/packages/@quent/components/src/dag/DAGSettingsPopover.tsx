@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
+import type { StatisticField } from '@quent/utils';
 import { Settings } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { DAGControls } from './DAGControls';
 
 interface DAGSettingsPopoverProps {
-  operatorStatFields: string[];
-  portStatFields: string[];
+  operatorStatFields: StatisticField[];
+  portStatFields: StatisticField[];
   isDark: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;

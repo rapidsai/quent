@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { QueryEntities } from '~quent/types/QueryEntities';
-import { workerDisplayName, type StatValue } from '@quent/utils';
+import { workerDisplayName, type Statistic } from '@quent/utils';
 import { parseCustomStatistics } from '@quent/components';
 import type { OperatorTableRow } from './types';
 
@@ -72,16 +72,10 @@ export function buildOperatorRows(
       const parentItemName =
         parentOps.length > 0 ? parentOps.map(p => p.instance_name ?? p.id).join(', ') : '-';
       const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
-      const stats: Record<string, StatValue> = {
-        duration_s: duration !== null ? Number(duration.toFixed(6)) : null,
-      };
-      const statQuantities: Record<string, string> = {};
-      for (const stat of parseCustomStatistics(op)) {
-        stats[stat.key] = stat.value;
-        if (stat.quantity) {
-          statQuantities[stat.key] = stat.quantity;
-        }
-      }
+      const stats: Statistic[] = [
+        { key: 'duration_s', value: duration !== null ? Number(duration.toFixed(6)) : null },
+        ...parseCustomStatistics(op),
+      ];
       rows.push({
         partitionId,
         partitionLabel,
@@ -94,7 +88,6 @@ export function buildOperatorRows(
         itemName,
         itemId: op.id,
         stats,
-        statQuantities,
       });
     }
   }

@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useCallback } from 'react';
-import { PivotedStatTable, PivotTableToolbar, getSchemaStatNames } from '@quent/components';
-import { formatStatWithQuantity } from '@quent/utils';
+import {
+  PivotedStatTable,
+  PivotTableToolbar,
+  formatStatValue,
+  getSchemaStatNames,
+} from '@quent/components';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -120,27 +124,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const allRows = useMemo(
     () => buildOperatorRows(entities, includedPlanIds),
     [entities, includedPlanIds]
-  );
-
-  const statQuantityNames = useMemo(() => {
-    const result: Record<string, string> = {};
-    for (const row of allRows) {
-      for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
-        if (!(statKey in result)) {
-          result[statKey] = quantityName;
-        }
-      }
-    }
-    return result;
-  }, [allRows]);
-
-  const formatNumericValue = useCallback(
-    (value: number, statName: string) => {
-      const quantityName = statQuantityNames[statName];
-      const spec = quantityName ? quantitySpecs?.[quantityName] : undefined;
-      return formatStatWithQuantity(value, statName, spec);
-    },
-    [statQuantityNames, quantitySpecs]
   );
 
   // When the DAG has a selection, narrow the table to just the matching
@@ -326,8 +309,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const renderConfig = useMemo(
     (): PivotTableRenderConfig => ({
       getGroupTypeColor: getOperatorGroupTypeColor,
+      formatValue: (value, statName, quantity) =>
+        formatStatValue(value, statName, quantitySpecs, quantity),
     }),
-    [getOperatorGroupTypeColor]
+    [getOperatorGroupTypeColor, quantitySpecs]
   );
 
   if (!selectedPlanId) {
@@ -378,7 +363,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           virtualization={VIRTUALIZATION_CONFIG}
           sorting={sorting}
           onSortingChange={setSorting}
-          formatNumericValue={formatNumericValue}
         />
       </div>
     </div>

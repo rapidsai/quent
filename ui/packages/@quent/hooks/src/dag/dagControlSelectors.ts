@@ -13,6 +13,7 @@ import {
   selectedEdgeWidthFieldAtom,
   edgeWidthConfigAtom,
   selectedEdgeColorFieldAtom,
+  selectedScaleTypeAtom,
   edgeColoringAtom,
   edgeColorPaletteAtom,
   selectedNodeLabelFieldAtom,
@@ -56,6 +57,10 @@ export function useEdgeColoring() {
 
 export function useEdgeColorPalette() {
   return useAtom(edgeColorPaletteAtom);
+}
+
+export function useSelectedScaleType() {
+  return useAtom(selectedScaleTypeAtom);
 }
 
 export function useSelectedNodeLabelField() {

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { StatValue } from '@quent/utils';
+import type { Statistic } from '@quent/utils';
 
 export type OperatorTableIndexKey =
   'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
@@ -33,7 +33,5 @@ export interface OperatorTableRow {
   itemType: string;
   itemName: string;
   itemId: string;
-  stats: Record<string, StatValue>;
-  /** Maps stat key → quantity name (key into QueryBundle.quantity_specs) for stats that have one. */
-  statQuantities: Record<string, string>;
+  stats: Statistic[];
 }

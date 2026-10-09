@@ -439,6 +439,11 @@ describe('isBytesStat', () => {
 // ---------------------------------------------------------------------------
 
 describe('isCountStat', () => {
+  it('returns true for bare row and batch names', () => {
+    expect(isCountStat('rows')).toBe(true);
+    expect(isCountStat('batches')).toBe(true);
+  });
+
   it('returns true for names containing _rows', () => {
     expect(isCountStat('output_rows')).toBe(true);
     expect(isCountStat('input_rows_filtered')).toBe(true);
@@ -492,6 +497,7 @@ describe('inferFieldFormatter', () => {
     const fmtRows = inferFieldFormatter('output_rows');
     expect(fmtRows(500)).toBe('500.00 ');
     expect(fmtRows(1500)).toBe('1.50 k');
+    expect(inferFieldFormatter('rows')(8_237_168)).toBe('8.24 M');
 
     const fmtBatches = inferFieldFormatter('spill_batches');
     expect(fmtBatches(2000)).toBe('2.00 k');
@@ -635,13 +641,26 @@ describe('unwrapTaggedValue', () => {
     expect(unwrapTaggedValue(42)).toBe(42);
     expect(unwrapTaggedValue('task-0')).toBe('task-0');
     expect(unwrapTaggedValue(null)).toBe(null);
+    expect(unwrapTaggedValue(undefined)).toBe(null);
   });
 
   it('unwraps lists and struct entries', () => {
-    expect(unwrapTaggedValue({ List: { U64: [1, 2] } })).toEqual(['1', '2']);
-    expect(unwrapTaggedValue({ Struct: [{ key: 'tier', value: { String: 'GPU' } }] })).toEqual([
-      'tier: GPU',
-    ]);
+    expect(unwrapTaggedValue({ List: { U64: [1, 2] } })).toEqual([1, 2]);
+    expect(unwrapTaggedValue({ Struct: [{ key: 'tier', value: { String: 'GPU' } }] })).toEqual({
+      kind: 'struct',
+      fields: [{ key: 'tier', value: 'GPU' }],
+    });
+  });
+
+  it('stringifies malformed structs containing bigints without losing precision', () => {
+    expect(unwrapTaggedValue({ Struct: [9007199254740993n] })).toBe('["9007199254740993"]');
+    expect(unwrapTaggedValue({ Struct: [{ invalid: [1n] }] })).toBe('[{"invalid":["1"]}]');
+  });
+
+  it('stringifies unknown objects containing nested bigints', () => {
+    expect(unwrapTaggedValue({ foo: 9007199254740993n, bar: [2n] })).toBe(
+      '{"foo":"9007199254740993","bar":["2"]}'
+    );
   });
 
   it('stringifies objects that are not tagged values', () => {
@@ -664,6 +683,26 @@ describe('isNumericValue', () => {
 });
 
 describe('formatAttributeValue', () => {
+  it('separates nested struct fields in inline displays while preserving repeated names', () => {
+    expect(
+      formatAttributeValue('device', {
+        Struct: [
+          { key: 'name', value: { String: 'GPU' } },
+          { key: 'count', value: { U64: 3 } },
+          { key: 'count', value: { U64: 4 } },
+          {
+            key: 'details',
+            value: { Struct: [{ key: 'input_bytes', value: { U64: 2048 } }] },
+          },
+        ],
+      })
+    ).toBe('name: GPU, count: 3, count: 4, details: input_bytes: 2.00 KiB');
+  });
+
+  it('renders malformed structs containing bigints', () => {
+    expect(formatAttributeValue('device', { Struct: [1n] })).toBe('["1"]');
+  });
+
   it('byte-formats bytes-like keys', () => {
     expect(formatAttributeValue('input_bytes', { U64: 1073741824 })).toBe('1.00 GiB');
     expect(formatAttributeValue('requested_bytes', 2048)).toBe('2.00 KiB');
@@ -676,6 +715,7 @@ describe('formatAttributeValue', () => {
 
   it('renders missing values as a dash', () => {
     expect(formatAttributeValue('anything', null)).toBe('—');
+    expect(formatAttributeValue('anything', undefined)).toBe('—');
   });
 
   it('handles bigint entity-attribute values (large U64/I64)', () => {
@@ -695,4 +735,38 @@ describe('bytes-rate attribute keys', () => {
     expect(formatAttributeValue('bytes_per_sec', { F64: 2_000_000_000 })).toBe('2.00 GB/s');
     expect(formatAttributeValue('bytes_per_sec', 5_000_000)).toBe('5.00 MB/s');
   });
+});
+
+it('retains deep struct order, repeated names and lists of lists of structs', () => {
+  const value = {
+    List: {
+      List: [
+        {
+          Struct: [
+            [
+              { key: 'z', value: { U64: 0 } },
+              { key: 'a', value: null },
+              { key: 'z', value: { U64: 2 } },
+            ],
+            [],
+          ],
+        },
+        { U64: [3, 4] },
+      ],
+    },
+  };
+  expect(unwrapTaggedValue(value)).toEqual([
+    [
+      {
+        kind: 'struct',
+        fields: [
+          { key: 'z', value: 0 },
+          { key: 'a', value: null },
+          { key: 'z', value: 2 },
+        ],
+      },
+      { kind: 'struct', fields: [] },
+    ],
+    [3, 4],
+  ]);
 });

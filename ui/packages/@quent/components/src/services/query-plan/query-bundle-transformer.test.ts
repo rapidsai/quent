@@ -50,7 +50,7 @@ function makeOperator(
     parent_operator_ids: opts.parentOperatorIds ?? [],
     instance_name: opts.instanceName ?? null,
     operator_type_name: opts.typeName ?? null,
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
   };
@@ -261,6 +261,11 @@ describe('getPlanDAG', () => {
   it('builds a node for each unique operator referenced by edges', () => {
     const op1 = makeOperator('op1', { typeName: 'Scan' });
     const op2 = makeOperator('op2', { typeName: 'Join' });
+    op1.statistics = {
+      custom_statistics: [
+        { value: { key: 'Work', value: [{ key: 'rows', value: 42 }] }, quantity: null },
+      ],
+    };
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
@@ -270,6 +275,19 @@ describe('getPlanDAG', () => {
     const ids = result.nodes.map(n => n.id);
     expect(ids).toContain('op1');
     expect(ids).toContain('op2');
+    expect(
+      result.nodes.find(node => node.id === 'op1')?.metadata?.operatorStatistics
+    ).toMatchObject({
+      fields: [
+        {
+          value: 42,
+          path: [
+            ['Work', 0],
+            ['rows', 0],
+          ],
+        },
+      ],
+    });
   });
 
   it('deduplicates nodes when the same operator appears in multiple edges', () => {
@@ -543,6 +561,61 @@ describe('getPlanDAG', () => {
     ]);
   });
 
+  it('sums related operator statistics for higher-level operator details', () => {
+    const logical = makeOperator('logical', { typeName: 'LogicalJoin', planId: 'logical-plan' });
+    const sibling = makeOperator('sibling', { typeName: 'LogicalScan', planId: 'logical-plan' });
+    const physicalA = makeOperator('physical-a', {
+      planId: 'physical-plan',
+      parentOperatorIds: ['logical'],
+    });
+    const physicalB = makeOperator('physical-b', {
+      planId: 'physical-plan',
+      parentOperatorIds: ['logical'],
+    });
+    physicalA.statistics = {
+      custom_statistics: [{ value: { key: 'rows', value: 4 }, quantity: 'rows' }],
+    };
+    physicalB.statistics = {
+      custom_statistics: [{ value: { key: 'rows', value: 6 }, quantity: 'rows' }],
+    };
+    const logicalPlan = makePlan('logical-plan', {
+      edges: [{ source: 'logical-port', target: 'sibling-port' }],
+    });
+    const bundle = makeBundle(
+      { 'logical-plan': logicalPlan, 'physical-plan': makePlan('physical-plan') },
+      {
+        operators: {
+          logical,
+          sibling,
+          'physical-a': physicalA,
+          'physical-b': physicalB,
+        },
+        ports: {
+          'logical-port': makePort('logical-port', 'logical'),
+          'sibling-port': makePort('sibling-port', 'sibling'),
+        },
+      }
+    );
+
+    const logicalNode = getPlanDAG(bundle, 'logical-plan').nodes.find(
+      node => node.id === 'logical'
+    );
+    expect(logicalNode?.metadata?.aggregatedStatistics).toEqual([
+      { key: 'rows', value: 10, quantity: 'rows' },
+    ]);
+
+    logical.statistics = {
+      custom_statistics: [{ value: { key: 'rows', value: 2 }, quantity: 'rows' }],
+    };
+    const logicalNodeWithOwnStats = getPlanDAG(bundle, 'logical-plan').nodes.find(
+      node => node.id === 'logical'
+    );
+    expect(logicalNodeWithOwnStats?.metadata?.aggregatedStatistics).toEqual([]);
+    expect(logicalNodeWithOwnStats?.metadata?.operatorStatistics?.statistics).toEqual([
+      { key: 'rows', value: 2, quantity: 'rows' },
+    ]);
+  });
+
   it('includes transitive related operator IDs', () => {
     const logical = makeOperator('logical', { typeName: 'LogicalJoin', planId: 'logical-plan' });
     const sibling = makeOperator('sibling', { typeName: 'LogicalScan', planId: 'logical-plan' });
@@ -622,4 +695,49 @@ describe('getPlanDAG', () => {
 
     expect(logicalNode.metadata!.relatedOperatorIds).toEqual(['physical']);
   });
+});
+
+it('hydrates sending and receiving port evidence separately for parallel pipes', () => {
+  const source = makeOperator('op1');
+  const target = makeOperator('op2');
+  const port1 = makePort('port1', 'op1');
+  const port2 = makePort('port2', 'op2');
+  port1.statistics = {
+    custom_statistics: [{ key: 'Volume', value: [{ key: 'bytes', value: 100 }] }],
+  };
+  port2.statistics = {
+    custom_statistics: [{ key: 'Volume', value: [{ key: 'bytes', value: 80 }] }],
+  };
+  const port3 = makePort('port3', 'op1');
+  const port4 = makePort('port4', 'op2');
+  const plan = makePlan('p1', {
+    edges: [
+      { source: 'port1', target: 'port2' },
+      { source: 'port3', target: 'port4' },
+    ],
+  });
+  const bundle = makeBundle(
+    { p1: plan },
+    { operators: { op1: source, op2: target }, ports: { port1, port2, port3, port4 } }
+  );
+  const { edges } = getPlanDAG(bundle, 'p1');
+  expect(edges.map(e => [e.sourcePortId, e.targetPortId])).toEqual([
+    ['port1', 'port2'],
+    ['port3', 'port4'],
+  ]);
+  expect(edges[0].portStats).toEqual([
+    { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 100 }] } },
+  ]);
+  expect(edges[0].statisticFields).toMatchObject([
+    {
+      value: 100,
+      path: [
+        ['Volume', 0],
+        ['bytes', 0],
+      ],
+    },
+  ]);
+  expect(edges[0].targetPortStats).toEqual([
+    { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 80 }] } },
+  ]);
 });

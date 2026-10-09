@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
+import { flattenStatistics } from '@quent/utils';
 import {
   entityRefToEntitiesKey,
   ENTITY_REF_TO_ENTITIES_KEY,
   parseCustomStatistics,
   parsePortStatistics,
-  resolveOperatorStat,
+  resolveStatisticFields,
 } from './queryBundle.utils';
 
 // ---- entityRefToEntitiesKey -----------------------------------------------
@@ -66,12 +67,10 @@ function makeOperator(custom_statistics: Record<string, unknown> | undefined) {
     statistics:
       custom_statistics !== undefined
         ? {
-            custom_statistics: Object.fromEntries(
-              Object.entries(custom_statistics).map(([key, value]) => [
-                key,
-                { value, quantity: null },
-              ])
-            ),
+            custom_statistics: Object.entries(custom_statistics).map(([key, value]) => ({
+              value: { key, value },
+              quantity: null,
+            })),
           }
         : undefined,
   };
@@ -97,12 +96,32 @@ describe('parseCustomStatistics', () => {
     expect(result).toEqual([{ key: 'rows', value: 42 }]);
   });
 
+  it('omits null and absent quantities while preserving empty quantity keys and falsy values', () => {
+    expect(
+      parseCustomStatistics({
+        statistics: {
+          custom_statistics: [
+            { value: { key: 'zero', value: 0 }, quantity: null },
+            { value: { key: 'false', value: false } },
+            { value: { key: 'empty', value: '' }, quantity: '' },
+            { value: { key: 'missing', value: undefined } },
+          ],
+        },
+      })
+    ).toEqual([
+      { key: 'zero', value: 0 },
+      { key: 'false', value: false },
+      { key: 'empty', value: '', quantity: '' },
+      { key: 'missing', value: null },
+    ]);
+  });
+
   it('preserves a quantity key', () => {
     const op = {
       statistics: {
-        custom_statistics: {
-          bytes: { value: makeTagged('UInt64', 1024), quantity: 'bytes' },
-        },
+        custom_statistics: [
+          { value: { key: 'bytes', value: makeTagged('UInt64', 1024) }, quantity: 'bytes' },
+        ],
       },
     };
     expect(parseCustomStatistics(op)).toEqual([{ key: 'bytes', value: 1024, quantity: 'bytes' }]);
@@ -158,50 +177,65 @@ describe('parseCustomStatistics', () => {
   });
 });
 
-// ---- resolveOperatorStat ---------------------------------------------------
+// ---- resolveStatisticFields ------------------------------------------------
 
 function makeQuantifiedOperator(field: string, value: number, quantity?: string) {
   return {
     statistics: {
-      custom_statistics: {
-        [field]: { value: makeTagged('UInt64', value), quantity: quantity ?? null },
-      },
+      custom_statistics: [
+        { value: { key: field, value: makeTagged('UInt64', value) }, quantity: quantity ?? null },
+      ],
     },
   };
 }
 
-describe('resolveOperatorStat', () => {
+const operatorFields = (operator: unknown) => flattenStatistics(parseCustomStatistics(operator));
+
+describe('resolveStatisticFields', () => {
   it('returns the direct statistic without aggregating related values', () => {
     expect(
-      resolveOperatorStat(
-        makeQuantifiedOperator('bytes', 10, 'bytes'),
-        [makeQuantifiedOperator('bytes', 20, 'bytes')],
+      resolveStatisticFields(
+        operatorFields(makeQuantifiedOperator('bytes', 10, 'bytes')),
+        [operatorFields(makeQuantifiedOperator('bytes', 20, 'bytes'))],
         'bytes'
       )
-    ).toEqual({ value: 10, quantity: 'bytes' });
+    ).toMatchObject({ key: 'bytes', value: 10, quantity: 'bytes' });
   });
 
   it('aggregates related values with a shared quantity', () => {
     expect(
-      resolveOperatorStat(
-        undefined,
+      resolveStatisticFields(
+        [],
         [
-          makeQuantifiedOperator('bytes', 10, 'bytes'),
-          makeQuantifiedOperator('bytes', 20, 'bytes'),
+          operatorFields(makeQuantifiedOperator('bytes', 10, 'bytes')),
+          operatorFields(makeQuantifiedOperator('bytes', 20, 'bytes')),
         ],
         'bytes'
       )
-    ).toEqual({ value: 30, quantity: 'bytes' });
+    ).toMatchObject({ key: 'bytes', value: 30, quantity: 'bytes' });
   });
 
   it('omits the quantity when related statistics disagree', () => {
     expect(
-      resolveOperatorStat(
-        undefined,
-        [makeQuantifiedOperator('size', 10, 'bytes'), makeQuantifiedOperator('size', 20, 'rows')],
+      resolveStatisticFields(
+        [],
+        [
+          operatorFields(makeQuantifiedOperator('size', 10, 'bytes')),
+          operatorFields(makeQuantifiedOperator('size', 20, 'rows')),
+        ],
         'size'
       )
-    ).toEqual({ value: 30 });
+    ).toMatchObject({ key: 'size', value: 30 });
+    expect(
+      resolveStatisticFields(
+        [],
+        [
+          operatorFields(makeQuantifiedOperator('size', 10, 'bytes')),
+          operatorFields(makeQuantifiedOperator('size', 20, 'rows')),
+        ],
+        'size'
+      )?.quantity
+    ).toBeUndefined();
   });
 });
 
@@ -209,7 +243,15 @@ describe('resolveOperatorStat', () => {
 
 function makePort(custom_statistics: Record<string, unknown> | undefined) {
   return {
-    statistics: custom_statistics !== undefined ? { custom_statistics } : undefined,
+    statistics:
+      custom_statistics !== undefined
+        ? {
+            custom_statistics: Object.entries(custom_statistics).map(([key, value]) => ({
+              key,
+              value,
+            })),
+          }
+        : undefined,
   };
 }
 
@@ -255,4 +297,28 @@ describe('parsePortStatistics', () => {
     expect(result.map(r => r.key)).toContain('rows');
     expect(result.map(r => r.key)).toContain('bytes');
   });
+});
+
+it('preserves producer order and repeated statistic names', () => {
+  const custom_statistics = [
+    { key: 'z', value: { U64: 3 } },
+    { key: 'a', value: { U64: 1 } },
+    { key: 'z', value: { U64: 4 } },
+  ];
+  expect(
+    parseCustomStatistics({
+      statistics: {
+        custom_statistics: custom_statistics.map(value => ({ value, quantity: null })),
+      },
+    })
+  ).toEqual([
+    { key: 'z', value: 3 },
+    { key: 'a', value: 1 },
+    { key: 'z', value: 4 },
+  ]);
+  expect(parsePortStatistics({ statistics: { custom_statistics } })).toEqual([
+    { key: 'z', value: 3 },
+    { key: 'a', value: 1 },
+    { key: 'z', value: 4 },
+  ]);
 });

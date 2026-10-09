@@ -36,6 +36,7 @@ import {
   useEdgeColorPalette,
   useSelectedEdgeWidthField,
   useSelectedEdgeColorField,
+  useSelectedScaleType,
   useHighlightedNodeIds,
   useSelectedDagLayoutDirection,
   useDataFlowEnabled,
@@ -50,26 +51,28 @@ import { DAGLegend } from './DAGLegend';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
 import { resolveDagHeatmap, resolveDagHighlightedNodeIds } from './dagInteraction';
-import { parseCustomStatistics } from '../lib/queryBundle.utils';
+import { parseOperatorAttributes } from '../lib/queryBundle.utils';
 import {
   continuousColor,
   inferFieldFormatter,
+  statisticFieldName,
   toggleOperatorSelection,
   type Operator,
+  type StatisticField,
   type QuantitySpec,
   type SelectedOperatorGroupData,
+  normalizeScaleValue,
 } from '@quent/utils';
 
 // Edge geometry constants
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
 const EDGE_STROKE_WIDTH_MIN = 2;
-const EDGE_STROKE_WIDTH_RANGE = 10; // stroke = MIN + t * RANGE → [2, 12] px
+const EDGE_STROKE_WIDTH_RANGE = 23; // stroke = MIN + t * RANGE → [2, 25] px
 const EDGE_DIMMED_OPACITY = 0.25;
 const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
 const ARROW_WIDTH_BASE = 8;
 const ARROW_DEPTH_RATIO = 0.6;
-const FALLBACK_NORMALIZED_T = 0.5; // used when min === max
 
 // Layout constants
 const FIT_VIEW_PADDING = 0.1;
@@ -107,16 +110,14 @@ const VariableWidthEdge = ({
   const highlightedNodeIds = interactionData?.highlightedNodeIds ?? null;
   const [edgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField] = useSelectedEdgeColorField();
+  const [scaleType] = useSelectedScaleType();
   const isDark = interactionData?.isDark ?? false;
 
   let strokeWidth = EDGE_STROKE_WIDTH_DEFAULT;
   if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      const t =
-        edgeWidthConfig.max > edgeWidthConfig.min
-          ? (v - edgeWidthConfig.min) / (edgeWidthConfig.max - edgeWidthConfig.min)
-          : FALLBACK_NORMALIZED_T;
+      const t = normalizeScaleValue(v, edgeWidthConfig, scaleType);
       strokeWidth = EDGE_STROKE_WIDTH_MIN + t * EDGE_STROKE_WIDTH_RANGE;
     }
   }
@@ -129,10 +130,7 @@ const VariableWidthEdge = ({
       if (v === undefined) {
         edgeDimmed = true;
       } else {
-        const t =
-          edgeColoring.max > edgeColoring.min
-            ? (v - edgeColoring.min) / (edgeColoring.max - edgeColoring.min)
-            : FALLBACK_NORMALIZED_T;
+        const t = normalizeScaleValue(v, edgeColoring, scaleType);
         edgeColor = continuousColor(t, edgePalette, isDark);
       }
     } else {
@@ -153,12 +151,13 @@ const VariableWidthEdge = ({
   });
   const isEdgeDimmed = edgeDimmed || dimFromInteraction;
 
+  const fields = data?.statisticFields as StatisticField[] | undefined;
   let edgeLabelValue: string | undefined;
   if (edgeColoring) {
     if (edgeColoring.type === 'continuous') {
       const v = edgeColoring.values.get(id);
       if (v !== undefined) {
-        edgeLabelValue = inferFieldFormatter(edgeColorField ?? '')(v);
+        edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeColorField, fields))(v);
       }
     } else {
       const v = edgeColoring.labelMap.get(id);
@@ -169,7 +168,7 @@ const VariableWidthEdge = ({
   } else if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
     if (v !== undefined) {
-      edgeLabelValue = inferFieldFormatter(edgeWidthField ?? '')(v);
+      edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeWidthField, fields))(v);
     }
   }
 
@@ -201,7 +200,6 @@ const VariableWidthEdge = ({
           <path
             d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
             fill={edgeColor ?? 'currentColor'}
-            opacity={isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1}
           />
         </marker>
       </defs>
@@ -287,12 +285,16 @@ function selectedOperatorDataFromFlowNode(
     nodeId: node.id,
     label: node.data.label,
     operationType: node.data.operationType,
-    statistics: parseCustomStatistics(node.data.metadata?.rawNode),
-    relatedOperators: node.data.metadata?.relatedOperators?.map(operator => ({
+    attributes: parseOperatorAttributes(node.data.metadata?.rawNode),
+    statistics: node.data.metadata?.aggregatedStatistics?.length
+      ? node.data.metadata.aggregatedStatistics
+      : (node.data.metadata?.operatorStatistics?.statistics ?? []),
+    relatedOperators: node.data.metadata?.relatedOperators?.map((operator, index) => ({
       nodeId: operator.id,
       label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
       operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
-      statistics: parseCustomStatistics(operator),
+      attributes: parseOperatorAttributes(operator),
+      statistics: node.data.metadata?.relatedOperatorStatistics?.[index]?.statistics ?? [],
     })),
   };
 }
@@ -388,13 +390,25 @@ const FlowLayout = ({
     return relatedOperatorIds.length > 0 ? [...relatedOperatorIds, node.id] : [node.id];
   }, []);
 
+  const statisticFields = useMemo(
+    () =>
+      new Map(
+        [
+          ...data.nodes.flatMap(node => node.metadata?.operatorStatistics?.fields ?? []),
+          ...data.edges.flatMap(edge => edge.statisticFields ?? []),
+        ].map(field => [field.key, field] as const)
+      ),
+    [data.nodes, data.edges]
+  );
+
   const statQuantitySpecs = useMemo((): Record<string, QuantitySpec> => {
     if (!data.quantitySpecs) {
       return {};
     }
     const result: Record<string, QuantitySpec> = {};
     for (const node of data.nodes) {
-      for (const stat of parseCustomStatistics(node.metadata?.rawNode)) {
+      const fields = node.metadata?.operatorStatistics?.fields ?? [];
+      for (const stat of fields) {
         if (stat.quantity && !(stat.key in result)) {
           const spec = data.quantitySpecs[stat.quantity];
           if (spec) {
@@ -445,7 +459,10 @@ const FlowLayout = ({
       target: edge.target,
       type: 'smoothstep',
       // Pass isDark down to edge components via data
-      data: { isDark },
+      data: {
+        isDark,
+        statisticFields: edge.statisticFields ?? [],
+      },
     }));
 
     return { flowNodes, flowEdges };
@@ -591,7 +608,11 @@ const FlowLayout = ({
       defaultEdgeOptions={{ type: 'smoothstep' }}
     >
       <Background />
-      <DAGLegend isDark={isDark} statQuantitySpecs={statQuantitySpecs} />
+      <DAGLegend
+        isDark={isDark}
+        statQuantitySpecs={statQuantitySpecs}
+        statisticFields={statisticFields}
+      />
       <MiniMap
         pannable
         zoomable

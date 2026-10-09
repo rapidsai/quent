@@ -2,12 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from './types';
-import { resolveOperatorStat } from '../../lib/queryBundle.utils';
+import { resolveStatisticFields } from '../../lib/queryBundle.utils';
 import {
   buildDeterministicColorMap,
   createDeterministicColorResolver,
   isNumericValue,
 } from '@quent/utils';
+
+/**
+ * Lower bound for log scaling. Non-negative data starts at its smallest positive
+ * value so zeros don't leave most of the scale empty. Signed data keeps its true
+ * minimum, because the symmetric log scale already places negatives and zero.
+ */
+function logScaleMin(values: readonly number[]): number {
+  let smallestPositive = Infinity;
+  let smallest = Infinity;
+  for (const v of values) {
+    smallest = Math.min(smallest, v);
+    if (v > 0) {
+      smallestPositive = Math.min(smallestPositive, v);
+    }
+  }
+  return smallest < 0 || !Number.isFinite(smallestPositive) ? smallest : smallestPositive;
+}
 
 export function computeNodeColoring(nodes: DAGNode[], field: string | null): NodeColoring {
   if (!field || !nodes.length) {
@@ -15,9 +32,14 @@ export function computeNodeColoring(nodes: DAGNode[], field: string | null): Nod
   }
 
   const entries = nodes.flatMap(node => {
-    const stat = resolveOperatorStat(
-      node.metadata?.rawNode,
-      node.metadata?.relatedOperators as unknown[] | undefined,
+    const operatorStatistics = node.metadata?.operatorStatistics;
+    const relatedOperatorStatistics = node.metadata?.relatedOperatorStatistics;
+    if (!operatorStatistics || !relatedOperatorStatistics) {
+      return [];
+    }
+    const stat = resolveStatisticFields(
+      operatorStatistics.fields,
+      relatedOperatorStatistics.map(statistics => statistics.fields),
       field
     );
     if (stat?.value == null) {
@@ -36,6 +58,7 @@ export function computeNodeColoring(nodes: DAGNode[], field: string | null): Nod
       type: 'continuous',
       values: new Map(entries.map(e => [e.id, Number(e.value)])),
       min: Math.min(...nums),
+      logMin: logScaleMin(nums),
       max: Math.max(...nums),
     };
   }
@@ -56,7 +79,7 @@ export function computeEdgeColoring(edges: DAGEdge[], field: string | null): Edg
   }
 
   const entries = edges.flatMap(edge => {
-    const stat = (edge.portStats ?? []).find(s => s.key === field);
+    const stat = edge.statisticFields?.find(statistic => statistic.key === field);
     if (stat?.value == null) {
       return [];
     }
@@ -73,6 +96,7 @@ export function computeEdgeColoring(edges: DAGEdge[], field: string | null): Edg
       type: 'continuous',
       values: new Map(entries.map(e => [e.id, Number(e.value)])),
       min: Math.min(...nums),
+      logMin: logScaleMin(nums),
       max: Math.max(...nums),
     };
   }
@@ -94,8 +118,13 @@ export function computeEdgeWidthConfig(edges: DAGEdge[], field: string | null): 
   }
 
   const entries = edges.flatMap(edge => {
-    const stat = (edge.portStats ?? []).find(s => s.key === field);
-    if (stat?.value == null || !isNumericValue(stat.value)) {
+    const stat = edge.statisticFields?.find(statistic => statistic.key === field);
+    if (
+      stat?.value == null ||
+      !isNumericValue(stat.value) ||
+      !Number.isFinite(Number(stat.value)) ||
+      Number(stat.value) < 0
+    ) {
       return [];
     }
     return [{ id: edge.id, value: Number(stat.value) }];
@@ -108,6 +137,7 @@ export function computeEdgeWidthConfig(edges: DAGEdge[], field: string | null): 
   return {
     values: new Map(entries.map(e => [e.id, e.value])),
     min: Math.min(...nums),
+    logMin: logScaleMin(nums),
     max: Math.max(...nums),
   };
 }

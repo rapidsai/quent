@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
+import { flattenStatistics, type StatisticField } from '@quent/utils';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -13,8 +14,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./DAGControls', () => ({
   DAGControls: (props: {
-    operatorStatFields: string[];
-    portStatFields: string[];
+    operatorStatFields: StatisticField[];
+    portStatFields: StatisticField[];
     isDark: boolean;
   }) => {
     mocks.dagControls(props);
@@ -26,8 +27,8 @@ function ControlledSettingsPopover() {
   const [open, setOpen] = useState(false);
   return (
     <DAGSettingsPopover
-      operatorStatFields={['duration']}
-      portStatFields={['rows']}
+      operatorStatFields={flattenStatistics([{ key: 'duration', value: 0 }])}
+      portStatFields={flattenStatistics([{ key: 'rows', value: 0 }])}
       isDark
       open={open}
       onOpenChange={setOpen}
@@ -53,8 +54,8 @@ describe('DAGSettingsPopover', () => {
 
     expect(screen.getByText('DAG controls')).toBeInTheDocument();
     expect(mocks.dagControls).toHaveBeenCalledWith({
-      operatorStatFields: ['duration'],
-      portStatFields: ['rows'],
+      operatorStatFields: flattenStatistics([{ key: 'duration', value: 0 }]),
+      portStatFields: flattenStatistics([{ key: 'rows', value: 0 }]),
       isDark: true,
     });
 

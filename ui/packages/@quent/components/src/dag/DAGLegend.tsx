@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { statisticFieldName, statisticFieldLabel, type StatisticField } from '@quent/utils';
 import { useMemo } from 'react';
 import { Panel } from '@xyflow/react';
 import {
@@ -10,13 +11,21 @@ import {
   useEdgeColorPalette,
   useSelectedColorField,
   useSelectedEdgeColorField,
+  useSelectedScaleType,
   useDataFlowEnabled,
   useDataFlowMeta,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
-import { cn, getLegendGradientStops } from '@quent/utils';
+import {
+  cn,
+  getLegendGradientStops,
+  scaleMidpoint,
+  SCALE_TYPE,
+  type ScaleType,
+} from '@quent/utils';
 import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/utils';
+import { Badge } from '../ui/badge';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
@@ -24,44 +33,62 @@ import type { ContinuousPaletteName } from '@quent/utils';
 const MAX_CATEGORICAL_ENTRIES = 8;
 
 interface ContinuousLegendProps {
-  field: string;
+  label: string;
   min: number;
   max: number;
   palette: ContinuousPaletteName;
   isDark: boolean;
-  formatValue?: (v: number) => string;
+  formatValue: (v: number) => string;
+  /** When set, a badge names the scale beside the title. */
+  scale?: ScaleType;
+  /** When set, labels the value halfway along the bar, which shows how the scale bends. */
+  midValue?: number;
 }
 
+const SCALE_LABELS: Record<ScaleType, string> = {
+  [SCALE_TYPE.LOG]: 'Log',
+  [SCALE_TYPE.LINEAR]: 'Linear',
+};
+
 const ContinuousLegend = ({
-  field,
+  label,
   min,
   max,
   palette,
   isDark,
   formatValue,
-}: ContinuousLegendProps) => {
-  const fmt = formatValue ?? inferFieldFormatter(field);
-  return (
-    <div className="flex flex-col gap-1">
+  scale,
+  midValue,
+}: ContinuousLegendProps) => (
+  <div className="flex flex-col gap-1">
+    <div className="flex items-center justify-between gap-2">
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-        {field}
+        {label}
       </span>
-      <div
-        className="h-2 w-36 rounded-sm"
-        style={{
-          background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
-        }}
-      />
-      <div className="flex justify-between">
-        <span className="text-[10px] text-muted-foreground">{fmt(min)}</span>
-        <span className="text-[10px] text-muted-foreground">{fmt(max)}</span>
-      </div>
+      {scale && (
+        <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">
+          {SCALE_LABELS[scale]}
+        </Badge>
+      )}
     </div>
-  );
-};
+    <div
+      className={cn('h-2 rounded-sm', midValue === undefined ? 'w-36' : 'w-full min-w-36')}
+      style={{
+        background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
+      }}
+    />
+    <div className="flex justify-between gap-2">
+      <span className="text-[10px] text-muted-foreground">{formatValue(min)}</span>
+      {midValue !== undefined && (
+        <span className="text-[10px] text-muted-foreground">{formatValue(midValue)}</span>
+      )}
+      <span className="text-[10px] text-muted-foreground">{formatValue(max)}</span>
+    </div>
+  </div>
+);
 
 interface CategoricalLegendProps {
-  field: string;
+  field: string | StatisticField;
   categoryMap: Map<string, string>;
   /**
    * Labels rendered greyed-out (e.g. deselected data-flow tiers) — still
@@ -89,7 +116,7 @@ export const CategoricalLegend = ({
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-        {field}
+        {statisticFieldLabel(field)}
       </span>
       <div className="flex flex-col gap-0.5">
         {entries.map(([label, color]) => {
@@ -135,11 +162,13 @@ export const CategoricalLegend = ({
 };
 
 function resolveFormatter(
-  field: string,
+  field: string | StatisticField,
   statQuantitySpecs: Record<string, QuantitySpec>
-): ((v: number) => string) | undefined {
-  const spec = statQuantitySpecs[field];
-  return spec ? (v: number) => formatQuantity(v, spec, 'Occupancy') : undefined;
+): (v: number) => string {
+  const spec = statQuantitySpecs[typeof field === 'string' ? field : field.key];
+  return spec
+    ? (v: number) => formatQuantity(v, spec, 'Occupancy')
+    : inferFieldFormatter(statisticFieldName(field));
 }
 
 function NodeLegendContent({
@@ -150,23 +179,26 @@ function NodeLegendContent({
   statQuantitySpecs,
 }: {
   coloring: NodeColoring;
-  field: string | null;
+  field: string | StatisticField | null;
   palette: ContinuousPaletteName;
   isDark: boolean;
   statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
+  const [scale] = useSelectedScaleType();
   if (!coloring || !field) {
     return null;
   }
   if (coloring.type === 'continuous') {
     return (
       <ContinuousLegend
-        field={field}
+        label={statisticFieldLabel(field)}
         min={coloring.min}
         max={coloring.max}
         palette={palette}
         isDark={isDark}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
+        scale={scale}
+        midValue={scaleMidpoint(coloring, scale)}
       />
     );
   }
@@ -181,23 +213,26 @@ function EdgeLegendContent({
   statQuantitySpecs,
 }: {
   coloring: EdgeColoring;
-  field: string | null;
+  field: string | StatisticField | null;
   palette: ContinuousPaletteName;
   isDark: boolean;
   statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
+  const [scale] = useSelectedScaleType();
   if (!coloring || !field) {
     return null;
   }
   if (coloring.type === 'continuous') {
     return (
       <ContinuousLegend
-        field={field}
+        label={statisticFieldLabel(field)}
         min={coloring.min}
         max={coloring.max}
         palette={palette}
         isDark={isDark}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
+        scale={scale}
+        midValue={scaleMidpoint(coloring, scale)}
       />
     );
   }
@@ -209,10 +244,11 @@ interface DAGLegendProps {
   isDark: boolean;
   /** Pre-resolved stat-key → QuantitySpec for quantity-aware legend formatting. */
   statQuantitySpecs?: Record<string, QuantitySpec>;
+  statisticFields?: ReadonlyMap<string, StatisticField>;
 }
 
 /** Panel overlay showing node/edge coloring legends within the ReactFlow canvas. */
-export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) => {
+export const DAGLegend = ({ isDark, statQuantitySpecs = {}, statisticFields }: DAGLegendProps) => {
   const nodeColoring = useNodeColoringValue();
   const edgeColoring = useEdgeColoring();
   const [nodePalette] = useNodeColorPalette();
@@ -268,7 +304,7 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) =>
       <div className="flex flex-col gap-2.5 rounded-md border bg-card/90 backdrop-blur-sm px-3 py-2.5 shadow-md text-card-foreground">
         <NodeLegendContent
           coloring={nodeColoring}
-          field={nodeField}
+          field={nodeField ? (statisticFields?.get(nodeField) ?? nodeField) : null}
           palette={nodePalette}
           isDark={isDark}
           statQuantitySpecs={statQuantitySpecs}
@@ -276,7 +312,7 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {} }: DAGLegendProps) =>
         {hasNode && hasEdge && <div className="border-t border-border" />}
         <EdgeLegendContent
           coloring={edgeColoring}
-          field={edgeField}
+          field={edgeField ? (statisticFields?.get(edgeField) ?? edgeField) : null}
           palette={edgePalette}
           isDark={isDark}
           statQuantitySpecs={statQuantitySpecs}

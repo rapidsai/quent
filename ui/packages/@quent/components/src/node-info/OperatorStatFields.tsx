@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { SelectedOperatorData } from '@quent/hooks';
-import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
+import type { QuantitySpec } from '@quent/utils';
 import { DataText } from '../ui/data-text';
+import { StatisticField, StatisticFields } from './StatisticFields';
 
 export const OperatorStatFields = ({
   operator,
@@ -13,38 +14,22 @@ export const OperatorStatFields = ({
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
 }) => (
   <>
-    <div className="text-xs flex items-center justify-between">
-      <DataText className="capitalize">ID:</DataText>
-      <DataText className="text-muted-foreground ml-1 truncate">{operator.nodeId}</DataText>
+    <div className="mb-2">
+      <StatisticField name="ID">
+        <DataText className="block truncate" title={operator.nodeId}>
+          {operator.nodeId}
+        </DataText>
+      </StatisticField>
     </div>
-    {operator.statistics.map(({ key, value, quantity }) => (
-      <div key={key} className="text-xs">
-        {Array.isArray(value) ? (
-          <div className="flex items-center justify-between gap-0.5">
-            <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
-            <div className="ml-2 flex flex-col gap-0.5">
-              {value.map((item, i) => (
-                <DataText key={i} className="text-muted-foreground whitespace-pre-line">
-                  {String(item)}
-                </DataText>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
-            <DataText className="text-muted-foreground ml-1">
-              {typeof value === 'number'
-                ? formatStatWithQuantity(
-                    value,
-                    key,
-                    quantity && quantitySpecs ? quantitySpecs[quantity] : undefined
-                  )
-                : String(value)}
-            </DataText>
-          </div>
-        )}
-      </div>
-    ))}
+    {operator.attributes?.length ? (
+      <section className="mb-3">
+        <h3 className="mb-1 text-xs font-semibold">Attributes</h3>
+        <StatisticFields statistics={operator.attributes} quantitySpecs={quantitySpecs} />
+      </section>
+    ) : null}
+    <section>
+      <h3 className="mb-1 text-xs font-semibold">Statistics</h3>
+      <StatisticFields statistics={operator.statistics} quantitySpecs={quantitySpecs} />
+    </section>
   </>
 );

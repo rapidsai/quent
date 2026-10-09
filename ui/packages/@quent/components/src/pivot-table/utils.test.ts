@@ -75,7 +75,7 @@ function makePivotedRow(
   return {
     groupKeys: [],
     rowKey: '',
-    values: new Map(Object.entries(values)),
+    values: new Map(Object.entries(values).map(([key, value]) => [key, [{ key, value }]])),
     aggs: aggMap,
     itemIds: new Set(),
     itemType: '-',
@@ -305,7 +305,7 @@ describe('getSchemaStatNames', () => {
     groups: {},
     itemId: r => r.id,
     scopeId: r => r.id,
-    stats: r => r.stats,
+    stats: r => Object.entries(r.stats).map(([key, value]) => ({ key, value })),
   };
 
   it('returns [] for empty rows', () => {
@@ -340,7 +340,7 @@ describe('expandRowsFromSchema', () => {
     },
     itemId: r => r.id,
     scopeId: r => r.plan,
-    stats: r => r.stats,
+    stats: r => Object.entries(r.stats).map(([key, value]) => ({ key, value })),
   };
 
   it('returns [] for empty rows', () => {

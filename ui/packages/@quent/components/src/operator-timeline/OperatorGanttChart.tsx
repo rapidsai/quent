@@ -11,10 +11,19 @@ import {
   useSetSelectedPlanId,
   useNodeColoringValue,
   useNodeColorPalette,
+  useSelectedScaleType,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
-import { continuousColor, withOpacity, toggleOperatorSelection, type Operator } from '@quent/utils';
+import {
+  continuousColor,
+  normalizeScaleValue,
+  withOpacity,
+  buildRelatedOperatorIdsById,
+  resolveSelectedOperatorSelections,
+  toggleOperatorSelection,
+  type Operator,
+} from '@quent/utils';
 import type { OperatorActiveSpanEntry } from './types';
 import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
 import type { GanttHover } from '../gantt-chart/hover';
@@ -58,6 +67,7 @@ export function OperatorGanttChart({
   const { textColor } = useTimelineEchartsTheme(isDark);
   const nodeColoring = useNodeColoringValue();
   const [nodePalette] = useNodeColorPalette();
+  const [scaleType] = useSelectedScaleType();
   const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const barLabelTextColor = textColor;
   const selectedOperatorIds = useSelectedOperatorIds();
@@ -103,10 +113,7 @@ export function OperatorGanttChart({
           styles.set(op.operatorId, { stroke: undefined, fieldDimmed: true });
           continue;
         }
-        const t =
-          nodeColoring.max > nodeColoring.min
-            ? (v - nodeColoring.min) / (nodeColoring.max - nodeColoring.min)
-            : 0.5;
+        const t = normalizeScaleValue(v, nodeColoring, scaleType);
         styles.set(op.operatorId, {
           stroke: continuousColor(t, nodePalette, isDark),
           fieldDimmed: false,
@@ -117,7 +124,7 @@ export function OperatorGanttChart({
       }
     }
     return styles;
-  }, [operators, nodeColoring, nodePalette, isDark]);
+  }, [operators, nodeColoring, nodePalette, isDark, scaleType]);
   const renderItem: GanttRenderItem = useCallback(
     (params, api) => {
       const layout = layoutGanttBar(params, api, {
@@ -200,17 +207,14 @@ export function OperatorGanttChart({
             ),
           });
         } else {
+          const relatedIds =
+            buildRelatedOperatorIdsById(allOperators, [op.operatorId]).get(op.operatorId) ?? [];
           updateOperatorSelection({
-            type: 'add',
-            selectionId: op.operatorId,
-            label: op.label,
-            operatorIds: [op.operatorId],
-            selectedData: {
-              nodeId: op.operatorId,
-              label: op.label,
-              operationType: op.typeName,
-              statistics: op.statistics,
-            },
+            type: 'replace',
+            selections: resolveSelectedOperatorSelections(allOperators, [
+              op.operatorId,
+              ...relatedIds,
+            ]),
           });
           if (op.planId) {
             setSelectedPlanId(op.planId);

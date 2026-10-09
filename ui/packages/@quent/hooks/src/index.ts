@@ -89,6 +89,7 @@ export {
   useEdgeColorPalette,
   useSelectedNodeLabelField,
   useSelectedDagLayoutDirection,
+  useSelectedScaleType,
   useSelectedOperatorsData,
   useHighlightedNodeIds,
   useSetHighlightedNodeIds,

@@ -6,7 +6,7 @@ import type { EntityRef } from '@quent/utils';
 import type { Operator } from '@quent/utils';
 import type { PlanTree } from '@quent/utils';
 import type { OperatorActiveSpanEntry } from './types';
-import { parseCustomStatistics } from '../lib/queryBundle.utils';
+import { parseCustomStatistics, parseOperatorAttributes } from '../lib/queryBundle.utils';
 import { stackIntervalsIntoRows } from '../gantt-chart/utils';
 
 /** Row type identifier for synthetic operator-timeline rows in the resource tree. */
@@ -101,6 +101,7 @@ function buildOperatorActiveSpanEntry(
     endMs,
     rowIndex: 0,
     planId: op.plan_id ?? fallbackPlanId ?? '',
+    attributes: parseOperatorAttributes(op),
     statistics: parseCustomStatistics(op),
   };
 }

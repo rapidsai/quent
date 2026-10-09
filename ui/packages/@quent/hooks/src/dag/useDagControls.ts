@@ -3,7 +3,14 @@
 
 import { useMemo, useEffect } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
-import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } from '@quent/utils';
+import {
+  type DAGNode,
+  type DAGEdge,
+  type NodeColoring,
+  type EdgeWidthConfig,
+  type EdgeColoring,
+  type StatisticField,
+} from '@quent/utils';
 import {
   selectedColorField,
   nodeColoringAtom,
@@ -17,7 +24,6 @@ import {
 type ComputeNodeColoringFn = (nodes: DAGNode[], field: string | null) => NodeColoring;
 type ComputeEdgeWidthConfigFn = (edges: DAGEdge[], field: string | null) => EdgeWidthConfig;
 type ComputeEdgeColoringFn = (edges: DAGEdge[], field: string | null) => EdgeColoring;
-type ParseCustomStatisticsFn = (rawNode: unknown) => Array<{ key: string; value?: unknown }>;
 
 export function useDagNodeColoring(nodes: DAGNode[], computeNodeColoring: ComputeNodeColoringFn) {
   const selectedField = useAtomValue(selectedColorField);
@@ -58,37 +64,37 @@ export function useDagEdgeColoring(edges: DAGEdge[], computeEdgeColoring: Comput
   }, [coloring, setEdgeColoring]);
 }
 
-export function useOperatorStatFields(
-  nodes: DAGNode[],
-  parseCustomStatistics: ParseCustomStatisticsFn
-): string[] {
+export function useOperatorStatFields(nodes: DAGNode[]): StatisticField[] {
   return useMemo(
     () => [
-      ...new Set(
+      ...new Map(
         nodes.flatMap(n => {
-          const own = parseCustomStatistics(n.metadata?.rawNode).map(s => s.key);
+          const own = n.metadata?.operatorStatistics?.fields ?? [];
           // Nodes that group operators (logical-plan nodes) get a value by
           // aggregating their related operators, which only works for numbers,
           // so only numeric related stats are offered.
-          const related = Array.isArray(n.metadata?.relatedOperators)
-            ? (n.metadata.relatedOperators as unknown[])
-            : [];
-          const aggregatable = related.flatMap(raw =>
-            parseCustomStatistics(raw)
-              .filter(s => typeof s.value === 'number' || typeof s.value === 'bigint')
-              .map(s => s.key)
+          const relatedFields =
+            n.metadata?.relatedOperatorStatistics?.map(statistics => statistics.fields) ?? [];
+          const aggregatable = relatedFields.flatMap(fields =>
+            fields.filter(s => typeof s.value === 'number' || typeof s.value === 'bigint')
           );
-          return [...own, ...aggregatable];
+          return [...own, ...aggregatable].map(s => [s.key, s] as const);
         })
-      ),
+      ).values(),
     ],
-    [nodes, parseCustomStatistics]
+    [nodes]
   );
 }
 
-export function usePortStatFields(edges: DAGEdge[]): string[] {
+export function usePortStatFields(edges: DAGEdge[]): StatisticField[] {
   return useMemo(
-    () => [...new Set(edges.flatMap(e => (e.portStats ?? []).map(s => s.key)))],
+    () => [
+      ...new Map(
+        edges.flatMap(e =>
+          (e.statisticFields ?? []).map(statistic => [statistic.key, statistic] as const)
+        )
+      ).values(),
+    ],
     [edges]
   );
 }

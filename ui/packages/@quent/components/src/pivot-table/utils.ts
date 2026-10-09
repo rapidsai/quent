@@ -6,8 +6,10 @@ import {
   getAggregateValue,
   inferFieldFormatter,
   isNumericValue,
+  isStatStruct,
+  formatStatWithQuantity,
 } from '@quent/utils';
-import type { StatValue, ContinuousPaletteName } from '@quent/utils';
+import type { StatValue, Statistic, QuantitySpec, ContinuousPaletteName } from '@quent/utils';
 import { continuousColor } from '@quent/utils';
 import type { GroupedDataTableSortFn } from './GroupedDataTable';
 
@@ -73,20 +75,47 @@ export function itemHasId(items: Iterable<string>, target: ReadonlySet<string>):
   return false;
 }
 
-export function formatStatValue(value: StatValue, statName: string): string {
+export function formatStatValue(
+  value: StatValue,
+  statName: string,
+  quantitySpecs?: Record<string, QuantitySpec | undefined>,
+  quantity?: string
+): string {
   if (value === null || value === undefined) {
     return '-';
   }
   if (isNumericValue(value)) {
-    return formatNumericStat(value, statName);
+    return formatStatWithQuantity(
+      value,
+      statName,
+      quantity !== undefined ? quantitySpecs?.[quantity] : undefined
+    );
   }
   if (typeof value === 'boolean') {
     return value ? 'true' : 'false';
   }
+  if (isStatStruct(value)) {
+    return value.fields
+      .map(
+        field =>
+          `${field.key}: ${formatStatValue(field.value, field.key, quantitySpecs, field.quantity)}`
+      )
+      .join(', ');
+  }
   if (Array.isArray(value)) {
-    return value.join(', ');
+    return value.map(item => formatStatValue(item, statName, quantitySpecs, quantity)).join(', ');
   }
   return String(value);
+}
+
+/** Only a single scalar statistic defines a numeric cell. */
+export function getNumericCellValue(
+  statistics: readonly Statistic[] | undefined
+): number | bigint | null {
+  if (statistics?.length !== 1) {
+    return null;
+  }
+  return isNumericValue(statistics[0].value) ? statistics[0].value : null;
 }
 
 // --- color gradient ---
@@ -137,7 +166,7 @@ export function getSchemaStatNames<TRow>(
   const names: string[] = [];
   for (const row of rows) {
     const stats = schema.stats(row);
-    for (const statName of Object.keys(stats)) {
+    for (const { key: statName } of stats) {
       if (seen.has(statName)) {
         continue;
       }
@@ -167,7 +196,7 @@ export function expandRowsFromSchema<TRow>(
       groups.item?.id ??
       groups.partition?.id ??
       '-';
-    for (const [statisticName, value] of Object.entries(schema.stats(row))) {
+    for (const { key: statisticName, value, quantity } of schema.stats(row)) {
       expanded.push({
         groups,
         itemType,
@@ -175,6 +204,7 @@ export function expandRowsFromSchema<TRow>(
         scopeId,
         statisticName,
         value,
+        ...(quantity !== undefined ? { quantity } : {}),
       });
     }
   }
@@ -218,11 +248,7 @@ export function getSortValue(
   aggMode: AggMode
 ): number | bigint | null {
   if (!isAgg) {
-    const v = row.values.get(stat);
-    if (v === undefined) {
-      return null;
-    }
-    return isNumericValue(v) ? v : null;
+    return getNumericCellValue(row.values.get(stat));
   }
   const agg = row.aggs.get(stat);
   if (!agg || !agg.isNumeric) {
@@ -234,8 +260,18 @@ export function getSortValue(
 type Accumulator = {
   keys: GroupKeyEntry[];
   rowKey: string;
-  values: Map<string, StatValue>;
-  aggBuckets: Map<string, { nums: number[]; bigints: bigint[]; count: number }>;
+  values: Map<string, Statistic[]>;
+  aggBuckets: Map<
+    string,
+    {
+      nums: number[];
+      bigints: bigint[];
+      count: number;
+      itemIds: Set<string>;
+      quantities: Set<string | undefined>;
+      repeated: boolean;
+    }
+  >;
   itemIds: Set<string>;
   itemScopeIds: Map<string, string>;
   itemType: string;
@@ -285,13 +321,33 @@ export function buildPivotedRows(
     group.itemScopeIds.set(row.itemId, row.scopeId);
 
     if (!isAggregating) {
-      group.values.set(row.statisticName, row.value);
+      const statistic: Statistic = {
+        key: row.statisticName,
+        value: row.value,
+        ...(row.quantity !== undefined ? { quantity: row.quantity } : {}),
+      };
+      const entries = group.values.get(row.statisticName);
+      if (entries) {
+        entries.push(statistic);
+      } else {
+        group.values.set(row.statisticName, [statistic]);
+      }
     } else {
       let bucket = group.aggBuckets.get(row.statisticName);
       if (!bucket) {
-        bucket = { nums: [], bigints: [], count: 0 };
+        bucket = {
+          nums: [],
+          bigints: [],
+          count: 0,
+          itemIds: new Set(),
+          quantities: new Set(),
+          repeated: false,
+        };
         group.aggBuckets.set(row.statisticName, bucket);
       }
+      bucket.repeated ||= bucket.itemIds.has(row.itemId);
+      bucket.itemIds.add(row.itemId);
+      bucket.quantities.add(row.quantity);
       bucket.count++;
       if (typeof row.value === 'bigint') {
         bucket.bigints.push(row.value);
@@ -306,7 +362,10 @@ export function buildPivotedRows(
     const aggs = new Map<string, PivotedRowAgg>();
     if (isAggregating) {
       for (const [stat, bucket] of group.aggBuckets) {
-        const aggregates = aggregateNumericValues([...bucket.nums, ...bucket.bigints]);
+        const aggregates =
+          !bucket.repeated && bucket.quantities.size === 1
+            ? aggregateNumericValues([...bucket.nums, ...bucket.bigints])
+            : null;
         aggs.set(stat, {
           sum: aggregates?.sum ?? null,
           mean: aggregates?.mean ?? null,
@@ -315,6 +374,9 @@ export function buildPivotedRows(
           stdev: aggregates?.stdev ?? null,
           count: bucket.count,
           isNumeric: aggregates !== null,
+          ...(bucket.quantities.size === 1 && bucket.quantities.has(undefined) === false
+            ? { quantity: [...bucket.quantities][0] }
+            : {}),
         });
       }
     }

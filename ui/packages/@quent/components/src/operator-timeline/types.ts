@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { StatValue } from '../services/query-plan/types';
+import type { Statistic } from '@quent/utils';
 
 /**
  * One operator with an active span, normalized for chart consumption.
@@ -19,6 +19,8 @@ export type OperatorActiveSpanEntry = {
   rowIndex: number;
   /** Plan ID this operator belongs to. */
   planId: string;
+  /** Pre-computed custom attributes for the operator popup. */
+  attributes?: Statistic[];
   /** Pre-computed custom statistics for the operator popup. */
-  statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
+  statistics: Statistic[];
 };

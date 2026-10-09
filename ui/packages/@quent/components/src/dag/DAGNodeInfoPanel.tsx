@@ -31,7 +31,7 @@ export const DAGNodeInfoPanel = ({
   const isPlaying = useDataFlowIsPlaying();
   const dataFlowMeta = useDataFlowMeta();
   const dataFlowFrame = useDataFlowFrame();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(selectedOperators.length > 0);
   const [activeTab, setActiveTab] = useState('stats');
   const [closedOperatorIds, setClosedOperatorIds] = useState<Set<string>>(() => new Set());
   const headerRef = useRef<HTMLDivElement>(null);
@@ -40,13 +40,10 @@ export const DAGNodeInfoPanel = ({
   const dataFlowContentRef = useRef<HTMLDivElement>(null);
   const hasSelection = selectedOperators.length > 0;
   const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
-  const updateExpanded = useCallback(
-    (expanded: boolean) => {
-      setIsExpanded(expanded);
-      onExpandedChange?.(expanded);
-    },
-    [onExpandedChange]
-  );
+  // Notify the containing resizable panel after committing local expansion state.
+  useLayoutEffect(() => {
+    onExpandedChange?.(isExpanded);
+  }, [isExpanded, onExpandedChange]);
 
   const showDataFlowTab = dataFlowEnabled && dataFlowMeta != null;
   const isOperatorOpen = (id: string) => !closedOperatorIds.has(id);
@@ -71,7 +68,7 @@ export const DAGNodeInfoPanel = ({
   const [prevHasSelection, setPrevHasSelection] = useState(hasSelection);
   if (hasSelection !== prevHasSelection) {
     setPrevHasSelection(hasSelection);
-    updateExpanded(hasSelection);
+    setIsExpanded(hasSelection);
     if (!hasSelection) {
       setActiveTab('stats');
     }
@@ -197,7 +194,7 @@ export const DAGNodeInfoPanel = ({
           </span>
         </div>
         <button
-          onClick={() => updateExpanded(!isExpanded)}
+          onClick={() => setIsExpanded(!isExpanded)}
           disabled={!hasSelection}
           className="ml-2 rounded p-1 hover:bg-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-auto disabled:hover:bg-transparent flex-shrink-0"
           aria-label="Toggle operator details"

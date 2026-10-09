@@ -2,14 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  EntityRefKey,
   aggregateToNumber,
   isNumericValue,
   unwrapTaggedValue,
   type AggMode,
+  type EntityRefKey,
+  type QueryEntities,
+  type Operator,
+  type Port,
+  type Statistic,
+  type StatisticField,
 } from '@quent/utils';
-import { QueryEntities, Operator } from '@quent/utils';
-import { StatValue } from '../services/query-plan/types';
 
 // Maps entity ref string to a key in the entities object.
 // Application entities have no corresponding collection in QueryEntities, so they are omitted.
@@ -32,81 +35,65 @@ export function entityRefToEntitiesKey(entityRef: EntityRefKey): keyof QueryEnti
   return ENTITY_REF_TO_ENTITIES_KEY[entityRef];
 }
 
-export function parseCustomStatistics(
-  rawNode: unknown
-): Array<{ key: string; value: StatValue; quantity?: string }> {
-  const statistics = (rawNode as Operator)?.statistics?.custom_statistics;
-  if (!statistics) {
-    return [];
-  }
-
-  return Object.entries(statistics).map(([key, statistic]) => {
-    const { value, quantity } = statistic;
-    return {
+export function parseCustomStatistics(rawNode: unknown): Statistic[] {
+  return ((rawNode as Operator)?.statistics?.custom_statistics ?? []).map(
+    ({ value: { key, value }, quantity }) => ({
       key,
-      value: value ? unwrapTaggedValue(value) : null,
-      ...(quantity !== null ? { quantity } : {}),
-    };
-  });
-}
-
-export interface ResolvedOperatorStat {
-  value: StatValue;
-  quantity?: string;
+      value: unwrapTaggedValue(value),
+      ...(quantity !== null && quantity !== undefined ? { quantity } : {}),
+    })
+  );
 }
 
 /**
- * Resolves a node's value for a statistic. A node's own statistic wins; a
- * node that groups other operators (e.g. a logical-plan node) has none, so
+ * Resolves a node's value for a statistic field. A node's own statistic wins;
+ * a node that groups other operators (e.g. a logical-plan node) has none, so
  * its numeric value is aggregated from the related operators with `aggMode`
  * (the same rule the pivot table column hover uses). Non-numeric statistics
  * are never aggregated.
  */
-export function resolveOperatorStat(
-  rawNode: unknown,
-  relatedOperators: readonly unknown[] | undefined,
+export function resolveStatisticFields(
+  ownFields: readonly StatisticField[],
+  relatedFields: readonly (readonly StatisticField[])[],
   field: string,
   aggMode: AggMode = 'sum'
-): ResolvedOperatorStat | undefined {
-  const own = parseCustomStatistics(rawNode).find(s => s.key === field);
+): StatisticField | undefined {
+  const own = ownFields.find(statistic => statistic.key === field);
   if (own?.value != null) {
-    return {
-      value: own.value,
-      ...(own.quantity !== undefined ? { quantity: own.quantity } : {}),
-    };
+    return own;
   }
-  const related = (relatedOperators ?? []).flatMap(operator => {
-    const stat = parseCustomStatistics(operator).find(s => s.key === field);
+
+  const related = relatedFields.flatMap(fields => {
+    const stat = fields.find(statistic => statistic.key === field);
     return stat?.value != null && isNumericValue(stat.value) ? [stat] : [];
   });
   const value = aggregateToNumber(
     related.map(s => s.value as number | bigint),
     aggMode
   );
-  if (value === undefined) {
+  if (value === undefined || related.length === 0) {
     return undefined;
   }
-  const quantity = related[0]?.quantity;
+
+  const { quantity, ...base } = related[0];
   const hasConsistentQuantity = related.every(stat => stat.quantity === quantity);
   return {
+    ...base,
     value,
     ...(hasConsistentQuantity && quantity !== undefined ? { quantity } : {}),
   };
 }
 
-export function parsePortStatistics(rawPort: unknown): Array<{ key: string; value: StatValue }> {
-  const port = rawPort as Record<string, unknown> | undefined;
-  const statistics = port?.statistics as
-    { custom_statistics?: Record<string, unknown> } | undefined;
-  const custom = statistics?.custom_statistics;
-  if (!custom) {
-    return [];
-  }
-
-  return Object.entries(custom).map(([key, tagged]) => ({
+export function parsePortStatistics(rawPort: unknown): Statistic[] {
+  return ((rawPort as Port)?.statistics?.custom_statistics ?? []).map(({ key, value }) => ({
     key,
-    value: tagged
-      ? unwrapTaggedValue(Object.values(tagged as unknown as Record<string, unknown>)[0])
-      : null,
+    value: unwrapTaggedValue(value),
+  }));
+}
+
+export function parseOperatorAttributes(rawNode: unknown): Statistic[] {
+  return ((rawNode as Operator)?.custom_attributes ?? []).map(({ key, value }) => ({
+    key,
+    value: unwrapTaggedValue(value),
   }));
 }
