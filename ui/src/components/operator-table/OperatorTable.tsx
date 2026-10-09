@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useCallback } from 'react';
-import { PivotedStatTable, PivotTableToolbar, getSchemaStatNames } from '@quent/components';
+import {
+  PivotedStatTable,
+  PivotTableToolbar,
+  formatStatValue,
+  getSchemaStatNames,
+} from '@quent/components';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -304,8 +309,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const renderConfig = useMemo(
     (): PivotTableRenderConfig => ({
       getGroupTypeColor: getOperatorGroupTypeColor,
+      formatValue: (value, statName, quantity) =>
+        formatStatValue(value, statName, quantitySpecs, quantity),
     }),
-    [getOperatorGroupTypeColor]
+    [getOperatorGroupTypeColor, quantitySpecs]
   );
 
   if (!selectedPlanId) {
@@ -356,7 +363,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           virtualization={VIRTUALIZATION_CONFIG}
           sorting={sorting}
           onSortingChange={setSorting}
-          quantitySpecs={quantitySpecs}
         />
       </div>
     </div>
