@@ -25,44 +25,41 @@ import type { ContinuousPaletteName } from '@quent/utils';
 const MAX_CATEGORICAL_ENTRIES = 8;
 
 interface ContinuousLegendProps {
-  field: string | StatisticField;
+  label: string;
   min: number;
   max: number;
   palette: ContinuousPaletteName;
   isDark: boolean;
-  formatValue?: (v: number) => string;
+  formatValue: (v: number) => string;
   logarithmic?: boolean;
 }
 
 const ContinuousLegend = ({
-  field,
+  label,
   min,
   max,
   palette,
   isDark,
   formatValue,
   logarithmic = false,
-}: ContinuousLegendProps) => {
-  const fmt = formatValue ?? inferFieldFormatter(statisticFieldName(field));
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-        {statisticFieldLabel(field)}
-        {logarithmic && ' (log scale)'}
-      </span>
-      <div
-        className="h-2 w-36 rounded-sm"
-        style={{
-          background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
-        }}
-      />
-      <div className="flex justify-between">
-        <span className="text-[10px] text-muted-foreground">{fmt(min)}</span>
-        <span className="text-[10px] text-muted-foreground">{fmt(max)}</span>
-      </div>
+}: ContinuousLegendProps) => (
+  <div className="flex flex-col gap-1">
+    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+      {label}
+      {logarithmic && ' (log scale)'}
+    </span>
+    <div
+      className="h-2 w-36 rounded-sm"
+      style={{
+        background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
+      }}
+    />
+    <div className="flex justify-between">
+      <span className="text-[10px] text-muted-foreground">{formatValue(min)}</span>
+      <span className="text-[10px] text-muted-foreground">{formatValue(max)}</span>
     </div>
-  );
-};
+  </div>
+);
 
 interface CategoricalLegendProps {
   field: string | StatisticField;
@@ -141,9 +138,11 @@ export const CategoricalLegend = ({
 function resolveFormatter(
   field: string | StatisticField,
   statQuantitySpecs: Record<string, QuantitySpec>
-): ((v: number) => string) | undefined {
+): (v: number) => string {
   const spec = statQuantitySpecs[typeof field === 'string' ? field : field.key];
-  return spec ? (v: number) => formatQuantity(v, spec, 'Occupancy') : undefined;
+  return spec
+    ? (v: number) => formatQuantity(v, spec, 'Occupancy')
+    : inferFieldFormatter(statisticFieldName(field));
 }
 
 function NodeLegendContent({
@@ -165,7 +164,7 @@ function NodeLegendContent({
   if (coloring.type === 'continuous') {
     return (
       <ContinuousLegend
-        field={field}
+        label={statisticFieldLabel(field)}
         min={coloring.min}
         max={coloring.max}
         palette={palette}
@@ -196,7 +195,7 @@ function EdgeLegendContent({
   if (coloring.type === 'continuous') {
     return (
       <ContinuousLegend
-        field={field}
+        label={statisticFieldLabel(field)}
         min={coloring.min}
         max={coloring.max}
         palette={palette}
