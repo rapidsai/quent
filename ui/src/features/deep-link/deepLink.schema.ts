@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   CONTINUOUS_PALETTES,
   DAG_LAYOUT_DIRECTION,
+  EDGE_SCALE_TYPE,
   NODE_LABEL_FIELD,
   AGG_MODES,
 } from '@quent/utils';
@@ -187,6 +188,7 @@ const DagControlsSchema = z
     edgeColorPalette: ContinuousPaletteSchema.optional(),
     nodeLabelField: z.enum(NODE_LABEL_FIELD).optional(),
     layoutDirection: z.enum(DAG_LAYOUT_DIRECTION).optional(),
+    edgeScaleType: z.enum(EDGE_SCALE_TYPE).optional(),
   })
   .strip();
 

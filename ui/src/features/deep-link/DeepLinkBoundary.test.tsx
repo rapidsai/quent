@@ -304,6 +304,7 @@ describe('DeepLinkBoundary', () => {
         edgeColorPalette: 'purple',
         nodeLabelField: 'type',
         layoutDirection: 'top-to-bottom',
+        edgeScaleType: 'linear',
       },
       dataFlow: {
         enabled: false,
@@ -353,6 +354,7 @@ describe('DeepLinkBoundary', () => {
           edgeColorPalette: 'purple',
           nodeLabelField: 'type',
           layoutDirection: 'top-to-bottom',
+          edgeScaleType: 'linear',
         },
         dataFlow: {
           enabled: false,

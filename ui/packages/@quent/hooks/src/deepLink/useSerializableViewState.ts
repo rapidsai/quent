@@ -8,6 +8,7 @@ import {
   resolveSelectedOperatorSelections,
   type ContinuousPaletteName,
   type DagLayoutDirection,
+  type EdgeScaleType,
   type NodeLabelField,
   type Operator,
 } from '@quent/utils';
@@ -31,6 +32,7 @@ import {
   selectedColorField,
   selectedDagLayoutDirectionAtom,
   selectedEdgeColorFieldAtom,
+  selectedEdgeScaleTypeAtom,
   selectedEdgeWidthFieldAtom,
   selectedNodeLabelFieldAtom,
 } from '../atoms/dagControls';
@@ -52,6 +54,7 @@ export interface SerializableDagControls {
   edgeColorPalette: ContinuousPaletteName;
   nodeLabelField: NodeLabelField;
   layoutDirection: DagLayoutDirection;
+  edgeScaleType: EdgeScaleType;
 }
 
 export interface SerializableDataFlowState {
@@ -122,6 +125,7 @@ export function useSerializableViewState({
         edgeColorPalette: store.get(edgeColorPaletteAtom),
         nodeLabelField: store.get(selectedNodeLabelFieldAtom),
         layoutDirection: store.get(selectedDagLayoutDirectionAtom),
+        edgeScaleType: store.get(selectedEdgeScaleTypeAtom),
       },
       dataFlow: {
         enabled: store.get(dataFlowEnabledAtom),
@@ -186,6 +190,9 @@ export function useSerializableViewState({
       }
       if (dag?.layoutDirection !== undefined) {
         store.set(selectedDagLayoutDirectionAtom, dag.layoutDirection);
+      }
+      if (dag?.edgeScaleType !== undefined) {
+        store.set(selectedEdgeScaleTypeAtom, dag.edgeScaleType);
       }
 
       const dataFlow = state.dataFlow;
