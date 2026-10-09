@@ -14,6 +14,16 @@ use uuid::Uuid;
 use super::sequence::EventSequence;
 use super::{BorrowedEventSequenceStore, EntityHandle, EntityStore, OwnedEventSequenceStore};
 
+/// Identity, timestamp bounds, and event count of a non-empty entity sequence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EntityProperties {
+    pub id: Uuid,
+    pub earliest_timestamp: TimeUnixNanoSec,
+    pub latest_timestamp: TimeUnixNanoSec,
+    /// Counts events across all event types.
+    pub event_count: NonZeroUsize,
+}
+
 /// Error returned when a handle's UUID is absent from an in-memory store.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[error("entity {0} is not in this store")]

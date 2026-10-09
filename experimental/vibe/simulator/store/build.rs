@@ -19,6 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &parsed.schema,
         &Options {
             combined_event: true,
+            entity_events: true,
             filesystem: cfg!(feature = "filesystem"),
             ..Options::default()
         },

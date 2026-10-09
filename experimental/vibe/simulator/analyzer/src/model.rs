@@ -17,6 +17,12 @@ use quent_query_engine_analyzer::{
 };
 use quent_query_engine_ui::EntityRef;
 use quent_simulator_store::SimulatorEvent;
+use quent_simulator_store::entity_events::{
+    gpu::GpuEvents, gpu_memory::GpuMemoryEvents, host_memory::HostMemoryEvents,
+    network::NetworkEvents, network_channel::NetworkChannelEvents, pcie_channel::PcieChannelEvents,
+    storage::StorageEvents, storage_channel::StorageChannelEvents,
+    task_executor::TaskExecutorEvents, task_executor_thread::TaskExecutorThreadEvents,
+};
 use quent_ui::ResourceGroupTypeDecl;
 use uuid::Uuid;
 
@@ -221,41 +227,53 @@ impl SimulatorModel {
     pub(crate) fn resource_instance_name(&self, resource_id: Uuid) -> Option<&str> {
         self.host_memories
             .get(&resource_id)
-            .map(HostMemory::instance_name)
-            .or_else(|| self.storages.get(&resource_id).map(Storage::instance_name))
+            .map(|entity| entity.declaration().data.instance_name.as_str())
+            .or_else(|| {
+                self.storages
+                    .get(&resource_id)
+                    .map(|entity| entity.declaration().data.instance_name.as_str())
+            })
             .or_else(|| {
                 self.gpu_memories
                     .get(&resource_id)
-                    .map(GpuMemory::instance_name)
+                    .map(|entity| entity.declaration().data.instance_name.as_str())
             })
             .or_else(|| {
                 self.task_executor_threads
                     .get(&resource_id)
-                    .map(TaskExecutorThread::instance_name)
+                    .map(|entity| entity.declaration().data.instance_name.as_str())
             })
             .or_else(|| {
                 self.storage_channels
                     .get(&resource_id)
-                    .map(StorageChannel::instance_name)
+                    .map(|entity| entity.declaration().data.instance_name.as_str())
             })
             .or_else(|| {
                 self.pcie_channels
                     .get(&resource_id)
-                    .map(PcieChannel::instance_name)
+                    .map(|entity| entity.declaration().data.instance_name.as_str())
             })
             .or_else(|| {
                 self.network_channels
                     .get(&resource_id)
-                    .map(NetworkChannel::instance_name)
+                    .map(|entity| entity.declaration().data.instance_name.as_str())
             })
     }
 
     pub(crate) fn resource_scope_instance_name(&self, entity_id: Uuid) -> Option<&str> {
         self.task_executors
             .get(&entity_id)
-            .map(TaskExecutor::instance_name)
-            .or_else(|| self.networks.get(&entity_id).map(Network::instance_name))
-            .or_else(|| self.gpus.get(&entity_id).map(Gpu::instance_name))
+            .map(|entity| entity.declaration().data.instance_name.as_str())
+            .or_else(|| {
+                self.networks
+                    .get(&entity_id)
+                    .map(|entity| entity.declaration().data.instance_name.as_str())
+            })
+            .or_else(|| {
+                self.gpus
+                    .get(&entity_id)
+                    .map(|entity| entity.declaration().data.instance_name.as_str())
+            })
     }
 
     fn simulator_resource(&self, resource_id: Uuid) -> Option<&dyn Resource> {
@@ -493,25 +511,38 @@ impl Using for SimulatorModel {
     }
 }
 
+fn build_entities<E: quent_events::EntityMarker, T>(
+    events: Vec<Event<E::Payload>>,
+    build: impl Fn(quent_store::entity::sequence::EventSequence<E>) -> AnalyzerResult<T>,
+) -> AnalyzerResult<HashMap<Uuid, T>> {
+    quent_store::entity::native::Store::<E>::new(events)
+        .into_sequences()
+        .map(|sequence| {
+            let id = sequence.id();
+            build(sequence).map(|entity| (id, entity))
+        })
+        .collect()
+}
+
 pub struct SimulatorModelBuilder {
     engine_id: Uuid,
-    engine: Option<Engine>,
-    workers: HashMap<Uuid, Worker>,
-    query_groups: HashMap<Uuid, QueryGroup>,
+    engine: Vec<Event<quent_simulator_store::EngineEvent>>,
+    workers: Vec<Event<quent_simulator_store::WorkerEvent>>,
+    query_groups: Vec<Event<quent_simulator_store::QueryGroupEvent>>,
     queries: HashMap<Uuid, QueryBuilder>,
-    plans: HashMap<Uuid, Plan>,
-    operators: HashMap<Uuid, Operator>,
-    ports: HashMap<Uuid, Port>,
-    host_memories: HashMap<Uuid, HostMemory>,
-    storages: HashMap<Uuid, Storage>,
-    gpu_memories: HashMap<Uuid, GpuMemory>,
-    task_executor_threads: HashMap<Uuid, TaskExecutorThread>,
-    storage_channels: HashMap<Uuid, StorageChannel>,
-    pcie_channels: HashMap<Uuid, PcieChannel>,
-    network_channels: HashMap<Uuid, NetworkChannel>,
-    task_executors: HashMap<Uuid, TaskExecutor>,
-    networks: HashMap<Uuid, Network>,
-    gpus: HashMap<Uuid, Gpu>,
+    plans: Vec<Event<quent_simulator_store::PlanEvent>>,
+    operators: Vec<Event<quent_simulator_store::OperatorEvent>>,
+    ports: Vec<Event<quent_simulator_store::PortEvent>>,
+    host_memories: Vec<Event<quent_simulator_store::HostMemoryEvent>>,
+    storages: Vec<Event<quent_simulator_store::StorageEvent>>,
+    gpu_memories: Vec<Event<quent_simulator_store::GpuMemoryEvent>>,
+    task_executor_threads: Vec<Event<quent_simulator_store::TaskExecutorThreadEvent>>,
+    storage_channels: Vec<Event<quent_simulator_store::StorageChannelEvent>>,
+    pcie_channels: Vec<Event<quent_simulator_store::PcieChannelEvent>>,
+    network_channels: Vec<Event<quent_simulator_store::NetworkChannelEvent>>,
+    task_executors: Vec<Event<quent_simulator_store::TaskExecutorEvent>>,
+    networks: Vec<Event<quent_simulator_store::NetworkEvent>>,
+    gpus: Vec<Event<quent_simulator_store::GpuEvent>>,
     tasks: HashMap<Uuid, TaskBuilder>,
 }
 
@@ -524,23 +555,23 @@ impl SimulatorModelBuilder {
         }
         Ok(Self {
             engine_id,
-            engine: None,
-            workers: HashMap::default(),
-            query_groups: HashMap::default(),
+            engine: Vec::new(),
+            workers: Vec::new(),
+            query_groups: Vec::new(),
             queries: HashMap::default(),
-            plans: HashMap::default(),
-            operators: HashMap::default(),
-            ports: HashMap::default(),
-            host_memories: HashMap::default(),
-            storages: HashMap::default(),
-            gpu_memories: HashMap::default(),
-            task_executor_threads: HashMap::default(),
-            storage_channels: HashMap::default(),
-            pcie_channels: HashMap::default(),
-            network_channels: HashMap::default(),
-            task_executors: HashMap::default(),
-            networks: HashMap::default(),
-            gpus: HashMap::default(),
+            plans: Vec::new(),
+            operators: Vec::new(),
+            ports: Vec::new(),
+            host_memories: Vec::new(),
+            storages: Vec::new(),
+            gpu_memories: Vec::new(),
+            task_executor_threads: Vec::new(),
+            storage_channels: Vec::new(),
+            pcie_channels: Vec::new(),
+            network_channels: Vec::new(),
+            task_executors: Vec::new(),
+            networks: Vec::new(),
+            gpus: Vec::new(),
             tasks: HashMap::default(),
         })
     }
@@ -551,6 +582,11 @@ impl SimulatorModelBuilder {
             timestamp,
             data,
         } = event;
+        if id.is_nil() {
+            return Err(AnalyzerError::Validation(
+                "entity id cannot be nil".to_owned(),
+            ));
+        }
         match data {
             SimulatorEvent::Task(t) => {
                 let task_builder = match self.tasks.entry(id) {
@@ -567,33 +603,16 @@ impl SimulatorModelBuilder {
                         self.engine_id
                     )));
                 }
-                let event = Event::new(id, timestamp, event);
-                if let Some(engine) = &mut self.engine {
-                    engine.push(event)
-                } else {
-                    self.engine = Some(Engine::try_from_event(event)?);
-                    Ok(())
-                }
+                self.engine.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::Worker(event) => {
-                let event = Event::new(id, timestamp, event);
-                match self.workers.entry(id) {
-                    Entry::Occupied(entry) => entry.into_mut().push(event),
-                    Entry::Vacant(entry) => {
-                        entry.insert(Worker::try_from_event(event)?);
-                        Ok(())
-                    }
-                }
+                self.workers.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::QueryGroup(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(group) = self.query_groups.get_mut(&id) {
-                    group.push(event)
-                } else {
-                    self.query_groups
-                        .insert(id, QueryGroup::try_from_event(event)?);
-                    Ok(())
-                }
+                self.query_groups.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::Query(event) => {
                 match self.queries.entry(id) {
@@ -611,134 +630,68 @@ impl SimulatorModelBuilder {
                 Ok(())
             }
             SimulatorEvent::Plan(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(plan) = self.plans.get_mut(&id) {
-                    plan.push(event)
-                } else {
-                    self.plans.insert(id, Plan::try_from_event(event)?);
-                    Ok(())
-                }
+                self.plans.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::Operator(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(operator) = self.operators.get_mut(&id) {
-                    operator.push(event)
-                } else {
-                    self.operators.insert(id, Operator::try_from_event(event)?);
-                    Ok(())
-                }
+                self.operators.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::Port(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(port) = self.ports.get_mut(&id) {
-                    port.push(event)
-                } else {
-                    self.ports.insert(id, Port::try_from_event(event)?);
-                    Ok(())
-                }
+                self.ports.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::HostMemory(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(resource) = self.host_memories.get_mut(&id) {
-                    resource.push(event)
-                } else {
-                    self.host_memories
-                        .insert(id, HostMemory::try_from_event(event)?);
-                    Ok(())
-                }
+                self.host_memories.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::StorageChannel(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(resource) = self.storage_channels.get_mut(&id) {
-                    resource.push(event)
-                } else {
-                    self.storage_channels
-                        .insert(id, StorageChannel::try_from_event(event)?);
-                    Ok(())
-                }
+                self.storage_channels.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::Storage(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(resource) = self.storages.get_mut(&id) {
-                    resource.push(event)
-                } else {
-                    self.storages.insert(id, Storage::try_from_event(event)?);
-                    Ok(())
-                }
+                self.storages.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::GpuMemory(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(resource) = self.gpu_memories.get_mut(&id) {
-                    resource.push(event)
-                } else {
-                    self.gpu_memories
-                        .insert(id, GpuMemory::try_from_event(event)?);
-                    Ok(())
-                }
+                self.gpu_memories.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::TaskExecutorThread(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(resource) = self.task_executor_threads.get_mut(&id) {
-                    resource.push(event)
-                } else {
-                    self.task_executor_threads
-                        .insert(id, TaskExecutorThread::try_from_event(event)?);
-                    Ok(())
-                }
+                self.task_executor_threads
+                    .push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::PcieChannel(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(resource) = self.pcie_channels.get_mut(&id) {
-                    resource.push(event)
-                } else {
-                    self.pcie_channels
-                        .insert(id, PcieChannel::try_from_event(event)?);
-                    Ok(())
-                }
+                self.pcie_channels.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::NetworkChannel(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(resource) = self.network_channels.get_mut(&id) {
-                    resource.push(event)
-                } else {
-                    self.network_channels
-                        .insert(id, NetworkChannel::try_from_event(event)?);
-                    Ok(())
-                }
+                self.network_channels.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::TaskExecutor(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(entity) = self.task_executors.get_mut(&id) {
-                    entity.push(event)
-                } else {
-                    self.task_executors
-                        .insert(id, TaskExecutor::try_from_event(event)?);
-                    Ok(())
-                }
+                self.task_executors.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::Network(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(entity) = self.networks.get_mut(&id) {
-                    entity.push(event)
-                } else {
-                    self.networks.insert(id, Network::try_from_event(event)?);
-                    Ok(())
-                }
+                self.networks.push(Event::new(id, timestamp, event));
+                Ok(())
             }
             SimulatorEvent::Gpu(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(entity) = self.gpus.get_mut(&id) {
-                    entity.push(event)
-                } else {
-                    self.gpus.insert(id, Gpu::try_from_event(event)?);
-                    Ok(())
-                }
+                self.gpus.push(Event::new(id, timestamp, event));
+                Ok(())
             }
         }
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<SimulatorModel> {
-        let engine = self.engine.ok_or_else(|| {
+        let engine = build_entities::<quent_simulator_store::Engine, _>(
+            self.engine,
+            Engine::try_from_sequence,
+        )?
+        .remove(&self.engine_id)
+        .ok_or_else(|| {
             AnalyzerError::IncompleteEntity(format!("engine {} has no events", self.engine_id))
         })?;
         let queries = self
@@ -746,6 +699,60 @@ impl SimulatorModelBuilder {
             .into_iter()
             .map(|(id, builder)| Query::try_from_builder(builder).map(|query| (id, query)))
             .collect::<AnalyzerResult<HashMap<_, _>>>()?;
+        let workers = build_entities::<quent_simulator_store::Worker, _>(
+            self.workers,
+            Worker::try_from_sequence,
+        )?;
+        let query_groups = build_entities::<quent_simulator_store::QueryGroup, _>(
+            self.query_groups,
+            QueryGroup::try_from_sequence,
+        )?;
+        let plans =
+            build_entities::<quent_simulator_store::Plan, _>(self.plans, Plan::try_from_sequence)?;
+        let operators = build_entities::<quent_simulator_store::Operator, _>(
+            self.operators,
+            Operator::try_from_sequence,
+        )?;
+        let ports =
+            build_entities::<quent_simulator_store::Port, _>(self.ports, Port::try_from_sequence)?;
+        let host_memories = build_entities::<quent_simulator_store::HostMemory, _>(
+            self.host_memories,
+            HostMemory::try_from_sequence,
+        )?;
+        let storages = build_entities::<quent_simulator_store::Storage, _>(
+            self.storages,
+            Storage::try_from_sequence,
+        )?;
+        let gpu_memories = build_entities::<quent_simulator_store::GpuMemory, _>(
+            self.gpu_memories,
+            GpuMemory::try_from_sequence,
+        )?;
+        let task_executor_threads = build_entities::<quent_simulator_store::TaskExecutorThread, _>(
+            self.task_executor_threads,
+            TaskExecutorThread::try_from_sequence,
+        )?;
+        let storage_channels = build_entities::<quent_simulator_store::StorageChannel, _>(
+            self.storage_channels,
+            StorageChannel::try_from_sequence,
+        )?;
+        let pcie_channels = build_entities::<quent_simulator_store::PcieChannel, _>(
+            self.pcie_channels,
+            PcieChannel::try_from_sequence,
+        )?;
+        let network_channels = build_entities::<quent_simulator_store::NetworkChannel, _>(
+            self.network_channels,
+            NetworkChannel::try_from_sequence,
+        )?;
+        let task_executors = build_entities::<quent_simulator_store::TaskExecutor, _>(
+            self.task_executors,
+            TaskExecutor::try_from_sequence,
+        )?;
+        let networks = build_entities::<quent_simulator_store::Network, _>(
+            self.networks,
+            Network::try_from_sequence,
+        )?;
+        let gpus =
+            build_entities::<quent_simulator_store::Gpu, _>(self.gpus, Gpu::try_from_sequence)?;
         let resource_types = [
             HostMemory::resource_type_decl(),
             Storage::resource_type_decl(),
@@ -761,23 +768,23 @@ impl SimulatorModelBuilder {
 
         let mut model = SimulatorModel {
             engine,
-            workers: self.workers,
-            query_groups: self.query_groups,
+            workers,
+            query_groups,
             queries,
-            plans: self.plans,
-            operators: self.operators,
-            ports: self.ports,
+            plans,
+            operators,
+            ports,
             resource_types,
-            host_memories: self.host_memories,
-            storages: self.storages,
-            gpu_memories: self.gpu_memories,
-            task_executor_threads: self.task_executor_threads,
-            storage_channels: self.storage_channels,
-            pcie_channels: self.pcie_channels,
-            network_channels: self.network_channels,
-            task_executors: self.task_executors,
-            networks: self.networks,
-            gpus: self.gpus,
+            host_memories,
+            storages,
+            gpu_memories,
+            task_executor_threads,
+            storage_channels,
+            pcie_channels,
+            network_channels,
+            task_executors,
+            networks,
+            gpus,
             tasks: HashMap::default(),
             resource_group_types: HashMap::default(),
         };
@@ -815,7 +822,8 @@ impl SimulatorModelBuilder {
 
 #[cfg(test)]
 mod tests {
-    use quent_simulator_store::TaskEvent;
+    use quent_query_engine_analyzer::{QueryEntity, WorkerEntity};
+    use quent_simulator_store::{EngineEvent, TaskEvent, WorkerEvent};
 
     use super::*;
 
@@ -831,5 +839,142 @@ mod tests {
             )),
             Err(AnalyzerError::Validation(_))
         ));
+    }
+
+    fn builder_with_engine() -> SimulatorModelBuilder {
+        let mut builder = SimulatorModelBuilder::try_new(Uuid::from_u128(1)).unwrap();
+        builder
+            .try_push(Event::new(
+                Uuid::from_u128(1),
+                0,
+                SimulatorEvent::Engine(EngineEvent::Exit),
+            ))
+            .unwrap();
+        builder
+    }
+
+    fn worker_init() -> WorkerEvent {
+        WorkerEvent::Init {
+            parent_engine_id: quent_events::EntityRef::new(Uuid::from_u128(1), ()),
+            instance_name: "worker".to_owned(),
+        }
+    }
+
+    #[test]
+    fn groups_worker_events_and_preserves_ui_timestamp_bounds() {
+        let mut builder = builder_with_engine();
+        let first = Uuid::from_u128(2);
+        let second = Uuid::from_u128(3);
+        for (id, timestamp, event) in [
+            (first, 10, WorkerEvent::Exit),
+            (second, 30, worker_init()),
+            (first, 20, worker_init()),
+        ] {
+            builder
+                .try_push(Event::new(id, timestamp, SimulatorEvent::Worker(event)))
+                .unwrap();
+        }
+        let model = builder.try_build().unwrap();
+        assert_eq!(model.workers.len(), 2);
+        let first_ui = model.worker(first).unwrap().to_ui(0);
+        assert_eq!(first_ui.id, first);
+        assert_eq!(first_ui.parent_engine_id, Some(Uuid::from_u128(1)));
+        assert_eq!(first_ui.instance_name.as_deref(), Some("worker"));
+        assert_eq!(first_ui.start_unix_ns, Some(10));
+        assert_eq!(first_ui.end_unix_ns, Some(20));
+        let second_ui = model.worker(second).unwrap().to_ui(0);
+        assert_eq!(second_ui.start_unix_ns, Some(30));
+        assert_eq!(second_ui.end_unix_ns, None);
+    }
+
+    #[test]
+    fn rejects_duplicate_once_worker_events_when_building() {
+        for event_name in ["init", "exit"] {
+            let mut builder = builder_with_engine();
+            let id = Uuid::from_u128(2);
+            for timestamp in [20, 10] {
+                let event = if event_name == "init" {
+                    worker_init()
+                } else {
+                    WorkerEvent::Exit
+                };
+                builder
+                    .try_push(Event::new(id, timestamp, SimulatorEvent::Worker(event)))
+                    .unwrap();
+            }
+            assert!(
+                matches!(builder.try_build(), Err(AnalyzerError::Validation(message))
+                if message.contains(event_name) && message.contains(&id.to_string()))
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_nil_worker_id_before_buffering() {
+        let mut builder = builder_with_engine();
+        assert!(matches!(
+            builder.try_push(Event::new(
+                Uuid::nil(),
+                0,
+                SimulatorEvent::Worker(WorkerEvent::Exit)
+            )),
+            Err(AnalyzerError::Validation(_))
+        ));
+        assert!(builder.try_build().unwrap().workers.is_empty());
+    }
+    #[test]
+    fn exit_without_init_retains_partial_worker_ui() {
+        let id = Uuid::from_u128(2);
+        let sequence =
+            quent_store::entity::native::Store::<quent_simulator_store::Worker>::new([Event::new(
+                id,
+                10,
+                quent_simulator_store::WorkerEvent::Exit,
+            )])
+            .into_sequences()
+            .next()
+            .unwrap();
+        let worker = Worker::try_from_sequence(sequence).unwrap();
+        let ui = worker.to_ui(0);
+        assert_eq!(ui.id, id);
+        assert_eq!(ui.parent_engine_id, None);
+        assert_eq!(ui.instance_name, None);
+        assert_eq!(ui.start_unix_ns, Some(10));
+        assert_eq!(ui.end_unix_ns, Some(10));
+        assert_eq!(worker.type_name(), "Worker");
+    }
+
+    #[test]
+    fn query_ui_retains_metadata_and_phase_times() {
+        use quent_simulator_store::QueryEvent;
+
+        let id = Uuid::from_u128(4);
+        let group_id = Uuid::from_u128(3);
+        let mut builder = QueryBuilder::try_new(id).unwrap();
+        for (timestamp, event) in [
+            (4_000_000_000, QueryEvent::Done { seq: 3 }),
+            (3_000_000_000, QueryEvent::Executing { seq: 2 }),
+            (
+                1_000_000_000,
+                QueryEvent::Init {
+                    seq: 0,
+                    instance_name: "query".to_owned(),
+                    query_group_id: quent_events::EntityRef::new(group_id, ()),
+                },
+            ),
+            (2_000_000_000, QueryEvent::Planning { seq: 1 }),
+        ] {
+            builder.push_transition(Event::new(id, timestamp, event));
+        }
+        let query = Query::try_from_builder(builder).unwrap();
+        let ui = query.to_ui().unwrap();
+        assert_eq!(query.parent_id(), Some(group_id));
+        assert_eq!(ui.id, id);
+        assert_eq!(ui.query_group_id, group_id);
+        assert_eq!(ui.instance_name.as_deref(), Some("query"));
+        assert_eq!(ui.start_unix_ns, Some(1_000_000_000));
+        assert_eq!(ui.planning_s, Some(1.0));
+        assert_eq!(ui.executing_s, Some(2.0));
+        assert_eq!(ui.completed_s, Some(3.0));
     }
 }

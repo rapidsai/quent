@@ -8,14 +8,12 @@
 
 use quent_analyzer::{
     AnalyzerResult, Entity, RefTreeEntity,
-    entity::native::{AnalyzedEntity, EntityEventAccumulator},
     fsm::{
         Fsm, FsmUsages,
         native::{AnalyzedFsm, AnalyzedFsmBuilder, AnalyzedTransition},
     },
     resource::{CapacityDecl, Resource, ResourceTypeDecl, Usage, Using},
 };
-use quent_events::Event;
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, OperatorEntityMut, PlanEntity, PortEntity, QueryEntity,
     QueryGroupEntity, WorkerEntity,
@@ -24,6 +22,10 @@ use quent_query_engine_ui as query_engine_ui;
 use quent_simulator_store as schema;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, try_to_secs_relative};
 use uuid::Uuid;
+
+mod stored;
+
+use stored::StoredEntity;
 
 mod engine;
 mod gpu;

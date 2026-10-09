@@ -6,7 +6,7 @@ use quent_analyzer::{
     ref_tree::RefTreeCollection,
     resource::{Resource, ResourceTypeDecl, collection::ResourceCollection},
 };
-use quent_query_engine_analyzer::{QueryEngineModel, plan_tree::PlanTree};
+use quent_query_engine_analyzer::{QueryEngineModel, QueryEntity, plan_tree::PlanTree};
 use quent_query_engine_ui::EntityRef;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use uuid::Uuid;

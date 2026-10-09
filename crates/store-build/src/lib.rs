@@ -41,6 +41,9 @@ use std::path::PathBuf;
 use quent_schema::Schema;
 use quote::quote;
 
+mod entities;
+mod event_loaders;
+
 /// Options controlling stored-event retrieval source generation.
 ///
 /// Generated event and record types always derive `serde::Serialize` and
@@ -64,6 +67,14 @@ pub struct Options {
     /// `quent-store` `io-*` feature.
     pub filesystem: bool,
 
+    /// Generate event-specific payloads, access traits, and consuming native storage.
+    ///
+    /// Types are emitted under `entity_events::<namespace>::<entity>`.
+    /// An entity's sole `Once` event is borrowed directly; other `Once` events
+    /// return `Option`, and `Multi` events return an iterator.
+    /// Event names `id`, `type_name`, `properties`, and `event_storage` are reserved.
+    pub entity_events: bool,
+
     /// Directory the generated file is written into.
     pub out_dir: PathBuf,
 
@@ -79,6 +90,7 @@ impl Default for Options {
             record_derives: Default::default(),
             combined_event: true,
             filesystem: true,
+            entity_events: false,
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
         }
@@ -90,6 +102,12 @@ impl Default for Options {
 pub enum GenerateError {
     #[error("filesystem loading requires combined-event generation")]
     FilesystemRequiresCombinedEvent,
+    #[error("generated entity-event name `{name}` conflicts between {first} and {second}")]
+    EntityEventsNameConflict {
+        name: String,
+        first: String,
+        second: String,
+    },
     #[error(transparent)]
     EventModel(#[from] quent_instrumentation_build::GenerateError),
     #[error("generated stored-event retrieval code did not form a valid Rust file")]
@@ -127,8 +145,8 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 ///
 /// # Errors
 ///
-/// Returns an error when the options are inconsistent, event generation fails, or the combined
-/// output is not valid Rust.
+/// Returns an error when the options are inconsistent, generated names conflict, event generation
+/// fails, or the combined output is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     if opts.filesystem && !opts.combined_event {
         return Err(GenerateError::FilesystemRequiresCombinedEvent);
@@ -146,44 +164,20 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let events = quent_instrumentation_build::generate_str(schema, &event_opts)?;
     let events =
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
-
-    let model = quent_instrumentation_build::generated_model_path(schema);
-    let stored_model = if opts.filesystem {
-        let importers = schema.entities().map(|entity| {
-            let marker = quent_instrumentation_build::generated_entity_path(entity);
-            quote! {
-                ::quent_store::event::filesystem::EventImporter::<#model>::import_for_entity::<#marker>()
-            }
-        });
-        quote! {
-            impl ::quent_store::event::filesystem::Model for #model {
-                fn event_importers(
-                ) -> &'static [::quent_store::event::filesystem::EventImporter<Self>] {
-                    static IMPORTERS: &[
-                        ::quent_store::event::filesystem::EventImporter<#model>
-                    ] = &[
-                        #(#importers,)*
-                    ];
-                    IMPORTERS
-                }
-            }
-        }
+    let entity_events = if opts.entity_events {
+        Some(entities::generate(schema, &event_opts, &events)?)
     } else {
-        quote! {}
+        None
     };
-    let entities = schema.entities().map(|entity| {
-        let marker = quent_instrumentation_build::generated_entity_path(entity);
-        quote! {
-            impl ::quent_store::event::EntityMarkerInModel<#model> for #marker {}
-        }
-    });
+
+    let loaders = event_loaders::generate(schema, opts.filesystem);
 
     let file = syn::parse2::<syn::File>(quote! {
         #events
 
-        #stored_model
+        #loaders
 
-        #(#entities)*
+        #entity_events
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;
 
@@ -191,92 +185,4 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
 }
 
 #[cfg(test)]
-mod tests {
-    use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, SchemaBuilder};
-    use quent_schema::test_utils::{entity, event};
-
-    use super::*;
-
-    #[test]
-    fn generates_nested_retrieval_apis_with_optional_model_loading() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_entity(entity("Foo::Query", [event("created", [])]))
-            .with_entity(entity("Foo::Nested::Task", [event("created", [])]))
-            .build()
-            .unwrap();
-
-        let default_source = generate_str(&schema, &Options::default()).unwrap();
-
-        assert!(default_source.contains("event::EntityMarkerInModel<Demo> for foo::Query"));
-        assert!(default_source.contains("event::EntityMarkerInModel<Demo> for foo::nested::Task"));
-        assert!(default_source.contains("pub enum DemoEvent"));
-        assert!(default_source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
-        assert!(default_source.contains("import_for_entity::<foo::Query>()"));
-        assert!(default_source.contains("import_for_entity::<foo::nested::Task>()"));
-
-        let entity_events_source = generate_str(
-            &schema,
-            &Options {
-                combined_event: false,
-                filesystem: false,
-                ..Options::default()
-            },
-        )
-        .unwrap();
-        assert!(!entity_events_source.contains("pub enum DemoEvent"));
-        assert!(!entity_events_source.contains("filesystem::Model for Demo"));
-
-        let events_only_source = generate_str(
-            &schema,
-            &Options {
-                combined_event: true,
-                filesystem: false,
-                ..Options::default()
-            },
-        )
-        .unwrap();
-        assert!(events_only_source.contains("pub enum DemoEvent"));
-        assert!(!events_only_source.contains("filesystem::Model for Demo"));
-
-        assert!(matches!(
-            generate_str(
-                &schema,
-                &Options {
-                    combined_event: false,
-                    filesystem: true,
-                    ..Options::default()
-                }
-            ),
-            Err(GenerateError::FilesystemRequiresCombinedEvent)
-        ));
-    }
-
-    #[test]
-    fn generate_returns_unregistered_constraint_warnings() {
-        let annotations = AnnotationsBuilder::new()
-            .with_constraint("example.unknown.v0.1.0", None)
-            .build()
-            .unwrap();
-        let query = EntityBuilder::try_new("Query")
-            .unwrap()
-            .with_event(event("created", []))
-            .with_annotations(annotations)
-            .build()
-            .unwrap();
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_entity(query)
-            .build()
-            .unwrap();
-        let output = tempfile::tempdir().unwrap();
-        let options = Options {
-            out_dir: output.path().to_owned(),
-            ..Options::default()
-        };
-
-        let generated = generate(&schema, &options).unwrap();
-
-        assert_eq!(generated.warnings, ["example.unknown.v0.1.0"]);
-    }
-}
+mod tests;

@@ -1,66 +1,24 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use schema::entity_events::operator::{OperatorEventStorage, OperatorEvents};
+
 use super::*;
-
-#[derive(Default)]
-pub(crate) struct OperatorAccumulator {
-    pub(crate) plan_id: Option<Uuid>,
-    pub(crate) parent_operator_ids: Vec<Uuid>,
-    pub(crate) instance_name: Option<String>,
-    pub(crate) type_name: Option<String>,
-    pub(crate) custom_attributes: quent_events::DynamicAttributes,
-    pub(crate) statistics: Option<quent_events::DynamicAttributes>,
-}
-
-impl EntityEventAccumulator for OperatorAccumulator {
-    type Payload = schema::OperatorEvent;
-
-    fn push(&mut self, event: Self::Payload) {
-        match event {
-            schema::OperatorEvent::Declaration {
-                plan_id,
-                parent_operator_ids,
-                instance_name,
-                type_name,
-                custom_attributes,
-            } => {
-                self.plan_id = Some(plan_id.target);
-                self.parent_operator_ids = parent_operator_ids
-                    .into_iter()
-                    .map(|operator| operator.target)
-                    .collect();
-                self.instance_name = Some(instance_name);
-                self.type_name = Some(type_name);
-                self.custom_attributes = custom_attributes;
-            }
-            schema::OperatorEvent::Statistics { custom_attributes } => {
-                self.statistics = Some(custom_attributes);
-            }
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct Operator {
-    entity: AnalyzedEntity<OperatorAccumulator>,
+    entity: StoredEntity<schema::Operator, OperatorEventStorage>,
     pub(crate) active_span: Option<SpanUnixNanoSec>,
 }
 
 impl Operator {
-    pub(crate) fn try_from_event(event: Event<schema::OperatorEvent>) -> AnalyzerResult<Self> {
+    pub(crate) fn try_from_sequence(
+        sequence: quent_store::entity::sequence::EventSequence<schema::Operator>,
+    ) -> AnalyzerResult<Self> {
         Ok(Self {
-            entity: AnalyzedEntity::try_from_event(event)?,
+            entity: StoredEntity::try_from_sequence(sequence)?,
             active_span: None,
         })
-    }
-
-    pub(crate) fn push(&mut self, event: Event<schema::OperatorEvent>) -> AnalyzerResult<()> {
-        self.entity.push(event)
-    }
-
-    pub(crate) fn data(&self) -> &OperatorAccumulator {
-        self.entity.accumulator()
     }
 }
 
@@ -68,15 +26,12 @@ impl Entity for Operator {
     fn id(&self) -> Uuid {
         self.entity.id()
     }
-
     fn type_name(&self) -> &str {
         self.entity.type_name()
     }
-
     fn earliest_timestamp(&self) -> TimeUnixNanoSec {
         self.entity.earliest_timestamp()
     }
-
     fn latest_timestamp(&self) -> TimeUnixNanoSec {
         self.entity.latest_timestamp()
     }
@@ -84,17 +39,23 @@ impl Entity for Operator {
 
 impl RefTreeEntity for Operator {
     fn parent_id(&self) -> Option<Uuid> {
-        self.entity.accumulator().plan_id
+        self.plan_id()
     }
 }
 
 impl OperatorEntity for Operator {
     fn plan_id(&self) -> Option<Uuid> {
-        self.data().plan_id
+        self.entity
+            .declaration()
+            .map(|event| event.data.plan_id.target)
     }
 
     fn parent_operator_ids(&self) -> impl ExactSizeIterator<Item = Uuid> + '_ {
-        self.data().parent_operator_ids.iter().copied()
+        self.entity
+            .declaration()
+            .map_or(&[][..], |event| event.data.parent_operator_ids.as_slice())
+            .iter()
+            .map(|operator| operator.target)
     }
 
     fn active_span(&self) -> Option<SpanUnixNanoSec> {
@@ -102,25 +63,31 @@ impl OperatorEntity for Operator {
     }
 
     fn operator_type_name(&self) -> Option<&str> {
-        self.data().type_name.as_deref()
+        self.entity
+            .declaration()
+            .map(|event| event.data.type_name.as_str())
     }
 
     fn to_ui(&self, epoch: TimeUnixNanoSec) -> query_engine_ui::Operator {
-        let data = self.data();
+        let declaration = self.entity.declaration().map(|event| &event.data);
         query_engine_ui::Operator {
             id: self.id(),
-            plan_id: data.plan_id,
-            parent_operator_ids: data.parent_operator_ids.clone(),
-            instance_name: data.instance_name.clone(),
-            operator_type_name: data.type_name.clone(),
-            custom_attributes: data
-                .custom_attributes
-                .iter()
+            plan_id: self.plan_id(),
+            parent_operator_ids: self.parent_operator_ids().collect(),
+            instance_name: declaration.map(|data| data.instance_name.clone()),
+            operator_type_name: declaration.map(|data| data.type_name.clone()),
+            custom_attributes: declaration
+                .into_iter()
+                .flat_map(|data| data.custom_attributes.iter())
                 .map(|attribute| (attribute.key.clone(), attribute.value.clone()))
                 .collect(),
-            statistics: data.statistics.as_ref().map(|statistics| {
-                query_engine_ui::OperatorStatistics {
-                    custom_statistics: statistics
+            statistics: self
+                .entity
+                .statistics()
+                .map(|event| query_engine_ui::OperatorStatistics {
+                    custom_statistics: event
+                        .data
+                        .custom_attributes
                         .iter()
                         .map(|attribute| {
                             (
@@ -132,8 +99,7 @@ impl OperatorEntity for Operator {
                             )
                         })
                         .collect(),
-                }
-            }),
+                }),
             active_span: self
                 .active_span
                 .and_then(|span| span.try_to_secs_relative(epoch).ok()),

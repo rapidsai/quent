@@ -22,6 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Generate `DemoEvent` so the example can load all model events through
         // one iterator. Entity-specific loading does not require this option.
         combined_event: true,
+        entity_events: true,
         ..Options::default()
     };
     let generated = generate(&parsed.schema, &options)?;

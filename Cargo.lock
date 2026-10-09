@@ -2897,6 +2897,7 @@ name = "quent-store-build"
 version = "0.1.0"
 dependencies = [
  "prettyplease 0.3.0",
+ "proc-macro2",
  "quent-instrumentation-build",
  "quent-schema",
  "quote",
