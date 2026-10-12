@@ -27,13 +27,13 @@ export const OperatorAccordion = ({
   <Collapsible
     open={open}
     onOpenChange={onOpenChange}
-    className="flex min-w-0 gap-2"
+    className="flex min-w-0 gap-3.5"
     data-testid={`operator-accordion-${operator.nodeId}`}
   >
     <OperatorColorBar operationType={operator.operationType} className="w-1 self-stretch" />
     <div className="min-w-0 flex-1">
       <CollapsibleTrigger
-        className="group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1 my-1 text-left hover:bg-muted/50"
+        className="group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-0 py-1 my-1 text-left hover:bg-muted/50"
         aria-label={
           operator.workerLabel
             ? `Toggle ${operator.label} (${operator.workerLabel}) details`
@@ -48,7 +48,7 @@ export const OperatorAccordion = ({
         </DataText>
         {operator.workerLabel && (
           <DataText
-            className="min-w-0 max-w-[35%] shrink truncate text-[10px] text-muted-foreground"
+            className="ml-1.5 min-w-0 max-w-[35%] shrink truncate text-[10px] text-muted-foreground"
             title={`Worker: ${operator.workerLabel}`}
           >
             {operator.workerLabel}
