@@ -142,12 +142,11 @@ describe('DAGChart edge scaling', () => {
       strokeWidth: '25',
       stroke: continuousColor(1, 'blue'),
     });
-    // The scale type is a badge beside the title, and the legend labels the log midpoint.
+    // The scale type is a badge beside the title, and the legend shows only its endpoints.
     expect(screen.getByText('bytes')).toBeVisible();
     expect(screen.getByText('Log')).toBeVisible();
-    expect(screen.getByText('15.00 B')).toBeVisible();
+    expect(screen.queryByText('15.00 B')).toBeNull();
     expect(screen.getByText('0 B')).toBeVisible();
-    // The legend shows the true data range, including the zero edge.
     expect(screen.getByText('63.00 B')).toBeVisible();
   });
 
@@ -178,6 +177,6 @@ describe('DAGChart edge scaling', () => {
     ).toBeGreaterThan(2);
     expect(screen.getByText('Linear')).toBeVisible();
     expect(screen.queryByText('Log')).toBeNull();
-    expect(screen.getByText('31.50 B')).toBeVisible();
+    expect(screen.queryByText('31.50 B')).toBeNull();
   });
 });
