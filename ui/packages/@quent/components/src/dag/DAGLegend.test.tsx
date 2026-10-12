@@ -13,7 +13,6 @@ vi.mock('@xyflow/react', () => ({
   Panel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-// Values 0, 3, 15 and 63: the log scale starts at 3, the linear scale at 0.
 const coloring = {
   type: 'continuous' as const,
   values: new Map([
@@ -82,21 +81,23 @@ function renderLegend() {
 }
 
 describe('DAGLegend node coloring scale', () => {
-  it('shows a Log badge and the log midpoint by default', () => {
+  it('shows only the minimum and maximum values', () => {
     renderLegend();
     expect(screen.getByText('bytes')).toHaveAttribute('title', 'bytes');
     expect(screen.getByText('Log')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Log' })).toBeNull();
     expect(screen.getByText('0 B')).toBeVisible();
-    expect(screen.getByText('15.00 B')).toBeVisible();
     expect(screen.getByText('63.00 B')).toBeVisible();
+    expect(screen.queryByText('15.00 B')).toBeNull();
   });
 
-  it('shows a Linear badge and the arithmetic midpoint after switching', () => {
+  it('updates the passive badge when the scale changes', () => {
     renderLegend();
     act(() => screen.getByRole('button', { name: 'Use linear scale' }).click());
     expect(screen.getByText('Linear')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Linear' })).toBeNull();
     expect(screen.queryByText('Log')).toBeNull();
-    expect(screen.getByText('31.50 B')).toBeVisible();
+    expect(screen.queryByText('31.50 B')).toBeNull();
   });
 
   it('formats an encoded nested field and exposes the full path as a title', () => {

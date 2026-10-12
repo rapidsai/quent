@@ -17,13 +17,7 @@ import {
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
-import {
-  cn,
-  getLegendGradientStops,
-  scaleMidpoint,
-  SCALE_TYPE,
-  type ScaleType,
-} from '@quent/utils';
+import { cn, getLegendGradientStops, SCALE_TYPE, type ScaleType } from '@quent/utils';
 import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/utils';
 import { Badge } from '../ui/badge';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
@@ -39,10 +33,7 @@ interface ContinuousLegendProps {
   palette: ContinuousPaletteName;
   isDark: boolean;
   formatValue: (v: number) => string;
-  /** When set, a badge names the scale beside the title. */
-  scale?: ScaleType;
-  /** When set, labels the value halfway along the bar, which shows how the scale bends. */
-  midValue?: number;
+  scale: ScaleType;
 }
 
 const SCALE_LABELS: Record<ScaleType, string> = {
@@ -58,7 +49,6 @@ const ContinuousLegend = ({
   isDark,
   formatValue,
   scale,
-  midValue,
 }: ContinuousLegendProps) => (
   <div className="flex min-w-0 flex-col gap-1">
     <div className="flex min-w-0 items-center justify-between gap-2">
@@ -68,11 +58,12 @@ const ContinuousLegend = ({
       >
         {label}
       </span>
-      {scale && (
-        <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">
-          {SCALE_LABELS[scale]}
-        </Badge>
-      )}
+      <Badge
+        variant="outline"
+        className="pointer-events-none px-1.5 py-0 text-[10px] text-muted-foreground transition-none hover:bg-transparent hover:text-muted-foreground"
+      >
+        {SCALE_LABELS[scale]}
+      </Badge>
     </div>
     <div
       className="h-2 w-full rounded-sm"
@@ -82,9 +73,6 @@ const ContinuousLegend = ({
     />
     <div className="flex justify-between gap-2">
       <span className="text-[10px] text-muted-foreground">{formatValue(min)}</span>
-      {midValue !== undefined && (
-        <span className="text-[10px] text-muted-foreground">{formatValue(midValue)}</span>
-      )}
       <span className="text-[10px] text-muted-foreground">{formatValue(max)}</span>
     </div>
   </div>
@@ -206,7 +194,6 @@ function NodeLegendContent({
         isDark={isDark}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
         scale={scale}
-        midValue={scaleMidpoint(coloring, scale)}
       />
     );
   }
@@ -240,7 +227,6 @@ function EdgeLegendContent({
         isDark={isDark}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
         scale={scale}
-        midValue={scaleMidpoint(coloring, scale)}
       />
     );
   }
