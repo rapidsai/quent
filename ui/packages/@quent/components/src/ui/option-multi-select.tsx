@@ -198,7 +198,10 @@ export function OptionMultiSelect({
                     {checked && <Check className="size-2.5" strokeWidth={3} />}
                   </span>
                   <span className="min-w-0 flex-1 text-left">
-                    <span className={cn('block truncate', optionClassName)}>
+                    <span
+                      className={cn('block truncate', optionClassName)}
+                      title={optionLabel(option)}
+                    >
                       {optionLabel(option)}
                     </span>
                     {option.description && (
