@@ -5,7 +5,6 @@ import type { QueryEntities } from '~quent/types/QueryEntities';
 import {
   flattenStatistics,
   statisticFieldLabel,
-  statisticFieldName,
   workerDisplayName,
   type Statistic,
 } from '@quent/utils';
@@ -102,35 +101,6 @@ export function buildOperatorRows(
     }
   }
   return rows;
-}
-
-export interface OperatorStatMetadata {
-  fieldName: string;
-  label: string;
-  title: string;
-}
-
-export function buildOperatorStatMetadata(
-  rows: OperatorTableRow[]
-): Map<string, OperatorStatMetadata> {
-  const result = new Map<string, OperatorStatMetadata>();
-  const occurrences = new Map<string, number>();
-  for (const row of rows) {
-    for (const stat of row.stats) {
-      if (result.has(stat.key)) {
-        continue;
-      }
-      const fieldName = statisticFieldName(stat);
-      const occurrence = occurrences.get(fieldName) ?? 0;
-      occurrences.set(fieldName, occurrence + 1);
-      result.set(stat.key, {
-        fieldName,
-        label: `${fieldName}${occurrence ? ` [${occurrence + 1}]` : ''}`,
-        title: statisticFieldLabel(stat),
-      });
-    }
-  }
-  return result;
 }
 
 /**

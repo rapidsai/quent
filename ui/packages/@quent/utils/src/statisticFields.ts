@@ -10,6 +10,12 @@ export interface StatisticField extends Statistic {
   path: StatisticFieldPath;
 }
 
+export interface StatisticFieldPresentation {
+  fieldName: string;
+  label: string;
+  title: string;
+}
+
 const FIELD_PATH_PREFIX = '__quent_stat_path__:';
 
 function isStatisticFieldPath(value: unknown): value is StatisticFieldPath {
@@ -79,6 +85,28 @@ export function statisticFieldName(
   }
   const resolvedField = fields?.find(candidate => candidate.key === field);
   return resolvedField ? statisticFieldName(resolvedField) : field;
+}
+
+/** Builds compact labels and full-path titles for an ordered field collection. */
+export function buildStatisticFieldPresentations(
+  fields: readonly StatisticField[]
+): Map<string, StatisticFieldPresentation> {
+  const result = new Map<string, StatisticFieldPresentation>();
+  const occurrences = new Map<string, number>();
+  for (const field of fields) {
+    if (result.has(field.key)) {
+      continue;
+    }
+    const fieldName = statisticFieldName(field);
+    const occurrence = occurrences.get(fieldName) ?? 0;
+    occurrences.set(fieldName, occurrence + 1);
+    result.set(field.key, {
+      fieldName,
+      label: `${fieldName}${occurrence ? ` [${occurrence + 1}]` : ''}`,
+      title: statisticFieldLabel(field),
+    });
+  }
+  return result;
 }
 
 /** Scalar metric projection only; the inspection tree stays ordered and intact. */

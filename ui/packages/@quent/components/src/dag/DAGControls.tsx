@@ -22,7 +22,7 @@ import {
   resolveDataFlowMeasure,
 } from '@quent/hooks';
 import {
-  statisticFieldLabel,
+  buildStatisticFieldPresentations,
   NODE_LABEL_FIELD,
   DAG_LAYOUT_DIRECTION,
   SCALE_TYPE,
@@ -71,6 +71,18 @@ const LAYOUT_DIRECTION_OPTIONS: SelectFieldOption[] = [
   { value: DAG_LAYOUT_DIRECTION.TOP_TO_BOTTOM, label: 'Top to bottom' },
 ];
 
+function statisticFieldOptions(fields: StatisticField[]): SelectFieldOption[] {
+  const presentations = buildStatisticFieldPresentations(fields);
+  return fields.map(field => {
+    const presentation = presentations.get(field.key);
+    return {
+      value: field.key,
+      label: presentation?.label ?? field.key,
+      title: presentation?.title,
+    };
+  });
+}
+
 /** DAG visual control toolbar: node color, edge width, edge color, node label field selectors. */
 export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGControlsProps) => {
   const [colorField, setColorField] = useSelectedColorField();
@@ -90,14 +102,8 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const setDataFlowLabelMeasure = useSetDataFlowLabelMeasure();
   const setDataFlowSelectedDimensions = useSetDataFlowSelectedDimensions();
 
-  const operatorOptions: SelectFieldOption[] = operatorStatFields.map(f => ({
-    value: f.key,
-    label: statisticFieldLabel(f),
-  }));
-  const portOptions: SelectFieldOption[] = portStatFields.map(f => ({
-    value: f.key,
-    label: statisticFieldLabel(f),
-  }));
+  const operatorOptions = statisticFieldOptions(operatorStatFields);
+  const portOptions = statisticFieldOptions(portStatFields);
 
   const measureOptions: SelectFieldOption[] = (dataFlowMeta?.decl.measures ?? []).map(m => ({
     value: m.name,

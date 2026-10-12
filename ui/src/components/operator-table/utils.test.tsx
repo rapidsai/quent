@@ -5,8 +5,13 @@ import { render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
 import { PivotedStatTable, formatStatValue, type PivotedStatTableSchema } from '@quent/components';
-import type { Operator, QueryEntities, QuantitySpec } from '@quent/utils';
-import { buildOperatorRows, buildOperatorStatMetadata } from './utils';
+import {
+  buildStatisticFieldPresentations,
+  type Operator,
+  type QueryEntities,
+  type QuantitySpec,
+} from '@quent/utils';
+import { buildOperatorRows } from './utils';
 import type { OperatorTableRow } from './types';
 
 function makeEntities(statistics: NonNullable<Operator['statistics']>): QueryEntities {
@@ -79,7 +84,7 @@ const quantitySpecs: Record<string, QuantitySpec> = {
 };
 
 function renderRows(rows: OperatorTableRow[], isAggregating = false, activeIndices = ['item']) {
-  const statMetadata = buildOperatorStatMetadata(rows);
+  const statMetadata = buildStatisticFieldPresentations(rows.flatMap(row => row.stats));
   render(
     <Provider store={createStore()}>
       <PivotedStatTable

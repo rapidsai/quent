@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  buildStatisticFieldPresentations,
   flattenStatistics,
   statisticFieldId,
   statisticFieldLabel,
@@ -63,6 +64,20 @@ describe('statistic fields', () => {
       { key: 'Volume › bytes', value: 2 },
     ]);
     expect(fields.map(statisticFieldLabel)).toEqual(['Volume › bytes', '"Volume › bytes"']);
+  });
+
+  it('builds leaf labels with duplicate indicators and full-path titles', () => {
+    const fields = flattenStatistics([
+      { key: 'Input', value: { kind: 'struct', fields: [{ key: 'rows', value: 1 }] } },
+      { key: 'Output', value: { kind: 'struct', fields: [{ key: 'rows', value: 2 }] } },
+      { key: 'rows', value: 3 },
+    ]);
+    const presentations = buildStatisticFieldPresentations(fields);
+    expect(fields.map(field => presentations.get(field.key))).toEqual([
+      { fieldName: 'rows', label: 'rows', title: 'Input › rows' },
+      { fieldName: 'rows', label: 'rows [2]', title: 'Output › rows' },
+      { fieldName: 'rows', label: 'rows [3]', title: 'rows' },
+    ]);
   });
 
   it('retains long field names and explicit structured paths', () => {

@@ -16,6 +16,7 @@ import { ScrollArea } from './scroll-area';
 export interface SelectFieldOption {
   value: string;
   label?: string;
+  title?: string;
   /** Optional secondary text */
   description?: string;
 }
@@ -63,6 +64,7 @@ export const SelectField = ({
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
         aria-label={ariaLabel ?? label}
+        title={options.find(option => option.value === value)?.title}
         className={cn('min-w-0 flex-1 pr-1.5 text-left [&>svg]:shrink-0', triggerClassName)}
       >
         <span className="min-w-0 flex-1 truncate text-left text-xs">
@@ -95,7 +97,7 @@ export const SelectField = ({
               </SelectItem>
             ) : (
               options.map(opt => (
-                <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                <SelectItem key={opt.value} value={opt.value} title={opt.title} className="text-xs">
                   {opt.label ?? opt.value}
                 </SelectItem>
               ))

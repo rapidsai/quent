@@ -24,7 +24,7 @@ import {
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
-import type { QueryBundle, EntityRef } from '@quent/utils';
+import { buildStatisticFieldPresentations, type QueryBundle, type EntityRef } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import {
   DEFAULT_OPERATOR_TABLE_ENABLED,
@@ -33,7 +33,7 @@ import {
   type OperatorTableIndexKey,
   type OperatorTableRow,
 } from './types';
-import { buildOperatorRows, buildItemIdIndex, buildOperatorStatMetadata } from './utils';
+import { buildOperatorRows, buildItemIdIndex } from './utils';
 
 const OPERATOR_SCHEMA: PivotedStatTableSchema<OperatorTableRow> = {
   groups: {
@@ -151,7 +151,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [rows]);
 
   const allStatNames = useMemo(() => getSchemaStatNames(rows, OPERATOR_SCHEMA), [rows]);
-  const statMetadata = useMemo(() => buildOperatorStatMetadata(rows), [rows]);
+  const statMetadata = useMemo(
+    () => buildStatisticFieldPresentations(rows.flatMap(row => row.stats)),
+    [rows]
+  );
   const hasParentItems = useMemo(() => rows.some(r => r.parentItemType !== '-'), [rows]);
   const filterIndexOrder = useCallback(
     (order: OperatorTableIndexKey[]) =>

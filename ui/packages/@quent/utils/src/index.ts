@@ -144,12 +144,17 @@ export { isStatStruct } from './dagTypes';
 export type { Statistic, StatStruct } from './dagTypes';
 
 export {
+  buildStatisticFieldPresentations,
   flattenStatistics,
   statisticFieldId,
   statisticFieldLabel,
   statisticFieldName,
 } from './statisticFields';
-export type { StatisticField, StatisticFieldPath } from './statisticFields';
+export type {
+  StatisticField,
+  StatisticFieldPath,
+  StatisticFieldPresentation,
+} from './statisticFields';
 
 // Long-entities row ID utilities
 export const LONG_ENTITIES_ROW_TYPE = 'long-entities';
