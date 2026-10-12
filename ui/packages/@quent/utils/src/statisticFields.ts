@@ -12,6 +12,30 @@ export interface StatisticField extends Statistic {
 
 const FIELD_PATH_PREFIX = '__quent_stat_path__:';
 
+function isStatisticFieldPath(value: unknown): value is StatisticFieldPath {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      part =>
+        Array.isArray(part) &&
+        part.length === 2 &&
+        typeof part[0] === 'string' &&
+        Number.isInteger(part[1]) &&
+        part[1] >= 0
+    )
+  );
+}
+
+function statisticFieldPathLabel(path: StatisticFieldPath): string {
+  return path
+    .map(([name, occurrence]) => {
+      const label = !name || /[›[\]"\\\n\r]/u.test(name) ? JSON.stringify(name) : name;
+      return `${label}${occurrence ? ` [${occurrence + 1}]` : ''}`;
+    })
+    .join(' › ');
+}
+
 /** Flat names stay readable; structured or repeated fields use their explicit path. */
 export function statisticFieldId(path: StatisticFieldPath): string {
   const [name, occurrence] = path[0];
@@ -28,15 +52,19 @@ export function statisticFieldId(path: StatisticFieldPath): string {
 
 export function statisticFieldLabel(field: StatisticField | string): string {
   if (typeof field === 'string') {
+    if (field.startsWith(FIELD_PATH_PREFIX)) {
+      try {
+        const path: unknown = JSON.parse(field.slice(FIELD_PATH_PREFIX.length));
+        if (isStatisticFieldPath(path)) {
+          return statisticFieldPathLabel(path);
+        }
+      } catch {
+        // Preserve malformed or producer-owned field names verbatim.
+      }
+    }
     return field;
   }
-  return field.path
-    .map(([name, occurrence]) => {
-      // Quote literal separators and occurrence suffixes so labels remain distinct.
-      const label = !name || /[›[\]"\\\n\r]/u.test(name) ? JSON.stringify(name) : name;
-      return `${label}${occurrence ? ` [${occurrence + 1}]` : ''}`;
-    })
-    .join(' › ');
+  return statisticFieldPathLabel(field.path);
 }
 
 export function statisticFieldName(

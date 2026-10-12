@@ -6,6 +6,7 @@ import { act, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
 import { useSelectedColorField, useSelectedScaleType, useSetNodeColoring } from '@quent/hooks';
+import { flattenStatistics } from '@quent/utils';
 import { DAGLegend } from './DAGLegend';
 
 vi.mock('@xyflow/react', () => ({
@@ -25,6 +26,31 @@ const coloring = {
   logMin: 3,
   max: 63,
 };
+const nestedField = flattenStatistics([
+  {
+    key: 'Execution profile',
+    value: {
+      kind: 'struct',
+      fields: [
+        {
+          key: 'Data volume',
+          value: {
+            kind: 'struct',
+            fields: [
+              {
+                key: 'Input',
+                value: {
+                  kind: 'struct',
+                  fields: [{ key: 'batches', value: 5115 }],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+])[0];
 
 function NodeColoringSetup() {
   const setNodeColoring = useSetNodeColoring();
@@ -58,7 +84,7 @@ function renderLegend() {
 describe('DAGLegend node coloring scale', () => {
   it('shows a Log badge and the log midpoint by default', () => {
     renderLegend();
-    expect(screen.getByText('bytes')).toBeVisible();
+    expect(screen.getByText('bytes')).toHaveAttribute('title', 'bytes');
     expect(screen.getByText('Log')).toBeVisible();
     expect(screen.getByText('0 B')).toBeVisible();
     expect(screen.getByText('15.00 B')).toBeVisible();
@@ -71,5 +97,33 @@ describe('DAGLegend node coloring scale', () => {
     expect(screen.getByText('Linear')).toBeVisible();
     expect(screen.queryByText('Log')).toBeNull();
     expect(screen.getByText('31.50 B')).toBeVisible();
+  });
+
+  it('formats an encoded nested field and exposes the full path as a title', () => {
+    function NestedFieldSetup() {
+      const setNodeColoring = useSetNodeColoring();
+      const [, setColorField] = useSelectedColorField();
+      return (
+        <button
+          onClick={() => {
+            setNodeColoring(coloring);
+            setColorField(nestedField.key);
+          }}
+        >
+          Color by nested field
+        </button>
+      );
+    }
+
+    render(
+      <Provider store={createStore()}>
+        <NestedFieldSetup />
+        <DAGLegend isDark={false} />
+      </Provider>
+    );
+    act(() => screen.getByRole('button', { name: 'Color by nested field' }).click());
+
+    const label = 'Execution profile › Data volume › Input › batches';
+    expect(screen.getByText(label)).toHaveAttribute('title', label);
   });
 });

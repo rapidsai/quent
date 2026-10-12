@@ -60,9 +60,12 @@ const ContinuousLegend = ({
   scale,
   midValue,
 }: ContinuousLegendProps) => (
-  <div className="flex flex-col gap-1">
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+  <div className="flex min-w-0 flex-col gap-1">
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <span
+        className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+        title={label}
+      >
         {label}
       </span>
       {scale && (
@@ -72,7 +75,7 @@ const ContinuousLegend = ({
       )}
     </div>
     <div
-      className={cn('h-2 rounded-sm', midValue === undefined ? 'w-36' : 'w-full min-w-36')}
+      className="h-2 w-full rounded-sm"
       style={{
         background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
       }}
@@ -113,10 +116,14 @@ export const CategoricalLegend = ({
 }: CategoricalLegendProps) => {
   const entries = [...categoryMap.entries()].slice(0, MAX_CATEGORICAL_ENTRIES);
   const truncated = categoryMap.size > MAX_CATEGORICAL_ENTRIES;
+  const fieldLabel = statisticFieldLabel(field);
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-        {statisticFieldLabel(field)}
+    <div className="flex min-w-0 flex-col gap-1">
+      <span
+        className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+        title={fieldLabel}
+      >
+        {fieldLabel}
       </span>
       <div className="flex flex-col gap-0.5">
         {entries.map(([label, color]) => {
@@ -137,6 +144,7 @@ export const CategoricalLegend = ({
                   'text-[10px] text-muted-foreground truncate max-w-[120px]',
                   dimmed && 'line-through'
                 )}
+                title={label}
               >
                 {label}
               </span>
@@ -300,8 +308,8 @@ export const DAGLegend = ({ isDark, statQuantitySpecs = {}, statisticFields }: D
   }
 
   return (
-    <Panel position="bottom-left">
-      <div className="flex flex-col gap-2.5 rounded-md border bg-card/90 backdrop-blur-sm px-3 py-2.5 shadow-md text-card-foreground">
+    <Panel position="bottom-left" className="min-w-[175px] max-w-[40%]">
+      <div className="flex min-w-0 max-w-full flex-col gap-2.5 overflow-hidden rounded-md border bg-card/90 px-3 py-2.5 text-card-foreground shadow-md backdrop-blur-sm">
         <NodeLegendContent
           coloring={nodeColoring}
           field={nodeField ? (statisticFields?.get(nodeField) ?? nodeField) : null}

@@ -395,6 +395,11 @@ const FlowLayout = ({
       new Map(
         [
           ...data.nodes.flatMap(node => node.metadata?.operatorStatistics?.fields ?? []),
+          ...data.nodes.flatMap(
+            node =>
+              node.metadata?.relatedOperatorStatistics?.flatMap(statistics => statistics.fields) ??
+              []
+          ),
           ...data.edges.flatMap(edge => edge.statisticFields ?? []),
         ].map(field => [field.key, field] as const)
       ),
@@ -407,7 +412,11 @@ const FlowLayout = ({
     }
     const result: Record<string, QuantitySpec> = {};
     for (const node of data.nodes) {
-      const fields = node.metadata?.operatorStatistics?.fields ?? [];
+      const fields = [
+        ...(node.metadata?.operatorStatistics?.fields ?? []),
+        ...(node.metadata?.relatedOperatorStatistics?.flatMap(statistics => statistics.fields) ??
+          []),
+      ];
       for (const stat of fields) {
         if (stat.quantity && !(stat.key in result)) {
           const spec = data.quantitySpecs[stat.quantity];
