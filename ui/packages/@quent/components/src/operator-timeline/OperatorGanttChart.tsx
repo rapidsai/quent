@@ -16,8 +16,7 @@ import {
   useColorResolver,
 } from '@quent/hooks';
 import {
-  continuousColor,
-  normalizeScaleValue,
+  scaleColor,
   withOpacity,
   buildRelatedOperatorIdsById,
   resolveSelectedOperatorSelections,
@@ -113,9 +112,8 @@ export function OperatorGanttChart({
           styles.set(op.operatorId, { stroke: undefined, fieldDimmed: true });
           continue;
         }
-        const t = normalizeScaleValue(v, nodeColoring, scaleType);
         styles.set(op.operatorId, {
-          stroke: continuousColor(t, nodePalette, isDark),
+          stroke: scaleColor(v, nodeColoring, scaleType, nodePalette, isDark),
           fieldDimmed: false,
         });
       } else {

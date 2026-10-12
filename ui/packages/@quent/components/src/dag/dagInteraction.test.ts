@@ -36,7 +36,7 @@ describe('resolveDagHeatmap', () => {
         ['grouped', 9],
       ])
     );
-    expect(heatmap?.range).toEqual({ min: 1, max: 9 });
+    expect(heatmap?.range).toEqual({ min: 1, logMin: 1, max: 9 });
   });
 
   it('returns null when the hovered stat has no value in this DAG', () => {

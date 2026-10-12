@@ -10,7 +10,7 @@ import {
   formatStatWithQuantity,
 } from '@quent/utils';
 import type { StatValue, Statistic, QuantitySpec, ContinuousPaletteName } from '@quent/utils';
-import { continuousColor } from '@quent/utils';
+import { scaleColor, type ScaleRange, type ScaleType } from '@quent/utils';
 import type { GroupedDataTableSortFn } from './GroupedDataTable';
 
 // Re-exported for consumers that still import it from here; defined in `@quent/utils`
@@ -122,19 +122,15 @@ export function getNumericCellValue(
 
 export function gradientBg(
   value: number | bigint,
-  min: number | bigint,
-  max: number | bigint,
+  range: ScaleRange,
+  scale: ScaleType,
   palette: ContinuousPaletteName = 'blue',
   darkMode = false
 ): string | undefined {
-  const vn = Number(value);
-  const mn = Number(min);
-  const mx = Number(max);
-  if (mn === mx) {
+  if (range.min === range.max) {
     return undefined;
   }
-  const t = (vn - mn) / (mx - mn);
-  return continuousColor(t, palette, darkMode);
+  return scaleColor(Number(value), range, scale, palette, darkMode);
 }
 
 export function rowGroupKey(row: StatGroupExpandedRow, indices: GroupIndexDef[]): string {

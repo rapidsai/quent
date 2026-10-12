@@ -4,7 +4,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { OnChangeFn, SortingState } from '@tanstack/react-table';
 import { GroupedDataTable } from './GroupedDataTable';
-import { cn, type StatValue } from '@quent/utils';
+import { cn, computeScaleRange, type ScaleRange, type StatValue } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
 import type {
   DataHeaderProps,
@@ -28,7 +28,7 @@ import type {
   GroupedDataTableGroupRenderMode,
   GroupedDataTableVirtualizationOptions,
 } from './GroupedDataTable';
-import { useNodeColorPalette, useColumnDragDrop } from '@quent/hooks';
+import { useNodeColorPalette, useColumnDragDrop, useSelectedScaleType } from '@quent/hooks';
 import {
   PivotTableRenderProvider,
   usePivotTableRenderContext,
@@ -166,7 +166,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
   const range = derived.columnRanges.get(stat);
   const bg =
     numVal !== null && range
-      ? gradientBg(numVal, range.min, range.max, display.colorPalette, display.darkMode)
+      ? gradientBg(numVal, range, display.scaleType, display.colorPalette, display.darkMode)
       : undefined;
   const isStatHovered = interaction.hoveredStat?.name === stat;
   const colHighlight = isStatHovered ? HIGHLIGHT_WASH : undefined;
@@ -275,6 +275,7 @@ export function PivotedStatTable<TRow>({
   onSortingChange,
 }: PivotedStatTableProps<TRow>) {
   const [nodePalette] = useNodeColorPalette();
+  const [scaleType] = useSelectedScaleType();
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const dragGhostRef = useRef<HTMLElement | null>(null);
   const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
@@ -405,25 +406,18 @@ export function PivotedStatTable<TRow>({
   }, [pivotedRows, hideEmptyRows, effectiveVisibleStats, isAggregating]);
 
   const columnRanges = useMemo(() => {
-    const ranges = new Map<string, { min: number; max: number }>();
+    const ranges = new Map<string, ScaleRange>();
     for (const stat of effectiveVisibleStats) {
-      let min = Infinity;
-      let max = -Infinity;
+      const nums: number[] = [];
       for (const row of visiblePivotedRows) {
         const v = getSortValue(row, stat, isAggregating, aggMode);
         if (v !== null) {
           // Convert to number for gradient color math — precision loss is acceptable here
-          const n = Number(v);
-          if (n < min) {
-            min = n;
-          }
-          if (n > max) {
-            max = n;
-          }
+          nums.push(Number(v));
         }
       }
-      if (min !== Infinity) {
-        ranges.set(stat, { min, max });
+      if (nums.length > 0) {
+        ranges.set(stat, computeScaleRange(nums));
       }
     }
     return ranges;
@@ -568,9 +562,10 @@ export function PivotedStatTable<TRow>({
       isAggregating,
       aggMode,
       colorPalette: nodePalette,
+      scaleType,
       darkMode: isDark,
     }),
-    [isAggregating, aggMode, nodePalette, isDark]
+    [isAggregating, aggMode, nodePalette, scaleType, isDark]
   );
   const dndContextValue = useMemo(
     () => ({

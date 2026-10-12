@@ -6,7 +6,8 @@ import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import {
   cn,
-  continuousColor,
+  scaleColor,
+  type ScaleRange,
   formatStatWithQuantity,
   statisticFieldName,
   isLightColor,
@@ -23,6 +24,7 @@ import {
 } from '@quent/utils';
 import {
   useSelectedNodeLabelField,
+  useSelectedScaleType,
   useNodeColoring,
   useNodeColorPalette,
   useSetHighlightedNodeIds,
@@ -66,7 +68,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
   hoveredStatActive?: boolean;
   hoveredStatValue?: number;
-  heatmapRange?: { min: number; max: number };
+  heatmapRange?: ScaleRange;
   highlightedNodeIds?: ReadonlySet<string> | null;
 }
 
@@ -89,6 +91,7 @@ const nodeVariants = cva(
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const setHighlightState = useSetHighlightedNodeIds();
   const [nodePalette] = useNodeColorPalette();
+  const [scaleType] = useSelectedScaleType();
   const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const isDark = data.isDark ?? false;
   const operatorId = data.metadata?.rawNode?.id ?? data.nodeId;
@@ -147,11 +150,8 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     if (data.hoveredStatValue === undefined || !data.heatmapRange) {
       return undefined;
     }
-    const { min, max } = data.heatmapRange;
-    const range = max - min;
-    const t = range > 0 ? (data.hoveredStatValue - min) / range : 0.5;
-    return continuousColor(t, nodePalette, isDark);
-  }, [data.heatmapRange, data.hoveredStatValue, nodePalette, isDark]);
+    return scaleColor(data.hoveredStatValue, data.heatmapRange, scaleType, nodePalette, isDark);
+  }, [data.heatmapRange, data.hoveredStatValue, nodePalette, scaleType, isDark]);
 
   const opacityClass = getNodeOpacityClass({
     isHoveredStatActive: data.hoveredStatActive ?? false,

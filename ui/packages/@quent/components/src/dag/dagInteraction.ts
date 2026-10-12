@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { DAGNode } from '@quent/utils';
+import { computeScaleRange, type DAGNode, type ScaleRange } from '@quent/utils';
 import type { HoveredStatInfo } from '@quent/hooks';
 import { resolveHoveredStatValue } from '@quent/hooks';
 
 export interface DagHeatmap {
   values: ReadonlyMap<string, number>;
-  range: { min: number; max: number };
+  range: ScaleRange;
 }
 
 function getRelatedOperatorIds(node: DAGNode): readonly string[] {
@@ -26,19 +26,15 @@ export function resolveDagHeatmap(
   }
 
   const values = new Map<string, number>();
-  let min = Infinity;
-  let max = -Infinity;
   for (const node of nodes) {
     const resolved = resolveHoveredStatValue(hoveredStat, node.id, getRelatedOperatorIds(node));
     if (resolved === undefined) {
       continue;
     }
     values.set(node.id, resolved);
-    min = Math.min(min, resolved);
-    max = Math.max(max, resolved);
   }
 
-  return values.size > 0 ? { values, range: { min, max } } : null;
+  return values.size > 0 ? { values, range: computeScaleRange([...values.values()]) } : null;
 }
 
 export function resolveDagHighlightedNodeIds(

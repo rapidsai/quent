@@ -10,7 +10,7 @@ import {
   nodeColorPaletteAtom,
   selectedScaleTypeAtom,
 } from '../atoms/dagControls';
-import { continuousColor, normalizeScaleValue } from '@quent/utils';
+import { scaleColor } from '@quent/utils';
 
 interface NodeColoringResult {
   /** Computed hex color for this node, or undefined if no coloring is active */
@@ -63,8 +63,10 @@ export function useNodeColoring(
       if (v === undefined) {
         return { fieldColor: undefined, fieldDimmed: true };
       }
-      const t = normalizeScaleValue(v, nodeColoring, scaleType);
-      return { fieldColor: continuousColor(t, nodePalette, isDark), fieldDimmed: false };
+      return {
+        fieldColor: scaleColor(v, nodeColoring, scaleType, nodePalette, isDark),
+        fieldDimmed: false,
+      };
     }
     const color = nodeColoring.colorMap.get(operatorId);
     return { fieldColor: color, fieldDimmed: !color };

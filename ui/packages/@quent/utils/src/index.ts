@@ -87,7 +87,7 @@ export type { EntityTypeValue, SingleEntity, EntityRefKey, EntityRefParts } from
 
 // DAG coloring types (shared between @quent/hooks and @quent/components)
 export { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION, SCALE_TYPE } from './dagTypes';
-export { normalizeScaleValue, scaleMidpoint } from './scale';
+export { computeScaleRange, normalizeScaleValue, scaleColor, scaleMidpoint } from './scale';
 export type { ScaleRange } from './scale';
 export type {
   ContinuousNodeColoring,

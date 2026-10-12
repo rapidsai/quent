@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { StatValue, Statistic, ContinuousPaletteName } from '@quent/utils';
+import type { StatValue, Statistic, ContinuousPaletteName, ScaleType } from '@quent/utils';
 import type { AggMode, HoveredStatInfo } from '@quent/hooks';
 
 // Re-exports of pivot-table-related types that originate in @quent/hooks but
@@ -86,6 +86,7 @@ export interface PivotTableDisplayConfig {
   isAggregating: boolean;
   aggMode: AggMode;
   colorPalette: ContinuousPaletteName;
+  scaleType: ScaleType;
   darkMode: boolean;
 }
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createContext, useContext } from 'react';
+import type { ScaleRange } from '@quent/utils';
 import type {
   HoveredStatInfo,
   PivotTableDisplayConfig,
@@ -13,7 +14,7 @@ import type {
 
 export interface PivotTableDerivedState {
   hoveredHeaderItemIds: Set<string> | null;
-  columnRanges: Map<string, { min: number; max: number }>;
+  columnRanges: Map<string, ScaleRange>;
   buildHoveredStatInfo: (statName: string) => HoveredStatInfo | null;
 }
 

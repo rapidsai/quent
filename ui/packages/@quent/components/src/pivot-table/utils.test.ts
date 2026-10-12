@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import { continuousColor } from '@quent/utils';
+import { continuousColor, scaleColor, SCALE_TYPE } from '@quent/utils';
 import type { StatValue } from '@quent/utils';
 import {
   formatNumericStat,
@@ -199,30 +199,46 @@ describe('isNumericValue', () => {
 // ---- gradientBg ------------------------------------------------------------
 
 describe('gradientBg', () => {
+  const range = { min: 0, logMin: 1, max: 10 };
+
   it('returns undefined when min equals max', () => {
-    expect(gradientBg(5, 5, 5)).toBeUndefined();
+    expect(gradientBg(5, { min: 5, logMin: 5, max: 5 }, SCALE_TYPE.LINEAR)).toBeUndefined();
   });
 
   it('returns the neutral color at the minimum (t=0)', () => {
-    const result = gradientBg(0, 0, 10, 'blue', false);
-    expect(result).toBe(continuousColor(0, 'blue', false));
+    expect(gradientBg(0, range, SCALE_TYPE.LINEAR, 'blue', false)).toBe(
+      continuousColor(0, 'blue', false)
+    );
   });
 
   it('returns the full color at the maximum (t=1)', () => {
-    const result = gradientBg(10, 0, 10, 'blue', false);
-    expect(result).toBe(continuousColor(1, 'blue', false));
+    expect(gradientBg(10, range, SCALE_TYPE.LINEAR, 'blue', false)).toBe(
+      continuousColor(1, 'blue', false)
+    );
   });
 
-  it('interpolates at the midpoint (t=0.5)', () => {
-    const result = gradientBg(5, 0, 10, 'teal', false);
-    expect(result).toBe(continuousColor(0.5, 'teal', false));
+  it('interpolates at the midpoint on the linear scale', () => {
+    expect(gradientBg(5, range, SCALE_TYPE.LINEAR, 'teal', false)).toBe(
+      continuousColor(0.5, 'teal', false)
+    );
+  });
+
+  it('places values on the selected scale', () => {
+    expect(gradientBg(5, range, SCALE_TYPE.LOG, 'teal', false)).toBe(
+      scaleColor(5, range, SCALE_TYPE.LOG, 'teal', false)
+    );
+    expect(gradientBg(5, range, SCALE_TYPE.LOG, 'teal', false)).not.toBe(
+      gradientBg(5, range, SCALE_TYPE.LINEAR, 'teal', false)
+    );
   });
 
   it('passes darkMode to continuousColor', () => {
-    const light = gradientBg(10, 0, 10, 'blue', false);
-    const dark = gradientBg(10, 0, 10, 'blue', true);
-    expect(light).toBe(continuousColor(1, 'blue', false));
-    expect(dark).toBe(continuousColor(1, 'blue', true));
+    expect(gradientBg(10, range, SCALE_TYPE.LINEAR, 'blue', false)).toBe(
+      continuousColor(1, 'blue', false)
+    );
+    expect(gradientBg(10, range, SCALE_TYPE.LINEAR, 'blue', true)).toBe(
+      continuousColor(1, 'blue', true)
+    );
   });
 });
 

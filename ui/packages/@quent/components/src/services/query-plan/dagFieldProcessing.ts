@@ -5,26 +5,10 @@ import type { DAGNode, DAGEdge, NodeColoring, EdgeWidthConfig, EdgeColoring } fr
 import { resolveStatisticFields } from '../../lib/queryBundle.utils';
 import {
   buildDeterministicColorMap,
+  computeScaleRange,
   createDeterministicColorResolver,
   isNumericValue,
 } from '@quent/utils';
-
-/**
- * Lower bound for log scaling. Non-negative data starts at its smallest positive
- * value so zeros don't leave most of the scale empty. Signed data keeps its true
- * minimum, because the symmetric log scale already places negatives and zero.
- */
-function logScaleMin(values: readonly number[]): number {
-  let smallestPositive = Infinity;
-  let smallest = Infinity;
-  for (const v of values) {
-    smallest = Math.min(smallest, v);
-    if (v > 0) {
-      smallestPositive = Math.min(smallestPositive, v);
-    }
-  }
-  return smallest < 0 || !Number.isFinite(smallestPositive) ? smallest : smallestPositive;
-}
 
 export function computeNodeColoring(nodes: DAGNode[], field: string | null): NodeColoring {
   if (!field || !nodes.length) {
@@ -57,9 +41,7 @@ export function computeNodeColoring(nodes: DAGNode[], field: string | null): Nod
     return {
       type: 'continuous',
       values: new Map(entries.map(e => [e.id, Number(e.value)])),
-      min: Math.min(...nums),
-      logMin: logScaleMin(nums),
-      max: Math.max(...nums),
+      ...computeScaleRange(nums),
     };
   }
 
@@ -95,9 +77,7 @@ export function computeEdgeColoring(edges: DAGEdge[], field: string | null): Edg
     return {
       type: 'continuous',
       values: new Map(entries.map(e => [e.id, Number(e.value)])),
-      min: Math.min(...nums),
-      logMin: logScaleMin(nums),
-      max: Math.max(...nums),
+      ...computeScaleRange(nums),
     };
   }
 
@@ -136,8 +116,6 @@ export function computeEdgeWidthConfig(edges: DAGEdge[], field: string | null): 
   const nums = entries.map(e => e.value);
   return {
     values: new Map(entries.map(e => [e.id, e.value])),
-    min: Math.min(...nums),
-    logMin: logScaleMin(nums),
-    max: Math.max(...nums),
+    ...computeScaleRange(nums),
   };
 }

@@ -249,6 +249,9 @@ function blendToColor(
 
 /**
  * Compute a continuous color for a normalized value t ∈ [0, 1] using the given palette.
+ *
+ * To color a statistic value, use `scaleColor` instead. It places the value on the
+ * selected log/linear scale first; calling this directly skips that step.
  */
 export function continuousColor(
   t: number,

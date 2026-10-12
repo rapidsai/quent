@@ -53,7 +53,7 @@ import { shouldDimEdgeFromInteraction } from './edgeOpacity';
 import { resolveDagHeatmap, resolveDagHighlightedNodeIds } from './dagInteraction';
 import { parseOperatorAttributes } from '../lib/queryBundle.utils';
 import {
-  continuousColor,
+  scaleColor,
   inferFieldFormatter,
   statisticFieldName,
   toggleOperatorSelection,
@@ -130,8 +130,7 @@ const VariableWidthEdge = ({
       if (v === undefined) {
         edgeDimmed = true;
       } else {
-        const t = normalizeScaleValue(v, edgeColoring, scaleType);
-        edgeColor = continuousColor(t, edgePalette, isDark);
+        edgeColor = scaleColor(v, edgeColoring, scaleType, edgePalette, isDark);
       }
     } else {
       const color = edgeColoring.colorMap.get(id);
