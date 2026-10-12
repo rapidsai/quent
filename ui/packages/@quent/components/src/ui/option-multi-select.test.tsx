@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { OptionMultiSelect } from './option-multi-select';
 
 describe('OptionMultiSelect', () => {
-  it('exposes the full option label as a title', async () => {
+  it('shows a short label while exposing the full path as a title', async () => {
     const user = userEvent.setup();
     render(
       <OptionMultiSelect
@@ -16,7 +16,8 @@ describe('OptionMultiSelect', () => {
         options={[
           {
             value: 'input-rows',
-            label: 'Execution profile › Data volume › Input › rows',
+            label: 'rows',
+            title: 'Execution profile › Data volume › Input › rows',
           },
         ]}
         selectedOptionIds={new Set()}
@@ -28,7 +29,7 @@ describe('OptionMultiSelect', () => {
 
     await user.click(screen.getByRole('combobox', { name: 'Columns' }));
 
-    expect(screen.getByText('Execution profile › Data volume › Input › rows')).toHaveAttribute(
+    expect(screen.getByText('rows')).toHaveAttribute(
       'title',
       'Execution profile › Data volume › Input › rows'
     );

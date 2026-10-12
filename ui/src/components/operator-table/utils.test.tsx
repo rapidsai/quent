@@ -6,7 +6,7 @@ import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
 import { PivotedStatTable, formatStatValue, type PivotedStatTableSchema } from '@quent/components';
 import type { Operator, QueryEntities, QuantitySpec } from '@quent/utils';
-import { buildOperatorRows } from './utils';
+import { buildOperatorRows, buildOperatorStatMetadata } from './utils';
 import type { OperatorTableRow } from './types';
 
 function makeEntities(statistics: NonNullable<Operator['statistics']>): QueryEntities {
@@ -79,6 +79,7 @@ const quantitySpecs: Record<string, QuantitySpec> = {
 };
 
 function renderRows(rows: OperatorTableRow[], isAggregating = false, activeIndices = ['item']) {
+  const statMetadata = buildOperatorStatMetadata(rows);
   render(
     <Provider store={createStore()}>
       <PivotedStatTable
@@ -87,8 +88,15 @@ function renderRows(rows: OperatorTableRow[], isAggregating = false, activeIndic
         activeIndices={activeIndices}
         isAggregating={isAggregating}
         renderConfig={{
+          getStatLabel: stat => statMetadata.get(stat)?.label ?? stat,
+          getStatTitle: stat => statMetadata.get(stat)?.title ?? stat,
           formatValue: (value, statName, quantity) =>
-            formatStatValue(value, statName, quantitySpecs, quantity),
+            formatStatValue(
+              value,
+              statMetadata.get(statName)?.fieldName ?? statName,
+              quantitySpecs,
+              quantity
+            ),
         }}
         interaction={{
           hoveredStat: null,
@@ -103,6 +111,18 @@ function renderRows(rows: OperatorTableRow[], isAggregating = false, activeIndic
 
 const structuredStatistics = {
   custom_statistics: [
+    {
+      value: {
+        key: 'Execution profile',
+        value: [
+          {
+            key: 'Data volume',
+            value: [{ key: 'Input', value: [{ key: 'batches', value: 5 }] }],
+          },
+        ],
+      },
+      quantity: null,
+    },
     {
       value: {
         key: 'device',
@@ -124,34 +144,49 @@ const structuredStatistics = {
     },
     { value: { key: 'rows', value: 0 }, quantity: null },
     { value: { key: 'rows', value: 7 }, quantity: null },
+    { value: { key: 'batches', value: 6 }, quantity: null },
     { value: { key: 'input_bytes', value: 1024 }, quantity: 'bytes' },
   ],
 } satisfies NonNullable<Operator['statistics']>;
 
 describe('operator table structured statistics', () => {
-  it('renders structs, nested lists, and repeated names through the real pivot table', () => {
+  it('renders scalar leaves instead of parent structs through the real pivot table', () => {
     const rows = buildOperatorRows(makeEntities(structuredStatistics), new Set(['plan']));
     renderRows(rows);
 
+    expect(screen.getByRole('columnheader', { name: 'batches' })).toBeInTheDocument();
     expect(
-      screen.getByRole('cell', { name: 'name: GPU, count: 0, count: 3, details: bytes: 2.00 KiB' })
-    ).toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: 'name: GPU, name: CPU, Disk' })).toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: '0, 7.00' })).toBeInTheDocument();
-    expect(screen.queryByText(/\[object Object\]/)).not.toBeInTheDocument();
-    expect(rows[0].stats).toContainEqual({ key: 'input_bytes', value: 1024, quantity: 'bytes' });
+      screen.getByTitle('Execution profile › Data volume › Input › batches')
+    ).toHaveTextContent('batches');
+    expect(screen.getByRole('columnheader', { name: 'batches [2]' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('columnheader', { name: 'Execution profile' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'name' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'count' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'count [2]' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'bytes' })).toBeInTheDocument();
+    expect(screen.getByTitle('device › details › bytes')).toHaveTextContent('bytes');
+    expect(screen.queryByRole('columnheader', { name: 'device' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'devices' })).not.toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'GPU' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '2.00 KiB' })).toBeInTheDocument();
+    expect(rows[0].stats).toContainEqual(
+      expect.objectContaining({ key: 'input_bytes', value: 1024, quantity: 'bytes' })
+    );
   });
 
-  it('keeps scalar numeric aggregation and does not sum repeated values', () => {
+  it('aggregates each scalar leaf independently', () => {
     const rows = buildOperatorRows(makeEntities(structuredStatistics), new Set(['plan']));
     renderRows(rows, true);
 
     expect(screen.getByRole('cell', { name: '1.00 KiB' })).toBeInTheDocument();
-    expect(screen.queryByRole('cell', { name: '7' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('cell', { name: '-' })).toHaveLength(3);
+    expect(screen.getByRole('cell', { name: '7.00' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'rows' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'rows [2]' })).toBeInTheDocument();
   });
 
-  it('retains each repeated entry with its own quantity and formats numeric list elements', () => {
+  it('retains repeated scalar leaves with their own quantities and omits lists', () => {
     const rows = buildOperatorRows(
       makeEntities({
         custom_statistics: [
@@ -164,13 +199,13 @@ describe('operator table structured statistics', () => {
     );
     renderRows(rows);
 
-    expect(rows[0].stats.slice(1)).toEqual([
+    expect(rows[0].stats.slice(1)).toMatchObject([
       { key: 'work', value: 1024n, quantity: 'bytes' },
-      { key: 'work', value: 2, quantity: 'seconds' },
-      { key: 'sizes', value: [1024n, 2048n], quantity: 'bytes' },
+      { key: 'work [2]', value: 2, quantity: 'seconds' },
     ]);
-    expect(screen.getByRole('cell', { name: '1.00 KiB, 2.00 s' })).toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: '1.00 KiB, 2.00 KiB' })).toBeInTheDocument();
+    expect(rows[0].stats.some(stat => stat.key === 'sizes')).toBe(false);
+    expect(screen.getByRole('cell', { name: '1.00 KiB' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '2.00 s' })).toBeInTheDocument();
   });
 
   it.each([

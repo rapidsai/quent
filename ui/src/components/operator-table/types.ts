@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Statistic } from '@quent/utils';
+import type { StatisticField } from '@quent/utils';
 
 export type OperatorTableIndexKey =
   'partition' | 'parent_item_type' | 'parent_item' | 'item_type' | 'item';
@@ -33,5 +33,5 @@ export interface OperatorTableRow {
   itemType: string;
   itemName: string;
   itemId: string;
-  stats: Statistic[];
+  stats: StatisticField[];
 }

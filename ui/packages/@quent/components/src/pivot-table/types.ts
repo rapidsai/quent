@@ -69,6 +69,8 @@ export interface PivotTableInteractionConfig<TRow extends GroupedDataTableRowBas
 
 export interface PivotTableRenderConfig {
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
+  getStatLabel?: (statName: string) => string;
+  getStatTitle?: (statName: string) => string;
   formatValue?: (value: StatValue, statName: string, quantity?: string) => string;
 }
 

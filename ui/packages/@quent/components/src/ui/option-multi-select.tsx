@@ -13,6 +13,7 @@ import { TruncatedBadgeList } from './truncated-badge-list';
 export interface OptionMultiSelectOption {
   value: string;
   label?: string;
+  title?: string;
   description?: string;
 }
 
@@ -40,6 +41,10 @@ interface OptionMultiSelectProps {
 
 function optionLabel(option: OptionMultiSelectOption): string {
   return option.label ?? option.value;
+}
+
+function optionTitle(option: OptionMultiSelectOption): string {
+  return option.title ?? optionLabel(option);
 }
 
 export function OptionMultiSelect({
@@ -115,7 +120,12 @@ export function OptionMultiSelect({
               triggerClassName
             )}
           >
-            <span className="flex-1 truncate text-left">{triggerLabel}</span>
+            <span
+              className="flex-1 truncate text-left"
+              title={selectedOptions.length === 1 ? optionTitle(selectedOptions[0]) : undefined}
+            >
+              {triggerLabel}
+            </span>
             {selectedOptions.length > 0 && (
               <span
                 role="button"
@@ -200,7 +210,7 @@ export function OptionMultiSelect({
                   <span className="min-w-0 flex-1 text-left">
                     <span
                       className={cn('block truncate', optionClassName)}
-                      title={optionLabel(option)}
+                      title={optionTitle(option)}
                     >
                       {optionLabel(option)}
                     </span>
@@ -238,7 +248,9 @@ export function OptionMultiSelect({
                     optionClassName
                   )}
                 >
-                  <span className="truncate">{optionLabel(option)}</span>
+                  <span className="truncate" title={optionTitle(option)}>
+                    {optionLabel(option)}
+                  </span>
                   <button
                     type="button"
                     onClick={e => {

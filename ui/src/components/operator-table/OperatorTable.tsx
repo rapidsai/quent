@@ -33,7 +33,7 @@ import {
   type OperatorTableIndexKey,
   type OperatorTableRow,
 } from './types';
-import { buildOperatorRows, buildItemIdIndex } from './utils';
+import { buildOperatorRows, buildItemIdIndex, buildOperatorStatMetadata } from './utils';
 
 const OPERATOR_SCHEMA: PivotedStatTableSchema<OperatorTableRow> = {
   groups: {
@@ -151,6 +151,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [rows]);
 
   const allStatNames = useMemo(() => getSchemaStatNames(rows, OPERATOR_SCHEMA), [rows]);
+  const statMetadata = useMemo(() => buildOperatorStatMetadata(rows), [rows]);
   const hasParentItems = useMemo(() => rows.some(r => r.parentItemType !== '-'), [rows]);
   const filterIndexOrder = useCallback(
     (order: OperatorTableIndexKey[]) =>
@@ -180,8 +181,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     allStatNames,
     defaultStatSelector: stats => {
       const duration = stats.filter(stat => stat === 'duration_s');
-      const inputs = stats.filter(stat => stat.startsWith('input_'));
-      const outputs = stats.filter(stat => stat.startsWith('output_'));
+      const inputs = stats.filter(stat => statMetadata.get(stat)?.fieldName.startsWith('input_'));
+      const outputs = stats.filter(stat => statMetadata.get(stat)?.fieldName.startsWith('output_'));
       return [...duration, ...inputs, ...outputs];
     },
     filterIndexOrder,
@@ -309,10 +310,17 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const renderConfig = useMemo(
     (): PivotTableRenderConfig => ({
       getGroupTypeColor: getOperatorGroupTypeColor,
+      getStatLabel: stat => statMetadata.get(stat)?.label ?? stat,
+      getStatTitle: stat => statMetadata.get(stat)?.title ?? stat,
       formatValue: (value, statName, quantity) =>
-        formatStatValue(value, statName, quantitySpecs, quantity),
+        formatStatValue(
+          value,
+          statMetadata.get(statName)?.fieldName ?? statName,
+          quantitySpecs,
+          quantity
+        ),
     }),
-    [getOperatorGroupTypeColor, quantitySpecs]
+    [getOperatorGroupTypeColor, quantitySpecs, statMetadata]
   );
 
   if (!selectedPlanId) {
@@ -346,6 +354,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           onToggleStat={handleToggleStat}
           onSelectAllStats={handleSelectAllStats}
           onSelectNoStats={handleSelectNoStats}
+          getStatLabel={stat => statMetadata.get(stat)?.label ?? stat}
+          getStatTitle={stat => statMetadata.get(stat)?.title ?? stat}
         />
       </div>
       <div className="flex-1 min-h-0">

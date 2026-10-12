@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { QueryEntities } from '~quent/types/QueryEntities';
-import { workerDisplayName, type Statistic } from '@quent/utils';
+import {
+  flattenStatistics,
+  statisticFieldLabel,
+  statisticFieldName,
+  workerDisplayName,
+  type Statistic,
+} from '@quent/utils';
 import { parseCustomStatistics } from '@quent/components';
 import type { OperatorTableRow } from './types';
 
@@ -72,10 +78,14 @@ export function buildOperatorRows(
       const parentItemName =
         parentOps.length > 0 ? parentOps.map(p => p.instance_name ?? p.id).join(', ') : '-';
       const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
-      const stats: Statistic[] = [
+      const statistics: Statistic[] = [
         { key: 'duration_s', value: duration !== null ? Number(duration.toFixed(6)) : null },
         ...parseCustomStatistics(op),
       ];
+      const stats = flattenStatistics(statistics).map(field => ({
+        ...field,
+        key: statisticFieldLabel(field),
+      }));
       rows.push({
         partitionId,
         partitionLabel,
@@ -92,6 +102,35 @@ export function buildOperatorRows(
     }
   }
   return rows;
+}
+
+export interface OperatorStatMetadata {
+  fieldName: string;
+  label: string;
+  title: string;
+}
+
+export function buildOperatorStatMetadata(
+  rows: OperatorTableRow[]
+): Map<string, OperatorStatMetadata> {
+  const result = new Map<string, OperatorStatMetadata>();
+  const occurrences = new Map<string, number>();
+  for (const row of rows) {
+    for (const stat of row.stats) {
+      if (result.has(stat.key)) {
+        continue;
+      }
+      const fieldName = statisticFieldName(stat);
+      const occurrence = occurrences.get(fieldName) ?? 0;
+      occurrences.set(fieldName, occurrence + 1);
+      result.set(stat.key, {
+        fieldName,
+        label: `${fieldName}${occurrence ? ` [${occurrence + 1}]` : ''}`,
+        title: statisticFieldLabel(stat),
+      });
+    }
+  }
+  return result;
 }
 
 /**

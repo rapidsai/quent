@@ -26,6 +26,8 @@ export interface PivotTableToolbarProps {
   onToggleStat: (stat: string) => void;
   onSelectAllStats: () => void;
   onSelectNoStats: () => void;
+  getStatLabel?: (stat: string) => string;
+  getStatTitle?: (stat: string) => string;
 }
 
 export function PivotTableToolbar({
@@ -40,8 +42,18 @@ export function PivotTableToolbar({
   onToggleStat,
   onSelectAllStats,
   onSelectNoStats,
+  getStatLabel,
+  getStatTitle,
 }: PivotTableToolbarProps) {
-  const statOptions = useMemo(() => orderedStats.map(stat => ({ value: stat })), [orderedStats]);
+  const statOptions = useMemo(
+    () =>
+      orderedStats.map(stat => ({
+        value: stat,
+        label: getStatLabel?.(stat) ?? stat,
+        title: getStatTitle?.(stat),
+      })),
+    [orderedStats, getStatLabel, getStatTitle]
+  );
   const commitDrop = useCallback(
     (fromKey: string, toKey: string, position: 'before' | 'after') => {
       if (fromKey === toKey) {

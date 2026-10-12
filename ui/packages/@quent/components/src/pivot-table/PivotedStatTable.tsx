@@ -38,8 +38,10 @@ import {
 const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
 
 function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProps) {
-  const { dnd, interaction, derived } = usePivotTableRenderContext();
+  const { dnd, interaction, renderConfig, derived } = usePivotTableRenderContext();
   const hoveredStatName = interaction.hoveredStat?.name;
+  const statLabel = renderConfig.getStatLabel?.(stat) ?? stat;
+  const statTitle = renderConfig.getStatTitle?.(stat) ?? statLabel;
   // While a column is being dragged, show a 3px primary-colored bar on the
   // leading or trailing edge of the column under the cursor to indicate where
   // a drop would insert.
@@ -88,8 +90,8 @@ function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProp
       )}
       style={mergedStyle}
     >
-      <span className="relative z-10">
-        {stat}
+      <span className="relative z-10" title={statTitle}>
+        {statLabel}
         {sortInfo && <span className="ml-1 text-xs">{sortInfo.desc ? '▼' : '▲'}</span>}
       </span>
     </th>
@@ -289,6 +291,8 @@ export function PivotedStatTable<TRow>({
   const effectiveRenderConfig = useMemo(
     (): PivotTableRenderConfig => ({
       getGroupTypeColor: renderConfig?.getGroupTypeColor,
+      getStatLabel: renderConfig?.getStatLabel,
+      getStatTitle: renderConfig?.getStatTitle,
       formatValue: renderConfig?.formatValue,
     }),
     [renderConfig]
@@ -612,14 +616,21 @@ export function PivotedStatTable<TRow>({
     }));
     const statCols: GroupedDataTableColumnDef<PivotedRow>[] = effectiveVisibleStats.map(stat => ({
       id: stat,
-      header: stat,
+      header: effectiveRenderConfig.getStatLabel?.(stat) ?? stat,
       enableSorting: true,
       sortUndefined: 'last',
       sortFn: numericSortingFn,
       accessorFn: (row: PivotedRow) => getSortValue(row, stat, isAggregating, aggMode) ?? undefined,
     }));
     return [...groupCols, ...statCols];
-  }, [activeIndices, effectiveVisibleStats, resolvedIndexLabels, isAggregating, aggMode]);
+  }, [
+    activeIndices,
+    effectiveVisibleStats,
+    resolvedIndexLabels,
+    effectiveRenderConfig,
+    isAggregating,
+    aggMode,
+  ]);
 
   const hasSelection = (effectiveSelectedItemIds?.size ?? 0) > 0;
   const isSelected = (row: PivotedRow) =>
