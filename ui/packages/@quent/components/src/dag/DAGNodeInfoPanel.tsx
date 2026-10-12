@@ -99,7 +99,7 @@ export const DAGNodeInfoPanel = ({
   );
 
   const statsContent = hasSelection ? (
-    <div ref={statsContentRef} className="flex flex-col gap-1 pr-2 pt-1.5">
+    <div ref={statsContentRef} className="flex flex-col gap-1 pt-1.5">
       {selectedOperators.map((operator, index) => (
         <div key={operator.nodeId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
           <OperatorDetailsBlock

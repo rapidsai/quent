@@ -15,7 +15,7 @@ type Quantities = { [key: string]: QuantitySpec | undefined };
 
 export function StatisticField({ name, children }: { name: string; children: ReactNode }) {
   return (
-    <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-start gap-x-4 py-0 text-xs leading-snug">
+    <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,min(35.2ch,60%))] font-mono items-start gap-x-4 py-0 text-xs leading-snug">
       <DataText as="dt" className="break-words">
         {name.replace(/_/g, ' ')}:
       </DataText>
