@@ -66,7 +66,7 @@ describe('statistic fields', () => {
     expect(fields.map(statisticFieldLabel)).toEqual(['Volume › bytes', '"Volume › bytes"']);
   });
 
-  it('builds leaf labels with duplicate indicators and full-path titles', () => {
+  it('builds full-path labels and titles while retaining leaf names', () => {
     const fields = flattenStatistics([
       { key: 'Input', value: { kind: 'struct', fields: [{ key: 'rows', value: 1 }] } },
       { key: 'Output', value: { kind: 'struct', fields: [{ key: 'rows', value: 2 }] } },
@@ -74,9 +74,9 @@ describe('statistic fields', () => {
     ]);
     const presentations = buildStatisticFieldPresentations(fields);
     expect(fields.map(field => presentations.get(field.key))).toEqual([
-      { fieldName: 'rows', label: 'rows', title: 'Input › rows' },
-      { fieldName: 'rows', label: 'rows [2]', title: 'Output › rows' },
-      { fieldName: 'rows', label: 'rows [3]', title: 'rows' },
+      { fieldName: 'rows', label: 'Input › rows', title: 'Input › rows' },
+      { fieldName: 'rows', label: 'Output › rows', title: 'Output › rows' },
+      { fieldName: 'rows', label: 'rows', title: 'rows' },
     ]);
   });
 

@@ -87,23 +87,21 @@ export function statisticFieldName(
   return resolvedField ? statisticFieldName(resolvedField) : field;
 }
 
-/** Builds compact labels and full-path titles for an ordered field collection. */
+/** Builds consistent display metadata for an ordered field collection. */
 export function buildStatisticFieldPresentations(
   fields: readonly StatisticField[]
 ): Map<string, StatisticFieldPresentation> {
   const result = new Map<string, StatisticFieldPresentation>();
-  const occurrences = new Map<string, number>();
   for (const field of fields) {
     if (result.has(field.key)) {
       continue;
     }
     const fieldName = statisticFieldName(field);
-    const occurrence = occurrences.get(fieldName) ?? 0;
-    occurrences.set(fieldName, occurrence + 1);
+    const title = statisticFieldLabel(field);
     result.set(field.key, {
       fieldName,
-      label: `${fieldName}${occurrence ? ` [${occurrence + 1}]` : ''}`,
-      title: statisticFieldLabel(field),
+      label: title,
+      title,
     });
   }
   return result;

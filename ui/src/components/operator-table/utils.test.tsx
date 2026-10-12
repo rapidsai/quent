@@ -159,19 +159,27 @@ describe('operator table structured statistics', () => {
     const rows = buildOperatorRows(makeEntities(structuredStatistics), new Set(['plan']));
     renderRows(rows);
 
-    expect(screen.getByRole('columnheader', { name: 'batches' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', {
+        name: 'Execution profile › Data volume › Input › batches',
+      })
+    ).toBeInTheDocument();
     expect(
       screen.getByTitle('Execution profile › Data volume › Input › batches')
-    ).toHaveTextContent('batches');
-    expect(screen.getByRole('columnheader', { name: 'batches [2]' })).toBeInTheDocument();
+    ).toHaveTextContent('Execution profile › Data volume › Input › batches');
+    expect(screen.getByRole('columnheader', { name: 'batches' })).toBeInTheDocument();
     expect(
       screen.queryByRole('columnheader', { name: 'Execution profile' })
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'name' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'count' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'count [2]' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'bytes' })).toBeInTheDocument();
-    expect(screen.getByTitle('device › details › bytes')).toHaveTextContent('bytes');
+    expect(screen.getByRole('columnheader', { name: 'device › name' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'device › count' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'device › count [2]' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: 'device › details › bytes' })
+    ).toBeInTheDocument();
+    expect(screen.getByTitle('device › details › bytes')).toHaveTextContent(
+      'device › details › bytes'
+    );
     expect(screen.queryByRole('columnheader', { name: 'device' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'devices' })).not.toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'GPU' })).toBeInTheDocument();
