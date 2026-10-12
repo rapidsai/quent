@@ -3,7 +3,7 @@
 
 //! Binned timelines for resource utilization.
 
-use std::hash::Hash;
+use std::{collections::hash_map::Entry, hash::Hash};
 
 use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
@@ -102,8 +102,8 @@ impl<'a, K: Eq + Hash> ResourceAggregator<'a, K> {
 
         // The immutable declaration fixes the unit for every usage in this series.
         let bins = match self.bins.entry(key) {
-            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-            std::collections::hash_map::Entry::Vacant(entry) => {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
                 let kind = self.resource_type.try_capacity(capacity.name)?.kind;
                 entry.insert(ResourceBins::new(self.config, kind))
             }
