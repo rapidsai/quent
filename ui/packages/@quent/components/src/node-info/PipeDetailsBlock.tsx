@@ -7,9 +7,9 @@ import {
   useSetHighlightedNodeIds,
   useOperatorSelectionActions,
 } from '@quent/hooks';
+import type { DAGEdge, DAGNode } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
 import { OperatorColorBar } from './OperatorColorBar';
-import type { DAGEdge, DAGNode } from '@quent/utils';
 import { StatisticFields } from './StatisticFields';
 
 export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {

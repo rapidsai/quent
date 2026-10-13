@@ -12,8 +12,7 @@ import {
   useSelectedOperatorsData,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
-import { OperatorDataFlowBlock, OperatorDetailsBlock } from '../node-info';
-import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
+import { OperatorDataFlowBlock, OperatorDetailsBlock, PipeDetailsBlock } from '../node-info';
 import { thinScrollbarClass } from '../ui/thin-scroll';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 

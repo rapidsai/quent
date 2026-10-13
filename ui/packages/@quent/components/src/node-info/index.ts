@@ -7,3 +7,4 @@ export { OperatorColorBar } from './OperatorColorBar';
 export { OperatorDataFlowBlock } from './OperatorDataFlowBlock';
 export { OperatorDetailsBlock } from './OperatorDetailsBlock';
 export { OperatorStatFields } from './OperatorStatFields';
+export { PipeDetailsBlock } from './PipeDetailsBlock';
