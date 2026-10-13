@@ -9,15 +9,14 @@ import {
 } from '@quent/hooks';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
 import { OperatorColorBar } from './OperatorColorBar';
-import type { DAGEdge } from '@quent/utils';
+import type { DAGEdge, DAGNode } from '@quent/utils';
 import { StatisticFields } from './StatisticFields';
 
 export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
   const nodes = useDisplayedDagNodes();
   const setHighlight = useSetHighlightedNodeIds();
   const updateSelection = useOperatorSelectionActions();
-  const selectOperator = (id: string) => {
-    const node = nodes.find(node => node.id === id);
+  const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
       updateSelection({ type: 'replace', selections: [operatorSelectionFromNode(node)] });
     }
@@ -48,6 +47,7 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
           name: pipe.sourcePortName,
           id: pipe.sourcePortId,
           operator: pipe.source,
+          node: nodes.find(node => node.id === pipe.source),
           statistics: pipe.portStats,
         },
         {
@@ -55,13 +55,14 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
           name: pipe.targetPortName,
           id: pipe.targetPortId,
           operator: pipe.target,
+          node: nodes.find(node => node.id === pipe.target),
           statistics: pipe.targetPortStats,
         },
       ].map(endpoint => (
         <section
           key={endpoint.heading}
           aria-label={endpoint.heading}
-          onClick={() => selectOperator(endpoint.operator)}
+          onClick={() => selectOperator(endpoint.node)}
           onMouseEnter={() => enter(endpoint.operator)}
           onMouseLeave={() => leave(endpoint.operator)}
           onFocus={() => enter(endpoint.operator)}
@@ -76,18 +77,16 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
             <dt>Operator</dt>
             <dd className="flex min-w-0 items-center gap-1.5" title={endpoint.operator}>
               <OperatorColorBar
-                operationType={
-                  nodes.find(node => node.id === endpoint.operator)?.type ?? 'operator'
-                }
+                operationType={endpoint.node?.type ?? 'operator'}
                 className="w-1 self-stretch"
               />
               <button
                 type="button"
-                aria-label={`Show ${nodes.find(node => node.id === endpoint.operator)?.label ?? endpoint.operator} operator details`}
-                disabled={!nodes.some(node => node.id === endpoint.operator)}
+                aria-label={`Show ${endpoint.node?.label ?? endpoint.operator} operator details`}
+                disabled={!endpoint.node}
                 className="cursor-pointer break-words text-left text-foreground rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
-                {nodes.find(node => node.id === endpoint.operator)?.label ?? endpoint.operator}
+                {endpoint.node?.label ?? endpoint.operator}
               </button>
             </dd>
             <dt>Port ID</dt>
