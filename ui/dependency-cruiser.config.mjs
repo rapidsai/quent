@@ -5,6 +5,7 @@
 export default {
   forbidden: [
     {
+      // Keep the module graph acyclic so dependencies always have a clear direction.
       name: 'no-circular-dependencies',
       severity: 'error',
       from: {},
@@ -13,30 +14,35 @@ export default {
       },
     },
     {
+      // Keep reusable packages independent of the application and simulator shells.
       name: 'packages-cannot-import-apps',
       severity: 'error',
       from: { path: '^packages/@quent/' },
       to: { path: '^(src|simulator)/' },
     },
     {
+      // Keep @quent/utils as the foundation with no dependency on higher Quent packages.
       name: 'utils-cannot-import-higher-packages',
       severity: 'error',
       from: { path: '^packages/@quent/utils/' },
       to: { path: '^packages/@quent/(client|hooks|components)/' },
     },
     {
+      // Keep @quent/client independent of shared state and rendering packages.
       name: 'client-cannot-import-higher-packages',
       severity: 'error',
       from: { path: '^packages/@quent/client/' },
       to: { path: '^packages/@quent/(hooks|components)/' },
     },
     {
+      // Keep @quent/hooks independent of React component implementations.
       name: 'hooks-cannot-import-components',
       severity: 'error',
       from: { path: '^packages/@quent/hooks/' },
       to: { path: '^packages/@quent/components/' },
     },
     {
+      // Keep generic UI free of app code, bindings, Quent runtime state, and domain components.
       name: 'generic-ui-cannot-import-quent-runtime',
       severity: 'error',
       from: { path: '^packages/@quent/components/src/ui/' },
@@ -50,6 +56,7 @@ export default {
       },
     },
     {
+      // Require applications to consume generated backend types through @quent/utils.
       name: 'app-cannot-import-generated-bindings',
       severity: 'error',
       from: { path: '^(src|simulator)/' },
