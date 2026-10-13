@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useInspectedPipe } from '@quent/hooks';
-import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
@@ -10,10 +8,12 @@ import {
   useDataFlowFrame,
   useDataFlowIsPlaying,
   useDataFlowMeta,
+  useInspectedPipe,
   useSelectedOperatorsData,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
 import { OperatorDataFlowBlock, OperatorDetailsBlock } from '../node-info';
+import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
 import { thinScrollbarClass } from '../ui/thin-scroll';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 

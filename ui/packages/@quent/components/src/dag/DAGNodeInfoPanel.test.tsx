@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { createStore } from 'jotai';
-import { displayedPipesAtom, inspectedPipeRefAtom } from '../../../hooks/src/atoms/pipeInspection';
 import { useEffect, useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { Provider } from 'jotai';
+import { createStore, Provider } from 'jotai';
 import { useOperatorSelectionActions } from '@quent/hooks';
 import { getDeterministicColor } from '@quent/utils';
+import { displayedPipesAtom, inspectedPipeRefAtom } from '../../../hooks/src/atoms/pipeInspection';
 import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 
 function SelectedNode({ onExpandedChange }: { onExpandedChange?: (expanded: boolean) => void }) {

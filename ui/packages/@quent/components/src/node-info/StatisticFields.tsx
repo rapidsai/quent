@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  cn,
   formatStatWithQuantity,
   isStatStruct,
   type QuantitySpec,
@@ -122,7 +123,11 @@ export function StatisticFields({
                   }
                 : undefined
             }
-            className={`mt-2 border-t pt-1 first:mt-0.5 ${action ? 'cursor-pointer rounded-sm hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary' : ''}`}
+            className={cn(
+              'mt-2 border-t pt-1 first:mt-0.5',
+              action &&
+                'cursor-pointer rounded-sm hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary'
+            )}
           >
             <DataText
               as="div"

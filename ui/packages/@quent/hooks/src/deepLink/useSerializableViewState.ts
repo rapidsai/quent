@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { PipeRef } from '@quent/utils';
-import { inspectedPipeRefAtom } from '../atoms/pipeInspection';
 import { useCallback } from 'react';
 import { useStore } from 'jotai';
 import type { SortingState } from '@tanstack/react-table';
@@ -13,6 +11,7 @@ import {
   type ScaleType,
   type NodeLabelField,
   type Operator,
+  type PipeRef,
 } from '@quent/utils';
 import {
   operatorSelectionActionAtom,
@@ -47,6 +46,7 @@ import {
   statOrderAtomFamily,
   type AggMode,
 } from '../atoms/pivotTable';
+import { inspectedPipeRefAtom } from '../atoms/pipeInspection';
 
 export interface SerializableDagControls {
   nodeColorField: string | null;
