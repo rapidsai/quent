@@ -105,7 +105,6 @@ test('keyboard pipe inspection preserves operator filters and renders nested end
   await expect(page.getByRole('heading', { name: 'Decomposition' }).first()).toBeVisible();
   const headings = page.getByRole('heading').filter({ hasText: /^(Second stage|First stage)$/ });
   expect((await headings.allTextContents()).slice(0, 2)).toEqual(['Second stage', 'First stage']);
-  await page.screenshot({ path: '/tmp/quent-operator-decomposition.png', fullPage: true });
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('combobox', { name: 'Edge width', exact: true }).click();
   await page.getByRole('option', { name: 'Volume › bytes', exact: true }).click();
@@ -134,7 +133,6 @@ test('keyboard pipe inspection preserves operator filters and renders nested end
   ).toBeVisible();
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
   await expect(clearAll).toBeVisible();
-  await page.screenshot({ path: '/tmp/quent-pipe-inspection.png', fullPage: true });
   await node.click();
   await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();
   await expect(clearAll).toHaveCount(0);
@@ -249,7 +247,6 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
   await expect
     .poll(async () => (await details.boundingBox())!.height)
     .toBeGreaterThan(box.height * 0.7);
-  await page.screenshot({ path: '/tmp/quent-linked-details.png', fullPage: true });
   const sendingOperator = page
     .getByRole('region', { name: 'Sending port' })
     .getByRole('button', { name: /^Show .* operator details$/ });
