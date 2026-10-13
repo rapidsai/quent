@@ -6,6 +6,33 @@ import { expect, test } from '@playwright/test';
 const engine = '00000000-0000-0000-0000-000000000001';
 const query = '00000000-0000-0000-0000-000000000004';
 
+test('operators keep their selected look while a pipe is inspected', async ({ page }) => {
+  await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
+  const node = page.locator('.react-flow__node').first();
+  await expect(node).toBeVisible();
+  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
+  // Only selected nodes get `scale-110`; the hover glow does not.
+  const selectedLook = node.locator('.scale-110');
+
+  await node.click();
+  await expect(clearAll).toBeVisible();
+  await expect(selectedLook).toHaveCount(1);
+
+  const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
+  await pipe.focus();
+  await pipe.press('Enter');
+  await expect(page.getByText('Pipe Details', { exact: true })).toBeVisible();
+  // Inspecting a pipe leaves the operator filter alone, so the node must still look selected.
+  await expect(clearAll).toBeVisible();
+  await expect(selectedLook).toHaveCount(1);
+
+  // Clicking a node that looks selected deselects it and ends the pipe inspection.
+  await node.click();
+  await expect(clearAll).toHaveCount(0);
+  await expect(selectedLook).toHaveCount(0);
+  await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();
+});
+
 test('keyboard pipe inspection preserves operator filters and renders nested endpoint data', async ({
   page,
 }) => {
@@ -72,7 +99,8 @@ test('keyboard pipe inspection preserves operator filters and renders nested end
       )
     )
     .toBeGreaterThan(2);
-  const selectedBefore = await page.locator('.react-flow__node.selected').count();
+  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
+  await expect(clearAll).toBeVisible();
   const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
   await pipe.focus();
   await pipe.press('Enter');
@@ -84,10 +112,11 @@ test('keyboard pipe inspection preserves operator filters and renders nested end
     page.getByRole('region', { name: 'Receiving port' }).getByText('1.00 KiB')
   ).toBeVisible();
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
-  expect(await page.locator('.react-flow__node.selected').count()).toBe(selectedBefore);
+  await expect(clearAll).toBeVisible();
   await page.screenshot({ path: '/tmp/quent-pipe-inspection.png', fullPage: true });
   await node.click();
   await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();
+  await expect(clearAll).toHaveCount(0);
 });
 
 test('detail ports link to DAG edges and operators, and the panel resizes beyond half height', async ({
@@ -150,17 +179,18 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
       edge.locator('.react-flow__edge-path').evaluate(path => (path as SVGElement).style.filter)
     )
     .toContain('drop-shadow');
-  const selectedBefore = await page.locator('.react-flow__node.selected').count();
+  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
+  await expect(clearAll).toBeVisible();
   await output.click();
   await expect(page.getByText('Pipe Details', { exact: true })).toBeVisible();
-  expect(await page.locator('.react-flow__node.selected').count()).toBe(selectedBefore);
+  await expect(clearAll).toBeVisible();
   const sending = page.getByRole('region', { name: 'Sending port' });
   await expect(sending.getByText(sourceLabel, { exact: true })).toBeVisible();
+  // The source is still selected and always glows, so only the target shows the hover highlight.
   await sending.hover();
-  await expect(source.locator('.shadow-glow')).toBeVisible();
+  await expect(target.locator('.shadow-glow')).toHaveCount(0);
   await page.getByRole('region', { name: 'Receiving port' }).hover();
   await expect(target.locator('.shadow-glow')).toBeVisible();
-  await expect(source.locator('.shadow-glow')).toHaveCount(0);
 
   await page.getByRole('region', { name: 'Receiving port' }).click();
   await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();

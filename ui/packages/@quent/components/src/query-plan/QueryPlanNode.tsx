@@ -102,13 +102,11 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const isHighlighted = highlightedNodeIds?.has(operatorId) === true;
   const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
-  const {
-    fieldColor,
-    isDimmed,
-    isSelected: operatorIsSelected,
-    colorField,
-  } = useNodeColoring(operatorId, isDark, data.metadata?.relatedOperatorIds);
-  const isSelected = inspectedPipe ? false : operatorIsSelected;
+  const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(
+    operatorId,
+    isDark,
+    data.metadata?.relatedOperatorIds
+  );
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
 
   const resolvedLabel = useMemo(() => {
