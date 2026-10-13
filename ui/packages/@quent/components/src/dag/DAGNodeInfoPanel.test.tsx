@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useState } from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { useOperatorSelectionActions } from '@quent/hooks';
 import { getDeterministicColor } from '@quent/utils';
-import { displayedPipesAtom, inspectedPipeRefAtom } from '../../../hooks/src/atoms/pipeInspection';
+import {
+  PipeInspectionProbe,
+  createPipeInspectionRecorder,
+} from '../test-utils/PipeInspectionProbe';
 import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 
 function SelectedNode({ onExpandedChange }: { onExpandedChange?: (expanded: boolean) => void }) {
@@ -318,8 +321,9 @@ describe('DAGNodeInfoPanel', () => {
 });
 
 it('shows nested sending and receiving evidence for an inspected pipe without selecting operators', () => {
+  const probe = createPipeInspectionRecorder();
   const store = createStore();
-  store.set(displayedPipesAtom, [
+  const edges = [
     {
       id: 'pipe',
       source: 'scan',
@@ -333,13 +337,15 @@ it('shows nested sending and receiving evidence for an inspected pipe without se
         { key: 'Volume', value: { kind: 'struct', fields: [{ key: 'bytes', value: 512 }] } },
       ],
     },
-  ]);
-  store.set(inspectedPipeRefAtom, { sourcePortId: 'out', targetPortId: 'in' });
+  ];
   render(
     <Provider store={store}>
-      <DAGNodeInfoPanel />
+      <PipeInspectionProbe edges={edges} recorder={probe}>
+        <DAGNodeInfoPanel />
+      </PipeInspectionProbe>
     </Provider>
   );
+  act(() => probe.latest().setInspectedPipe({ sourcePortId: 'out', targetPortId: 'in' }));
   expect(screen.getByText('Pipe Details')).toBeVisible();
   expect(
     within(screen.getByRole('region', { name: 'Sending port' })).getByText('1.00 KiB')

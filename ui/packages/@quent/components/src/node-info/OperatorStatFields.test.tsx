@@ -3,12 +3,11 @@
 
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import {
-  displayedPipesAtom,
-  hoveredPipeIdAtom,
-  inspectedPipeRefAtom,
-} from '../../../hooks/src/atoms/pipeInspection';
 import { describe, expect, it } from 'vitest';
+import {
+  PipeInspectionProbe,
+  createPipeInspectionRecorder,
+} from '../test-utils/PipeInspectionProbe';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { OperatorStatFields } from './OperatorStatFields';
 
@@ -200,8 +199,9 @@ it('displays every repeated name within and across attributes and statistics in 
 });
 
 it('links port groups by structural role, including click, keyboard, and hover cleanup', () => {
+  const probe = createPipeInspectionRecorder();
   const store = createStore();
-  store.set(displayedPipesAtom, [
+  const edges = [
     {
       id: 'left-edge',
       source: 'scan',
@@ -210,58 +210,69 @@ it('links port groups by structural role, including click, keyboard, and hover c
       targetPortId: 'left-in',
       targetPortName: 'input_0',
     },
-  ]);
-  const { unmount } = render(
+  ];
+  const ui = (showFields: boolean) => (
     <Provider store={store}>
-      <OperatorStatFields
-        operator={{
-          nodeId: 'join',
-          label: 'Join',
-          operationType: 'join',
-          statistics: [
-            {
-              key: 'Inputs',
-              value: {
-                kind: 'struct',
-                fields: [
-                  {
-                    key: 'Left',
-                    value: {
-                      kind: 'struct',
-                      fields: [{ key: 'structural_role', value: 'input_0' }],
-                    },
+      <PipeInspectionProbe edges={edges} recorder={probe}>
+        {showFields && (
+          <OperatorStatFields
+            operator={{
+              nodeId: 'join',
+              label: 'Join',
+              operationType: 'join',
+              statistics: [
+                {
+                  key: 'Inputs',
+                  value: {
+                    kind: 'struct',
+                    fields: [
+                      {
+                        key: 'Left',
+                        value: {
+                          kind: 'struct',
+                          fields: [{ key: 'structural_role', value: 'input_0' }],
+                        },
+                      },
+                      {
+                        key: 'Right',
+                        value: {
+                          kind: 'struct',
+                          fields: [{ key: 'structural_role', value: 'input_1' }],
+                        },
+                      },
+                    ],
                   },
-                  {
-                    key: 'Right',
-                    value: {
-                      kind: 'struct',
-                      fields: [{ key: 'structural_role', value: 'input_1' }],
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-        }}
-      />
+                },
+              ],
+            }}
+          />
+        )}
+      </PipeInspectionProbe>
     </Provider>
   );
+  const { rerender } = render(ui(true));
   const left = screen.getByRole('button', { name: 'Inspect inputs Left pipe' });
   expect(
     screen.queryByRole('button', { name: 'Inspect inputs Right pipe' })
   ).not.toBeInTheDocument();
   fireEvent.mouseEnter(left);
-  expect(store.get(hoveredPipeIdAtom)).toBe('left-edge');
+  expect(probe.latest().hoveredPipeId).toBe('left-edge');
   fireEvent.mouseLeave(left);
-  expect(store.get(hoveredPipeIdAtom)).toBeNull();
+  expect(probe.latest().hoveredPipeId).toBeNull();
   fireEvent.focus(left);
-  expect(store.get(hoveredPipeIdAtom)).toBe('left-edge');
+  expect(probe.latest().hoveredPipeId).toBe('left-edge');
   fireEvent.keyDown(left, { key: 'Enter' });
-  expect(store.get(inspectedPipeRefAtom)).toEqual({ sourcePortId: 'out', targetPortId: 'left-in' });
-  expect(store.get(hoveredPipeIdAtom)).toBeNull();
+  expect(probe.latest().inspectedPipe).toMatchObject({
+    sourcePortId: 'out',
+    targetPortId: 'left-in',
+  });
+  expect(probe.latest().hoveredPipeId).toBeNull();
   fireEvent.click(left);
-  expect(store.get(inspectedPipeRefAtom)).toEqual({ sourcePortId: 'out', targetPortId: 'left-in' });
+  expect(probe.latest().inspectedPipe).toMatchObject({
+    sourcePortId: 'out',
+    targetPortId: 'left-in',
+  });
   fireEvent.mouseEnter(left);
-  unmount();
-  expect(store.get(hoveredPipeIdAtom)).toBeNull();
+  rerender(ui(false));
+  expect(probe.latest().hoveredPipeId).toBeNull();
 });
