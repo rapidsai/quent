@@ -27,8 +27,8 @@ packages/@quent/components/src/ui/**
 only those two names. `sliderField.utils.ts` is also temporarily allowed until
 the generic zone becomes a physical package.
 
-Timeline, Gantt, and grouped-table primitives are extraction candidates, but
-remain outside this zone until their Quent state adapters are separated.
+`SegmentedBar`, Timeline, Gantt, and grouped-table primitives are extraction
+candidates, but remain outside this zone until any Quent adapters are separated.
 
 ## Quent views and widgets
 
