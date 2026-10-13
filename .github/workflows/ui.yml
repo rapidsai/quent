@@ -54,6 +54,19 @@ jobs:
       - run: pixi run pnpm --dir ui routes:generate
       - run: pixi run pnpm --dir ui lint
 
+  boundaries:
+    name: UI Boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          cache: true
+      - run: pixi run pnpm --dir ui install --frozen-lockfile
+      - run: pixi run pnpm --dir ui boundaries:check
+
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
@@ -222,7 +235,7 @@ jobs:
 
   build:
     name: Build
-    needs: [fmt, lint, typecheck, test, e2e]
+    needs: [fmt, lint, boundaries, typecheck, test, e2e]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -3,7 +3,7 @@
 
 import { memo, useMemo } from 'react';
 import { useDataFlowFrame, formatDataFlowValueCompact, type DataFlowMeta } from '@quent/hooks';
-import { CategoricalLegend } from './DAGLegend';
+import { CategoricalLegend } from './CategoricalLegend';
 
 interface DataFlowTierLegendProps {
   meta: DataFlowMeta;

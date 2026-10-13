@@ -8,7 +8,7 @@ import { fetchDataFlow, fetchListEngines, fetchListQueries } from './api';
 const CONFIG: TimelineConfig = { start: 0, end: 8, num_bins: 4 };
 
 const BINNED: DataFlowTimelineBinned = {
-  config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: 4 },
+  config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: 4n },
   decl: {
     entity_type_name: 'Task',
     dimension_name: 'Data location',
