@@ -641,9 +641,10 @@ const FlowLayout = ({
           hoveredStatValue: dagHeatmap?.values.get(node.id),
           heatmapRange: dagHeatmap?.range,
           highlightedNodeIds,
+          primaryHighlightedNodeId: highlightState.primaryOperatorId,
         },
       })),
-    [dagHeatmap, highlightedNodeIds, nodes]
+    [dagHeatmap, highlightedNodeIds, highlightState.primaryOperatorId, nodes]
   );
   const renderedEdges = useMemo(
     () =>

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
 const engine = '00000000-0000-0000-0000-000000000001';
 const query = '00000000-0000-0000-0000-000000000004';
@@ -212,6 +212,10 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
   await expect(target.locator('.shadow-glow')).toHaveCount(0);
   await page.getByRole('region', { name: 'Receiving port' }).hover();
   await expect(target.locator('.shadow-glow')).toBeVisible();
+  // Hovering a port block narrows the emphasis to that endpoint alone.
+  const opacityOf = (node: Locator) => node.locator('[class*="opacity-"]').first();
+  await expect(opacityOf(source)).toHaveCSS('opacity', '0.35');
+  await expect(opacityOf(target)).toHaveCSS('opacity', '1');
 
   await page.getByRole('region', { name: 'Receiving port' }).click();
   await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();
