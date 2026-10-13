@@ -8,6 +8,7 @@ import {
   hoveredPipeIdAtom,
   inspectedPipeAtom,
   inspectedPipeRefAtom,
+  toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
 import { useSyncDisplayedPipes } from './usePipeInspection';
@@ -100,4 +101,26 @@ it('clears a transient edge highlight on plan changes and unmount', () => {
   act(() => store.set(hoveredPipeIdAtom, two.id));
   view.unmount();
   expect(store.get(hoveredPipeIdAtom)).toBeNull();
+});
+
+describe('toggleInspectedPipeAtom', () => {
+  const first = { sourcePortId: 'out-1', targetPortId: 'in-1' };
+  const second = { sourcePortId: 'out-2', targetPortId: 'in-2' };
+
+  it('opens a pipe, switches to another, and closes when the same pipe is activated again', () => {
+    const store = createStore();
+    store.set(toggleInspectedPipeAtom, first);
+    expect(store.get(inspectedPipeRefAtom)).toEqual(first);
+    store.set(toggleInspectedPipeAtom, second);
+    expect(store.get(inspectedPipeRefAtom)).toEqual(second);
+    store.set(toggleInspectedPipeAtom, { ...second });
+    expect(store.get(inspectedPipeRefAtom)).toBeNull();
+  });
+
+  it('does not treat pipes that share only one port as the same pipe', () => {
+    const store = createStore();
+    store.set(toggleInspectedPipeAtom, first);
+    store.set(toggleInspectedPipeAtom, { ...first, targetPortId: 'in-2' });
+    expect(store.get(inspectedPipeRefAtom)).toEqual({ ...first, targetPortId: 'in-2' });
+  });
 });

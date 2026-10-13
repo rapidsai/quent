@@ -44,7 +44,7 @@ import {
   useDataFlowMeta,
   useHoveredPipeId,
   useInspectedPipe,
-  useSetInspectedPipe,
+  useToggleInspectedPipe,
   useSyncDisplayedPipes,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
@@ -105,7 +105,7 @@ const VariableWidthEdge = ({
 }: VariableWidthEdgeProps) => {
   const inspectedPipe = useInspectedPipe();
   const hoveredPipeId = useHoveredPipeId();
-  const setInspectedPipe = useSetInspectedPipe();
+  const toggleInspectedPipe = useToggleInspectedPipe();
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
   const isHovered = hoveredPipeId === id;
   const isEmphasized = isHovered || (hoveredPipeId === null && inspectedPipe?.id === id);
@@ -115,7 +115,7 @@ const VariableWidthEdge = ({
     inspectedPipe?.targetPortId === pipe.targetPortId;
   const inspect = () => {
     if (pipe?.sourcePortId && pipe.targetPortId) {
-      setInspectedPipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
+      toggleInspectedPipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
     }
   };
   const edgeWidthConfig = useEdgeWidthConfig();

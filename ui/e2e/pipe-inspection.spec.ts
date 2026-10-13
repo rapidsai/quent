@@ -33,6 +33,27 @@ test('operators keep their selected look while a pipe is inspected', async ({ pa
   await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();
 });
 
+test('a pipe inspection closes when the pipe is activated again', async ({ page }) => {
+  await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
+  const node = page.locator('.react-flow__node').first();
+  await expect(node).toBeVisible();
+  // Keep an operator selected so there is something to fall back to.
+  await node.click();
+  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
+  await expect(clearAll).toBeVisible();
+
+  const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
+  await pipe.focus();
+  await pipe.press('Enter');
+  await expect(page.getByText('Pipe Details', { exact: true })).toBeVisible();
+  await expect(pipe).toHaveAttribute('aria-pressed', 'true');
+
+  await pipe.press('Enter');
+  await expect(page.getByText('Operator Details', { exact: true })).toBeVisible();
+  await expect(pipe).toHaveAttribute('aria-pressed', 'false');
+  await expect(clearAll).toBeVisible();
+});
+
 test('keyboard pipe inspection preserves operator filters and renders nested endpoint data', async ({
   page,
 }) => {

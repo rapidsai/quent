@@ -10,10 +10,12 @@ import {
   hoveredPipeIdAtom,
   inspectedPipeAtom,
   inspectedPipeRefAtom,
+  toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 
 export const useInspectedPipe = () => useAtomValue(inspectedPipeAtom);
 export const useSetInspectedPipe = () => useSetAtom(inspectedPipeRefAtom);
+export const useToggleInspectedPipe = () => useSetAtom(toggleInspectedPipeAtom);
 
 export const useDisplayedPipes = () => useAtomValue(displayedPipesAtom);
 export const useDisplayedDagNodes = () => useAtomValue(displayedDagNodesAtom);

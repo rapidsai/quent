@@ -160,6 +160,7 @@ export type { AggMode } from './atoms/pivotTable';
 export {
   useInspectedPipe,
   useSetInspectedPipe,
+  useToggleInspectedPipe,
   useSyncDisplayedPipes,
   useDisplayedPipes,
   useDisplayedDagNodes,
