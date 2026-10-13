@@ -3,7 +3,7 @@
 
 import { useEffect } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
-import type { DAGEdge, DAGNode } from '@quent/utils';
+import { isSamePipe, type DAGEdge, type DAGNode } from '@quent/utils';
 import {
   displayedPipesAtom,
   displayedDagNodesAtom,
@@ -32,12 +32,7 @@ export function useSyncDisplayedPipes(
     store.set(displayedDagNodesAtom, nodes);
     store.set(hoveredPipeIdAtom, null);
     const ref = store.get(inspectedPipeRefAtom);
-    if (
-      ref &&
-      !edges.some(
-        edge => edge.sourcePortId === ref.sourcePortId && edge.targetPortId === ref.targetPortId
-      )
-    ) {
+    if (ref && !edges.some(edge => isSamePipe(edge, ref))) {
       store.set(inspectedPipeRefAtom, null);
     }
     return () => {

@@ -62,6 +62,7 @@ import {
   inferFieldFormatter,
   statisticFieldName,
   toggleOperatorSelection,
+  isSamePipe,
   type DAGEdge,
   type Operator,
   type StatisticField,
@@ -109,10 +110,7 @@ const VariableWidthEdge = ({
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
   const isHovered = hoveredPipeId === id;
   const isEmphasized = isHovered || (hoveredPipeId === null && inspectedPipe?.id === id);
-  const isInspected =
-    pipe != null &&
-    inspectedPipe?.sourcePortId === pipe.sourcePortId &&
-    inspectedPipe?.targetPortId === pipe.targetPortId;
+  const isInspected = isSamePipe(inspectedPipe, pipe);
   const inspect = () => {
     if (pipe?.sourcePortId && pipe.targetPortId) {
       toggleInspectedPipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });

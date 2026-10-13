@@ -169,3 +169,4 @@ export function resourceIdFromLongEntitiesRowId(id: string): string | null {
 }
 
 export type { PipeRef } from './dagTypes';
+export { isSamePipe } from './pipeRef';
