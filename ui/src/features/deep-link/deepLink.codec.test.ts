@@ -372,7 +372,10 @@ it('round trips structural pipe inspection independently of operator selection a
     selection: {
       planId: 'p',
       operatorNodeIds: ['old'],
-      pipe: { sourcePortId: 'out-2', targetPortId: 'in-2' },
+      pipes: [
+        { sourcePortId: 'out-1', targetPortId: 'in-1' },
+        { sourcePortId: 'out-2', targetPortId: 'in-2' },
+      ],
     },
     dag: { edgeWidthField: '[["Volume",0],["bytes",0]]' },
   };

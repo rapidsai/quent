@@ -170,7 +170,7 @@ describe('DAGNodeInfoPanel', () => {
     await screen.findByTestId('operator-accordion-logical');
     expect(onExpandedChange).toHaveBeenLastCalledWith(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle operator details' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle details' }));
 
     expect(onExpandedChange).toHaveBeenLastCalledWith(false);
   });
@@ -345,14 +345,75 @@ it('shows nested sending and receiving evidence for an inspected pipe without se
       </PipeInspectionProbe>
     </Provider>
   );
-  act(() => probe.latest().setInspectedPipe({ sourcePortId: 'out', targetPortId: 'in' }));
-  expect(screen.getByText('Pipe Details')).toBeVisible();
+  act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out', targetPortId: 'in' }));
+  expect(screen.getByText('Details')).toBeVisible();
   expect(
     within(screen.getByRole('region', { name: 'Sending port' })).getByText('1.00 KiB')
   ).toBeVisible();
   expect(
     within(screen.getByRole('region', { name: 'Receiving port' })).getByText('512.00 B')
   ).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Toggle pipe details' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle details' }));
   expect(screen.queryByRole('region', { name: 'Sending port' })).not.toBeInTheDocument();
+});
+
+describe('pipes alongside operators', () => {
+  const edges = [
+    { id: 'one', source: 'scan', target: 'join', sourcePortId: 'out-1', targetPortId: 'in-1' },
+    { id: 'two', source: 'scan', target: 'join', sourcePortId: 'out-2', targetPortId: 'in-2' },
+  ];
+  const renderPanel = () => {
+    const probe = createPipeInspectionRecorder();
+    render(
+      <Provider store={createStore()}>
+        <PipeInspectionProbe edges={edges} recorder={probe}>
+          <DAGNodeInfoPanel />
+        </PipeInspectionProbe>
+      </Provider>
+    );
+    return probe;
+  };
+  const selectOperator = (probe: ReturnType<typeof createPipeInspectionRecorder>) =>
+    act(() =>
+      probe.latest().updateSelection({
+        type: 'add',
+        selectionId: 'scan',
+        label: 'Table scan',
+        operatorIds: ['scan'],
+        selectedData: {
+          nodeId: 'scan',
+          label: 'Table scan',
+          operationType: 'scan',
+          statistics: [],
+        },
+      })
+    );
+
+  it('offers a Pipe Details tab next to the operator tab', async () => {
+    const probe = renderPanel();
+    selectOperator(probe);
+    expect(screen.queryByRole('tab', { name: 'Pipe Details' })).not.toBeInTheDocument();
+
+    act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
+    expect(screen.getByRole('tab', { name: 'Stats' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Pipe Details' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    expect(screen.getByRole('region', { name: 'Sending port' })).toBeVisible();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Stats' }), { button: 0 });
+    expect(screen.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true');
+    expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
+    expect(probe.latest().inspectedPipes).toHaveLength(1);
+  });
+
+  it('stacks each further pipe below the first', () => {
+    const probe = renderPanel();
+    act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
+    expect(screen.getAllByRole('region', { name: 'Sending port' })).toHaveLength(1);
+    act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-2', targetPortId: 'in-2' }));
+    expect(screen.getAllByRole('region', { name: 'Sending port' })).toHaveLength(2);
+    expect(screen.getAllByRole('region', { name: 'Receiving port' })).toHaveLength(2);
+  });
 });

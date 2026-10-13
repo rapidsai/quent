@@ -30,7 +30,6 @@ import {
   useSetHighlightedNodeIds,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
-  useInspectedPipe,
 } from '@quent/hooks';
 import { resolveStatisticFields } from '../lib/queryBundle.utils';
 import { DataText } from '../ui/data-text';
@@ -71,7 +70,6 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   hoveredStatValue?: number;
   heatmapRange?: ScaleRange;
   highlightedNodeIds?: ReadonlySet<string> | null;
-  primaryHighlightedNodeId?: string | null;
 }
 
 const nodeVariants = cva(
@@ -92,7 +90,6 @@ const nodeVariants = cva(
 /** Memoized DAG node rendered inside ReactFlow. */
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const setHighlightState = useSetHighlightedNodeIds();
-  const inspectedPipe = useInspectedPipe();
   const [nodePalette] = useNodeColorPalette();
   const [scaleType] = useSelectedScaleType();
   const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
@@ -157,10 +154,6 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   }, [data.heatmapRange, data.hoveredStatValue, nodePalette, scaleType, isDark]);
 
   const opacityClass = getNodeOpacityClass({
-    pipeEndpoints: inspectedPipe
-      ? new Set([inspectedPipe.source, inspectedPipe.target])
-      : undefined,
-    primaryOperatorId: data.primaryHighlightedNodeId,
     isHoveredStatActive: data.hoveredStatActive ?? false,
     hasHoveredValue: data.hoveredStatValue !== undefined,
     highlightedNodeIds,

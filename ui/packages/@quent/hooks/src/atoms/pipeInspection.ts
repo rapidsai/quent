@@ -4,16 +4,33 @@
 import { atom } from 'jotai';
 import { isSamePipe, type DAGEdge, type DAGNode, type PipeRef } from '@quent/utils';
 
-/** Inspection identity is independent of the canonical operator filter. */
-export const inspectedPipeRefAtom = atom<PipeRef | null>(null);
+/** Inspected pipes in selection order. Independent of the canonical operator filter. */
+export const inspectedPipeRefsAtom = atom<readonly PipeRef[]>([]);
 export const hoveredPipeIdAtom = atom<string | null>(null);
 export const displayedDagNodesAtom = atom<readonly DAGNode[]>([]);
 export const displayedPipesAtom = atom<readonly DAGEdge[]>([]);
-/** Inspects the pipe, or closes the inspection when that pipe is already inspected. */
-export const toggleInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
-  set(inspectedPipeRefAtom, isSamePipe(get(inspectedPipeRefAtom), ref) ? null : ref);
+/** Adds the pipe to the inspected pipes. Does nothing when it is already inspected. */
+export const addInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
+  const refs = get(inspectedPipeRefsAtom);
+  if (!refs.some(existing => isSamePipe(existing, ref))) {
+    set(inspectedPipeRefsAtom, [...refs, ref]);
+  }
 });
-export const inspectedPipeAtom = atom(get => {
-  const ref = get(inspectedPipeRefAtom);
-  return ref ? (get(displayedPipesAtom).find(edge => isSamePipe(edge, ref)) ?? null) : null;
+/** Adds the pipe, or removes it when it is already inspected. */
+export const toggleInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
+  const refs = get(inspectedPipeRefsAtom);
+  set(
+    inspectedPipeRefsAtom,
+    refs.some(existing => isSamePipe(existing, ref))
+      ? refs.filter(existing => !isSamePipe(existing, ref))
+      : [...refs, ref]
+  );
+});
+/** Resolves each inspected ref against the displayed pipes, keeping selection order. */
+export const inspectedPipesAtom = atom(get => {
+  const edges = get(displayedPipesAtom);
+  return get(inspectedPipeRefsAtom).flatMap(ref => {
+    const edge = edges.find(candidate => isSamePipe(candidate, ref));
+    return edge ? [edge] : [];
+  });
 });

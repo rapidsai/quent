@@ -1,25 +1,34 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+const NO_EDGES: ReadonlySet<string> = new Set();
+
 export function shouldDimEdgeFromInteraction({
-  inspectedEdgeId,
+  hoveredEdgeId,
+  inspectedEdgeIds = NO_EDGES,
   edgeId,
   sourceId,
   targetId,
   selectedNodeIds,
   highlightedNodeIds,
 }: {
-  inspectedEdgeId?: string;
+  /** A transient hover narrows emphasis to this edge alone. */
+  hoveredEdgeId?: string;
+  /** Inspected pipes are emphasized alongside the selected operators. */
+  inspectedEdgeIds?: ReadonlySet<string>;
   edgeId?: string;
   sourceId: string;
   targetId: string;
   selectedNodeIds: ReadonlySet<string>;
   highlightedNodeIds: ReadonlySet<string> | null;
 }): boolean {
-  if (inspectedEdgeId) {
-    return edgeId !== inspectedEdgeId;
+  if (hoveredEdgeId) {
+    return edgeId !== hoveredEdgeId;
   }
-  const hasSelection = selectedNodeIds.size > 0;
+  if (edgeId !== undefined && inspectedEdgeIds.has(edgeId)) {
+    return false;
+  }
+  const hasSelection = selectedNodeIds.size > 0 || inspectedEdgeIds.size > 0;
   const hasActiveHighlight = highlightedNodeIds !== null;
   const touchesSelection = selectedNodeIds.has(sourceId) || selectedNodeIds.has(targetId);
   const touchesHighlight =

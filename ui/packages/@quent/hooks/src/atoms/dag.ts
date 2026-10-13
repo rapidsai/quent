@@ -18,7 +18,6 @@ import {
   removeSelectedOperatorData,
   upsertSelectedOperatorData,
 } from '../dag/selectedOperatorData';
-import { inspectedPipeRefAtom } from './pipeInspection';
 import { selectedOperatorsDataAtom } from './dagControls';
 
 export type OperatorSelectionAction =
@@ -56,9 +55,6 @@ export const operatorSelectionAtom = atom<OperatorSelectionState>(
 export const operatorSelectionActionAtom = atom(
   null,
   (get, set, action: OperatorSelectionAction): Set<string> => {
-    if (action.type !== 'hydrate') {
-      set(inspectedPipeRefAtom, null);
-    }
     const currentSelection = get(operatorSelectionAtom);
     const currentData = get(selectedOperatorsDataAtom);
     let nextSelection: OperatorSelectionState;

@@ -158,8 +158,8 @@ export { useStatGroupTableControls } from './pivot-table/useStatGroupTableContro
 export type { AggMode } from './atoms/pivotTable';
 
 export {
-  useInspectedPipe,
-  useSetInspectedPipe,
+  useInspectedPipes,
+  useAddInspectedPipe,
   useToggleInspectedPipe,
   useSyncDisplayedPipes,
   useDisplayedPipes,

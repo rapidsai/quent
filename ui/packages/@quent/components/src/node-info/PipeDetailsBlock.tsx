@@ -18,7 +18,7 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
   const updateSelection = useOperatorSelectionActions();
   const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
-      updateSelection({ type: 'replace', selections: [operatorSelectionFromNode(node)] });
+      updateSelection({ type: 'add', ...operatorSelectionFromNode(node) });
     }
   };
   useEffect(

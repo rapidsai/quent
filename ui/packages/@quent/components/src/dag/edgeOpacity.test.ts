@@ -28,14 +28,32 @@ describe('shouldDimEdgeFromInteraction', () => {
   });
 });
 
-it('pipe inspection overrides stale selection and endpoint hover without undimming parallel pipes', () => {
+describe('inspected pipes', () => {
   const common = {
     sourceId: 's',
     targetId: 't',
-    selectedNodeIds: new Set(['s']),
-    highlightedNodeIds: new Set(['t']),
-    inspectedEdgeId: 'one',
+    selectedNodeIds: new Set<string>(),
+    highlightedNodeIds: null,
+    inspectedEdgeIds: new Set(['one', 'two']),
   };
-  expect(shouldDimEdgeFromInteraction({ ...common, edgeId: 'one' })).toBe(false);
-  expect(shouldDimEdgeFromInteraction({ ...common, edgeId: 'two' })).toBe(true);
+
+  it('keeps every inspected pipe undimmed and dims the rest', () => {
+    expect(shouldDimEdgeFromInteraction({ ...common, edgeId: 'one' })).toBe(false);
+    expect(shouldDimEdgeFromInteraction({ ...common, edgeId: 'two' })).toBe(false);
+    expect(shouldDimEdgeFromInteraction({ ...common, edgeId: 'three' })).toBe(true);
+  });
+
+  it('also keeps pipes touching selected operators undimmed', () => {
+    const selected = { ...common, selectedNodeIds: new Set(['s']) };
+    expect(shouldDimEdgeFromInteraction({ ...selected, edgeId: 'three' })).toBe(false);
+    expect(
+      shouldDimEdgeFromInteraction({ ...selected, edgeId: 'three', sourceId: 'x', targetId: 'y' })
+    ).toBe(true);
+  });
+
+  it('narrows emphasis to the hovered pipe alone', () => {
+    const hovered = { ...common, hoveredEdgeId: 'one' };
+    expect(shouldDimEdgeFromInteraction({ ...hovered, edgeId: 'one' })).toBe(false);
+    expect(shouldDimEdgeFromInteraction({ ...hovered, edgeId: 'two' })).toBe(true);
+  });
 });

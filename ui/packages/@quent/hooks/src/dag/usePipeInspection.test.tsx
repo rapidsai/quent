@@ -6,8 +6,9 @@ import { act, render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
   hoveredPipeIdAtom,
-  inspectedPipeAtom,
-  inspectedPipeRefAtom,
+  addInspectedPipeAtom,
+  inspectedPipesAtom,
+  inspectedPipeRefsAtom,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
@@ -46,24 +47,25 @@ describe('pipe inspection', () => {
       </Provider>
     );
     act(() => {
-      store.set(inspectedPipeRefAtom, { sourcePortId: 'out-2', targetPortId: 'in-2' });
+      store.set(inspectedPipeRefsAtom, [{ sourcePortId: 'out-2', targetPortId: 'in-2' }]);
     });
-    expect(store.get(inspectedPipeAtom)?.id).toBe('two');
+    expect(store.get(inspectedPipesAtom).map(pipe => pipe.id)).toEqual(['two']);
     expect(store.get(selectedOperatorIdsAtom)).toEqual(new Set(['s']));
     view.rerender(
       <Provider store={store}>
         <Sync edges={[one, { ...two, portStats: [{ key: 'rows', value: 2 }] }]} />
       </Provider>
     );
-    expect(store.get(inspectedPipeAtom)?.portStats).toEqual([{ key: 'rows', value: 2 }]);
+    expect(store.get(inspectedPipesAtom)[0]?.portStats).toEqual([{ key: 'rows', value: 2 }]);
     act(() => {
       store.set(operatorSelectionActionAtom, { type: 'hydrate', selections: [] });
     });
-    expect(store.get(inspectedPipeAtom)?.id).toBe('two');
+    expect(store.get(inspectedPipesAtom).map(pipe => pipe.id)).toEqual(['two']);
+    // Operator selection changes never touch inspected pipes.
     act(() => {
       store.set(operatorSelectionActionAtom, { type: 'replace', selections: [] });
     });
-    expect(store.get(inspectedPipeRefAtom)).toBeNull();
+    expect(store.get(inspectedPipesAtom).map(pipe => pipe.id)).toEqual(['two']);
   });
   it('clears an inspection whose exact endpoints disappear', () => {
     const store = createStore();
@@ -73,14 +75,19 @@ describe('pipe inspection', () => {
       </Provider>
     );
     act(() => {
-      store.set(inspectedPipeRefAtom, { sourcePortId: 'out-2', targetPortId: 'in-2' });
+      store.set(inspectedPipeRefsAtom, [
+        { sourcePortId: 'out-1', targetPortId: 'in-1' },
+        { sourcePortId: 'out-2', targetPortId: 'in-2' },
+      ]);
     });
     view.rerender(
       <Provider store={store}>
         <Sync edges={[one]} />
       </Provider>
     );
-    expect(store.get(inspectedPipeRefAtom)).toBeNull();
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([
+      { sourcePortId: 'out-1', targetPortId: 'in-1' },
+    ]);
   });
 });
 
@@ -103,24 +110,31 @@ it('clears a transient edge highlight on plan changes and unmount', () => {
   expect(store.get(hoveredPipeIdAtom)).toBeNull();
 });
 
-describe('toggleInspectedPipeAtom', () => {
+describe('inspected pipe actions', () => {
   const first = { sourcePortId: 'out-1', targetPortId: 'in-1' };
   const second = { sourcePortId: 'out-2', targetPortId: 'in-2' };
 
-  it('opens a pipe, switches to another, and closes when the same pipe is activated again', () => {
+  it('toggling adds pipes in selection order and removes only the toggled pipe', () => {
     const store = createStore();
     store.set(toggleInspectedPipeAtom, first);
-    expect(store.get(inspectedPipeRefAtom)).toEqual(first);
     store.set(toggleInspectedPipeAtom, second);
-    expect(store.get(inspectedPipeRefAtom)).toEqual(second);
-    store.set(toggleInspectedPipeAtom, { ...second });
-    expect(store.get(inspectedPipeRefAtom)).toBeNull();
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([first, second]);
+    store.set(toggleInspectedPipeAtom, { ...first });
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([second]);
+  });
+
+  it('adding never removes, and ignores a pipe that is already inspected', () => {
+    const store = createStore();
+    store.set(addInspectedPipeAtom, first);
+    store.set(addInspectedPipeAtom, { ...first });
+    store.set(addInspectedPipeAtom, second);
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([first, second]);
   });
 
   it('does not treat pipes that share only one port as the same pipe', () => {
     const store = createStore();
     store.set(toggleInspectedPipeAtom, first);
     store.set(toggleInspectedPipeAtom, { ...first, targetPortId: 'in-2' });
-    expect(store.get(inspectedPipeRefAtom)).toEqual({ ...first, targetPortId: 'in-2' });
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([first, { ...first, targetPortId: 'in-2' }]);
   });
 });

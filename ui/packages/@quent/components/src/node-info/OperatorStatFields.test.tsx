@@ -262,16 +262,15 @@ it('links port groups by structural role, including click, keyboard, and hover c
   fireEvent.focus(left);
   expect(probe.latest().hoveredPipeId).toBe('left-edge');
   fireEvent.keyDown(left, { key: 'Enter' });
-  expect(probe.latest().inspectedPipe).toMatchObject({
-    sourcePortId: 'out',
-    targetPortId: 'left-in',
-  });
+  expect(probe.latest().inspectedPipes).toMatchObject([
+    { sourcePortId: 'out', targetPortId: 'left-in' },
+  ]);
   expect(probe.latest().hoveredPipeId).toBeNull();
+  // Activating again adds nothing: the pipe is already inspected.
   fireEvent.click(left);
-  expect(probe.latest().inspectedPipe).toMatchObject({
-    sourcePortId: 'out',
-    targetPortId: 'left-in',
-  });
+  expect(probe.latest().inspectedPipes).toMatchObject([
+    { sourcePortId: 'out', targetPortId: 'left-in' },
+  ]);
   fireEvent.mouseEnter(left);
   rerender(ui(false));
   expect(probe.latest().hoveredPipeId).toBeNull();

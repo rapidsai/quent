@@ -8,13 +8,14 @@ import {
   displayedPipesAtom,
   displayedDagNodesAtom,
   hoveredPipeIdAtom,
-  inspectedPipeAtom,
-  inspectedPipeRefAtom,
+  addInspectedPipeAtom,
+  inspectedPipeRefsAtom,
+  inspectedPipesAtom,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 
-export const useInspectedPipe = () => useAtomValue(inspectedPipeAtom);
-export const useSetInspectedPipe = () => useSetAtom(inspectedPipeRefAtom);
+export const useInspectedPipes = () => useAtomValue(inspectedPipesAtom);
+export const useAddInspectedPipe = () => useSetAtom(addInspectedPipeAtom);
 export const useToggleInspectedPipe = () => useSetAtom(toggleInspectedPipeAtom);
 
 export const useDisplayedPipes = () => useAtomValue(displayedPipesAtom);
@@ -31,9 +32,10 @@ export function useSyncDisplayedPipes(
     store.set(displayedPipesAtom, edges);
     store.set(displayedDagNodesAtom, nodes);
     store.set(hoveredPipeIdAtom, null);
-    const ref = store.get(inspectedPipeRefAtom);
-    if (ref && !edges.some(edge => isSamePipe(edge, ref))) {
-      store.set(inspectedPipeRefAtom, null);
+    const refs = store.get(inspectedPipeRefsAtom);
+    const kept = refs.filter(ref => edges.some(edge => isSamePipe(edge, ref)));
+    if (kept.length !== refs.length) {
+      store.set(inspectedPipeRefsAtom, kept);
     }
     return () => {
       store.set(displayedPipesAtom, []);

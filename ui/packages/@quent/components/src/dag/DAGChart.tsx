@@ -43,7 +43,7 @@ import {
   useDataFlowEnabled,
   useDataFlowMeta,
   useHoveredPipeId,
-  useInspectedPipe,
+  useInspectedPipes,
   useToggleInspectedPipe,
   useSyncDisplayedPipes,
   COLOR_REGISTRY_KEYS,
@@ -104,13 +104,17 @@ const VariableWidthEdge = ({
   targetPosition,
   data,
 }: VariableWidthEdgeProps) => {
-  const inspectedPipe = useInspectedPipe();
+  const inspectedPipes = useInspectedPipes();
   const hoveredPipeId = useHoveredPipeId();
   const toggleInspectedPipe = useToggleInspectedPipe();
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
   const isHovered = hoveredPipeId === id;
-  const isEmphasized = isHovered || (hoveredPipeId === null && inspectedPipe?.id === id);
-  const isInspected = isSamePipe(inspectedPipe, pipe);
+  const isInspected = inspectedPipes.some(inspected => isSamePipe(inspected, pipe));
+  const isEmphasized = isHovered || (hoveredPipeId === null && isInspected);
+  const inspectedPipeIds = useMemo(
+    () => new Set(inspectedPipes.map(inspected => inspected.id)),
+    [inspectedPipes]
+  );
   const inspect = () => {
     if (pipe?.sourcePortId && pipe.targetPortId) {
       toggleInspectedPipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
@@ -162,7 +166,8 @@ const VariableWidthEdge = ({
   }
 
   const dimFromInteraction = shouldDimEdgeFromInteraction({
-    inspectedEdgeId: hoveredPipeId ?? inspectedPipe?.id,
+    hoveredEdgeId: hoveredPipeId ?? undefined,
+    inspectedEdgeIds: inspectedPipeIds,
     edgeId: id,
     sourceId: source,
     targetId: target,
@@ -639,10 +644,9 @@ const FlowLayout = ({
           hoveredStatValue: dagHeatmap?.values.get(node.id),
           heatmapRange: dagHeatmap?.range,
           highlightedNodeIds,
-          primaryHighlightedNodeId: highlightState.primaryOperatorId,
         },
       })),
-    [dagHeatmap, highlightedNodeIds, highlightState.primaryOperatorId, nodes]
+    [dagHeatmap, highlightedNodeIds, nodes]
   );
   const renderedEdges = useMemo(
     () =>

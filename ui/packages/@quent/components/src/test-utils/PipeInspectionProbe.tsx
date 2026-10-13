@@ -5,23 +5,23 @@ import { useEffect, type ReactNode } from 'react';
 import {
   useHighlightedNodeIds,
   useHoveredPipeId,
-  useInspectedPipe,
+  useInspectedPipes,
   useOperatorSelectionActions,
   useSelectedOperatorIds,
   useSelectedOperatorsData,
-  useSetInspectedPipe,
+  useAddInspectedPipe,
   useSyncDisplayedPipes,
 } from '@quent/hooks';
 import type { DAGEdge, DAGNode } from '@quent/utils';
 
 type Actions = {
-  setInspectedPipe: ReturnType<typeof useSetInspectedPipe>;
+  addInspectedPipe: ReturnType<typeof useAddInspectedPipe>;
   updateSelection: ReturnType<typeof useOperatorSelectionActions>;
 };
 
 /** The latest pipe-inspection state, read through the public hooks. */
 export type PipeInspectionSnapshot = Actions & {
-  inspectedPipe: ReturnType<typeof useInspectedPipe>;
+  inspectedPipes: ReturnType<typeof useInspectedPipes>;
   hoveredPipeId: ReturnType<typeof useHoveredPipeId>;
   highlight: ReturnType<typeof useHighlightedNodeIds>[0];
   selectedOperatorIds: ReturnType<typeof useSelectedOperatorIds>;
@@ -72,12 +72,12 @@ export function PipeInspectionProbe({
   useSyncDisplayedPipes(edges, nodes);
   const [highlight] = useHighlightedNodeIds();
   const snapshot: PipeInspectionSnapshot = {
-    inspectedPipe: useInspectedPipe(),
+    inspectedPipes: useInspectedPipes(),
     hoveredPipeId: useHoveredPipeId(),
     highlight,
     selectedOperatorIds: useSelectedOperatorIds(),
     selectedOperatorsData: useSelectedOperatorsData(),
-    setInspectedPipe: useSetInspectedPipe(),
+    addInspectedPipe: useAddInspectedPipe(),
     updateSelection: useOperatorSelectionActions(),
   };
   useEffect(() => recorder.record(snapshot));

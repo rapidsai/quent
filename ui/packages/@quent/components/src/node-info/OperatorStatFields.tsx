@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import {
   useDisplayedPipes,
   useSetHoveredPipeId,
-  useSetInspectedPipe,
+  useAddInspectedPipe,
   type SelectedOperatorData,
 } from '@quent/hooks';
 import { isStatStruct, type QuantitySpec } from '@quent/utils';
@@ -21,7 +21,7 @@ export const OperatorStatFields = ({
 }) => {
   const edges = useDisplayedPipes();
   const setHoveredPipe = useSetHoveredPipeId();
-  const setInspectedPipe = useSetInspectedPipe();
+  const addInspectedPipe = useAddInspectedPipe();
   useEffect(() => () => setHoveredPipe(null), [operator.nodeId, setHoveredPipe]);
   const actions = new Map<string, StatisticSectionAction>();
   const normalize = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -52,7 +52,7 @@ export const OperatorStatFields = ({
         leave: () => setHoveredPipe(null),
         activate: () => {
           setHoveredPipe(null);
-          setInspectedPipe(ref);
+          addInspectedPipe(ref);
         },
       });
     }
