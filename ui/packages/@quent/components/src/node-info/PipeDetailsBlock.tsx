@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
 import { X } from 'lucide-react';
 import {
   useDisplayedDagNodes,
@@ -11,6 +11,7 @@ import {
 } from '@quent/hooks';
 import type { DAGEdge, DAGNode } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
+import { OperatorBadge } from '../timeline/OperatorBadge';
 import { OperatorColorBar } from './OperatorColorBar';
 import { StatisticFields } from './StatisticFields';
 
@@ -47,76 +48,91 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
       removePipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
     }
   };
-  const sourceLabel = nodes.find(node => node.id === pipe.source)?.label ?? pipe.source;
-  const targetLabel = nodes.find(node => node.id === pipe.target)?.label ?? pipe.target;
+  const sourceNode = nodes.find(node => node.id === pipe.source);
+  const targetNode = nodes.find(node => node.id === pipe.target);
+  const sourceLabel = sourceNode?.label ?? pipe.source;
+  const targetLabel = targetNode?.label ?? pipe.target;
   return (
-    <div className="relative space-y-4">
-      <button
-        type="button"
-        aria-label={`Deselect pipe from ${sourceLabel} to ${targetLabel}`}
-        onClick={deselect}
-        className="absolute right-0 top-0 z-10 cursor-pointer rounded p-1 transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-      >
-        <X className="h-3 w-3 text-muted-foreground" />
-      </button>
-      {[
-        {
-          heading: 'Sending port',
-          name: pipe.sourcePortName,
-          id: pipe.sourcePortId,
-          operator: pipe.source,
-          node: nodes.find(node => node.id === pipe.source),
-          statistics: pipe.portStats,
-        },
-        {
-          heading: 'Receiving port',
-          name: pipe.targetPortName,
-          id: pipe.targetPortId,
-          operator: pipe.target,
-          node: nodes.find(node => node.id === pipe.target),
-          statistics: pipe.targetPortStats,
-        },
-      ].map(endpoint => (
-        <section
-          key={endpoint.heading}
-          aria-label={endpoint.heading}
-          onClick={() => selectOperator(endpoint.node)}
-          onMouseEnter={() => enter(endpoint.operator)}
-          onMouseLeave={() => leave(endpoint.operator)}
-          onFocus={() => enter(endpoint.operator)}
-          onBlur={() => leave(endpoint.operator)}
-          className="cursor-pointer rounded-sm hover:bg-muted/30 focus-within:bg-muted/30"
+    <div className="rounded-md border bg-muted/20 p-2">
+      <header className="mb-2 flex items-start justify-between gap-2 border-b pb-1.5">
+        <h3 className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <OperatorBadge label={sourceLabel} operationType={sourceNode?.type} />
+          <span aria-hidden className="text-muted-foreground">
+            →
+          </span>
+          <OperatorBadge label={targetLabel} operationType={targetNode?.type} />
+        </h3>
+        <button
+          type="button"
+          aria-label={`Deselect pipe from ${sourceLabel} to ${targetLabel}`}
+          onClick={deselect}
+          className="shrink-0 cursor-pointer rounded p-1 -m-1 transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         >
-          <h4 className="mb-1 text-xs font-semibold">
-            {endpoint.heading}
-            {endpoint.name ? ` · ${endpoint.name}` : ''}
-          </h4>
-          <dl className="mb-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-xs text-muted-foreground">
-            <dt>Operator</dt>
-            <dd className="flex min-w-0 items-center gap-1.5" title={endpoint.operator}>
-              <OperatorColorBar
-                operationType={endpoint.node?.type ?? 'operator'}
-                className="w-1 self-stretch"
-              />
-              <button
-                type="button"
-                aria-label={`Show ${endpoint.node?.label ?? endpoint.operator} operator details`}
-                disabled={!endpoint.node}
-                className="cursor-pointer break-words text-left text-foreground rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-              >
-                {endpoint.node?.label ?? endpoint.operator}
-              </button>
-            </dd>
-            <dt>Port ID</dt>
-            <dd className="break-all">{endpoint.id}</dd>
-          </dl>
-          {endpoint.statistics?.length ? (
-            <StatisticFields statistics={endpoint.statistics} />
-          ) : (
-            <p className="text-xs text-muted-foreground">No statistics</p>
-          )}
-        </section>
-      ))}
+          <X className="h-3 w-3 text-muted-foreground" />
+        </button>
+      </header>
+      <div className="space-y-2">
+        {[
+          {
+            heading: 'Sending port',
+            name: pipe.sourcePortName,
+            id: pipe.sourcePortId,
+            operator: pipe.source,
+            node: sourceNode,
+            statistics: pipe.portStats,
+          },
+          {
+            heading: 'Receiving port',
+            name: pipe.targetPortName,
+            id: pipe.targetPortId,
+            operator: pipe.target,
+            node: targetNode,
+            statistics: pipe.targetPortStats,
+          },
+        ].map((endpoint, index) => (
+          <Fragment key={endpoint.heading}>
+            {index > 0 && <hr />}
+            <section
+              aria-label={endpoint.heading}
+              onClick={() => selectOperator(endpoint.node)}
+              onMouseEnter={() => enter(endpoint.operator)}
+              onMouseLeave={() => leave(endpoint.operator)}
+              onFocus={() => enter(endpoint.operator)}
+              onBlur={() => leave(endpoint.operator)}
+              className="cursor-pointer rounded-sm hover:bg-muted/30 focus-within:bg-muted/30"
+            >
+              <h4 className="mb-1 text-xs font-semibold">
+                {endpoint.heading}
+                {endpoint.name ? ` · ${endpoint.name}` : ''}
+              </h4>
+              <dl className="mb-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-xs text-muted-foreground">
+                <dt>Operator</dt>
+                <dd className="flex min-w-0 items-center gap-1.5" title={endpoint.operator}>
+                  <OperatorColorBar
+                    operationType={endpoint.node?.type ?? 'operator'}
+                    className="w-1 self-stretch"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Show ${endpoint.node?.label ?? endpoint.operator} operator details`}
+                    disabled={!endpoint.node}
+                    className="cursor-pointer break-words text-left text-foreground rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    {endpoint.node?.label ?? endpoint.operator}
+                  </button>
+                </dd>
+                <dt>Port ID</dt>
+                <dd className="break-all">{endpoint.id}</dd>
+              </dl>
+              {endpoint.statistics?.length ? (
+                <StatisticFields statistics={endpoint.statistics} />
+              ) : (
+                <p className="text-xs text-muted-foreground">No statistics</p>
+              )}
+            </section>
+          </Fragment>
+        ))}
+      </div>
     </div>
   );
 }

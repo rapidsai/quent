@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { expect, it } from 'vitest';
 import {
@@ -34,17 +34,23 @@ it('presents operator labels and highlights the matching endpoint on hover and f
     </Provider>
   );
   const { rerender } = render(ui(true));
-  expect(screen.getByText('Parquet scan [6]')).toBeVisible();
-  expect(screen.getByText('Partitioned join [42]')).toBeVisible();
+  // Each operator shows as a pill in the card header and again inside its port section.
+  const header = screen.getByRole('heading', { level: 3 });
+  expect(within(header).getByText('Parquet scan [6]')).toBeVisible();
+  expect(within(header).getByText('Partitioned join [42]')).toBeVisible();
+  expect(within(header).queryByRole('button')).not.toBeInTheDocument();
+  expect(screen.getAllByText('Parquet scan [6]')).toHaveLength(2);
+  expect(screen.getAllByText('Partitioned join [42]')).toHaveLength(2);
   fireEvent.mouseEnter(screen.getByRole('region', { name: 'Sending port' }));
   expect(probe.latest().highlight.ids).toEqual(new Set(['scan']));
   fireEvent.mouseLeave(screen.getByRole('region', { name: 'Sending port' }));
   expect(probe.latest().highlight.ids).toBeNull();
-  fireEvent.focus(screen.getByText('Partitioned join [42]'));
+  const receiving = screen.getByRole('region', { name: 'Receiving port' });
+  fireEvent.focus(within(receiving).getByText('Partitioned join [42]'));
   expect(probe.latest().highlight.primaryOperatorId).toBe('join');
-  fireEvent.blur(screen.getByText('Partitioned join [42]'));
+  fireEvent.blur(within(receiving).getByText('Partitioned join [42]'));
   expect(probe.latest().highlight.ids).toBeNull();
-  fireEvent.mouseEnter(screen.getByRole('region', { name: 'Receiving port' }));
+  fireEvent.mouseEnter(receiving);
   rerender(ui(false));
   expect(probe.latest().highlight.ids).toBeNull();
 });
