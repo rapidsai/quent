@@ -3,36 +3,32 @@
 
 const NO_EDGES: ReadonlySet<string> = new Set();
 
+/**
+ * Edges are individual: only an inspected or hovered pipe is emphasized, never an edge because
+ * of the operators it touches. Like nodes, every other edge dims while anything is selected,
+ * inspected, hovered or highlighted.
+ */
 export function shouldDimEdgeFromInteraction({
   hoveredEdgeId,
   inspectedEdgeIds = NO_EDGES,
   edgeId,
-  sourceId,
-  targetId,
   selectedNodeIds,
   highlightedNodeIds,
 }: {
-  /** A transient hover narrows emphasis to this edge alone. */
+  /** A transient hover emphasizes this edge in addition to the inspected pipes. */
   hoveredEdgeId?: string;
-  /** Inspected pipes are emphasized alongside the selected operators. */
   inspectedEdgeIds?: ReadonlySet<string>;
   edgeId?: string;
-  sourceId: string;
-  targetId: string;
   selectedNodeIds: ReadonlySet<string>;
   highlightedNodeIds: ReadonlySet<string> | null;
 }): boolean {
-  if (hoveredEdgeId) {
-    return edgeId !== hoveredEdgeId;
-  }
-  if (edgeId !== undefined && inspectedEdgeIds.has(edgeId)) {
+  if (edgeId !== undefined && (edgeId === hoveredEdgeId || inspectedEdgeIds.has(edgeId))) {
     return false;
   }
-  const hasSelection = selectedNodeIds.size > 0 || inspectedEdgeIds.size > 0;
-  const hasActiveHighlight = highlightedNodeIds !== null;
-  const touchesSelection = selectedNodeIds.has(sourceId) || selectedNodeIds.has(targetId);
-  const touchesHighlight =
-    highlightedNodeIds?.has(sourceId) === true || highlightedNodeIds?.has(targetId) === true;
-
-  return (hasActiveHighlight || hasSelection) && !touchesHighlight && !touchesSelection;
+  return (
+    hoveredEdgeId !== undefined ||
+    selectedNodeIds.size > 0 ||
+    inspectedEdgeIds.size > 0 ||
+    highlightedNodeIds !== null
+  );
 }

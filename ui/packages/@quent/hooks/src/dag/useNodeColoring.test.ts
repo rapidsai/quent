@@ -6,7 +6,7 @@ import { renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it } from 'vitest';
 import { continuousColor } from '@quent/utils';
-import { inspectedPipeRefsAtom } from '../atoms/pipeInspection';
+import { hoveredPipeIdAtom, inspectedPipeRefsAtom } from '../atoms/pipeInspection';
 import { nodeColoringAtom, selectedScaleTypeAtom } from '../atoms/dagControls';
 import { isOperatorGroupSelected, useNodeColoring } from './useNodeColoring';
 
@@ -62,7 +62,7 @@ describe('useNodeColoring scale', () => {
   });
 });
 
-describe('useNodeColoring with inspected pipes', () => {
+describe('useNodeColoring with pipes', () => {
   const render = (operatorId: string, store = createStore()) =>
     renderHook(() => useNodeColoring(operatorId, false), {
       wrapper: ({ children }: { children: ReactNode }) =>
@@ -75,5 +75,13 @@ describe('useNodeColoring with inspected pipes', () => {
     store.set(inspectedPipeRefsAtom, [{ sourcePortId: 'out', targetPortId: 'in' }]);
     expect(render('scan', store).result.current.isDimmed).toBe(true);
     expect(render('scan', store).result.current.isSelected).toBe(false);
+  });
+
+  it('dims every unselected operator while a pipe is hovered', () => {
+    const store = createStore();
+    store.set(hoveredPipeIdAtom, 'edge');
+    expect(render('scan', store).result.current.isDimmed).toBe(true);
+    store.set(hoveredPipeIdAtom, null);
+    expect(render('scan', store).result.current.isDimmed).toBe(false);
   });
 });

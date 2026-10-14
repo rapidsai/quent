@@ -43,6 +43,7 @@ import {
   useDataFlowEnabled,
   useDataFlowMeta,
   useHoveredPipeId,
+  useSetHoveredPipeId,
   useInspectedPipes,
   useToggleInspectedPipe,
   useSyncDisplayedPipes,
@@ -94,8 +95,6 @@ type VariableWidthEdgeProps = EdgeProps;
 
 const VariableWidthEdge = ({
   id,
-  source,
-  target,
   sourceX,
   sourceY,
   targetX,
@@ -106,11 +105,12 @@ const VariableWidthEdge = ({
 }: VariableWidthEdgeProps) => {
   const inspectedPipes = useInspectedPipes();
   const hoveredPipeId = useHoveredPipeId();
+  const setHoveredPipeId = useSetHoveredPipeId();
   const toggleInspectedPipe = useToggleInspectedPipe();
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
   const isHovered = hoveredPipeId === id;
   const isInspected = inspectedPipes.some(inspected => isSamePipe(inspected, pipe));
-  const isEmphasized = isHovered || (hoveredPipeId === null && isInspected);
+  const isEmphasized = isHovered || isInspected;
   const inspectedPipeIds = useMemo(
     () => new Set(inspectedPipes.map(inspected => inspected.id)),
     [inspectedPipes]
@@ -169,8 +169,6 @@ const VariableWidthEdge = ({
     hoveredEdgeId: hoveredPipeId ?? undefined,
     inspectedEdgeIds: inspectedPipeIds,
     edgeId: id,
-    sourceId: source,
-    targetId: target,
     selectedNodeIds: selectedOperatorIds,
     highlightedNodeIds,
   });
@@ -234,11 +232,13 @@ const VariableWidthEdge = ({
           fill="none"
           stroke="transparent"
           strokeWidth={Math.max(16, strokeWidth)}
-          style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+          style={{ pointerEvents: 'stroke', cursor: 'pointer', outline: 'none' }}
           role="button"
           tabIndex={0}
           aria-label={`Inspect pipe ${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`}
           aria-pressed={isInspected}
+          onMouseEnter={() => setHoveredPipeId(id)}
+          onMouseLeave={() => setHoveredPipeId(null)}
           onClick={event => {
             event.stopPropagation();
             inspect();
@@ -522,6 +522,8 @@ const FlowLayout = ({
       source: edge.source,
       target: edge.target,
       type: 'smoothstep',
+      // Selection is shown by the edge's own emphasis, not the browser focus box.
+      className: 'outline-none focus:outline-none',
       // Pass isDark down to edge components via data
       data: {
         isDark,
