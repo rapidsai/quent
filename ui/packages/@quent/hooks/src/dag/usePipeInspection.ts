@@ -9,14 +9,18 @@ import {
   displayedDagNodesAtom,
   hoveredPipeIdAtom,
   addInspectedPipeAtom,
+  clearInspectedPipesAtom,
   inspectedPipeRefsAtom,
   inspectedPipesAtom,
+  removeInspectedPipeAtom,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 
 export const useInspectedPipes = () => useAtomValue(inspectedPipesAtom);
 export const useAddInspectedPipe = () => useSetAtom(addInspectedPipeAtom);
 export const useToggleInspectedPipe = () => useSetAtom(toggleInspectedPipeAtom);
+export const useRemoveInspectedPipe = () => useSetAtom(removeInspectedPipeAtom);
+export const useClearInspectedPipes = () => useSetAtom(clearInspectedPipesAtom);
 
 export const useDisplayedPipes = () => useAtomValue(displayedPipesAtom);
 export const useDisplayedDagNodes = () => useAtomValue(displayedDagNodesAtom);

@@ -26,6 +26,17 @@ export const toggleInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
       : [...refs, ref]
   );
 });
+/** Removes the pipe from the inspected pipes. Does nothing when it is not inspected. */
+export const removeInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
+  set(
+    inspectedPipeRefsAtom,
+    get(inspectedPipeRefsAtom).filter(existing => !isSamePipe(existing, ref))
+  );
+});
+/** Deselects every inspected pipe. Operator selection is unaffected. */
+export const clearInspectedPipesAtom = atom(null, (_get, set) => {
+  set(inspectedPipeRefsAtom, []);
+});
 /** Resolves each inspected ref against the displayed pipes, keeping selection order. */
 export const inspectedPipesAtom = atom(get => {
   const edges = get(displayedPipesAtom);

@@ -7,8 +7,10 @@ import { describe, expect, it } from 'vitest';
 import {
   hoveredPipeIdAtom,
   addInspectedPipeAtom,
+  clearInspectedPipesAtom,
   inspectedPipesAtom,
   inspectedPipeRefsAtom,
+  removeInspectedPipeAtom,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
@@ -129,6 +131,29 @@ describe('inspected pipe actions', () => {
     store.set(addInspectedPipeAtom, { ...first });
     store.set(addInspectedPipeAtom, second);
     expect(store.get(inspectedPipeRefsAtom)).toEqual([first, second]);
+  });
+
+  it('removing drops only the matching pipe and ignores one that is not inspected', () => {
+    const store = createStore();
+    store.set(addInspectedPipeAtom, first);
+    store.set(addInspectedPipeAtom, second);
+    store.set(removeInspectedPipeAtom, { ...first });
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([second]);
+    store.set(removeInspectedPipeAtom, { ...first });
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([second]);
+  });
+
+  it('clearing drops every pipe and leaves the operator selection alone', () => {
+    const store = createStore();
+    store.set(operatorSelectionActionAtom, {
+      type: 'replace',
+      selections: [{ selectionId: 's', label: 'Scan', operatorIds: new Set(['s']) }],
+    });
+    store.set(addInspectedPipeAtom, first);
+    store.set(addInspectedPipeAtom, second);
+    store.set(clearInspectedPipesAtom);
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([]);
+    expect(store.get(selectedOperatorIdsAtom)).toEqual(new Set(['s']));
   });
 
   it('does not treat pipes that share only one port as the same pipe', () => {

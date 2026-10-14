@@ -101,3 +101,39 @@ it('navigates from either endpoint to its operator, adding to the filters and ke
     'Partitioned join [42]'
   );
 });
+
+it('deselects only its own pipe from the X button, without selecting an endpoint operator', () => {
+  const probe = createPipeInspectionRecorder();
+  const store = createStore();
+  const nodes = [
+    { id: 'scan', label: 'Parquet scan [6]', type: 'scan' },
+    { id: 'join', label: 'Partitioned join [42]', type: 'join' },
+  ];
+  const first = {
+    id: 'first',
+    source: 'scan',
+    target: 'join',
+    sourcePortId: 'out-1',
+    targetPortId: 'in-1',
+  };
+  const second = { ...first, id: 'second', sourcePortId: 'out-2', targetPortId: 'in-2' };
+  render(
+    <Provider store={store}>
+      <PipeInspectionProbe nodes={nodes} edges={[first, second]} recorder={probe}>
+        <PipeDetailsBlock pipe={first} />
+      </PipeInspectionProbe>
+    </Provider>
+  );
+  act(() => {
+    probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' });
+    probe.latest().addInspectedPipe({ sourcePortId: 'out-2', targetPortId: 'in-2' });
+  });
+  expect(probe.latest().inspectedPipes.map(pipe => pipe.id)).toEqual(['first', 'second']);
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Deselect pipe from Parquet scan [6] to Partitioned join [42]',
+    })
+  );
+  expect(probe.latest().inspectedPipes.map(pipe => pipe.id)).toEqual(['second']);
+  expect(probe.latest().selectedOperatorIds).toEqual(new Set());
+});

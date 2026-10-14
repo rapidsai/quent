@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect } from 'react';
+import { X } from 'lucide-react';
 import {
   useDisplayedDagNodes,
+  useRemoveInspectedPipe,
   useSetHighlightedNodeIds,
   useOperatorSelectionActions,
 } from '@quent/hooks';
@@ -16,6 +18,7 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
   const nodes = useDisplayedDagNodes();
   const setHighlight = useSetHighlightedNodeIds();
   const updateSelection = useOperatorSelectionActions();
+  const removePipe = useRemoveInspectedPipe();
   const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
       updateSelection({ type: 'add', ...operatorSelectionFromNode(node) });
@@ -39,8 +42,23 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
         ? { ...prev, ids: null, source: null, primaryOperatorId: null }
         : prev
     );
+  const deselect = () => {
+    if (pipe.sourcePortId && pipe.targetPortId) {
+      removePipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
+    }
+  };
+  const sourceLabel = nodes.find(node => node.id === pipe.source)?.label ?? pipe.source;
+  const targetLabel = nodes.find(node => node.id === pipe.target)?.label ?? pipe.target;
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <button
+        type="button"
+        aria-label={`Deselect pipe from ${sourceLabel} to ${targetLabel}`}
+        onClick={deselect}
+        className="absolute right-0 top-0 z-10 cursor-pointer rounded p-1 transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      >
+        <X className="h-3 w-3 text-muted-foreground" />
+      </button>
       {[
         {
           heading: 'Sending port',

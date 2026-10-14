@@ -4,6 +4,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
+  useClearInspectedPipes,
   useDataFlowEnabled,
   useDataFlowFrame,
   useDataFlowIsPlaying,
@@ -30,6 +31,7 @@ export const DAGNodeInfoPanel = ({
   onPreferredHeightChange?: (height: number) => void;
 }) => {
   const inspectedPipes = useInspectedPipes();
+  const clearPipes = useClearInspectedPipes();
   const selectedOperators = useSelectedOperatorsData();
   const dataFlowEnabled = useDataFlowEnabled();
   const isPlaying = useDataFlowIsPlaying();
@@ -64,6 +66,7 @@ export const DAGNodeInfoPanel = ({
   // A tab can disappear when its selection is cleared; fall back to the first remaining one.
   const activeTab = availableTabs.includes(requestedTab) ? requestedTab : availableTabs[0];
   const hasTabs = availableTabs.length > 1;
+  const showClearPipes = isExpanded && showPipesTab && activeTab === 'pipes';
   const isOperatorOpen = (id: string) => !closedOperatorIds.has(id);
   const setOperatorOpen = (id: string, open: boolean) => {
     setClosedOperatorIds(prev => {
@@ -242,18 +245,29 @@ export const DAGNodeInfoPanel = ({
         <div className="flex items-center gap-2 min-w-0 overflow-hidden">
           <span className="text-xs text-muted-foreground font-medium flex-shrink-0">Details</span>
         </div>
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          disabled={!hasSelection}
-          className="ml-2 rounded p-1 hover:bg-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-auto disabled:hover:bg-transparent flex-shrink-0"
-          aria-label="Toggle details"
-        >
-          {isExpanded ? (
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          ) : (
-            <ChevronUp className="h-3 w-3 text-muted-foreground" />
+        <div className="ml-2 flex flex-shrink-0 items-center gap-1">
+          {showClearPipes && (
+            <button
+              type="button"
+              onClick={clearPipes}
+              className="flex-shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              Clear pipes
+            </button>
           )}
-        </button>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            disabled={!hasSelection}
+            className="rounded p-1 hover:bg-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-auto disabled:hover:bg-transparent flex-shrink-0"
+            aria-label="Toggle details"
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronUp className="h-3 w-3 text-muted-foreground" />
+            )}
+          </button>
+        </div>
       </div>
 
       {isExpanded &&
