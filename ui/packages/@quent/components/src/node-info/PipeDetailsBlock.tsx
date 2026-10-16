@@ -10,10 +10,18 @@ import {
 import type { DAGEdge, DAGNode } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
 import { OperatorBadge } from '../timeline/OperatorBadge';
+import { DetailsEntry } from './DetailsEntry';
 import { OperatorColorBar } from './OperatorColorBar';
 import { StatisticFields } from './StatisticFields';
 
-export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
+export interface PipeDetailsBlockProps {
+  pipe: DAGEdge;
+  /** Controlled open state; the block manages its own state when omitted. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function PipeDetailsBlock({ pipe, open, onOpenChange }: PipeDetailsBlockProps) {
   const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
   const updateSelection = useOperatorSelectionActions();
@@ -45,16 +53,22 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
   const sourceLabel = sourceNode?.label ?? pipe.source;
   const targetLabel = targetNode?.label ?? pipe.target;
   return (
-    <div className="rounded-md border bg-muted/20 p-2">
-      <header className="mb-2 border-b pb-1.5">
-        <h3 className="flex min-w-0 flex-wrap items-center gap-1.5">
+    <DetailsEntry
+      open={open}
+      onOpenChange={onOpenChange}
+      testId={`pipe-details-${pipe.id}`}
+      triggerLabel={`Toggle pipe from ${sourceLabel} to ${targetLabel} details`}
+      bar={<span aria-hidden className="w-[3px] shrink-0 self-stretch rounded-full bg-border" />}
+      header={
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <OperatorBadge label={sourceLabel} operationType={sourceNode?.type} />
           <span aria-hidden className="text-muted-foreground">
             →
           </span>
           <OperatorBadge label={targetLabel} operationType={targetNode?.type} />
-        </h3>
-      </header>
+        </span>
+      }
+    >
       <div className="space-y-2">
         {[
           {
@@ -75,7 +89,7 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
           },
         ].map((endpoint, index) => (
           <Fragment key={endpoint.heading}>
-            {index > 0 && <hr />}
+            {index > 0 && <hr className="border-dashed border-muted-foreground/25" />}
             <section
               aria-label={endpoint.heading}
               onClick={() => selectOperator(endpoint.node)}
@@ -117,6 +131,6 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
           </Fragment>
         ))}
       </div>
-    </div>
+    </DetailsEntry>
   );
 }

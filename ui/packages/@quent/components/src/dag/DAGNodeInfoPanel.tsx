@@ -150,9 +150,15 @@ export const DAGNodeInfoPanel = ({
   ) : null;
 
   const pipesContent = showPipesTab ? (
-    <div ref={pipesContentRef} className="flex flex-col gap-4 pt-1.5">
-      {inspectedPipes.map(pipe => (
-        <PipeDetailsBlock key={pipe.id} pipe={pipe} />
+    <div ref={pipesContentRef} className="flex flex-col gap-1 pt-1.5">
+      {inspectedPipes.map((pipe, index) => (
+        <div key={pipe.id} className={index > 0 ? 'border-t pt-3 mt-3' : ''}>
+          <PipeDetailsBlock
+            pipe={pipe}
+            open={isOperatorOpen(pipe.id)}
+            onOpenChange={open => setOperatorOpen(pipe.id, open)}
+          />
+        </div>
       ))}
     </div>
   ) : null;

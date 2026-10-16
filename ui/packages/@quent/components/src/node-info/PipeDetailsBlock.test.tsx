@@ -34,11 +34,12 @@ it('presents operator labels and highlights the matching endpoint on hover and f
     </Provider>
   );
   const { rerender } = render(ui(true));
-  // Each operator shows as a pill in the card header and again inside its port section.
-  const header = screen.getByRole('heading', { level: 3 });
+  // Each operator shows as a pill in the entry header and again inside its port section.
+  const header = screen.getByRole('button', {
+    name: 'Toggle pipe from Parquet scan [6] to Partitioned join [42] details',
+  });
   expect(within(header).getByText('Parquet scan [6]')).toBeVisible();
   expect(within(header).getByText('Partitioned join [42]')).toBeVisible();
-  expect(within(header).queryByRole('button')).not.toBeInTheDocument();
   expect(screen.getAllByText('Parquet scan [6]')).toHaveLength(2);
   expect(screen.getAllByText('Partitioned join [42]')).toHaveLength(2);
   fireEvent.mouseEnter(screen.getByRole('region', { name: 'Sending port' }));
@@ -106,4 +107,34 @@ it('navigates from either endpoint to its operator, adding to the filters and ke
   expect(probe.latest().selectedOperatorsData.find(data => data.nodeId === 'join')?.label).toBe(
     'Partitioned join [42]'
   );
+});
+
+it('collapses and expands its ports from the header', () => {
+  const probe = createPipeInspectionRecorder();
+  const nodes = [
+    { id: 'scan', label: 'Parquet scan [6]', type: 'scan' },
+    { id: 'join', label: 'Partitioned join [42]', type: 'join' },
+  ];
+  const pipe = {
+    id: 'pipe',
+    source: 'scan',
+    target: 'join',
+    sourcePortId: 'out',
+    targetPortId: 'in',
+  };
+  render(
+    <Provider store={createStore()}>
+      <PipeInspectionProbe nodes={nodes} edges={[pipe]} recorder={probe}>
+        <PipeDetailsBlock pipe={pipe} />
+      </PipeInspectionProbe>
+    </Provider>
+  );
+  const toggle = screen.getByRole('button', {
+    name: 'Toggle pipe from Parquet scan [6] to Partitioned join [42] details',
+  });
+  expect(screen.getByRole('region', { name: 'Sending port' })).toBeVisible();
+  fireEvent.click(toggle);
+  expect(screen.queryByRole('region', { name: 'Sending port' })).not.toBeInTheDocument();
+  fireEvent.click(toggle);
+  expect(screen.getByRole('region', { name: 'Sending port' })).toBeVisible();
 });
