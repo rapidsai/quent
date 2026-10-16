@@ -1,8 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { createStore, Provider } from 'jotai';
 import { describe, expect, it } from 'vitest';
+import {
+  PipeInspectionProbe,
+  createPipeInspectionRecorder,
+} from '../test-utils/PipeInspectionProbe';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { OperatorStatFields } from './OperatorStatFields';
 
@@ -191,4 +196,82 @@ it('displays every repeated name within and across attributes and statistics in 
       .getAllByRole('definition')
       .map(value => value.textContent)
   ).toEqual(['Running', '0', 'Completed', 'Completed']);
+});
+
+it('links port groups by structural role, including click, keyboard, and hover cleanup', () => {
+  const probe = createPipeInspectionRecorder();
+  const store = createStore();
+  const edges = [
+    {
+      id: 'left-edge',
+      source: 'scan',
+      target: 'join',
+      sourcePortId: 'out',
+      targetPortId: 'left-in',
+      targetPortName: 'input_0',
+    },
+  ];
+  const ui = (showFields: boolean) => (
+    <Provider store={store}>
+      <PipeInspectionProbe edges={edges} recorder={probe}>
+        {showFields && (
+          <OperatorStatFields
+            operator={{
+              nodeId: 'join',
+              label: 'Join',
+              operationType: 'join',
+              statistics: [
+                {
+                  key: 'Inputs',
+                  value: {
+                    kind: 'struct',
+                    fields: [
+                      {
+                        key: 'Left',
+                        value: {
+                          kind: 'struct',
+                          fields: [{ key: 'structural_role', value: 'input_0' }],
+                        },
+                      },
+                      {
+                        key: 'Right',
+                        value: {
+                          kind: 'struct',
+                          fields: [{ key: 'structural_role', value: 'input_1' }],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            }}
+          />
+        )}
+      </PipeInspectionProbe>
+    </Provider>
+  );
+  const { rerender } = render(ui(true));
+  const left = screen.getByRole('button', { name: 'Inspect inputs Left pipe' });
+  expect(
+    screen.queryByRole('button', { name: 'Inspect inputs Right pipe' })
+  ).not.toBeInTheDocument();
+  fireEvent.mouseEnter(left);
+  expect(probe.latest().hoveredPipeId).toBe('left-edge');
+  fireEvent.mouseLeave(left);
+  expect(probe.latest().hoveredPipeId).toBeNull();
+  fireEvent.focus(left);
+  expect(probe.latest().hoveredPipeId).toBe('left-edge');
+  fireEvent.keyDown(left, { key: 'Enter' });
+  expect(probe.latest().inspectedPipes).toMatchObject([
+    { sourcePortId: 'out', targetPortId: 'left-in' },
+  ]);
+  expect(probe.latest().hoveredPipeId).toBeNull();
+  // Activating again adds nothing: the pipe is already inspected.
+  fireEvent.click(left);
+  expect(probe.latest().inspectedPipes).toMatchObject([
+    { sourcePortId: 'out', targetPortId: 'left-in' },
+  ]);
+  fireEvent.mouseEnter(left);
+  rerender(ui(false));
+  expect(probe.latest().hoveredPipeId).toBeNull();
 });

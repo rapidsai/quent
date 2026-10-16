@@ -8,12 +8,15 @@ import {
   useDataFlowFrame,
   useDataFlowIsPlaying,
   useDataFlowMeta,
+  useInspectedPipes,
   useSelectedOperatorsData,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
-import { OperatorDataFlowBlock, OperatorDetailsBlock } from '../node-info';
+import { OperatorDataFlowBlock, OperatorDetailsBlock, PipeDetailsBlock } from '../node-info';
 import { thinScrollbarClass } from '../ui/thin-scroll';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+
+type DetailsTab = 'stats' | 'pipes' | 'data-flow';
 
 export const DAGNodeInfoPanel = ({
   quantitySpecs,
@@ -26,26 +29,41 @@ export const DAGNodeInfoPanel = ({
   onExpandedChange?: (expanded: boolean) => void;
   onPreferredHeightChange?: (height: number) => void;
 }) => {
+  const inspectedPipes = useInspectedPipes();
   const selectedOperators = useSelectedOperatorsData();
   const dataFlowEnabled = useDataFlowEnabled();
   const isPlaying = useDataFlowIsPlaying();
   const dataFlowMeta = useDataFlowMeta();
   const dataFlowFrame = useDataFlowFrame();
-  const [isExpanded, setIsExpanded] = useState(selectedOperators.length > 0);
-  const [activeTab, setActiveTab] = useState('stats');
+  const [isExpanded, setIsExpanded] = useState(
+    inspectedPipes.length > 0 || selectedOperators.length > 0
+  );
+  const [requestedTab, setActiveTab] = useState<DetailsTab>('stats');
   const [closedOperatorIds, setClosedOperatorIds] = useState<Set<string>>(() => new Set());
   const headerRef = useRef<HTMLDivElement>(null);
   const tabsListRef = useRef<HTMLDivElement>(null);
   const statsContentRef = useRef<HTMLDivElement>(null);
+  const pipesContentRef = useRef<HTMLDivElement>(null);
   const dataFlowContentRef = useRef<HTMLDivElement>(null);
-  const hasSelection = selectedOperators.length > 0;
+  const hasSelection = inspectedPipes.length > 0 || selectedOperators.length > 0;
   const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
+  const inspectedPipeIdsKey = inspectedPipes.map(pipe => pipe.id).join('\0');
   // Notify the containing resizable panel after committing local expansion state.
   useLayoutEffect(() => {
     onExpandedChange?.(isExpanded);
   }, [isExpanded, onExpandedChange]);
 
-  const showDataFlowTab = dataFlowEnabled && dataFlowMeta != null;
+  const showStatsTab = selectedOperators.length > 0;
+  const showPipesTab = inspectedPipes.length > 0;
+  const showDataFlowTab = showStatsTab && dataFlowEnabled && dataFlowMeta != null;
+  const availableTabs: DetailsTab[] = [
+    ...(showStatsTab ? (['stats'] as const) : []),
+    ...(showPipesTab ? (['pipes'] as const) : []),
+    ...(showDataFlowTab ? (['data-flow'] as const) : []),
+  ];
+  // A tab can disappear when its selection is cleared; fall back to the first remaining one.
+  const activeTab = availableTabs.includes(requestedTab) ? requestedTab : availableTabs[0];
+  const hasTabs = availableTabs.length > 1;
   const isOperatorOpen = (id: string) => !closedOperatorIds.has(id);
   const setOperatorOpen = (id: string, open: boolean) => {
     setClosedOperatorIds(prev => {
@@ -74,12 +92,30 @@ export const DAGNodeInfoPanel = ({
     }
   }
 
-  // Collapse per-operator sections as soon as the selected operators change
+  // Collapse per-operator sections as soon as the selected operators change.
+  // Selecting one more operator reveals the Operators tab.
   const [prevSelectedOperatorIdsKey, setPrevSelectedOperatorIdsKey] =
     useState(selectedOperatorIdsKey);
+  const [prevOperatorCount, setPrevOperatorCount] = useState(selectedOperators.length);
   if (selectedOperatorIdsKey !== prevSelectedOperatorIdsKey) {
     setPrevSelectedOperatorIdsKey(selectedOperatorIdsKey);
+    setPrevOperatorCount(selectedOperators.length);
     setClosedOperatorIds(new Set());
+    if (selectedOperators.length > prevOperatorCount) {
+      setActiveTab('stats');
+    }
+  }
+
+  // Selecting one more pipe reveals the Pipes tab and expands the panel.
+  const [prevInspectedPipeIdsKey, setPrevInspectedPipeIdsKey] = useState(inspectedPipeIdsKey);
+  const [prevPipeCount, setPrevPipeCount] = useState(inspectedPipes.length);
+  if (inspectedPipeIdsKey !== prevInspectedPipeIdsKey) {
+    setPrevInspectedPipeIdsKey(inspectedPipeIdsKey);
+    setPrevPipeCount(inspectedPipes.length);
+    if (inspectedPipes.length > prevPipeCount) {
+      setActiveTab('pipes');
+      setIsExpanded(true);
+    }
   }
 
   // Jump to the data-flow tab as soon as it becomes available during playback
@@ -98,7 +134,7 @@ export const DAGNodeInfoPanel = ({
     thinScrollbarClass
   );
 
-  const statsContent = hasSelection ? (
+  const statsContent = showStatsTab ? (
     <div ref={statsContentRef} className="flex flex-col gap-1 pt-1.5">
       {selectedOperators.map((operator, index) => (
         <div key={operator.nodeId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
@@ -107,6 +143,20 @@ export const DAGNodeInfoPanel = ({
             quantitySpecs={quantitySpecs}
             isOpen={isOperatorOpen}
             onOpenChange={setOperatorOpen}
+          />
+        </div>
+      ))}
+    </div>
+  ) : null;
+
+  const pipesContent = showPipesTab ? (
+    <div ref={pipesContentRef} className="flex flex-col gap-1 pt-1.5">
+      {inspectedPipes.map((pipe, index) => (
+        <div key={pipe.id} className={index > 0 ? 'border-t pt-3 mt-3' : ''}>
+          <PipeDetailsBlock
+            pipe={pipe}
+            open={isOperatorOpen(pipe.id)}
+            onOpenChange={open => setOperatorOpen(pipe.id, open)}
           />
         </div>
       ))}
@@ -134,33 +184,38 @@ export const DAGNodeInfoPanel = ({
       </div>
     );
 
+  const activeContentRef = useCallback(() => {
+    switch (activeTab) {
+      case 'pipes':
+        return pipesContentRef.current;
+      case 'data-flow':
+        return dataFlowContentRef.current;
+      default:
+        return statsContentRef.current;
+    }
+  }, [activeTab]);
+
   const measurePreferredHeight = useCallback(() => {
     if (!onPreferredHeightChange || !isExpanded) {
       return;
     }
-    const content =
-      showDataFlowTab && activeTab === 'data-flow'
-        ? dataFlowContentRef.current
-        : statsContentRef.current;
+    const content = activeContentRef();
     const headerHeight = headerRef.current?.offsetHeight ?? 0;
-    const tabsHeight = showDataFlowTab ? (tabsListRef.current?.offsetHeight ?? 0) : 0;
+    const tabsHeight = hasTabs ? (tabsListRef.current?.offsetHeight ?? 0) : 0;
     const contentHeight = content?.scrollHeight ?? 0;
-    if (headerHeight === 0 || contentHeight === 0 || (showDataFlowTab && tabsHeight === 0)) {
+    if (headerHeight === 0 || contentHeight === 0 || (hasTabs && tabsHeight === 0)) {
       return;
     }
     const height = headerHeight + tabsHeight + contentHeight + 10;
     onPreferredHeightChange(height);
-  }, [activeTab, isExpanded, onPreferredHeightChange, showDataFlowTab]);
+  }, [activeContentRef, hasTabs, isExpanded, onPreferredHeightChange]);
 
   useLayoutEffect(() => {
     if (!onPreferredHeightChange) {
       return;
     }
     measurePreferredHeight();
-    const content =
-      showDataFlowTab && activeTab === 'data-flow'
-        ? dataFlowContentRef.current
-        : statsContentRef.current;
+    const content = activeContentRef();
     if (!content || typeof ResizeObserver === 'undefined') {
       return;
     }
@@ -168,13 +223,13 @@ export const DAGNodeInfoPanel = ({
     observer.observe(content);
     return () => observer.disconnect();
   }, [
-    activeTab,
+    activeContentRef,
     closedOperatorIds,
     dataFlowFrame,
+    inspectedPipeIdsKey,
     measurePreferredHeight,
     onPreferredHeightChange,
     selectedOperatorIdsKey,
-    showDataFlowTab,
   ]);
 
   return (
@@ -189,52 +244,70 @@ export const DAGNodeInfoPanel = ({
         className="flex shrink-0 items-center justify-between px-4 py-1.5 min-w-0"
       >
         <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-          <span className="text-xs text-muted-foreground font-medium flex-shrink-0">
-            Operator Details
-          </span>
+          <span className="text-xs text-muted-foreground font-medium flex-shrink-0">Details</span>
         </div>
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          disabled={!hasSelection}
-          className="ml-2 rounded p-1 hover:bg-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-auto disabled:hover:bg-transparent flex-shrink-0"
-          aria-label="Toggle operator details"
-        >
-          {isExpanded ? (
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          ) : (
-            <ChevronUp className="h-3 w-3 text-muted-foreground" />
-          )}
-        </button>
+        <div className="ml-2 flex flex-shrink-0 items-center gap-1">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            disabled={!hasSelection}
+            className="rounded p-1 hover:bg-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-auto disabled:hover:bg-transparent flex-shrink-0"
+            aria-label="Toggle details"
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronUp className="h-3 w-3 text-muted-foreground" />
+            )}
+          </button>
+        </div>
       </div>
 
       {isExpanded &&
         hasSelection &&
-        (showDataFlowTab ? (
+        (hasTabs ? (
           <Tabs
             value={activeTab}
-            onValueChange={setActiveTab}
+            onValueChange={value => setActiveTab(value as DetailsTab)}
             className={cn(
               'border-t',
               fillHeight ? 'min-h-0 flex-1 overflow-hidden' : 'overflow-visible'
             )}
           >
             <TabsList ref={tabsListRef} className="h-7 py-0 px-1 rounded-none">
-              <TabsTrigger value="stats" className="text-xs px-2 py-0.5">
-                Stats
-              </TabsTrigger>
-              <TabsTrigger value="data-flow" className="text-xs px-2 py-0.5">
-                Data Flow
-              </TabsTrigger>
+              {showStatsTab && (
+                <TabsTrigger value="stats" className="text-xs px-2 py-0.5">
+                  Operators
+                </TabsTrigger>
+              )}
+              {showPipesTab && (
+                <TabsTrigger value="pipes" className="text-xs px-2 py-0.5">
+                  Pipes
+                </TabsTrigger>
+              )}
+              {showDataFlowTab && (
+                <TabsTrigger value="data-flow" className="text-xs px-2 py-0.5">
+                  Data Flow
+                </TabsTrigger>
+              )}
             </TabsList>
-            <TabsContent value="stats" className={scrollClass}>
-              {statsContent}
-            </TabsContent>
-            <TabsContent value="data-flow" className={scrollClass}>
-              {dataFlowContent}
-            </TabsContent>
+            {showStatsTab && (
+              <TabsContent value="stats" className={scrollClass}>
+                {statsContent}
+              </TabsContent>
+            )}
+            {showPipesTab && (
+              <TabsContent value="pipes" className={scrollClass}>
+                {pipesContent}
+              </TabsContent>
+            )}
+            {showDataFlowTab && (
+              <TabsContent value="data-flow" className={scrollClass}>
+                {dataFlowContent}
+              </TabsContent>
+            )}
           </Tabs>
         ) : (
-          <div className={cn('border-t', scrollClass)}>{statsContent}</div>
+          <div className={cn('border-t', scrollClass)}>{statsContent ?? pipesContent}</div>
         ))}
     </div>
   );

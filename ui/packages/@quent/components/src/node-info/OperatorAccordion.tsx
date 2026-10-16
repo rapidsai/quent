@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
 import type { SelectedOperatorData } from '@quent/hooks';
 import { DataText } from '../ui/data-text';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { DetailsEntry } from './DetailsEntry';
 import { OperatorColorBar } from './OperatorColorBar';
 
 export interface OperatorDisclosureState {
@@ -24,22 +23,20 @@ export const OperatorAccordion = ({
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
 }) => (
-  <Collapsible
+  <DetailsEntry
     open={open}
     onOpenChange={onOpenChange}
-    className="flex min-w-0 gap-3.5"
-    data-testid={`operator-accordion-${operator.nodeId}`}
-  >
-    <OperatorColorBar operationType={operator.operationType} className="w-1 self-stretch" />
-    <div className="min-w-0 flex-1">
-      <CollapsibleTrigger
-        className="group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-0 py-1 my-1 text-left hover:bg-muted/50"
-        aria-label={
-          operator.workerLabel
-            ? `Toggle ${operator.label} (${operator.workerLabel}) details`
-            : `Toggle ${operator.label} details`
-        }
-      >
+    testId={`operator-accordion-${operator.nodeId}`}
+    bar={
+      <OperatorColorBar operationType={operator.operationType} className="w-[3px] self-stretch" />
+    }
+    triggerLabel={
+      operator.workerLabel
+        ? `Toggle ${operator.label} (${operator.workerLabel}) details`
+        : `Toggle ${operator.label} details`
+    }
+    header={
+      <>
         <DataText className="min-w-0 flex-1 truncate text-xs font-medium" title={operator.label}>
           {operator.label}
         </DataText>
@@ -54,9 +51,9 @@ export const OperatorAccordion = ({
             {operator.workerLabel}
           </DataText>
         )}
-        <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-      </CollapsibleTrigger>
-      <CollapsibleContent>{children}</CollapsibleContent>
-    </div>
-  </Collapsible>
+      </>
+    }
+  >
+    {children}
+  </DetailsEntry>
 );

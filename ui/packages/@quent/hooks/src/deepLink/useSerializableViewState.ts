@@ -11,6 +11,7 @@ import {
   type ScaleType,
   type NodeLabelField,
   type Operator,
+  type PipeRef,
 } from '@quent/utils';
 import {
   operatorSelectionActionAtom,
@@ -45,6 +46,7 @@ import {
   statOrderAtomFamily,
   type AggMode,
 } from '../atoms/pivotTable';
+import { inspectedPipeRefsAtom } from '../atoms/pipeInspection';
 
 export interface SerializableDagControls {
   nodeColorField: string | null;
@@ -77,6 +79,7 @@ export interface SerializableViewState {
   selection: {
     planId: string;
     operatorNodeIds: string[];
+    pipes?: readonly PipeRef[];
   };
   dag: SerializableDagControls;
   dataFlow: SerializableDataFlowState;
@@ -87,6 +90,7 @@ export interface HydratableViewState {
   selection?: {
     planId?: string;
     operatorNodeIds?: readonly string[];
+    pipes?: readonly PipeRef[];
   };
   dag?: Partial<SerializableDagControls>;
   dataFlow?: Partial<SerializableDataFlowState>;
@@ -116,6 +120,9 @@ export function useSerializableViewState({
       selection: {
         planId: store.get(selectedPlanIdAtom),
         operatorNodeIds: [...store.get(selectedOperatorIdsAtom)].sort(),
+        ...(store.get(inspectedPipeRefsAtom).length > 0
+          ? { pipes: store.get(inspectedPipeRefsAtom) }
+          : {}),
       },
       dag: {
         nodeColorField: store.get(selectedColorField),
@@ -169,6 +176,9 @@ export function useSerializableViewState({
         });
       }
 
+      if (state.selection?.pipes) {
+        store.set(inspectedPipeRefsAtom, state.selection.pipes);
+      }
       const dag = state.dag;
       if (dag?.nodeColorField !== undefined) {
         store.set(selectedColorField, dag.nodeColorField);

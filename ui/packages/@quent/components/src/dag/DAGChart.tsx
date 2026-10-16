@@ -19,6 +19,7 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  useUpdateNodeInternals,
   getSmoothStepPath,
   Position,
   type Node,
@@ -41,12 +42,18 @@ import {
   useSelectedDagLayoutDirection,
   useDataFlowEnabled,
   useDataFlowMeta,
+  useHoveredPipeId,
+  useSetHoveredPipeId,
+  useInspectedPipes,
+  useToggleInspectedPipe,
+  useSyncDisplayedPipes,
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
 import { calculateLayout, NODE_LAYOUT_WIDTH, NODE_LAYOUT_HEIGHT, FLOW_BAR_HEIGHT } from './layout';
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
+import { DAGClearSelection } from './DAGClearSelection';
 import { DAGLegend } from './DAGLegend';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
@@ -57,6 +64,8 @@ import {
   inferFieldFormatter,
   statisticFieldName,
   toggleOperatorSelection,
+  isSamePipe,
+  type DAGEdge,
   type Operator,
   type StatisticField,
   type QuantitySpec,
@@ -87,8 +96,6 @@ type VariableWidthEdgeProps = EdgeProps;
 
 const VariableWidthEdge = ({
   id,
-  source,
-  target,
   sourceX,
   sourceY,
   targetX,
@@ -97,6 +104,23 @@ const VariableWidthEdge = ({
   targetPosition,
   data,
 }: VariableWidthEdgeProps) => {
+  const inspectedPipes = useInspectedPipes();
+  const hoveredPipeId = useHoveredPipeId();
+  const setHoveredPipeId = useSetHoveredPipeId();
+  const toggleInspectedPipe = useToggleInspectedPipe();
+  const pipe = (data as { pipe?: DAGEdge })?.pipe;
+  const isHovered = hoveredPipeId === id;
+  const isInspected = inspectedPipes.some(inspected => isSamePipe(inspected, pipe));
+  const isEmphasized = isHovered || isInspected;
+  const inspectedPipeIds = useMemo(
+    () => new Set(inspectedPipes.map(inspected => inspected.id)),
+    [inspectedPipes]
+  );
+  const inspect = () => {
+    if (pipe?.sourcePortId && pipe.targetPortId) {
+      toggleInspectedPipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
+    }
+  };
   const edgeWidthConfig = useEdgeWidthConfig();
   const edgeColoring = useEdgeColoring();
   const edgePalette = useEdgeColorPalette()[0];
@@ -143,12 +167,13 @@ const VariableWidthEdge = ({
   }
 
   const dimFromInteraction = shouldDimEdgeFromInteraction({
-    sourceId: source,
-    targetId: target,
+    hoveredEdgeId: hoveredPipeId ?? undefined,
+    inspectedEdgeIds: inspectedPipeIds,
+    edgeId: id,
     selectedNodeIds: selectedOperatorIds,
     highlightedNodeIds,
   });
-  const isEdgeDimmed = edgeDimmed || dimFromInteraction;
+  const isEdgeDimmed = (edgeDimmed && !isEmphasized) || dimFromInteraction;
 
   const fields = data?.statisticFields as StatisticField[] | undefined;
   let edgeLabelValue: string | undefined;
@@ -198,17 +223,47 @@ const VariableWidthEdge = ({
         >
           <path
             d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
-            fill={edgeColor ?? 'currentColor'}
+            fill={isEmphasized ? 'hsl(var(--primary))' : (edgeColor ?? 'currentColor')}
           />
         </marker>
       </defs>
+      {pipe?.sourcePortId && pipe.targetPortId && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={Math.max(16, strokeWidth)}
+          style={{ pointerEvents: 'stroke', cursor: 'pointer', outline: 'none' }}
+          role="button"
+          tabIndex={0}
+          aria-label={`Inspect pipe ${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`}
+          aria-pressed={isInspected}
+          onMouseEnter={() => setHoveredPipeId(id)}
+          onMouseLeave={() => setHoveredPipeId(null)}
+          onClick={event => {
+            event.stopPropagation();
+            inspect();
+          }}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              event.stopPropagation();
+              inspect();
+            }
+          }}
+        >
+          <title>{`${pipe.sourcePortName ?? pipe.sourcePortId} → ${pipe.targetPortName ?? pipe.targetPortId}`}</title>
+        </path>
+      )}
       <path
         id={id}
         className="react-flow__edge-path"
         d={edgePath}
         markerEnd={`url(#${markerId})`}
         style={{
-          stroke: edgeColor ?? 'currentColor',
+          pointerEvents: 'none',
+          stroke: isEmphasized ? 'hsl(var(--primary))' : (edgeColor ?? 'currentColor'),
+          filter: isEmphasized ? 'drop-shadow(0 0 3px hsl(var(--primary)))' : undefined,
           strokeWidth,
           fill: 'none',
           opacity: isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1,
@@ -315,9 +370,11 @@ const FlowLayout = ({
   onSelectionChange?: (nodeIds: string[]) => void;
   onBackgroundClick?: () => void;
 }) => {
+  useSyncDisplayedPipes(data.edges, data.nodes);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
   const [highlightState] = useHighlightedNodeIds();
@@ -466,9 +523,12 @@ const FlowLayout = ({
       source: edge.source,
       target: edge.target,
       type: 'smoothstep',
+      // Selection is shown by the edge's own emphasis, not the browser focus box.
+      className: 'outline-none focus:outline-none',
       // Pass isDark down to edge components via data
       data: {
         isDark,
+        pipe: edge,
         statisticFields: edge.statisticFields ?? [],
       },
     }));
@@ -529,6 +589,12 @@ const FlowLayout = ({
     observer.observe(container);
     return () => observer.disconnect();
   }, [containerRef, fitView, nodes.length]);
+
+  // Controlled node updates can clear handle bounds while retaining dimensions.
+  // Refresh after each committed node update so unchanged sizes also get handles.
+  useEffect(() => {
+    updateNodeInternals(nodes.map(node => node.id));
+  }, [nodes, updateNodeInternals]);
 
   // Calculate and apply layout
   useLayoutEffect(() => {
@@ -616,6 +682,7 @@ const FlowLayout = ({
       defaultEdgeOptions={{ type: 'smoothstep' }}
     >
       <Background />
+      <DAGClearSelection />
       <DAGLegend
         isDark={isDark}
         statQuantitySpecs={statQuantitySpecs}

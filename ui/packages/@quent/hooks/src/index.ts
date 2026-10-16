@@ -160,3 +160,16 @@ export { useColumnDragDrop } from './pivot-table/useColumnDragDrop';
 export type { DropPosition } from './pivot-table/useColumnDragDrop';
 export { useStatGroupTableControls } from './pivot-table/useStatGroupTableControls';
 export type { AggMode } from './atoms/pivotTable';
+
+export {
+  useInspectedPipes,
+  useAddInspectedPipe,
+  useToggleInspectedPipe,
+  useClearInspectedPipes,
+  useSyncDisplayedPipes,
+  useDisplayedPipes,
+  useDisplayedDagNodes,
+  useInspectedPipeNodes,
+  useHoveredPipeId,
+  useSetHoveredPipeId,
+} from './dag/usePipeInspection';

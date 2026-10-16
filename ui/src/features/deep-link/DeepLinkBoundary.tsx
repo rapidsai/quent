@@ -421,6 +421,9 @@ export function DeepLinkBoundary({
     if (sharedView.selection.planId) {
       selection.planId = sharedView.selection.planId;
     }
+    if (sharedView.selection.pipes?.length) {
+      selection.pipes = [...sharedView.selection.pipes];
+    }
     if (sharedView.selection.operatorNodeIds.length > 0) {
       selection.operatorNodeIds = sharedView.selection.operatorNodeIds;
     }

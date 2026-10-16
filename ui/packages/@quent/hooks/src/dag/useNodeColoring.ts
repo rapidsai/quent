@@ -10,6 +10,7 @@ import {
   nodeColorPaletteAtom,
   selectedScaleTypeAtom,
 } from '../atoms/dagControls';
+import { hoveredPipeIdAtom, inspectedPipeRefsAtom } from '../atoms/pipeInspection';
 import { scaleColor } from '@quent/utils';
 
 interface NodeColoringResult {
@@ -51,6 +52,8 @@ export function useNodeColoring(
   const nodePalette = useAtomValue(nodeColorPaletteAtom);
   const colorField = useAtomValue(selectedColorField);
   const scaleType = useAtomValue(selectedScaleTypeAtom);
+  const hasInspectedPipes = useAtomValue(inspectedPipeRefsAtom).length > 0;
+  const hasHoveredPipe = useAtomValue(hoveredPipeIdAtom) !== null;
 
   const isSelected = isOperatorGroupSelected(selectedOperatorIds, operatorId, relatedOperatorIds);
 
@@ -72,7 +75,9 @@ export function useNodeColoring(
     return { fieldColor: color, fieldDimmed: !color };
   }, [nodeColoring, operatorId, nodePalette, isDark, scaleType]);
 
-  const hasSelection = selectedOperatorIds.size > 0;
+  // Selecting or hovering a pipe de-emphasizes every operator that is not itself selected, like
+  // selecting an operator does. The pipe's endpoint operators get no special treatment.
+  const hasSelection = selectedOperatorIds.size > 0 || hasInspectedPipes || hasHoveredPipe;
   const isDimmed = fieldDimmed || (hasSelection && !isSelected);
 
   return { fieldColor, fieldDimmed, isDimmed, isSelected, colorField };
