@@ -53,6 +53,7 @@ import {
 import { calculateLayout, NODE_LAYOUT_WIDTH, NODE_LAYOUT_HEIGHT, FLOW_BAR_HEIGHT } from './layout';
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
+import { DAGClearSelection } from './DAGClearSelection';
 import { DAGLegend } from './DAGLegend';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
@@ -681,6 +682,7 @@ const FlowLayout = ({
       defaultEdgeOptions={{ type: 'smoothstep' }}
     >
       <Background />
+      <DAGClearSelection />
       <DAGLegend
         isDark={isDark}
         statQuantitySpecs={statQuantitySpecs}
