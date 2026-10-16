@@ -9,6 +9,16 @@ export const inspectedPipeRefsAtom = atom<readonly PipeRef[]>([]);
 export const hoveredPipeIdAtom = atom<string | null>(null);
 export const displayedDagNodesAtom = atom<readonly DAGNode[]>([]);
 export const displayedPipesAtom = atom<readonly DAGEdge[]>([]);
+/**
+ * An inspected pipe and its endpoint operators as last seen on the plan that displayed it.
+ * Lets pipes stay inspected, like operator selections, after the user switches plans.
+ */
+export interface InspectedPipeSnapshot {
+  edge: DAGEdge;
+  sourceNode?: DAGNode;
+  targetNode?: DAGNode;
+}
+export const inspectedPipeSnapshotsAtom = atom<readonly InspectedPipeSnapshot[]>([]);
 /** Adds the pipe to the inspected pipes. Does nothing when it is already inspected. */
 export const addInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
   const refs = get(inspectedPipeRefsAtom);
@@ -37,11 +47,32 @@ export const removeInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
 export const clearInspectedPipesAtom = atom(null, (_get, set) => {
   set(inspectedPipeRefsAtom, []);
 });
-/** Resolves each inspected ref against the displayed pipes, keeping selection order. */
+/**
+ * Resolves each inspected ref, keeping selection order. A pipe on the displayed plan is read
+ * live; one from another plan falls back to its snapshot.
+ */
 export const inspectedPipesAtom = atom(get => {
   const edges = get(displayedPipesAtom);
+  const snapshots = get(inspectedPipeSnapshotsAtom);
   return get(inspectedPipeRefsAtom).flatMap(ref => {
-    const edge = edges.find(candidate => isSamePipe(candidate, ref));
+    const edge =
+      edges.find(candidate => isSamePipe(candidate, ref)) ??
+      snapshots.find(snapshot => isSamePipe(snapshot.edge, ref))?.edge;
     return edge ? [edge] : [];
   });
+});
+/** Operators by id for labelling inspected pipes, including those on other plans. */
+export const inspectedPipeNodesAtom = atom(get => {
+  const nodes = new Map<string, DAGNode>();
+  for (const { sourceNode, targetNode } of get(inspectedPipeSnapshotsAtom)) {
+    for (const node of [sourceNode, targetNode]) {
+      if (node) {
+        nodes.set(node.id, node);
+      }
+    }
+  }
+  for (const node of get(displayedDagNodesAtom)) {
+    nodes.set(node.id, node);
+  }
+  return nodes;
 });

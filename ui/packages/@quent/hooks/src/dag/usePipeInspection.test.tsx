@@ -8,6 +8,7 @@ import {
   hoveredPipeIdAtom,
   addInspectedPipeAtom,
   clearInspectedPipesAtom,
+  inspectedPipeNodesAtom,
   inspectedPipesAtom,
   inspectedPipeRefsAtom,
   removeInspectedPipeAtom,
@@ -15,7 +16,7 @@ import {
 } from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
 import { useSyncDisplayedPipes } from './usePipeInspection';
-import type { DAGEdge } from '@quent/utils';
+import type { DAGEdge, DAGNode } from '@quent/utils';
 
 const one: DAGEdge = {
   id: 'one',
@@ -69,27 +70,90 @@ describe('pipe inspection', () => {
     });
     expect(store.get(inspectedPipesAtom).map(pipe => pipe.id)).toEqual(['two']);
   });
-  it('clears an inspection whose exact endpoints disappear', () => {
+  it('drops a ref that never resolved against any plan, such as a stale link', () => {
     const store = createStore();
     const view = render(
       <Provider store={store}>
-        <Sync edges={[one, two]} />
+        <Sync edges={[one]} />
       </Provider>
     );
     act(() => {
       store.set(inspectedPipeRefsAtom, [
         { sourcePortId: 'out-1', targetPortId: 'in-1' },
-        { sourcePortId: 'out-2', targetPortId: 'in-2' },
+        { sourcePortId: 'gone', targetPortId: 'gone' },
       ]);
     });
     view.rerender(
       <Provider store={store}>
-        <Sync edges={[one]} />
+        <Sync edges={[one, two]} />
       </Provider>
     );
     expect(store.get(inspectedPipeRefsAtom)).toEqual([
       { sourcePortId: 'out-1', targetPortId: 'in-1' },
     ]);
+  });
+});
+
+describe('pipes across plans', () => {
+  const otherPlan: DAGEdge = {
+    id: 'other',
+    source: 'x',
+    target: 'y',
+    sourcePortId: 'out-x',
+    targetPortId: 'in-y',
+  };
+  const nodes = [
+    { id: 's', label: 'Scan', type: 'scan' },
+    { id: 't', label: 'Join', type: 'join' },
+  ];
+  function SyncWithNodes({ edges, nodes }: { edges: DAGEdge[]; nodes: DAGNode[] }) {
+    useSyncDisplayedPipes(edges, nodes);
+    return null;
+  }
+
+  it('keeps pipes from a previous plan inspected, alongside new ones', () => {
+    const store = createStore();
+    const view = render(
+      <Provider store={store}>
+        <SyncWithNodes edges={[one]} nodes={nodes} />
+      </Provider>
+    );
+    act(() => {
+      store.set(addInspectedPipeAtom, { sourcePortId: 'out-1', targetPortId: 'in-1' });
+    });
+    view.rerender(
+      <Provider store={store}>
+        <SyncWithNodes edges={[otherPlan]} nodes={[]} />
+      </Provider>
+    );
+    act(() => {
+      store.set(addInspectedPipeAtom, { sourcePortId: 'out-x', targetPortId: 'in-y' });
+    });
+    expect(store.get(inspectedPipesAtom).map(pipe => pipe.id)).toEqual(['one', 'other']);
+    // Endpoint operators of the earlier plan's pipe are still resolvable for display.
+    expect(store.get(inspectedPipeNodesAtom).get('s')?.label).toBe('Scan');
+  });
+
+  it('removes a pipe from another plan once it is deselected', () => {
+    const store = createStore();
+    const view = render(
+      <Provider store={store}>
+        <SyncWithNodes edges={[one]} nodes={nodes} />
+      </Provider>
+    );
+    act(() => {
+      store.set(addInspectedPipeAtom, { sourcePortId: 'out-1', targetPortId: 'in-1' });
+    });
+    view.rerender(
+      <Provider store={store}>
+        <SyncWithNodes edges={[otherPlan]} nodes={[]} />
+      </Provider>
+    );
+    act(() => {
+      store.set(removeInspectedPipeAtom, { sourcePortId: 'out-1', targetPortId: 'in-1' });
+    });
+    expect(store.get(inspectedPipesAtom)).toEqual([]);
+    expect(store.get(inspectedPipeNodesAtom).size).toBe(0);
   });
 });
 

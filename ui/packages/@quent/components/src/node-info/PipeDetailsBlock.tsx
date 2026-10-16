@@ -4,7 +4,7 @@
 import { Fragment, useEffect } from 'react';
 import { X } from 'lucide-react';
 import {
-  useDisplayedDagNodes,
+  useInspectedPipeNodes,
   useRemoveInspectedPipe,
   useSetHighlightedNodeIds,
   useOperatorSelectionActions,
@@ -16,7 +16,7 @@ import { OperatorColorBar } from './OperatorColorBar';
 import { StatisticFields } from './StatisticFields';
 
 export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
-  const nodes = useDisplayedDagNodes();
+  const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
   const updateSelection = useOperatorSelectionActions();
   const removePipe = useRemoveInspectedPipe();
@@ -48,8 +48,8 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
       removePipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
     }
   };
-  const sourceNode = nodes.find(node => node.id === pipe.source);
-  const targetNode = nodes.find(node => node.id === pipe.target);
+  const sourceNode = nodes.get(pipe.source);
+  const targetNode = nodes.get(pipe.target);
   const sourceLabel = sourceNode?.label ?? pipe.source;
   const targetLabel = targetNode?.label ?? pipe.target;
   return (

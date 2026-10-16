@@ -166,6 +166,7 @@ export {
   useSyncDisplayedPipes,
   useDisplayedPipes,
   useDisplayedDagNodes,
+  useInspectedPipeNodes,
   useHoveredPipeId,
   useSetHoveredPipeId,
 } from './dag/usePipeInspection';
