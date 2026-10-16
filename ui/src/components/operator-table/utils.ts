@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { QueryEntities } from '~quent/types/QueryEntities';
 import {
   flattenStatistics,
   statisticFieldLabel,
   workerDisplayName,
+  type QueryEntities,
   type Statistic,
 } from '@quent/utils';
 import { parseCustomStatistics } from '@quent/components';

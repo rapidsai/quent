@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ColorSwatch } from './color-swatch';
-import { DataText } from './data-text';
-import { PointerTooltipPortal } from './pointer-tooltip-portal';
-import type { GanttHover } from '../gantt-chart/hover';
+import { ColorSwatch } from '../ui/color-swatch';
+import { DataText } from '../ui/data-text';
+import { PointerTooltipPortal } from '../ui/pointer-tooltip-portal';
+import type { GanttHover } from './hover';
 
 export interface GanttTooltipItem {
   id: string;
