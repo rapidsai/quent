@@ -6,8 +6,8 @@ import { expect, test, type Page } from '@playwright/test';
 const engine = '00000000-0000-0000-0000-000000000001';
 const query = '00000000-0000-0000-0000-000000000004';
 
-const pipeDetailsTab = (page: Page) => page.getByRole('tab', { name: 'Pipe Details' });
-const operatorTab = (page: Page) => page.getByRole('tab', { name: 'Stats' });
+const pipeDetailsTab = (page: Page) => page.getByRole('tab', { name: 'Pipes' });
+const operatorTab = (page: Page) => page.getByRole('tab', { name: 'Operators' });
 
 test('operators and pipes are selected independently of each other', async ({ page }) => {
   await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
@@ -104,22 +104,18 @@ test('pipes are deselected one at a time or all at once from the details panel',
   }
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(2);
 
-  // The X on a pipe's block deselects only that pipe.
-  await page
-    .getByRole('button', { name: /^Deselect pipe from / })
-    .first()
-    .click();
+  // Pressing a selected pipe again deselects only that pipe.
+  await first.press('Enter');
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(1);
   await expect(first).toHaveAttribute('aria-pressed', 'false');
   await expect(second).toHaveAttribute('aria-pressed', 'true');
 
-  // Clear pipes removes the rest, falls back to the operator's tab and keeps the operator selected.
-  await page.getByRole('button', { name: 'Clear pipes' }).click();
+  // Clear selection removes the remaining pipe and the selected operator.
+  await page.getByRole('button', { name: 'Clear selection' }).click();
   await expect(second).toHaveAttribute('aria-pressed', 'false');
   await expect(pipeDetailsTab(page)).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(0);
-  await expect(clearAll).toBeVisible();
-  await expect(node.locator('.scale-110')).toHaveCount(1);
+  await expect(node.locator('.scale-110')).toHaveCount(0);
 });
 
 test('keyboard pipe inspection preserves operator filters and renders nested endpoint data', async ({

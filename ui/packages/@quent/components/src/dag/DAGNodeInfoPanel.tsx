@@ -4,7 +4,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
-  useClearInspectedPipes,
   useDataFlowEnabled,
   useDataFlowFrame,
   useDataFlowIsPlaying,
@@ -31,7 +30,6 @@ export const DAGNodeInfoPanel = ({
   onPreferredHeightChange?: (height: number) => void;
 }) => {
   const inspectedPipes = useInspectedPipes();
-  const clearPipes = useClearInspectedPipes();
   const selectedOperators = useSelectedOperatorsData();
   const dataFlowEnabled = useDataFlowEnabled();
   const isPlaying = useDataFlowIsPlaying();
@@ -66,7 +64,6 @@ export const DAGNodeInfoPanel = ({
   // A tab can disappear when its selection is cleared; fall back to the first remaining one.
   const activeTab = availableTabs.includes(requestedTab) ? requestedTab : availableTabs[0];
   const hasTabs = availableTabs.length > 1;
-  const showClearPipes = isExpanded && showPipesTab && activeTab === 'pipes';
   const isOperatorOpen = (id: string) => !closedOperatorIds.has(id);
   const setOperatorOpen = (id: string, open: boolean) => {
     setClosedOperatorIds(prev => {
@@ -96,7 +93,7 @@ export const DAGNodeInfoPanel = ({
   }
 
   // Collapse per-operator sections as soon as the selected operators change.
-  // Selecting one more operator reveals the Stats tab.
+  // Selecting one more operator reveals the Operators tab.
   const [prevSelectedOperatorIdsKey, setPrevSelectedOperatorIdsKey] =
     useState(selectedOperatorIdsKey);
   const [prevOperatorCount, setPrevOperatorCount] = useState(selectedOperators.length);
@@ -109,7 +106,7 @@ export const DAGNodeInfoPanel = ({
     }
   }
 
-  // Selecting one more pipe reveals the Pipe Details tab and expands the panel.
+  // Selecting one more pipe reveals the Pipes tab and expands the panel.
   const [prevInspectedPipeIdsKey, setPrevInspectedPipeIdsKey] = useState(inspectedPipeIdsKey);
   const [prevPipeCount, setPrevPipeCount] = useState(inspectedPipes.length);
   if (inspectedPipeIdsKey !== prevInspectedPipeIdsKey) {
@@ -244,15 +241,6 @@ export const DAGNodeInfoPanel = ({
           <span className="text-xs text-muted-foreground font-medium flex-shrink-0">Details</span>
         </div>
         <div className="ml-2 flex flex-shrink-0 items-center gap-1">
-          {showClearPipes && (
-            <button
-              type="button"
-              onClick={clearPipes}
-              className="flex-shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              Clear pipes
-            </button>
-          )}
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             disabled={!hasSelection}
@@ -282,12 +270,12 @@ export const DAGNodeInfoPanel = ({
             <TabsList ref={tabsListRef} className="h-7 py-0 px-1 rounded-none">
               {showStatsTab && (
                 <TabsTrigger value="stats" className="text-xs px-2 py-0.5">
-                  Stats
+                  Operators
                 </TabsTrigger>
               )}
               {showPipesTab && (
                 <TabsTrigger value="pipes" className="text-xs px-2 py-0.5">
-                  Pipe Details
+                  Pipes
                 </TabsTrigger>
               )}
               {showDataFlowTab && (

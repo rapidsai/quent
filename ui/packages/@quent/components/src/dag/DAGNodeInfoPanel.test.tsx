@@ -389,21 +389,18 @@ describe('pipes alongside operators', () => {
       })
     );
 
-  it('offers a Pipe Details tab next to the operator tab', async () => {
+  it('offers a Pipes tab next to the operator tab', async () => {
     const probe = renderPanel();
     selectOperator(probe);
-    expect(screen.queryByRole('tab', { name: 'Pipe Details' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Pipes' })).not.toBeInTheDocument();
 
     act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
-    expect(screen.getByRole('tab', { name: 'Stats' })).toBeVisible();
-    expect(screen.getByRole('tab', { name: 'Pipe Details' })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
+    expect(screen.getByRole('tab', { name: 'Operators' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Pipes' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('region', { name: 'Sending port' })).toBeVisible();
 
-    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Stats' }), { button: 0 });
-    expect(screen.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Operators' }), { button: 0 });
+    expect(screen.getByRole('tab', { name: 'Operators' })).toHaveAttribute('aria-selected', 'true');
     expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
     expect(probe.latest().inspectedPipes).toHaveLength(1);
   });
@@ -415,46 +412,5 @@ describe('pipes alongside operators', () => {
     act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-2', targetPortId: 'in-2' }));
     expect(screen.getAllByRole('region', { name: 'Sending port' })).toHaveLength(2);
     expect(screen.getAllByRole('region', { name: 'Receiving port' })).toHaveLength(2);
-  });
-
-  it('offers Clear pipes in the header only while the Pipe Details tab is showing', () => {
-    const probe = renderPanel();
-    const clear = () => screen.queryByRole('button', { name: 'Clear pipes' });
-    selectOperator(probe);
-    expect(clear()).not.toBeInTheDocument();
-
-    act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
-    expect(clear()).toBeVisible();
-
-    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Stats' }), { button: 0 });
-    expect(clear()).not.toBeInTheDocument();
-
-    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Pipe Details' }), { button: 0 });
-    expect(clear()).toBeVisible();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle details' }));
-    expect(clear()).not.toBeInTheDocument();
-  });
-
-  it('clears every pipe from the Pipe Details tab and keeps the selected operators', () => {
-    const probe = renderPanel();
-    selectOperator(probe);
-    act(() => {
-      probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' });
-      probe.latest().addInspectedPipe({ sourcePortId: 'out-2', targetPortId: 'in-2' });
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Clear pipes' }));
-    expect(probe.latest().inspectedPipes).toHaveLength(0);
-    expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
-    expect(screen.queryByRole('tab', { name: 'Pipe Details' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Sending port' })).not.toBeInTheDocument();
-  });
-
-  it('collapses the panel when the last pipe is cleared and no operator is selected', () => {
-    const probe = renderPanel();
-    act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Clear pipes' }));
-    expect(screen.queryByRole('button', { name: 'Clear pipes' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Toggle details' })).toBeDisabled();
   });
 });

@@ -161,7 +161,6 @@ export {
   useInspectedPipes,
   useAddInspectedPipe,
   useToggleInspectedPipe,
-  useRemoveInspectedPipe,
   useClearInspectedPipes,
   useSyncDisplayedPipes,
   useDisplayedPipes,

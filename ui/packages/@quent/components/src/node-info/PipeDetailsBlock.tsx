@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Fragment, useEffect } from 'react';
-import { X } from 'lucide-react';
 import {
   useInspectedPipeNodes,
-  useRemoveInspectedPipe,
   useSetHighlightedNodeIds,
   useOperatorSelectionActions,
 } from '@quent/hooks';
@@ -19,7 +17,6 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
   const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
   const updateSelection = useOperatorSelectionActions();
-  const removePipe = useRemoveInspectedPipe();
   const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
       updateSelection({ type: 'add', ...operatorSelectionFromNode(node) });
@@ -43,18 +40,13 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
         ? { ...prev, ids: null, source: null, primaryOperatorId: null }
         : prev
     );
-  const deselect = () => {
-    if (pipe.sourcePortId && pipe.targetPortId) {
-      removePipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
-    }
-  };
   const sourceNode = nodes.get(pipe.source);
   const targetNode = nodes.get(pipe.target);
   const sourceLabel = sourceNode?.label ?? pipe.source;
   const targetLabel = targetNode?.label ?? pipe.target;
   return (
     <div className="rounded-md border bg-muted/20 p-2">
-      <header className="mb-2 flex items-start justify-between gap-2 border-b pb-1.5">
+      <header className="mb-2 border-b pb-1.5">
         <h3 className="flex min-w-0 flex-wrap items-center gap-1.5">
           <OperatorBadge label={sourceLabel} operationType={sourceNode?.type} />
           <span aria-hidden className="text-muted-foreground">
@@ -62,14 +54,6 @@ export function PipeDetailsBlock({ pipe }: { pipe: DAGEdge }) {
           </span>
           <OperatorBadge label={targetLabel} operationType={targetNode?.type} />
         </h3>
-        <button
-          type="button"
-          aria-label={`Deselect pipe from ${sourceLabel} to ${targetLabel}`}
-          onClick={deselect}
-          className="shrink-0 cursor-pointer rounded p-1 -m-1 transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-        >
-          <X className="h-3 w-3 text-muted-foreground" />
-        </button>
       </header>
       <div className="space-y-2">
         {[

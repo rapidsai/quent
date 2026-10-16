@@ -15,14 +15,12 @@ import {
   inspectedPipesAtom,
   inspectedPipeSnapshotsAtom,
   type InspectedPipeSnapshot,
-  removeInspectedPipeAtom,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 
 export const useInspectedPipes = () => useAtomValue(inspectedPipesAtom);
 export const useAddInspectedPipe = () => useSetAtom(addInspectedPipeAtom);
 export const useToggleInspectedPipe = () => useSetAtom(toggleInspectedPipeAtom);
-export const useRemoveInspectedPipe = () => useSetAtom(removeInspectedPipeAtom);
 export const useClearInspectedPipes = () => useSetAtom(clearInspectedPipesAtom);
 
 export const useInspectedPipeNodes = () => useAtomValue(inspectedPipeNodesAtom);
