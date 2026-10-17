@@ -9,9 +9,11 @@ use quent_schema::{Cardinality, Entity, Event, Schema};
 use quote::quote;
 
 use super::{event_ident, marker_ident};
-use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
-use crate::data_type::map_data_type;
-use crate::{GenerateError, Options};
+use crate::{
+    GenerateError,
+    common::{doc_attr_or, raw_ident, relative_root_type, to_case},
+};
+use quent_events_build::data_type::map_data_type;
 
 mod fsm;
 
@@ -31,21 +33,18 @@ pub(super) fn fsm_handle_type(schema: &Schema) -> TokenStream {
 }
 
 /// Generates entity-specific methods on the generic handle.
-pub(super) fn entity_handle(
-    entity: &Entity,
-    opts: &Options,
-) -> Result<GeneratedHandle, GenerateError> {
-    if let Some(handle) = fsm::entity_handle(entity, opts)? {
+pub(super) fn entity_handle(entity: &Entity) -> Result<GeneratedHandle, GenerateError> {
+    if let Some(handle) = fsm::entity_handle(entity)? {
         return Ok(handle);
     }
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
     Ok(GeneratedHandle {
-        tokens: ordinary_handle(entity, opts)?,
+        tokens: ordinary_handle(entity)?,
         associated_type: quote! { #handle_ty<Self> },
     })
 }
 
-fn ordinary_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
+fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
@@ -80,7 +79,7 @@ fn ordinary_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, Gener
             };
             let docs = doc_attr_or(event.annotations().docs(), &fallback);
 
-            let params = event_params(entity, event, opts, None)?;
+            let params = event_params(entity, event, None)?;
             let fields = event_fields(event, None);
             let construct = event_construct(&event_ty, &variant, &fields);
 
@@ -135,7 +134,6 @@ fn ordinary_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, Gener
 fn event_params(
     entity: &Entity,
     event: &Event,
-    opts: &Options,
     omitted_field: Option<&str>,
 ) -> Result<Vec<TokenStream>, GenerateError> {
     event
@@ -143,7 +141,12 @@ fn event_params(
         .filter(|field| omitted_field.is_none_or(|omitted| field.name() != omitted))
         .map(|field| {
             let name = raw_ident(to_case(field.name(), Case::Snake));
-            let ty = map_data_type(field.ty(), 0, entity.path().namespace(), opts)?;
+            let ty = map_data_type(
+                field.ty(),
+                0,
+                entity.path().namespace(),
+                &crate::event_runtime(),
+            )?;
             Ok(quote! { #name: #ty })
         })
         .collect()

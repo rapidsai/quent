@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use quent_instrumentation_build::{GenerateInfo, Options, generate};
+use quent_instrumentation_build::{EventOptions, GenerateInfo, Options, generate};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("model.yaml");
@@ -21,11 +21,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Schema -> generated Rust instrumentation source.
     let opts = Options {
-        // Filesystem exporters serialize generated events.
-        serde: true,
-        // Generate `DemoEvent`, which lets one typed callback receive events
-        // from every entity in the model.
-        combined_event: true,
+        events: EventOptions {
+            // Filesystem exporters serialize generated events.
+            serde: true,
+            // Generate `DemoEvent` so one typed callback can receive every entity's events.
+            combined_event: true,
+            ..Default::default()
+        },
         ..Options::default()
     };
     let GenerateInfo { path, warnings } = generate(&parsed.schema, &opts)?;

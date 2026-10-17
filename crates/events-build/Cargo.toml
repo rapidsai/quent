@@ -1,0 +1,19 @@
+[package]
+name = "quent-events-build"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+convert_case = "0.12"
+prettyplease.workspace = true
+proc-macro2.workspace = true
+quent-constraints = { path = "../constraints" }
+quent-ref-target = { path = "../ref-target" }
+quent-schema = { path = "../schema" }
+quote = "1"
+syn.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+quent-schema = { path = "../schema", features = ["test-utils"] }

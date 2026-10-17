@@ -18,7 +18,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let generated = generate(
         &parsed.schema,
         &Options {
-            combined_event: true,
+            events: quent_store_build::EventOptions {
+                combined_event: true,
+                ..quent_store_build::Options::default().events
+            },
             filesystem: cfg!(feature = "filesystem"),
             ..Options::default()
         },

@@ -10,7 +10,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     quent_instrumentation_build::generate(
         &schema,
         &quent_instrumentation_build::Options {
-            serde: true,
+            events: quent_instrumentation_build::EventOptions {
+                serde: true,
+                ..Default::default()
+            },
             collector_sink: true,
             out_dir: out_dir.clone(),
             file_name: Some("model.rs".to_owned()),

@@ -29,7 +29,7 @@ use crate::{
 ///
 /// `quent-store-build` implements this trait only when
 /// `quent_store_build::Options::filesystem` and
-/// `quent_store_build::Options::combined_event` are enabled.
+/// `quent_store_build::EventOptions::combined_event` are enabled.
 ///
 /// For example, `impl Model for Demo` defines `EVENT_IMPORTERS` with an entry
 /// `EventImporter::<Self>::import_for_entity::<Task>()`.

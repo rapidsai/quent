@@ -8,9 +8,7 @@ publish = false
 [workspace]
 
 [dependencies]
-quent-events = { path = "../../../events", features = ["serde"] }
-quent-store = { path = "../../../store", default-features = false }
-serde = { version = "1", features = ["derive"] }
+quent-store = { path = "../../../store", features = ["serde"] }
 
 [build-dependencies]
 quent-schema = { path = "../../../schema", features = ["test-utils"] }

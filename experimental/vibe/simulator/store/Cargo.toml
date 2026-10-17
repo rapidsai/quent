@@ -22,7 +22,7 @@ filesystem = [
 [dependencies]
 quent-analyzer = { path = "../../../../crates/analyzer" }
 quent-events = { workspace = true, features = ["serde"] }
-quent-store = { path = "../../../../crates/store", default-features = false }
+quent-store = { path = "../../../../crates/store", default-features = false, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 smallvec.workspace = true
 

@@ -12,9 +12,11 @@ use quent_schema::{Entity, Event, Schema};
 use quote::quote;
 
 use super::super::{event_construct, event_fields, event_params};
-use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
-use crate::runtime::{event_ident, marker_ident, model_ident};
-use crate::{GenerateError, Options};
+use crate::{
+    GenerateError,
+    common::{doc_attr_or, raw_ident, relative_root_type, to_case},
+    runtime::{event_ident, marker_ident, model_ident},
+};
 
 pub(super) fn handle_type(schema: &Schema) -> TokenStream {
     let model = model_ident(schema);
@@ -83,11 +85,7 @@ pub(super) fn handle_type_path(entity: &Entity) -> TokenStream {
     relative_root_type("FsmHandle", entity.path().namespace())
 }
 
-pub(super) fn entity_impl(
-    entity: &Entity,
-    fsm: &Fsm,
-    opts: &Options,
-) -> Result<TokenStream, GenerateError> {
+pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let handle_ty = handle_type_path(entity);
@@ -119,7 +117,6 @@ pub(super) fn entity_impl(
         &marker_ty,
         &handle_ty,
         &state_module,
-        opts,
     )?;
 
     let mut emitted_edges = HashSet::new();
@@ -144,7 +141,6 @@ pub(super) fn entity_impl(
                     &marker_ty,
                     &handle_ty,
                     &state_module,
-                    opts,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -173,7 +169,6 @@ pub(super) fn entity_impl(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 fn transition_method(
     entity: &Entity,
     event: &Event,
@@ -181,7 +176,6 @@ fn transition_method(
     entity_ty: &syn::Ident,
     handle_ty: &TokenStream,
     state_module: &syn::Ident,
-    opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
     let method = raw_ident(to_case(event.name(), Case::Snake));
     let variant = raw_ident(to_case(event.name(), Case::Pascal));
@@ -190,7 +184,7 @@ fn transition_method(
         event.annotations().docs(),
         &format!("Transition this FSM into `{}`.", event.name()),
     );
-    let params = event_params(entity, event, opts, Some(SEQUENCE_FIELD_NAME))?;
+    let params = event_params(entity, event, Some(SEQUENCE_FIELD_NAME))?;
     let sequence_placeholder = quote! { 0 };
     let fields = event_fields(event, Some((SEQUENCE_FIELD_NAME, &sequence_placeholder)));
     let construct = event_construct(event_ty, &variant, &fields);

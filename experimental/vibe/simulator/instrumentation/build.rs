@@ -18,7 +18,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     generate(
         &parsed.schema,
         &Options {
-            serde: true,
+            events: quent_instrumentation_build::EventOptions {
+                serde: true,
+                ..Default::default()
+            },
             analyzer_package: Some("quent-simulator-analyzer".to_owned()),
             collector_sink: true,
             ..Options::default()

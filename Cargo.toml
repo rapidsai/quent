@@ -11,6 +11,7 @@ members = [
     "crates/collector/proto",
     "crates/channel",
     "crates/events",
+    "crates/events-build",
     "crates/io",
     "crates/io/callback",
     "crates/io/collector",
