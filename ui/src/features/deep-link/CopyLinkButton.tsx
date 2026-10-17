@@ -72,7 +72,7 @@ export function CopyLinkButton() {
         disabled={!deepLink || feedback.kind === 'working'}
         onClick={() => void handleCopy()}
       >
-        {feedback.kind === 'success' ? <Check /> : <Share2 />}
+        {feedback.kind === 'success' ? <Check className="text-primary" /> : <Share2 />}
       </Button>
       <span className="sr-only" aria-live="polite">
         {statusMessage}

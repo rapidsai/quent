@@ -133,7 +133,8 @@ export {
 export type { TableProps } from './ui/table';
 export { InnerScrollTable } from './ui/inner-scroll-table';
 export type { InnerScrollTableProps } from './ui/inner-scroll-table';
-export { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
+export { Tabs, TabsList, TabsTrigger, TabsContent, tabTriggerClassName } from './ui/tabs';
+export type { TabIndicatorPosition } from './ui/tabs';
 export {
   Toaster,
   Toast,

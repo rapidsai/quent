@@ -294,7 +294,7 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
           aria-valuetext={currentLabel}
           onKeyDown={handleKeyDown}
           className={cn(
-            'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary bg-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary bg-background shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
             isPlaying && 'transition-[left] duration-100 ease-linear motion-reduce:transition-none'
           )}
           style={{ left: `${positionPct}%` }}
