@@ -2437,6 +2437,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-events-build"
+version = "0.1.0"
+dependencies = [
+ "convert_case",
+ "prettyplease 0.3.0",
+ "proc-macro2",
+ "quent-constraints",
+ "quent-ref-target",
+ "quent-schema",
+ "quote",
+ "syn 3.0.6",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-fsm"
 version = "0.1.0"
 dependencies = [
@@ -2483,6 +2498,7 @@ dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
  "quent-constraints",
+ "quent-events-build",
  "quent-fsm",
  "quent-ref-target",
  "quent-schema",
@@ -2499,7 +2515,6 @@ dependencies = [
  "quent-instrumentation",
  "quent-instrumentation-build",
  "quent-yaml",
- "serde",
  "windows-sys 0.61.2",
 ]
 
@@ -3019,7 +3034,7 @@ version = "0.1.0"
 dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
- "quent-instrumentation-build",
+ "quent-events-build",
  "quent-schema",
  "quote",
  "syn 3.0.6",
@@ -3031,12 +3046,10 @@ dependencies = [
 name = "quent-store-build-example"
 version = "0.1.0"
 dependencies = [
- "quent-events",
  "quent-instrumentation-build-example",
  "quent-store",
  "quent-store-build",
  "quent-yaml",
- "serde",
  "tempfile",
 ]
 

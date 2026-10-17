@@ -26,34 +26,45 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
         [],
     );
     let options = Options {
-        combined_event: false,
+        events: crate::EventOptions {
+            combined_event: false,
+            ..crate::Options::default().events
+        },
         filesystem: false,
         ..Options::default()
     };
     let source = generate_str(&schema, &options).unwrap();
     assert!(!source.contains("pub type TaskStore"));
     assert!(source.contains("pub mod task"));
+    assert!(source.contains("pub struct DemoStore"));
     assert!(!source.contains("pub mod entity_events"));
     assert!(!source.contains("pub use self::entity_events"));
     let source = generate_str(
         &schema,
         &Options {
+            events: crate::EventOptions {
+                combined_event: false,
+                ..crate::Options::default().events
+            },
             entity_store: EntityStoreImplementations { native: false },
-            combined_event: false,
             filesystem: false,
             ..Options::default()
         },
     )
     .unwrap();
     assert!(!source.contains("pub mod task"));
+    assert!(!source.contains("pub struct DemoStore"));
     assert!(!source.contains("pub trait TaskEvents"));
     assert!(!source.contains("pub struct CreatedHandle"));
     assert!(!source.contains("pub type TaskStore"));
     let source = generate_str(
         &schema,
         &Options {
+            events: crate::EventOptions {
+                debug: false,
+                ..options.events
+            },
             entity_store: EntityStoreImplementations { native: true },
-            debug: false,
             ..options
         },
     )
@@ -73,8 +84,11 @@ fn assert_name_conflict(schema: quent_schema::Schema) {
     let result = generate_str(
         &schema,
         &Options {
+            events: crate::EventOptions {
+                combined_event: false,
+                ..crate::Options::default().events
+            },
             filesystem: false,
-            combined_event: false,
             ..Options::default()
         },
     );

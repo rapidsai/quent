@@ -8,7 +8,10 @@ pub mod entity;
 pub mod error;
 pub mod event;
 
+pub use quent_events as events;
 pub use quent_time::TimeUnixNanoSec;
+#[cfg(feature = "serde")]
+pub use serde;
 
 pub use crate::{
     entity::{EntityHandle, EntityStore, Id},

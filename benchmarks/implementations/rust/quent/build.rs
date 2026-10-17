@@ -19,8 +19,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         generate(
             &parsed.schema,
             &Options {
+                events: quent_instrumentation_build::EventOptions {
+                    serde: true,
+                    ..Default::default()
+                },
                 file_name: Some(format!("{name}.rs")),
-                serde: true,
                 ..Options::default()
             },
         )?;

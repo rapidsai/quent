@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
-use quent_instrumentation_build::{
+use quent_events_build::{
     Options,
     common::{module_ident, relative_type_path, type_ident},
 };
@@ -17,7 +17,7 @@ use crate::{EntityStoreImplementations, GenerateError, entities::store::EventSto
 
 mod accessors;
 mod handles;
-mod namespaces;
+pub(crate) mod namespaces;
 mod store;
 
 #[cfg(test)]

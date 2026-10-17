@@ -10,8 +10,7 @@ use quent_schema::{Entity, Identifier, Schema};
 use quote::quote;
 
 use super::GeneratedHandle;
-use crate::runtime::event_ident;
-use crate::{GenerateError, Options};
+use crate::{GenerateError, runtime::event_ident};
 
 mod dynamic;
 mod typestate;
@@ -38,10 +37,7 @@ fn reserved_handle_method(state: &Identifier) -> Option<&'static str> {
         .find(|reserved| *reserved == method)
 }
 
-pub(super) fn entity_handle(
-    entity: &Entity,
-    opts: &Options,
-) -> Result<Option<GeneratedHandle>, GenerateError> {
+pub(super) fn entity_handle(entity: &Entity) -> Result<Option<GeneratedHandle>, GenerateError> {
     let Some(fsm) = Fsm::try_from_entity(entity)? else {
         return Ok(None);
     };
@@ -63,8 +59,8 @@ pub(super) fn entity_handle(
     }
     let handle_ty = typestate::handle_type_path(entity);
     let fsm_event = fsm_event_impl(entity);
-    let typestate = typestate::entity_impl(entity, &fsm, opts)?;
-    let dynamic = dynamic::entity_impl(entity, &fsm, opts)?;
+    let typestate = typestate::entity_impl(entity, &fsm)?;
+    let dynamic = dynamic::entity_impl(entity, &fsm)?;
     Ok(Some(GeneratedHandle {
         tokens: quote! {
             #fsm_event
@@ -117,8 +113,7 @@ mod tests {
     use quent_schema::{DataType, Field, Identifier};
 
     use super::*;
-    use crate::common::pretty;
-    use crate::runtime::handle::MAX_ONCE_EVENTS;
+    use crate::{pretty, runtime::handle::MAX_ONCE_EVENTS};
 
     fn state(name: &str, to: &[&str], initial: bool, fields: Vec<Field>) -> StateDecl {
         StateDecl {
@@ -133,12 +128,7 @@ mod tests {
     }
 
     fn source(entity: &Entity) -> String {
-        pretty(
-            entity_handle(entity, &Options::default())
-                .unwrap()
-                .unwrap()
-                .tokens,
-        )
+        pretty(entity_handle(entity).unwrap().unwrap().tokens)
     }
 
     #[test]
@@ -239,10 +229,7 @@ mod tests {
             .build()
             .unwrap();
 
-        assert!(matches!(
-            entity_handle(&entity, &Options::default()),
-            Ok(Some(_))
-        ));
+        assert!(matches!(entity_handle(&entity), Ok(Some(_))));
     }
 
     #[test]
@@ -268,7 +255,7 @@ mod tests {
             .unwrap();
 
         assert!(matches!(
-            entity_handle(&entity, &Options::default()),
+            entity_handle(&entity),
             Err(GenerateError::TooManyFsmStates { count, .. }) if count == MAX_FSM_STATES + 1
         ));
     }
@@ -295,7 +282,7 @@ mod tests {
                 .unwrap();
 
             assert!(matches!(
-                entity_handle(&entity, &Options::default()),
+                entity_handle(&entity),
                 Err(GenerateError::ReservedFsmHandleMethod {
                     state,
                     method,

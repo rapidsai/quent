@@ -5,12 +5,12 @@
 
 use quent_store::{
     context::ContextSet,
-    entity::{EntityHandle, EntityStore, native::NativeStore},
+    entity::EntityHandle,
     event::{EventLoader, filesystem},
 };
 
 use crate::demo::{
-    Connection, Demo, Query, Server, connection::ConnectionEvents, server::ServerEvents,
+    Connection, Demo, DemoStore, Query, connection::ConnectionEvents, server::ServerEvents,
 };
 
 #[allow(unused_imports, dead_code)]
@@ -35,8 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("  ...");
 
-    // Load all "Connection" and "Server" events into a Rust-native in-memory
-    // "entity store".
+    // Load all entity types into the generated schema-wide store.
     //
     // An entity store can list entities and look up their events by id through
     // the [`EntityStore`] trait.
@@ -44,13 +43,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that [`EntityStore`] implementations may choose to initialize
     // without using an explicit event iterator such as is provided in this
     // example by the [`EventLoader`] above.
-    let connections = NativeStore::<Connection>::try_from_loader(&loader)?;
+    let store = DemoStore::try_from_loader(&loader)?;
 
     // Take the ID of the first entity, then look it up and turn it into a
     // handle through which we can access the event data using schema-defined
     // accessors.
-    if let Some(id) = connections.entities()?.next() {
-        let entity = connections.entity(id)?.unwrap();
+    if let Some(id) = store.entities::<Connection>()?.next() {
+        let entity = store.entity(id)?.unwrap();
         // Note we unwrap here because we just got the id from the store, so we
         // know it exists there. If this ID is taken from data, it would be
         // prudent to properly handle a missing entity (also see below).
@@ -80,8 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             // Since the Connection refers to its parent Server, we can try to
             // look the parent up:
-            let servers = NativeStore::<Server>::try_from_loader(&loader)?;
-            if let Some(server) = servers.entity(opened.host())? {
+            if let Some(server) = store.entity(opened.host())? {
                 println!(
                     "\tOwned by server booted at {} with pid {}",
                     server.booted().timestamp(),

@@ -9,21 +9,22 @@ use quent_schema::Schema;
 use quote::quote;
 use syn::Ident;
 
-use crate::common::{
-    derive_attr, module_ident, path_name_pascal, raw_ident, relative_type_path, to_case,
+use crate::{
+    Error, Options, Runtime,
+    common::{derive_attr, module_ident, path_name_pascal, raw_ident, relative_type_path, to_case},
+    namespace::Namespace,
 };
-use crate::namespace::Namespace;
-use crate::{GenerateError, Options};
 
 pub(crate) fn generate(
     schema: &Schema,
     namespace: &Namespace<'_>,
     opts: &Options,
-) -> Result<TokenStream, GenerateError> {
-    let model = generate_model(schema, namespace, opts);
+    event_runtime: &Runtime,
+) -> Result<TokenStream, Error> {
+    let model = generate_model(schema, namespace, event_runtime);
     let combined =
         if opts.combined_event && (namespace.path().is_empty() || namespace.has_entities()) {
-            generate_combined(schema, namespace, opts)?
+            generate_combined(schema, namespace, opts, event_runtime)?
         } else {
             quote! {}
         };
@@ -38,7 +39,8 @@ fn generate_combined(
     schema: &Schema,
     namespace: &Namespace<'_>,
     opts: &Options,
-) -> Result<TokenStream, GenerateError> {
+    event_runtime: &Runtime,
+) -> Result<TokenStream, Error> {
     let event = event_ident(schema, namespace);
     let docs = if namespace.path().is_empty() {
         format!("Events emitted by the `{}` model.", schema.name())
@@ -51,7 +53,13 @@ fn generate_combined(
             .join("::");
         format!("Events emitted by entities in the `{path}` namespace.")
     };
-    let derives = derive_attr(opts.event_derives, opts.debug, opts.serde, opts.serde)?;
+    let derives = derive_attr(
+        opts.event_derives,
+        opts.debug,
+        opts.serde,
+        opts.serde,
+        event_runtime.serde.as_ref(),
+    )?;
 
     let entity_variants = namespace.entities().iter().map(|entity| {
         let variant = raw_ident(path_name_pascal(entity.path()));
@@ -122,7 +130,7 @@ fn generate_combined(
 
     let model_combined = if namespace.path().is_empty() {
         let model = raw_ident(to_case(schema.name(), Case::Pascal));
-        let runtime = opts.event_runtime();
+        let runtime = &event_runtime.events;
         quote! {
             impl #runtime::CombinedEventModel for #model {
                 type CombinedEvent = #event;
@@ -146,7 +154,11 @@ fn generate_combined(
     })
 }
 
-fn generate_model(schema: &Schema, namespace: &Namespace<'_>, opts: &Options) -> TokenStream {
+fn generate_model(
+    schema: &Schema,
+    namespace: &Namespace<'_>,
+    event_runtime: &Runtime,
+) -> TokenStream {
     if !namespace.path().is_empty() {
         return quote! {};
     }
@@ -154,15 +166,7 @@ fn generate_model(schema: &Schema, namespace: &Namespace<'_>, opts: &Options) ->
     let model = raw_ident(to_case(schema.name(), Case::Pascal));
     let model_name = schema.name().to_string();
     let model_docs = format!("The `{model_name}` model.");
-    let runtime = opts.event_runtime();
-    let analyzer_package = match opts.analyzer_package.as_deref() {
-        Some(package) => quote! {
-            fn analyzer_package() -> ::core::option::Option<&'static str> {
-                ::core::option::Option::Some(#package)
-            }
-        },
-        None => quote! {},
-    };
+    let runtime = &event_runtime.events;
     quote! {
         #[doc = #model_docs]
         pub struct #model;
@@ -182,8 +186,6 @@ fn generate_model(schema: &Schema, namespace: &Namespace<'_>, opts: &Options) ->
                     option_env!("QUENT_SOURCE_BUILT_AT"),
                 )
             }
-
-            #analyzer_package
         }
 
         impl #runtime::EventModel for #model {
@@ -213,8 +215,10 @@ fn relative_event_path(
 mod tests {
     use super::*;
     use crate::common::pretty;
-    use quent_schema::builder::SchemaBuilder;
-    use quent_schema::test_utils::{entity, event, record};
+    use quent_schema::{
+        builder::SchemaBuilder,
+        test_utils::{entity, event, record},
+    };
 
     fn options() -> Options {
         Options {
@@ -234,8 +238,17 @@ mod tests {
             .unwrap();
         let namespaces = Namespace::root(&schema);
 
-        let root = pretty(generate(&schema, &namespaces, &options()).unwrap());
-        let foo = pretty(generate(&schema, &namespaces.children()[0], &options()).unwrap());
+        let root =
+            pretty(generate(&schema, &namespaces, &options(), &crate::tests::runtime()).unwrap());
+        let foo = pretty(
+            generate(
+                &schema,
+                &namespaces.children()[0],
+                &options(),
+                &crate::tests::runtime(),
+            )
+            .unwrap(),
+        );
 
         assert!(root.contains("pub enum DemoEvent"));
         assert!(root.contains("Foo(foo::FooEvent)"));
@@ -258,8 +271,17 @@ mod tests {
             .unwrap();
         let namespaces = Namespace::root(&schema);
 
-        let root = pretty(generate(&schema, &namespaces, &options()).unwrap());
-        let metadata = pretty(generate(&schema, &namespaces.children()[0], &options()).unwrap());
+        let root =
+            pretty(generate(&schema, &namespaces, &options(), &crate::tests::runtime()).unwrap());
+        let metadata = pretty(
+            generate(
+                &schema,
+                &namespaces.children()[0],
+                &options(),
+                &crate::tests::runtime(),
+            )
+            .unwrap(),
+        );
 
         assert!(root.contains("pub enum DemoEvent"));
         assert!(!metadata.contains("MetadataEvent"));
@@ -270,25 +292,19 @@ mod tests {
         let schema = SchemaBuilder::try_new("Demo").unwrap().build().unwrap();
         let namespaces = Namespace::root(&schema);
 
-        let root = pretty(generate(&schema, &namespaces, &Options::default()).unwrap());
+        let root = pretty(
+            generate(
+                &schema,
+                &namespaces,
+                &Options::default(),
+                &crate::tests::runtime(),
+            )
+            .unwrap(),
+        );
 
         assert!(root.contains("pub struct Demo"));
-        assert!(root.contains("impl ::quent_instrumentation::EventModel for Demo"));
+        assert!(root.contains("impl ::quent_events::EventModel for Demo"));
         assert!(!root.contains("DemoEvent"));
-        assert!(!root.contains("impl ::quent_instrumentation::CombinedEventModel for Demo"));
-    }
-
-    #[test]
-    fn generates_analyzer_package_override() {
-        let schema = SchemaBuilder::try_new("Demo").unwrap().build().unwrap();
-        let namespaces = Namespace::root(&schema);
-        let opts = Options {
-            analyzer_package: Some("demo-analyzer".to_owned()),
-            ..Options::default()
-        };
-
-        let root = pretty(generate(&schema, &namespaces, &opts).unwrap());
-
-        assert!(root.contains("::core::option::Option::Some(\"demo-analyzer\")"));
+        assert!(!root.contains("impl ::quent_events::CombinedEventModel for Demo"));
     }
 }

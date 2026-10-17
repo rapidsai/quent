@@ -93,7 +93,7 @@ pub(super) fn generate_entity(
             #(#index_fields,)*
         }
         impl ::quent_store::entity::native::EventIndex<#marker> for #event_index_ident {
-            fn record(&mut self, payload: &<#marker as ::quent_events::EntityMarker>::Payload, position: usize) -> ::core::result::Result<(), ::quent_store::Error> {
+            fn record(&mut self, payload: &<#marker as ::quent_store::events::EntityMarker>::Payload, position: usize) -> ::core::result::Result<(), ::quent_store::Error> {
                 match payload { #(#arms,)* }
                 Ok(())
             }

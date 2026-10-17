@@ -7,7 +7,7 @@ publish.workspace = true
 [dependencies]
 prettyplease.workspace = true
 proc-macro2.workspace = true
-quent-instrumentation-build = { path = "../instrumentation-build" }
+quent-events-build = { path = "../events-build" }
 quent-schema = { path = "../schema" }
 quote = "1"
 syn.workspace = true

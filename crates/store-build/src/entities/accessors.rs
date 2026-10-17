@@ -4,7 +4,7 @@
 //! Generation of entity-specific event accessor declarations.
 
 use proc_macro2::TokenStream;
-use quent_instrumentation_build::common::module_ident;
+use quent_events_build::common::module_ident;
 use quent_schema::{Cardinality, Entity, Event};
 use quote::quote;
 

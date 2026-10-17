@@ -10,7 +10,7 @@ use quote::{ToTokens, quote};
 use std::collections::HashSet;
 use syn::Ident;
 
-use crate::GenerateError;
+use crate::Error;
 
 /// Build a deduplicated `#[derive(..)]` attribute.
 pub(crate) fn derive_attr(
@@ -18,7 +18,8 @@ pub(crate) fn derive_attr(
     debug: bool,
     serialize: bool,
     deserialize: bool,
-) -> Result<TokenStream, GenerateError> {
+    serde_crate: Option<&syn::Path>,
+) -> Result<TokenStream, Error> {
     let mut paths = Vec::new();
     if debug {
         paths.push(syn::parse_quote!(Debug));
@@ -34,7 +35,7 @@ pub(crate) fn derive_attr(
             .iter()
             .copied()
             .map(|derive| {
-                syn::parse_str::<syn::Path>(derive).map_err(|source| GenerateError::InvalidDerive {
+                syn::parse_str::<syn::Path>(derive).map_err(|source| Error::InvalidDerive {
                     derive: derive.to_owned(),
                     source,
                 })
@@ -44,12 +45,32 @@ pub(crate) fn derive_attr(
     for path in &mut paths {
         canonicalize_known_derive_path(path);
     }
+    let uses_serde = paths.iter().any(|path| {
+        path.segments.len() == 2
+            && path.segments[0].ident == "serde"
+            && matches!(
+                path.segments[1].ident.to_string().as_str(),
+                "Serialize" | "Deserialize"
+            )
+    });
+    if let Some(serde_crate) = serde_crate {
+        for path in &mut paths {
+            if path.segments.len() == 2 && path.segments[0].ident == "serde" {
+                let name = &path.segments[1];
+                *path = syn::parse_quote!(#serde_crate::#name);
+            }
+        }
+    }
     let mut seen = HashSet::new();
     paths.retain(|path| seen.insert(path.to_token_stream().to_string()));
     if paths.is_empty() {
         return Ok(quote! {});
     }
-    Ok(quote! { #[derive(#(#paths),*)] })
+    let serde_attr = serde_crate.filter(|_| uses_serde).map(|path| {
+        let path = path.to_token_stream().to_string();
+        quote! { #[serde(crate = #path)] }
+    });
+    Ok(quote! { #[derive(#(#paths),*)] #serde_attr })
 }
 
 fn canonicalize_known_derive_path(path: &mut syn::Path) {
@@ -94,21 +115,21 @@ pub(crate) fn doc_attr(docs: Option<&str>) -> TokenStream {
 
 /// Build a `#[doc = ..]` attribute from `docs`, falling back to `fallback` when
 /// `docs` is `None`, so the item is always documented.
-pub(crate) fn doc_attr_or(docs: Option<&str>, fallback: &str) -> TokenStream {
+pub fn doc_attr_or(docs: Option<&str>, fallback: &str) -> TokenStream {
     let text = docs.unwrap_or(fallback);
     quote! { #[doc = #text] }
 }
 
 /// Case-convert a schema identifier without splitting letter/digit boundaries,
 /// so names such as `u8` or `http2` are preserved rather than mangled.
-pub(crate) fn to_case(id: &Identifier, case: Case) -> String {
+pub fn to_case(id: &Identifier, case: Case) -> String {
     id.to_string()
         .remove_boundaries(&Boundary::digits())
         .to_case(case)
 }
 
 /// Return the Pascal-case type name for the final path segment.
-pub(crate) fn path_name_pascal(path: &Path) -> String {
+pub fn path_name_pascal(path: &Path) -> String {
     to_case(path.name(), Case::Pascal)
 }
 
@@ -146,7 +167,7 @@ pub fn relative_type_path(
 }
 
 /// Return a root type path relative to `source_namespace`.
-pub(crate) fn relative_root_type(name: &str, source_namespace: &[Identifier]) -> TokenStream {
+pub fn relative_root_type(name: &str, source_namespace: &[Identifier]) -> TokenStream {
     let parents = source_namespace.iter().map(|_| quote! { super });
     let ty = raw_ident(name.to_owned());
     quote! { #(#parents::)* #ty }
@@ -155,7 +176,7 @@ pub(crate) fn relative_root_type(name: &str, source_namespace: &[Identifier]) ->
 /// Build an identifier from an already-cased name, raw-escaping Rust keywords.
 /// The keywords that cannot be raw (`crate`, `self`, `super`, `Self`) instead
 /// receive a trailing underscore.
-pub(crate) fn raw_ident(name: String) -> Ident {
+pub fn raw_ident(name: String) -> Ident {
     const NON_RAW: &[&str] = &["crate", "self", "super", "Self"];
     if NON_RAW.contains(&name.as_str()) {
         Ident::new(&format!("{name}_"), Span::call_site())
