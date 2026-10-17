@@ -6,9 +6,10 @@
 // TODO(johanpel): Generate this module from schema metadata. See
 // https://github.com/rapidsai/quent/issues/288.
 
+use std::ops::Deref;
+
 use quent_analyzer::{
     AnalyzerResult, Entity, RefTreeEntity,
-    entity::native::{AnalyzedEntity, EntityEventAccumulator},
     fsm::{
         Fsm, FsmUsages,
         native::{AnalyzedFsm, AnalyzedFsmBuilder, AnalyzedTransition},
@@ -16,51 +17,122 @@ use quent_analyzer::{
     resource::{CapacityDecl, Resource, ResourceTypeDecl, Usage, Using},
 };
 use quent_dynamic_attributes::DynamicAttribute;
-use quent_events::Event;
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, OperatorEntityMut, PlanEntity, PortEntity, QueryEntity,
     WorkerEntity,
 };
 use quent_query_engine_ui as query_engine_ui;
-use quent_simulator_store as schema;
+use quent_simulator_store::{
+    self as schema, gpu::GpuEvents, gpu_memory::GpuMemoryEvents, host_memory::HostMemoryEvents,
+    network::NetworkEvents, network_channel::NetworkChannelEvents, pcie_channel::PcieChannelEvents,
+    storage::StorageEvents, storage_channel::StorageChannelEvents,
+    task_executor::TaskExecutorEvents, task_executor_thread::TaskExecutorThreadEvents,
+};
+use quent_store::entity::{
+    EntityHandle,
+    native::{NativeEntity, NativeEntityMarker},
+};
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, try_to_secs_relative};
 use uuid::Uuid;
 
 mod engine;
-mod gpu;
-mod gpu_memory;
-mod host_memory;
-mod network;
-mod network_channel;
 mod operator;
-mod pcie_channel;
 mod plan;
 mod port;
 mod query;
-mod storage;
-mod storage_channel;
 mod task;
-mod task_executor;
-mod task_executor_thread;
 mod worker;
 
 pub use engine::Engine;
 pub(crate) use engine::engine_custom_attributes;
-pub(crate) use gpu::Gpu;
-pub(crate) use gpu_memory::GpuMemory;
-pub(crate) use host_memory::HostMemory;
-pub(crate) use network::Network;
-pub(crate) use network_channel::NetworkChannel;
 pub use operator::Operator;
-pub(crate) use pcie_channel::PcieChannel;
 pub use plan::Plan;
 pub use port::Port;
 pub use query::Query;
 pub(crate) use query::QueryBuilder;
-pub(crate) use storage::Storage;
-pub(crate) use storage_channel::StorageChannel;
 pub(crate) use task::TaskBuilder;
 pub use task::{Task, TaskExt};
-pub(crate) use task_executor::TaskExecutor;
-pub(crate) use task_executor_thread::TaskExecutorThread;
 pub use worker::Worker;
+
+// TODO(johanpel): Replace these macros with store-build output once it can
+// generate entity parent relationships and resource declarations.
+macro_rules! entity {
+    ($name:ident, $parent:ident) => {
+        pub(crate) type $name = EntityAnalysis<schema::$name>;
+
+        impl RefTreeEntity for $name {
+            fn parent_id(&self) -> Option<Uuid> {
+                Some(self.declaration().$parent().target)
+            }
+        }
+    };
+}
+
+macro_rules! resource {
+    ($name:ident, $parent:ident, $capacity:expr) => {
+        entity!($name, $parent);
+
+        impl $name {
+            pub(crate) fn resource_type_decl() -> ResourceTypeDecl {
+                ResourceTypeDecl::new(
+                    <NativeEntity<schema::$name> as EntityHandle>::type_name(),
+                    [$capacity],
+                )
+            }
+        }
+
+        impl Resource for $name {}
+    };
+}
+
+entity!(Gpu, worker_id);
+entity!(Network, engine_id);
+entity!(TaskExecutor, worker_id);
+resource!(GpuMemory, gpu_id, CapacityDecl::new_occupancy("bytes"));
+resource!(HostMemory, worker_id, CapacityDecl::new_occupancy("bytes"));
+resource!(Storage, worker_id, CapacityDecl::new_occupancy("bytes"));
+resource!(NetworkChannel, network_id, CapacityDecl::new_rate("bytes"));
+resource!(PcieChannel, gpu_id, CapacityDecl::new_rate("bytes"));
+resource!(StorageChannel, worker_id, CapacityDecl::new_rate("bytes"));
+resource!(TaskExecutorThread, task_executor_id, CapacityDecl::unit());
+
+/// Adapts indexed entity events to the simulator analyzer interfaces.
+// TODO(johanpel): Remove this local newtype once store-build supports placing
+// analyzer trait implementations on generated entity types. Both NativeEntity
+// and the analyzer traits are external here, so Rust forbids direct impls.
+#[derive(Debug)]
+pub struct EntityAnalysis<E: NativeEntityMarker> {
+    events: NativeEntity<E>,
+}
+
+impl<E: NativeEntityMarker> EntityAnalysis<E> {
+    pub(crate) fn new(events: NativeEntity<E>) -> Self {
+        Self { events }
+    }
+}
+
+impl<E: NativeEntityMarker> Entity for EntityAnalysis<E> {
+    fn id(&self) -> Uuid {
+        self.events.id().uuid()
+    }
+
+    fn type_name(&self) -> &str {
+        <NativeEntity<E> as EntityHandle>::type_name()
+    }
+
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.events.earliest_timestamp()
+    }
+
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.events.latest_timestamp()
+    }
+}
+
+impl<E: NativeEntityMarker> Deref for EntityAnalysis<E> {
+    type Target = NativeEntity<E>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.events
+    }
+}

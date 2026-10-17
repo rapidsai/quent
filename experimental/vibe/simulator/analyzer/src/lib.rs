@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_events::Event;
+use quent_events::{Event, EventPayload};
 pub use quent_query_engine_analyzer::QueryEngineModel;
 #[cfg(not(target_arch = "wasm32"))]
 use quent_query_engine_analyzer::ui::{QuentViewer, ViewerEventStream};
@@ -111,7 +111,7 @@ const SECOND_OPERATOR_STATISTICS: &[&str] = &[
 ];
 /// Data-flow dimension key for states that hold no memory resource.
 const DIMENSION_NONE: &str = "none";
-const MEMORY_TYPE_NAMES: &[&str] = &["host_memory", "gpu_memory"];
+const MEMORY_TYPE_NAMES: &[&str] = &[schema::HostMemoryEvent::NAME, schema::GpuMemoryEvent::NAME];
 
 fn operator_statistic_quantity(name: &str) -> Option<&'static str> {
     BYTE_OPERATOR_STATISTICS
@@ -1301,7 +1301,7 @@ impl SimulatorUiAnalyzer {
             .filter_map(|&id| {
                 self.model
                     .tasks
-                    .get(&id)
+                    .get(id)
                     .map(|task| task.try_to_ui_fsm(epoch))
             })
             .collect()
