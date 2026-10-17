@@ -164,6 +164,15 @@ where
 }
 
 impl<E: InstrumentedEntity> FsmHandleInner<E> {
+    /// Returns whether generated dynamic transitions must validate their source state.
+    ///
+    /// No-op observers disable transition checks; active observers retain them.
+    /// Hidden because generated models use this predicate across crate boundaries.
+    #[doc(hidden)]
+    pub fn checks_transitions(&self) -> bool {
+        !self.handle.is_noop()
+    }
+
     /// Returns the entity instance ID.
     pub fn id(&self) -> Uuid {
         self.handle.id()

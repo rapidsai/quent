@@ -11,6 +11,10 @@ use uuid::Uuid;
 use crate::ContextExporter;
 
 /// An exporter provider that discards every event.
+///
+/// Dynamic-state FSM handles skip transition topology checks but retain their
+/// last requested state. Typestate restrictions, checked state conversions,
+/// and once-event cardinality checks still apply.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Noop;
 

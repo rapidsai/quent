@@ -64,10 +64,20 @@ handle from the same runtime branch:
 
 The tradeoff is when transition correctness is checked. `FsmHandle` lets the
 compiler (if any) check it through the Rust or C++ type system, or through
-typechecks for Python type stubs. `DynamicFsmHandle` checks it when the
-transition method is called. An invalid transition returns `FsmTransitionError`
-in Rust, throws from the C++ method, or raises `InvalidFsmTransitionError` in
-Python. A failed transition does not emit an event or change the stored state.
+typechecks for Python type stubs. With an active exporter, `DynamicFsmHandle`
+checks it when the transition method is called. An invalid transition returns
+`FsmTransitionError` in Rust, throws from the C++ method, or raises
+`InvalidFsmTransitionError` in Python. A failed transition does not emit an
+event or change the stored state.
+
+With `Noop` (C++ `Context::none()` or Python `Context()` without an exporter),
+dynamic transition methods skip topology checks and update the stored state to
+the requested target without exporting events. This lets disabled
+instrumentation accept paths that omit lifecycle events. Repeated terminal
+events are also accepted. Compile-time typestate restrictions, checked
+conversions back to typestate, and once-event cardinality checks remain
+unchanged. An active exporter that discards events still validates transitions;
+only a no-op observer skips the checks.
 
 Converting a typestate handle preserves its current state and entity ID. In
 Python, the generated type stubs still distinguish each typestate handle, while
@@ -116,7 +126,7 @@ does not require handling runtime transition errors.
     <p class="question-feedback"></p>
   </fieldset>
   <fieldset data-answer="c" data-explanation="Dynamic-state transitions are checked when called; a rejected transition does not emit an event or change the stored state.">
-    <legend>What happens when a dynamic-state handle attempts an invalid transition?</legend>
+    <legend>What happens when a dynamic-state handle with an active exporter attempts an invalid transition?</legend>
     <label><input type="radio" name="q-fsm-dynamic-b" value="a"> The transition is emitted and the state remains unchanged</label>
     <label><input type="radio" name="q-fsm-dynamic-b" value="b"> The handle silently moves to the target state</label>
     <label><input type="radio" name="q-fsm-dynamic-b" value="c"> The call reports an error without emitting an event or changing state</label>

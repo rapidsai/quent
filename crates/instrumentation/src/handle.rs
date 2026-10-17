@@ -51,6 +51,11 @@ impl<E: InstrumentedEntity> HandleInner<E> {
         self.id
     }
 
+    /// Returns whether this handle belongs to a no-op observer.
+    pub(crate) fn is_noop(&self) -> bool {
+        self.observer.is_noop()
+    }
+
     /// Returns a typed reference to this instance carrying no data.
     pub fn as_entity_ref(&self) -> crate::EntityRef<E> {
         crate::EntityRef::new(self.id(), ())

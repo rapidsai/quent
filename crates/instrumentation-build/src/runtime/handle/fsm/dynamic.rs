@@ -274,13 +274,13 @@ fn transition_method(
         ///
         /// # Errors
         ///
-        /// Returns [`FsmTransitionError`] when this transition is not valid from
-        /// the current dynamic state.
+        /// Returns [`FsmTransitionError`] when an active observer's transition is
+        /// not valid from the current dynamic state. No-op observers skip this check.
         pub fn #method(
             &mut self,
             #(#params),*
         ) -> ::core::result::Result<(), ::quent_instrumentation::FsmTransitionError> {
-            if ![#(#sources),*].contains(&self.state) {
+            if self.inner.checks_transitions() && ![#(#sources),*].contains(&self.state) {
                 return ::core::result::Result::Err(
                     ::quent_instrumentation::FsmTransitionError::new(
                         #entity_name,
