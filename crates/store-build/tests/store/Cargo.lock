@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "quent-build-info"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -196,7 +196,7 @@ dependencies = [
 
 [[package]]
 name = "quent-constraints"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-schema",
@@ -206,14 +206,14 @@ dependencies = [
 
 [[package]]
 name = "quent-dynamic-attributes"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "quent-events"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-build-info",
  "quent-dynamic-attributes",
@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "quent-fsm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert_case",
  "prettyplease",
@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -262,7 +262,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-types"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ref-target"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-schema",
@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "quent-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "rustc-hash",
@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "quent-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-build-info",
  "quent-events",
@@ -309,7 +309,7 @@ dependencies = [
 
 [[package]]
 name = "quent-store-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "quent-time"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror",
 ]

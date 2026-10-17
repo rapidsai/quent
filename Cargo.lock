@@ -1819,7 +1819,7 @@ dependencies = [
 
 [[package]]
 name = "nvtx-injection"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cc",
  "libc",
@@ -1830,7 +1830,7 @@ dependencies = [
 
 [[package]]
 name = "nvtx-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "moka",
@@ -2254,7 +2254,7 @@ dependencies = [
 
 [[package]]
 name = "quent-analyzer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-dynamic-attributes",
  "quent-events",
@@ -2269,7 +2269,7 @@ dependencies = [
 
 [[package]]
 name = "quent-bench"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "clap",
@@ -2284,14 +2284,14 @@ dependencies = [
 
 [[package]]
 name = "quent-bench-rust-common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-bench-types",
 ]
 
 [[package]]
 name = "quent-bench-rust-empty-loop"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "quent-bench-rust-common",
@@ -2301,7 +2301,7 @@ dependencies = [
 
 [[package]]
 name = "quent-bench-rust-quent"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "quent-bench-rust-common",
@@ -2316,7 +2316,7 @@ dependencies = [
 
 [[package]]
 name = "quent-bench-types"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "serde",
@@ -2326,7 +2326,7 @@ dependencies = [
 
 [[package]]
 name = "quent-build-info"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2334,7 +2334,7 @@ dependencies = [
 
 [[package]]
 name = "quent-channel"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rtrb",
  "rustc-hash",
@@ -2342,7 +2342,7 @@ dependencies = [
 
 [[package]]
 name = "quent-collector"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-collector-client",
  "quent-collector-proto",
@@ -2355,7 +2355,7 @@ dependencies = [
 
 [[package]]
 name = "quent-collector-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bitcode",
  "http",
@@ -2373,7 +2373,7 @@ dependencies = [
 
 [[package]]
 name = "quent-collector-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prost",
  "protox",
@@ -2384,7 +2384,7 @@ dependencies = [
 
 [[package]]
 name = "quent-collector-python"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "http",
  "pyo3",
@@ -2398,7 +2398,7 @@ dependencies = [
 
 [[package]]
 name = "quent-constraints"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-schema",
@@ -2408,7 +2408,7 @@ dependencies = [
 
 [[package]]
 name = "quent-dag"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-ref-target",
@@ -2419,7 +2419,7 @@ dependencies = [
 
 [[package]]
 name = "quent-dynamic-attributes"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "ts-rs",
@@ -2427,7 +2427,7 @@ dependencies = [
 
 [[package]]
 name = "quent-events"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-build-info",
  "quent-dynamic-attributes",
@@ -2438,7 +2438,7 @@ dependencies = [
 
 [[package]]
 name = "quent-fsm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -2450,7 +2450,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "http",
@@ -2477,7 +2477,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert_case",
  "prettyplease 0.3.0",
@@ -2493,7 +2493,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation-build-example"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "quent-instrumentation",
@@ -2505,7 +2505,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "clap",
@@ -2524,7 +2524,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-callback"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -2535,7 +2535,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-collector"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "http",
@@ -2549,7 +2549,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-msgpack"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -2563,7 +2563,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-ndjson"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -2578,7 +2578,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-postcard"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "postcard",
@@ -2592,7 +2592,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-types"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -2603,7 +2603,7 @@ dependencies = [
 
 [[package]]
 name = "quent-log"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-schema",
@@ -2614,7 +2614,7 @@ dependencies = [
 
 [[package]]
 name = "quent-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "clap",
@@ -2631,7 +2631,7 @@ dependencies = [
 
 [[package]]
 name = "quent-nvtx-analyzer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "nvtx",
@@ -2648,7 +2648,7 @@ dependencies = [
 
 [[package]]
 name = "quent-nvtx-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "nvtx",
@@ -2665,7 +2665,7 @@ dependencies = [
 
 [[package]]
 name = "quent-nvtx-events"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-events",
  "serde",
@@ -2673,7 +2673,7 @@ dependencies = [
 
 [[package]]
 name = "quent-nvtx-example"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "nvtx",
  "nvtx-injection",
@@ -2685,7 +2685,7 @@ dependencies = [
 
 [[package]]
 name = "quent-nvtx-ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-events",
  "quent-nvtx-analyzer",
@@ -2699,7 +2699,7 @@ dependencies = [
 
 [[package]]
 name = "quent-open"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "backon",
  "cargo-manifest",
@@ -2730,7 +2730,7 @@ dependencies = [
 
 [[package]]
 name = "quent-os"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-ref-target",
@@ -2742,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "quent-query-engine-analyzer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-analyzer",
  "quent-events",
@@ -2756,7 +2756,7 @@ dependencies = [
 
 [[package]]
 name = "quent-query-engine-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2787,7 +2787,7 @@ dependencies = [
 
 [[package]]
 name = "quent-query-engine-ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-analyzer",
@@ -2801,7 +2801,7 @@ dependencies = [
 
 [[package]]
 name = "quent-query-engine-ui-bindings"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-nvtx-ui",
  "quent-query-engine-ui",
@@ -2811,7 +2811,7 @@ dependencies = [
 
 [[package]]
 name = "quent-readme-example"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-instrumentation",
  "quent-instrumentation-build",
@@ -2821,7 +2821,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ref-target"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-schema",
@@ -2830,7 +2830,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ref-tree"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -2842,7 +2842,7 @@ dependencies = [
 
 [[package]]
 name = "quent-resource"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
@@ -2856,7 +2856,7 @@ dependencies = [
 
 [[package]]
 name = "quent-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "rustc-hash",
@@ -2869,7 +2869,7 @@ dependencies = [
 
 [[package]]
 name = "quent-simulator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "petgraph",
@@ -2884,7 +2884,7 @@ dependencies = [
 
 [[package]]
 name = "quent-simulator-analyzer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-analyzer",
  "quent-dynamic-attributes",
@@ -2904,7 +2904,7 @@ dependencies = [
 
 [[package]]
 name = "quent-simulator-fixed"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "quent-dynamic-attributes",
@@ -2926,7 +2926,7 @@ dependencies = [
 
 [[package]]
 name = "quent-simulator-instrumentation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-collector-client",
  "quent-events",
@@ -2939,7 +2939,7 @@ dependencies = [
 
 [[package]]
 name = "quent-simulator-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "clap",
@@ -2960,7 +2960,7 @@ dependencies = [
 
 [[package]]
 name = "quent-simulator-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-analyzer",
  "quent-events",
@@ -2973,7 +2973,7 @@ dependencies = [
 
 [[package]]
 name = "quent-simulator-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "postcard",
@@ -2997,7 +2997,7 @@ dependencies = [
 
 [[package]]
 name = "quent-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-build-info",
  "quent-events",
@@ -3015,7 +3015,7 @@ dependencies = [
 
 [[package]]
 name = "quent-store-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
@@ -3029,7 +3029,7 @@ dependencies = [
 
 [[package]]
 name = "quent-store-build-example"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-events",
  "quent-instrumentation-build-example",
@@ -3042,7 +3042,7 @@ dependencies = [
 
 [[package]]
 name = "quent-time"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quanta",
  "serde",
@@ -3052,7 +3052,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-analyzer",
  "quent-dynamic-attributes",
@@ -3064,7 +3064,7 @@ dependencies = [
 
 [[package]]
 name = "quent-yaml"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "quent-constraints",

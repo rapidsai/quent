@@ -205,7 +205,7 @@ dependencies = [
 
 [[package]]
 name = "quent-constraints"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-schema",
@@ -215,7 +215,7 @@ dependencies = [
 
 [[package]]
 name = "quent-dag"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-ref-target",
@@ -226,7 +226,7 @@ dependencies = [
 
 [[package]]
 name = "quent-fsm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "quent-log"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-schema",
@@ -249,7 +249,7 @@ dependencies = [
 
 [[package]]
 name = "quent-os"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-ref-target",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ref-target"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-schema",
@@ -270,7 +270,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ref-tree"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "quent-resource"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
@@ -296,7 +296,7 @@ dependencies = [
 
 [[package]]
 name = "quent-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "rustc-hash",
@@ -307,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "quent-schema-explorer-yaml"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-schema",
  "quent-yaml",
@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "quent-yaml"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "quent-constraints",

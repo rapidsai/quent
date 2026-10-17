@@ -447,5 +447,5 @@ on that version. For example, Quent 0.2.0 may still accept the source above
 despite breaking changes elsewhere. If it no longer supports sources based on
 0.1.0, it reports an unsupported version. The source then needs migration.
 
-The current parser accepts versions in the range `>=0.1, <0.2`. See the
+The current parser accepts versions in the range `>=0.1, <0.3`. See the
 [versioning policy](../../CONTRIBUTING.md#versioning).

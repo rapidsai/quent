@@ -1,7 +1,7 @@
 {
   "name": "quent-bench-plot",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "packageManager": "pnpm@11.19.0",
   "engines": { "node": ">=24.11.0", "pnpm": ">=11.19.0" },

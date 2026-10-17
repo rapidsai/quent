@@ -5,7 +5,7 @@
 
 use crate::diag::Diagnostics;
 
-const SUPPORTED_VERSIONS: &str = ">=0.1, <0.2";
+const SUPPORTED_VERSIONS: &str = ">=0.1, <0.3";
 
 pub(crate) fn validate(version: &str, sink: &mut Diagnostics) {
     let parsed = if version == "alpha" {

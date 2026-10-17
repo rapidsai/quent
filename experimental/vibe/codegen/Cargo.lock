@@ -909,7 +909,7 @@ dependencies = [
 
 [[package]]
 name = "nvtx-injection"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cc",
  "nvtx-sys",
@@ -1195,7 +1195,7 @@ dependencies = [
 
 [[package]]
 name = "quent-build-info"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1203,7 +1203,7 @@ dependencies = [
 
 [[package]]
 name = "quent-codegen-python-test-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-collector-python",
@@ -1218,7 +1218,7 @@ dependencies = [
 
 [[package]]
 name = "quent-codegen-tutorial-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx-build",
  "quent-instrumentation-build",
@@ -1229,7 +1229,7 @@ dependencies = [
 
 [[package]]
 name = "quent-collector"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-collector-client",
  "quent-collector-proto",
@@ -1242,7 +1242,7 @@ dependencies = [
 
 [[package]]
 name = "quent-collector-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bitcode",
  "http",
@@ -1260,7 +1260,7 @@ dependencies = [
 
 [[package]]
 name = "quent-collector-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prost",
  "protox",
@@ -1271,7 +1271,7 @@ dependencies = [
 
 [[package]]
 name = "quent-collector-python"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "http",
  "pyo3",
@@ -1285,7 +1285,7 @@ dependencies = [
 
 [[package]]
 name = "quent-constraints"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-schema",
@@ -1295,7 +1295,7 @@ dependencies = [
 
 [[package]]
 name = "quent-cpp-list-test"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-build",
@@ -1308,7 +1308,7 @@ dependencies = [
 
 [[package]]
 name = "quent-dag"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-ref-target",
@@ -1319,7 +1319,7 @@ dependencies = [
 
 [[package]]
 name = "quent-demo-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-build",
@@ -1336,7 +1336,7 @@ dependencies = [
 
 [[package]]
 name = "quent-demo-cpp-test"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-build",
@@ -1350,7 +1350,7 @@ dependencies = [
 
 [[package]]
 name = "quent-demo-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-dynamic-attributes",
@@ -1363,14 +1363,14 @@ dependencies = [
 
 [[package]]
 name = "quent-dynamic-attributes"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "quent-events"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-build-info",
  "quent-dynamic-attributes",
@@ -1381,7 +1381,7 @@ dependencies = [
 
 [[package]]
 name = "quent-fsm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -1393,7 +1393,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-build-info",
@@ -1412,7 +1412,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert_case 0.12.0",
  "prettyplease 0.3.0",
@@ -1428,7 +1428,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "http",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-collector"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "http",
@@ -1458,7 +1458,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-msgpack"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -1472,7 +1472,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-ndjson"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -1486,7 +1486,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-postcard"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "postcard",
@@ -1500,7 +1500,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-types"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -1511,7 +1511,7 @@ dependencies = [
 
 [[package]]
 name = "quent-log"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-schema",
@@ -1522,7 +1522,7 @@ dependencies = [
 
 [[package]]
 name = "quent-nvtx-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "nvtx-injection",
@@ -1538,7 +1538,7 @@ dependencies = [
 
 [[package]]
 name = "quent-nvtx-cpp-test"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-build",
@@ -1558,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "quent-nvtx-events"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-events",
  "serde",
@@ -1566,7 +1566,7 @@ dependencies = [
 
 [[package]]
 name = "quent-os"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-ref-target",
@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "quent-readme-example"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-instrumentation",
  "quent-instrumentation-build",
@@ -1588,7 +1588,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ref-target"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-schema",
@@ -1597,7 +1597,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ref-tree"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -1609,7 +1609,7 @@ dependencies = [
 
 [[package]]
 name = "quent-resource"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
@@ -1623,7 +1623,7 @@ dependencies = [
 
 [[package]]
 name = "quent-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "rustc-hash",
@@ -1634,7 +1634,7 @@ dependencies = [
 
 [[package]]
 name = "quent-schema-codegen-cpp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert_case 0.11.0",
  "prettyplease 0.3.0",
@@ -1651,7 +1651,7 @@ dependencies = [
 
 [[package]]
 name = "quent-schema-codegen-python"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert_case 0.11.0",
  "prettyplease 0.3.0",
@@ -1668,14 +1668,14 @@ dependencies = [
 
 [[package]]
 name = "quent-time"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "quent-tutorial-bounded-resource-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1685,7 +1685,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-bounded-resource-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1695,7 +1695,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-dag-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1705,7 +1705,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-dag-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1715,7 +1715,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-dynamic-attributes-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1725,7 +1725,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-dynamic-attributes-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1735,7 +1735,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-entity-references-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1745,7 +1745,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-entity-references-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1755,7 +1755,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-event-data-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1765,7 +1765,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-event-data-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1775,7 +1775,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-finite-state-machine-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1785,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-finite-state-machine-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1795,7 +1795,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-fsm-dynamic-state-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1805,7 +1805,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-fsm-dynamic-state-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1815,7 +1815,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-fsm-self-loop-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1825,7 +1825,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-fsm-self-loop-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1835,7 +1835,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-job-workload-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1845,7 +1845,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-job-workload-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1855,7 +1855,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-log-sink-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1865,7 +1865,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-log-sink-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1875,7 +1875,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-minimal-model-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1885,7 +1885,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-minimal-model-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1895,7 +1895,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-operating-system-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1905,7 +1905,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-operating-system-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1915,7 +1915,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-records-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1925,7 +1925,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-records-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1935,7 +1935,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-repeated-events-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1945,7 +1945,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-repeated-events-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1955,7 +1955,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-resource-capacity-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1965,7 +1965,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-resource-capacity-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1975,7 +1975,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-scoped-references-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -1985,7 +1985,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-scoped-references-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -1995,7 +1995,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-unit-resource-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -2005,7 +2005,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-unit-resource-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -2015,7 +2015,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-untyped-entity-references-cpp-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "quent-codegen-tutorial-build",
@@ -2025,7 +2025,7 @@ dependencies = [
 
 [[package]]
 name = "quent-tutorial-untyped-entity-references-python-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pyo3",
  "quent-codegen-tutorial-build",
@@ -2035,7 +2035,7 @@ dependencies = [
 
 [[package]]
 name = "quent-yaml"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
