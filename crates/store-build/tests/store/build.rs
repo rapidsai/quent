@@ -73,4 +73,48 @@ fn main() {
         modules,
     )
     .unwrap();
+    println!("cargo:rerun-if-changed=log.yaml");
+    let log_schema = quent_yaml::parse_from_file(std::path::Path::new("log.yaml"))
+        .unwrap()
+        .schema;
+    for (file_name, native) in [("log.rs", true), ("log_events_only.rs", false)] {
+        generate(
+            &log_schema,
+            &Options {
+                events: EventOptions {
+                    serde,
+                    combined_event: false,
+                    ..Options::default().events
+                },
+                entity_store: EntityStoreImplementations { native },
+                filesystem: false,
+                file_name: Some(file_name.to_owned()),
+                ..Options::default()
+            },
+        )
+        .unwrap();
+    }
+    let namespaced_log =
+        quent_log::LogEntityBuilder::new(quent_schema::test_utils::path("Nested::Log"))
+            .with_levels(["fine", "critical"].map(|name| quent_log::LevelDecl {
+                name: quent_schema::test_utils::ident(name),
+                annotations: quent_schema::Annotations::default(),
+                attributes: Vec::new(),
+            }))
+            .build()
+            .unwrap();
+    generate(
+        &quent_schema::test_utils::schema("NamespacedLog", [namespaced_log], []),
+        &Options {
+            events: EventOptions {
+                serde,
+                ..Options::default().events
+            },
+            entity_store: EntityStoreImplementations { native: false },
+            filesystem: false,
+            file_name: Some("namespaced_log.rs".to_owned()),
+            ..Options::default()
+        },
+    )
+    .unwrap();
 }

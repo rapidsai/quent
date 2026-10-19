@@ -8,6 +8,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ServerError {
+    #[error("invalid request: {0}")]
+    BadRequest(String),
     #[error("analyzer error: {0}")]
     Analyzer(#[from] AnalyzerError),
     #[error("importer error: {0}")]
@@ -27,6 +29,7 @@ pub type ServerResult<T> = std::result::Result<T, ServerError>;
 impl From<ServerError> for StatusCode {
     fn from(value: ServerError) -> Self {
         match value {
+            ServerError::BadRequest(_) => StatusCode::BAD_REQUEST,
             // A capability the analyzer opted out of is not a server fault:
             // clients probe for optional endpoints (e.g. the data-flow view)
             // and hide the feature on 501.

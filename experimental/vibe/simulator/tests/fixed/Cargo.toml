@@ -23,3 +23,9 @@ quent-query-engine-analyzer = { path = "../../../../../domains/query_engine/anal
 quent-query-engine-ui = { path = "../../../../../domains/query_engine/ui" }
 quent-ui = { path = "../../../../../crates/ui" }
 tempfile = "3"
+quent-analyzer = { path = "../../../../../crates/analyzer" }
+quent-query-engine-server = { path = "../../../../../domains/query_engine/server" }
+axum = "0.8.7"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
+serde_json.workspace = true

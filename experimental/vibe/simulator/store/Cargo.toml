@@ -20,6 +20,7 @@ filesystem = [
 ]
 
 [dependencies]
+quent-log = { path = "../../../../crates/log", default-features = false, features = ["ui"] }
 quent-analyzer = { path = "../../../../crates/analyzer" }
 quent-events = { workspace = true, features = ["serde"] }
 quent-store = { path = "../../../../crates/store", default-features = false, features = ["serde"] }

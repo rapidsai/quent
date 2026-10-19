@@ -14,6 +14,7 @@ proc-macro2.workspace = true
 quent-constraints = { path = "../constraints" }
 quent-ref-target = { path = "../ref-target" }
 quent-schema = { path = "../schema" }
+quent-log = { path = "../log", default-features = false }
 quote.workspace = true
 syn.workspace = true
 thiserror.workspace = true

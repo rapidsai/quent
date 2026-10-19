@@ -946,6 +946,15 @@ impl Worker {
         thread: Uuid,
     ) -> Vec<Batch> {
         let operator = work.operator;
+        engine
+            .log
+            .trace(
+                format!("Executing {:?} task {}", operator.kind, work.task_index),
+                "simulator::worker".into(),
+                Some(instr::EntityRef::new(self.id, ())),
+                None,
+            )
+            .unwrap();
         let mut task = TaskHandle::Queueing(context.observer::<instr::Task>().handle().queueing(
             format!("task-{}", work.task_index),
             operator.handle.as_entity_ref(),
@@ -1154,6 +1163,15 @@ impl Worker {
 
         if operator.kind == Physical::Output {
             if input_bytes > 0 {
+                engine
+                    .log
+                    .warn(
+                        format!("Spilling {input_bytes} output bytes to storage"),
+                        "simulator::worker".into(),
+                        Some(instr::EntityRef::new(self.id, ())),
+                        None,
+                    )
+                    .unwrap();
                 task.spilling(
                     thread_usage(),
                     instr::EntityRef::new(
@@ -1296,6 +1314,15 @@ impl Worker {
             result_rows,
             phase_barrier,
         } = execution;
+        engine
+            .log
+            .debug(
+                format!("Worker {} executing query", self.name),
+                "simulator::worker".into(),
+                Some(instr::EntityRef::new(self.id, ())),
+                Some(logical_plan.query.clone()),
+            )
+            .unwrap();
         let mut physical_plan = simulate_planning(context, logical_plan);
         physical_plan.declare(Some(instr::EntityRef::new(self.id, ())));
         let nodes = petgraph::algo::toposort(&physical_plan.dag, None).unwrap();
@@ -1446,6 +1473,7 @@ impl Worker {
 
 struct Engine {
     handle: instr::Handle<instr::Engine>,
+    log: instr::Handle<instr::AppLog>,
     workers: HashMap<Uuid, Worker>,
     network: instr::Handle<instr::Network>,
     network_links: HashMap<(Uuid, Uuid), Uuid>,
@@ -1455,6 +1483,7 @@ impl Engine {
     fn new(context: &SimulatorContext, id: Uuid) -> Self {
         Self {
             handle: context.observer::<instr::Engine>().handle_with_id(id),
+            log: context.observer::<instr::AppLog>().handle(),
             workers: Default::default(),
             network: context.observer::<instr::Network>().handle(),
             network_links: Default::default(),
@@ -1486,6 +1515,16 @@ impl Engine {
                     num_workloads: num_workloads as u64,
                     num_queries: num_workloads as u64 * num_queries_per_workload as u64,
                 },
+            )
+            .unwrap();
+
+        self.log.initialized(self.handle.as_entity_ref()).unwrap();
+        self.log
+            .info(
+                "Engine started".into(),
+                "simulator::engine".into(),
+                None,
+                None,
             )
             .unwrap();
 
@@ -1546,6 +1585,14 @@ impl Engine {
             worker.shut_down(context);
         }
 
+        self.log
+            .info(
+                "Engine shutdown completed".into(),
+                "simulator::engine".into(),
+                None,
+                None,
+            )
+            .unwrap();
         self.handle.exit().unwrap();
         info!("Simulated engine shut down.")
     }
@@ -1618,6 +1665,15 @@ fn simulate_with_engine_id(context: SimulatorContext, config: SimulationConfig, 
                     query_index as u64,
                 )
                 .planning();
+            engine
+                .log
+                .debug(
+                    "Planning query".into(),
+                    "simulator::query".into(),
+                    None,
+                    Some(query.as_entity_ref()),
+                )
+                .unwrap();
             let mut l_plan = make_logical_plan(&context, query.as_entity_ref(), "logical".into());
             l_plan.declare(None);
             let query = query.executing();
@@ -1646,6 +1702,15 @@ fn simulate_with_engine_id(context: SimulatorContext, config: SimulationConfig, 
                 }
             });
 
+            engine
+                .log
+                .info(
+                    "Query completed".into(),
+                    "simulator::query".into(),
+                    None,
+                    Some(query.as_entity_ref()),
+                )
+                .unwrap();
             drop(query.done());
         }
     }

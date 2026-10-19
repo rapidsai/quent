@@ -2442,6 +2442,7 @@ dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
  "quent-constraints",
+ "quent-log",
  "quent-ref-target",
  "quent-schema",
  "quote",
@@ -2498,6 +2499,7 @@ dependencies = [
  "quent-constraints",
  "quent-events-build",
  "quent-fsm",
+ "quent-log",
  "quent-ref-target",
  "quent-schema",
  "quote",
@@ -2618,11 +2620,19 @@ dependencies = [
 name = "quent-log"
 version = "0.2.0"
 dependencies = [
+ "quent-analyzer",
  "quent-constraints",
+ "quent-dynamic-attributes",
+ "quent-events",
  "quent-schema",
+ "quent-time",
+ "quent-ui",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",
+ "ts-rs",
+ "uuid",
 ]
 
 [[package]]
@@ -2760,6 +2770,7 @@ dependencies = [
  "quent-analyzer",
  "quent-events",
  "quent-io-types",
+ "quent-log",
  "quent-query-engine-ui",
  "quent-time",
  "quent-ui",
@@ -2780,6 +2791,7 @@ dependencies = [
  "quent-collector-proto",
  "quent-events",
  "quent-io",
+ "quent-log",
  "quent-query-engine-analyzer",
  "quent-query-engine-ui",
  "quent-query-engine-ui-bindings",
@@ -2816,6 +2828,7 @@ dependencies = [
 name = "quent-query-engine-ui-bindings"
 version = "0.2.0"
 dependencies = [
+ "quent-log",
  "quent-nvtx-ui",
  "quent-query-engine-ui",
  "quent-ui",
@@ -2903,6 +2916,7 @@ dependencies = [
  "quent-dynamic-attributes",
  "quent-events",
  "quent-io",
+ "quent-log",
  "quent-query-engine-analyzer",
  "quent-query-engine-ui",
  "quent-simulator-store",
@@ -2919,12 +2933,15 @@ dependencies = [
 name = "quent-simulator-fixed"
 version = "0.2.0"
 dependencies = [
+ "axum",
  "clap",
+ "quent-analyzer",
  "quent-dynamic-attributes",
  "quent-events",
  "quent-instrumentation",
  "quent-io",
  "quent-query-engine-analyzer",
+ "quent-query-engine-server",
  "quent-query-engine-ui",
  "quent-simulator",
  "quent-simulator-analyzer",
@@ -2933,7 +2950,10 @@ dependencies = [
  "quent-store",
  "quent-time",
  "quent-ui",
+ "serde_json",
  "tempfile",
+ "tokio",
+ "tower",
  "uuid",
 ]
 
@@ -2977,6 +2997,7 @@ version = "0.2.0"
 dependencies = [
  "quent-analyzer",
  "quent-events",
+ "quent-log",
  "quent-store",
  "quent-store-build",
  "quent-yaml",
@@ -3033,6 +3054,7 @@ dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
  "quent-events-build",
+ "quent-log",
  "quent-schema",
  "quote",
  "syn 3.0.6",

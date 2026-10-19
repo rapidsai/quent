@@ -501,6 +501,17 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         &self.model
     }
 
+    fn list_logs(
+        &self,
+        request: quent_log::ui::LogListRequest,
+    ) -> AnalyzerResult<quent_log::ui::LogListResponse> {
+        quent_log::ui::list_logs(
+            self.model.logs.events(),
+            self.model.engine.earliest_timestamp(),
+            request,
+        )
+    }
+
     fn list_entities(
         &self,
         request: quent_ui::entities::request::EntityListRequest<QueryFilter, OperatorFilter>,

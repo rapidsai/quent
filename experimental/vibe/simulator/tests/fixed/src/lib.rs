@@ -25,6 +25,7 @@ use uuid::{Uuid, uuid};
 type SimulatorContext = instr::Context<instr::Simulator>;
 
 // Top-level entities
+pub const APP_LOG: Uuid = Uuid::from_u128(0x100);
 pub const ENGINE: Uuid = uuid!("00000000-0000-0000-0000-000000000001");
 pub const QUERY: Uuid = uuid!("00000000-0000-0000-0000-000000000004");
 
@@ -125,6 +126,59 @@ pub fn emit(ctx: &SimulatorContext) {
     let mut engine = ctx.observer::<instr::Engine>().handle_with_id(ENGINE);
     let mut worker_w0 = ctx.observer::<instr::Worker>().handle_with_id(WORKER_0);
     let mut worker_w1 = ctx.observer::<instr::Worker>().handle_with_id(WORKER_1);
+
+    let mut log = ctx.observer::<instr::AppLog>().handle_with_id(APP_LOG);
+    ts!(0, log.initialized(entity_ref(ENGINE)).unwrap());
+    ts!(
+        500_000_000,
+        log.info("Engine started".into(), "fixed::engine".into(), None, None)
+            .unwrap()
+    );
+    ts!(
+        1_000_000_000,
+        log.debug(
+            "Planning query Q42".into(),
+            "fixed::query".into(),
+            None,
+            Some(entity_ref(QUERY))
+        )
+        .unwrap()
+    );
+    ts!(
+        2_000_000_000,
+        log.trace(
+            "Worker 0: scan café".into(),
+            "fixed::worker".into(),
+            Some(entity_ref(WORKER_0)),
+            Some(entity_ref(QUERY))
+        )
+        .unwrap()
+    );
+    ts!(
+        3_000_000_000,
+        log.warn(
+            "Spilling 1024 bytes".into(),
+            "fixed::worker".into(),
+            Some(entity_ref(WORKER_1)),
+            Some(entity_ref(QUERY))
+        )
+        .unwrap()
+    );
+    ts!(
+        4_000_000_000,
+        log.error(
+            "Example recoverable error E42".into(),
+            "fixed::worker".into(),
+            Some(entity_ref(WORKER_1)),
+            Some(entity_ref(QUERY))
+        )
+        .unwrap()
+    );
+    ts!(
+        6_500_000_000,
+        log.info("Engine stopping".into(), "fixed::engine".into(), None, None)
+            .unwrap()
+    );
 
     // Init phase (0–1s).
     // All entity and resource declarations occur at 0.

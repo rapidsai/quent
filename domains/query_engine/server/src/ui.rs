@@ -280,6 +280,30 @@ where
     Ok(Json(state.entities(engine_id, request).await?))
 }
 
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/logs",
+    tag = "logs",
+    params(("engine_id" = Uuid, Path, description = "The engine ID")),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Filtered, paginated log messages", body = Object),
+        (status = 400, description = "Invalid log filter"),
+        (status = 501, description = "Logging is unsupported")
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn logs<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<quent_log::ui::LogListRequest>,
+) -> ServerResult<Json<quent_log::ui::LogListResponse>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    Ok(Json(state.logs(engine_id, request).await?))
+}
+
 #[cfg(feature = "swagger")]
 #[derive(utoipa::OpenApi)]
 #[openapi(
@@ -293,11 +317,13 @@ where
         bulk_timelines,
         data_flow_timeline,
         entities,
+        logs,
     ),
     tags(
         (name = "engines", description = "Engine and query management"),
         (name = "timelines", description = "Resource timeline data"),
         (name = "entities", description = "Entity list queries"),
+        (name = "logs", description = "Log message queries"),
     )
 )]
 pub(crate) struct ApiDoc;
@@ -316,5 +342,6 @@ where
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
         .route("/{engine_id}/timeline/data-flow", post(data_flow_timeline))
         .route("/{engine_id}/entities", post(entities))
+        .route("/{engine_id}/logs", post(logs))
         .with_state(state)
 }

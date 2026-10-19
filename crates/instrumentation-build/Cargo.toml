@@ -11,6 +11,7 @@ proc-macro2 = "1"
 quent-constraints = { path = "../constraints" }
 quent-events-build = { path = "../events-build" }
 quent-fsm = { path = "../fsm" }
+quent-log = { path = "../log", default-features = false }
 quent-ref-target = { path = "../ref-target" }
 quent-schema = { path = "../schema" }
 quote = "1"

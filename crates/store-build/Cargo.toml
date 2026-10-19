@@ -4,11 +4,17 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+default = ["analysis", "ui"]
+analysis = []
+ui = ["analysis"]
+
 [dependencies]
 prettyplease.workspace = true
 proc-macro2.workspace = true
 quent-events-build = { path = "../events-build" }
 quent-schema = { path = "../schema" }
+quent-log = { path = "../log", default-features = false }
 quote = "1"
 syn.workspace = true
 thiserror.workspace = true

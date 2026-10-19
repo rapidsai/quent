@@ -36,6 +36,8 @@ pub fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     <BulkTimelinesResponse as TS>::export_all(&cfg)?;
     <CategoricalTimelineRequest<QueryFilter> as TS>::export_all(&cfg)?;
     <DataFlowTimelineBinned as TS>::export_all(&cfg)?;
+    <quent_log::ui::LogListRequest as TS>::export_all(&cfg)?;
+    <quent_log::ui::LogListResponse as TS>::export_all(&cfg)?;
     <EngineContexts as TS>::export_all(&cfg)?;
     <EngineListResponse as TS>::export_all(&cfg)?;
     <QueryListResponse as TS>::export_all(&cfg)?;

@@ -240,3 +240,21 @@ fsms:
           use_network_channel: { uses: NetworkChannel }
         to: [queueing, exit]
       exit: {}
+
+logs:
+  AppLog:
+    doc: Global simulator messages shared by an engine and its workers.
+    events:
+      initialized:
+        attributes:
+          engine_id: { scope-ref: Engine }
+    attributes:
+      target: string
+      worker_id: { option: { ref: Worker } }
+      query_id: { option: { ref: Query } }
+    levels:
+      - name: trace
+      - name: debug
+      - name: info
+      - name: warn
+      - name: error

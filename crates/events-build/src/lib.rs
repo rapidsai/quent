@@ -14,24 +14,28 @@ mod tests;
 
 use proc_macro2::TokenStream;
 use quent_constraints::{BaseConstraintsError, Report};
+use quent_log::{LogConstraint, LogError};
 use quent_ref_target::{RefTargetConstraint, RefTargetError};
 use quent_schema::Schema;
 use quote::quote;
 
-/// Validates base and reference-target constraints and returns unregistered constraint names.
+/// Checks basic schema rules, entity references, and log definitions.
+///
+/// Returns the names of constraints that have no registered validator.
 ///
 /// # Errors
 ///
-/// Returns an error when base schema or reference-target validation fails.
+/// Returns an error if any of these checks fail.
 pub fn validate_schema(schema: &Schema) -> Result<Vec<String>, Error> {
     let Report {
         base_constraints,
         unregistered_constraints,
         results,
-    } = quent_constraints::validate::<(RefTargetConstraint,)>(schema);
+    } = quent_constraints::validate::<(RefTargetConstraint, LogConstraint)>(schema);
     base_constraints?;
-    let (ref_target,) = results;
+    let (ref_target, log) = results;
     ref_target?;
+    log?;
     Ok(unregistered_constraints)
 }
 
@@ -124,12 +128,20 @@ pub enum Error {
     InvalidSchema(#[from] BaseConstraintsError),
     #[error("reference-target validation failed: {0}")]
     InvalidRefTarget(#[from] RefTargetError),
+    #[error("log validation failed: {0}")]
+    InvalidLog(#[source] Box<LogError>),
     #[error("invalid derive path {derive:?}")]
     InvalidDerive { derive: String, source: syn::Error },
     #[error("generated code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
     #[error("field type nesting exceeds the maximum depth of {max}")]
     TypeNestingTooDeep { max: usize },
+}
+
+impl From<LogError> for Error {
+    fn from(error: LogError) -> Self {
+        Self::InvalidLog(Box::new(error))
+    }
 }
 
 /// Generated declarations for one schema namespace.

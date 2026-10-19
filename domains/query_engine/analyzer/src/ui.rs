@@ -86,6 +86,14 @@ pub trait UiAnalyzer {
         request: EntityListRequest<ui::QueryFilter, ui::OperatorFilter>,
     ) -> AnalyzerResult<ui::EntityListResponse>;
 
+    /// Returns a page of this engine's log messages that match the requested filters.
+    fn list_logs(
+        &self,
+        _request: quent_log::ui::LogListRequest,
+    ) -> AnalyzerResult<quent_log::ui::LogListResponse> {
+        Err(AnalyzerError::Unsupported)
+    }
+
     /// Return a set of resource timelines in bulk.
     fn bulk_resource_timeline(
         &self,

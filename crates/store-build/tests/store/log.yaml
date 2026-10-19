@@ -1,0 +1,40 @@
+quent: '0.1.0'
+model: LogFixture
+records:
+  Context:
+    fields:
+      type: bool
+      memory: u64
+entities:
+  Parent:
+    events:
+      init: {}
+logs:
+  Log:
+    events:
+      initialized: {}
+    attributes:
+      HTTPStatus: u16
+      flag: bool
+      id: uuid
+      optional: { option: string }
+      missing: { option: string }
+      nested_option: { option: { option: u8 } }
+      record: Context
+      dynamic: dynamic
+      numbers: { list: i64 }
+      strings: { list: string }
+      flags: { list: bool }
+      ids: { list: uuid }
+      records: { list: Context }
+      dynamics: { list: dynamic }
+      matrix: { list: { list: u32 } }
+      nullable: { list: { option: string } }
+      reference: { ref: Parent, data: Context }
+      bare_reference: { ref: Parent }
+      references: { list: { ref: Parent } }
+    levels:
+      - name: fine
+      - name: critical
+        attributes:
+          error_code: u32

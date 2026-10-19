@@ -3,6 +3,15 @@
 version = 4
 
 [[package]]
+name = "aho-corasick"
+version = "1.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "annotate-snippets"
 version = "0.12.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -398,6 +407,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-analyzer"
+version = "0.2.0"
+dependencies = [
+ "quent-dynamic-attributes",
+ "quent-events",
+ "quent-schema",
+ "quent-time",
+ "rustc-hash",
+ "smallvec",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "quent-build-info"
 version = "0.2.0"
 dependencies = [
@@ -417,7 +440,7 @@ dependencies = [
 
 [[package]]
 name = "quent-dag"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-ref-target",
@@ -431,6 +454,7 @@ name = "quent-dynamic-attributes"
 version = "0.2.0"
 dependencies = [
  "serde",
+ "ts-rs",
 ]
 
 [[package]]
@@ -452,6 +476,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quent-constraints",
+ "quent-log",
  "quent-ref-target",
  "quent-schema",
  "quote",
@@ -461,7 +486,7 @@ dependencies = [
 
 [[package]]
 name = "quent-fsm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -473,7 +498,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-build-info",
@@ -492,7 +517,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert_case",
  "prettyplease",
@@ -500,6 +525,7 @@ dependencies = [
  "quent-constraints",
  "quent-events-build",
  "quent-fsm",
+ "quent-log",
  "quent-ref-target",
  "quent-schema",
  "quote",
@@ -509,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "quent-instrumentation-build-example"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "quent-instrumentation",
@@ -534,7 +560,7 @@ dependencies = [
 
 [[package]]
 name = "quent-io-callback"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "quent-events",
@@ -597,18 +623,26 @@ dependencies = [
 
 [[package]]
 name = "quent-log"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "quent-analyzer",
  "quent-constraints",
+ "quent-dynamic-attributes",
+ "quent-events",
  "quent-schema",
+ "quent-time",
+ "quent-ui",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",
+ "ts-rs",
+ "uuid",
 ]
 
 [[package]]
 name = "quent-os"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quent-constraints",
  "quent-ref-target",
@@ -629,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "quent-ref-tree"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
@@ -641,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "quent-resource"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
@@ -687,6 +721,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quent-events-build",
+ "quent-log",
  "quent-schema",
  "quote",
  "syn 3.0.6",
@@ -698,6 +733,7 @@ name = "quent-store-build-entity-store-test"
 version = "0.2.0"
 dependencies = [
  "quent-instrumentation-build-example",
+ "quent-log",
  "quent-schema",
  "quent-store",
  "quent-store-build",
@@ -709,12 +745,26 @@ dependencies = [
 name = "quent-time"
 version = "0.2.0"
 dependencies = [
+ "serde",
  "thiserror",
+ "ts-rs",
+]
+
+[[package]]
+name = "quent-ui"
+version = "0.2.0"
+dependencies = [
+ "quent-analyzer",
+ "quent-dynamic-attributes",
+ "quent-time",
+ "serde",
+ "ts-rs",
+ "uuid",
 ]
 
 [[package]]
 name = "quent-yaml"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
@@ -748,6 +798,35 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
+name = "regex"
+version = "1.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.4.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2"
+dependencies = [
+ "aho-corasick",
+ "memchr",
+ "regex-syntax",
+]
+
+[[package]]
+name = "regex-syntax"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rmp"
@@ -931,6 +1010,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "termcolor"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
+dependencies = [
+ "winapi-util",
+]
+
+[[package]]
 name = "thiserror"
 version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1052,6 +1140,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "ts-rs"
+version = "12.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "756050066659291d47a554a9f558125db17428b073c5ffce1daf5dcb0f7231d8"
+dependencies = [
+ "serde_json",
+ "thiserror",
+ "ts-rs-macros",
+ "uuid",
+]
+
+[[package]]
+name = "ts-rs-macros"
+version = "12.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38d90eea51bc7988ef9e674bf80a85ba6804739e535e9cab48e4bb34a8b652aa"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+ "termcolor",
+]
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1130,6 +1242,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81941cd78d0c92026c33e5e01312845a4cb1e9af3407f9134b100dd03144103e"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "winapi-util"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
+dependencies = [
+ "windows-sys",
 ]
 
 [[package]]

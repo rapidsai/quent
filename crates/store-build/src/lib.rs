@@ -12,7 +12,8 @@
 //!   model captured by a schema.
 //!
 //! The crate including the generated code must depend on `quent-store`. Add
-//! `quent-store-build` as a build dependency of that crate.
+//! `quent-store-build` as a build dependency of that crate. Generated log support
+//! also needs `quent-log` with the features described below.
 //!
 //! The usual workflow is build-time generation:
 //!
@@ -50,6 +51,14 @@
 //! enable [`EventOptions::combined_event`] and [`EventOptions::serde`], and
 //! enable at least one `io-*` feature on `quent-store`.
 //!
+//! ## Analysis and UI features
+//!
+//! The `analysis` and `ui` features enable log access and log attribute conversion,
+//! respectively. Both are enabled by default, and `ui` requires `analysis`.
+//! To generate analysis code without UI code, disable default features and enable
+//! only `analysis`. Give the generated crate the same features on `quent-log`.
+//! Disabling both features omits log analysis and UI code.
+//!
 //! ## Serde requirements
 //!
 //! To generate event types that support Serde, set [`EventOptions::serde`] to
@@ -64,6 +73,9 @@ use quote::quote;
 mod entities;
 mod event_loaders;
 mod model;
+mod mods;
+
+pub use mods::SemanticModuleOptions;
 
 /// Generates event types and their typed stored-event retrieval API.
 ///
@@ -104,6 +116,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         entities::generate(schema, event_opts, &mut events, &opts.entity_store)?;
     }
 
+    let semantic_mods = mods::generate(schema, &opts.mods);
     let loaders = event_loaders::generate(schema, opts.filesystem);
     let model_store = opts
         .entity_store
@@ -116,6 +129,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
 
         #loaders
         #model_store
+        #semantic_mods
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;
 
@@ -124,6 +138,9 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
 
 /// Options controlling stored-event retrieval source generation.
 pub struct Options {
+    /// Analysis features to generate from schema constraints.
+    pub mods: SemanticModuleOptions,
+
     /// Options for generated event types, records, and model types.
     pub events: EventOptions,
 
@@ -164,6 +181,7 @@ pub struct EntityStoreImplementations {
 impl Default for Options {
     fn default() -> Self {
         Self {
+            mods: SemanticModuleOptions::default(),
             events: EventOptions {
                 serde: true,
                 combined_event: true,

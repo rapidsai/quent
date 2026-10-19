@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The Quent built-in log-sink constraint.
+//! Schema constraints, analysis, and UI support for log messages.
 //!
 //! A log sink is an entity with events representing severity-ranked messages.
 //! The entity path supplies the static scope, while each entity instance
@@ -16,6 +16,14 @@
 //! events. Adapters for logging facades can inspect [`LogDefinition`] to
 //! discover that schema contract; this crate does not provide an adapter.
 //!
+//! ## Features
+//!
+//! `analysis` enables typed access to log messages. `ui` also enables response
+//! types, filtering, attribute conversion, and TypeScript derives. Both are
+//! enabled by default. Disable default features and enable only `analysis` to
+//! use log analysis without UI dependencies such as `ts-rs`. Disable both for
+//! schema validation and construction only.
+//!
 //! ## Requirements
 //!
 //! For every entity carrying this constraint:
@@ -28,6 +36,13 @@
 //! 5. Additional events and event fields are allowed and have no log-specific
 //!    meaning.
 //! 6. The constraint appears only on the log-sink entity.
+
+/// Reads typed log events without converting their extra fields.
+#[cfg(feature = "analysis")]
+pub mod analysis;
+/// Defines log responses and converts extra fields when serving them.
+#[cfg(feature = "ui")]
+pub mod ui;
 
 use std::collections::HashSet;
 

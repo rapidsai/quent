@@ -8,11 +8,14 @@ publish = false
 [workspace]
 
 [features]
-default = ["serde"]
+default = ["serde", "analysis", "ui"]
+analysis = ["quent-log/analysis", "quent-store-build/analysis"]
+ui = ["analysis", "quent-log/ui", "quent-store-build/ui"]
 # Serde-enabled builds also compile the filesystem-loading combinations.
 serde = ["quent-store/serde", "quent-store/io-ndjson", "quent-store/io-msgpack", "quent-store/io-postcard"]
 
 [dependencies]
+quent-log = { path = "../../../log", default-features = false }
 quent-store = { path = "../../../store", default-features = false }
 
 [dev-dependencies]
@@ -20,6 +23,7 @@ quent-instrumentation-build-example = { path = "../../../instrumentation-build/e
 tempfile = "3"
 
 [build-dependencies]
+quent-log = { path = "../../../log", default-features = false }
 quent-schema = { path = "../../../schema", features = ["test-utils"] }
-quent-store-build = { path = "../.." }
+quent-store-build = { path = "../..", default-features = false }
 quent-yaml = { path = "../../../yaml" }

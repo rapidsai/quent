@@ -4,7 +4,31 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+default = ["analysis", "ui"]
+analysis = ["dep:quent-events"]
+ui = [
+    "analysis",
+    "dep:quent-analyzer",
+    "dep:quent-dynamic-attributes",
+    "quent-dynamic-attributes/ts",
+    "dep:quent-time",
+    "quent-time/ts",
+    "dep:quent-ui",
+    "dep:regex",
+    "dep:ts-rs",
+    "dep:uuid",
+]
+
 [dependencies]
+quent-events = { workspace = true, optional = true }
+quent-analyzer = { path = "../analyzer", optional = true }
+quent-dynamic-attributes = { workspace = true, optional = true }
+quent-time = { path = "../time", optional = true }
+quent-ui = { path = "../ui", optional = true }
+regex = { version = "1", optional = true }
+ts-rs = { workspace = true, features = ["uuid"], optional = true }
+uuid = { workspace = true, features = ["serde"], optional = true }
 quent-constraints.workspace = true
 quent-schema = { workspace = true, features = ["serde", "visitor"] }
 serde = { workspace = true }

@@ -104,6 +104,7 @@ fn derive_resource_scope_types(
 /// A model of the simulator engine
 pub struct SimulatorModel {
     pub(crate) engine: Engine,
+    pub(crate) logs: quent_log::analysis::LogCollection<quent_simulator_store::AppLogEvent>,
     pub(crate) workers: HashMap<Uuid, Worker>,
     pub(crate) queries: HashMap<Uuid, Query>,
     pub(crate) plans: HashMap<Uuid, Plan>,
@@ -499,6 +500,7 @@ impl Using for SimulatorModel {
 pub struct SimulatorModelBuilder {
     engine_id: Uuid,
     engine: Option<Engine>,
+    logs: Vec<Event<quent_simulator_store::AppLogEvent>>,
     workers: HashMap<Uuid, Worker>,
     queries: HashMap<Uuid, QueryBuilder>,
     plans: HashMap<Uuid, Plan>,
@@ -527,6 +529,7 @@ impl SimulatorModelBuilder {
         Ok(Self {
             engine_id,
             engine: None,
+            logs: Vec::new(),
             workers: HashMap::default(),
             queries: HashMap::default(),
             plans: HashMap::default(),
@@ -553,6 +556,10 @@ impl SimulatorModelBuilder {
             data,
         } = event;
         match data {
+            SimulatorEvent::AppLog(data) => {
+                self.logs.push(Event::new(id, timestamp, data));
+                Ok(())
+            }
             SimulatorEvent::Task(t) => {
                 let task_builder = match self.tasks.entry(id) {
                     Entry::Occupied(entry) => entry.into_mut(),
@@ -732,6 +739,23 @@ impl SimulatorModelBuilder {
         let engine = self.engine.ok_or_else(|| {
             AnalyzerError::IncompleteEntity(format!("engine {} has no events", self.engine_id))
         })?;
+        let mut sink_engines = HashMap::default();
+        for event in &self.logs {
+            if let quent_simulator_store::AppLogEvent::Initialized { engine_id } = &event.data
+                && let Some(previous) = sink_engines.insert(event.id, engine_id.target)
+                && previous != engine_id.target
+            {
+                return Err(AnalyzerError::Validation(
+                    "log sink belongs to multiple engines".to_owned(),
+                ));
+            }
+        }
+        let logs = quent_log::analysis::LogCollection::new(
+            self.logs
+                .into_iter()
+                .filter(|event| sink_engines.get(&event.id) == Some(&self.engine_id))
+                .collect(),
+        );
         let queries = self
             .queries
             .into_iter()
@@ -752,6 +776,7 @@ impl SimulatorModelBuilder {
 
         let mut model = SimulatorModel {
             engine,
+            logs,
             workers: self.workers,
             queries,
             plans: self.plans,

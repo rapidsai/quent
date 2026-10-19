@@ -194,21 +194,22 @@ pub struct GenerateInfo {
     pub warnings: Vec<String>,
 }
 
-/// Validates base, reference-target, and FSM constraints for instrumentation
-/// generation.
+/// Checks basic schema rules, entity references, state machines, and logs.
 ///
-/// Returns constraint names without registered validators as warnings.
+/// Returns warnings for constraints that have no registered validator.
 fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
     let report = quent_constraints::validate::<(
         quent_ref_target::RefTargetConstraint,
         quent_fsm::FsmConstraint,
+        quent_log::LogConstraint,
     )>(schema);
     report
         .base_constraints
         .map_err(quent_events_build::Error::from)?;
-    let (ref_target, fsm) = report.results;
+    let (ref_target, fsm, log) = report.results;
     ref_target.map_err(quent_events_build::Error::from)?;
     fsm?;
+    log.map_err(quent_events_build::Error::from)?;
     Ok(report.unregistered_constraints)
 }
 

@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace =  true
 publish.workspace = true
 [dependencies]
+quent-log = { path = "../../../crates/log", default-features = false, features = ["ui"] }
 quent-analyzer = { path = "../../../crates/analyzer" }
 quent-events = { path = "../../../crates/events" }
 quent-io-types = { path = "../../../crates/io/types" }

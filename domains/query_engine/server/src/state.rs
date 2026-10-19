@@ -28,6 +28,27 @@ where
     pub timelines: TimelineCache,
 }
 
+impl<A> ServiceState<A>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    pub(crate) async fn logs(
+        &self,
+        engine_id: Uuid,
+        request: quent_log::ui::LogListRequest,
+    ) -> ServerResult<quent_log::ui::LogListResponse> {
+        let analyzer = self.analyzers.get(engine_id).await?;
+        tokio::task::spawn_blocking(move || analyzer.list_logs(request))
+            .await?
+            .map_err(|error| match error {
+                quent_analyzer::AnalyzerError::InvalidArgument(message) => {
+                    ServerError::BadRequest(message)
+                }
+                error => ServerError::Analyzer(error),
+            })
+    }
+}
+
 impl<A> Clone for ServiceState<A>
 where
     A: UiAnalyzer,
