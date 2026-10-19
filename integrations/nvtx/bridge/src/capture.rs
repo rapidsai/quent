@@ -23,7 +23,9 @@ use quent_instrumentation::ObserverInner;
 use quent_nvtx_events::NvtxEvent;
 use quent_time::{TimeUnixNanoSec, timestamp};
 use thiserror::Error;
+use tokio::runtime::{Handle, RuntimeFlavor};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::task::{self, Id};
 use uuid::Uuid;
 
 use crate::convert::{convert_with_thread_id, current_thread_id};
@@ -52,11 +54,14 @@ pub enum CaptureError {
 ///
 /// Installation is one-shot per process, including after this value is dropped.
 /// On normal completion, dropping the capture closes its queue, drains accepted
-/// records, and waits for the observer's exporter to flush. Later calls and
-/// calls racing with shutdown may be discarded.
+/// records, and waits for the observer's exporter to flush. When dropped by its
+/// own exporter task, it initiates shutdown without waiting; the worker drains
+/// and flushes after the exporter returns. Later calls and calls racing with
+/// shutdown may be discarded.
 pub struct Capture {
     sender: UnboundedSender<Message>,
     worker: Option<JoinHandle<()>>,
+    exporter_task_id: Option<Id>,
 }
 
 impl Capture {
@@ -70,6 +75,7 @@ impl Capture {
         observer: ObserverInner<NvtxEvent>,
     ) -> Result<Self, CaptureError> {
         let (sender, receiver) = mpsc::unbounded_channel();
+        let exporter_task_id = observer.exporter_task_id();
         let worker = thread::Builder::new()
             .name("quent-nvtx-bridge".into())
             .spawn(move || forward(receiver, observer, session))?;
@@ -77,6 +83,7 @@ impl Capture {
         let capture = Self {
             sender: sender.clone(),
             worker: Some(worker),
+            exporter_task_id,
         };
         nvtx_injection::install_hook(move |record| {
             if !sender.is_closed() {
@@ -99,11 +106,30 @@ impl Capture {
 impl Drop for Capture {
     fn drop(&mut self) {
         let _ = self.sender.send(Message::Stop);
-        if let Some(worker) = self.worker.take() {
-            // Joining also waits for the worker-owned observer to flush. Doing
-            // so on its exporter or Quent runtime worker can deadlock. A worker
-            // panic is ignored here and may leave records unflushed.
+        let Some(worker) = self.worker.take() else {
+            return;
+        };
+        if self
+            .exporter_task_id
+            .is_some_and(|id| task::try_id() == Some(id))
+        {
+            // Joining here would wait for this very exporter call to return.
+            // Detach the worker; its observer keeps the runtime alive to flush.
+            return;
+        }
+        let join = || {
+            // A worker panic is ignored here and may leave records unflushed.
             let _ = worker.join();
+        };
+        match Handle::try_current() {
+            // Let Tokio replace this worker so the exporter can make progress,
+            // including when this runtime has only one worker.
+            Ok(handle) if handle.runtime_flavor() == RuntimeFlavor::MultiThread => {
+                task::block_in_place(join);
+            }
+            // Quent owns a separate runtime, so an application's current-thread
+            // runtime can wait here without preventing the exporter from running.
+            _ => join(),
         }
     }
 }
@@ -157,6 +183,7 @@ mod tests {
         let capture = Capture {
             sender,
             worker: Some(worker),
+            exporter_task_id: None,
         };
         let (done, finished) = std_mpsc::channel();
         let shutdown = thread::spawn(move || {
