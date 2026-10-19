@@ -23,6 +23,17 @@ fn main() {
     )
     .unwrap();
 
+    // The demo schema is used by filesystem-based model-store tests, which
+    // require Serde. Without Serde, the fixture schema still covers model-store
+    // compilation and all entity-store runtime tests.
+    if serde {
+        let demo_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../instrumentation-build/example/model.yaml");
+        println!("cargo:rerun-if-changed={}", demo_path.display());
+        let demo = quent_yaml::parse_from_file(&demo_path).unwrap();
+        generate(&demo.schema, &Options::default()).unwrap();
+    }
+
     let mut modules = String::new();
     // Compile every other combination of native stores and loading options.
     // Filesystem loading requires Serde and combined events; the full build is

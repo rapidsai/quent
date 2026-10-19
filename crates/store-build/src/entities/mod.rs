@@ -17,7 +17,7 @@ use crate::{EntityStoreImplementations, GenerateError, entities::store::EventSto
 
 mod accessors;
 mod handles;
-mod namespaces;
+pub(crate) mod namespaces;
 mod store;
 
 #[cfg(test)]

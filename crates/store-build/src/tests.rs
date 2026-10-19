@@ -115,5 +115,6 @@ fn filesystem_loading_requires_serde_but_native_stores_do_not() {
     ));
     opts.filesystem = false;
     let source = generate_str(&schema, &opts).unwrap();
+    assert!(source.contains("pub struct DemoStore"));
     assert!(!source.contains("::serde::Serialize"));
 }

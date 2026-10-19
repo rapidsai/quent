@@ -36,6 +36,7 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
     let source = generate_str(&schema, &options).unwrap();
     assert!(!source.contains("pub type TaskStore"));
     assert!(source.contains("pub mod task"));
+    assert!(source.contains("pub struct DemoStore"));
     assert!(!source.contains("pub mod entity_events"));
     assert!(!source.contains("pub use self::entity_events"));
     let source = generate_str(
@@ -52,6 +53,7 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
     )
     .unwrap();
     assert!(!source.contains("pub mod task"));
+    assert!(!source.contains("pub struct DemoStore"));
     assert!(!source.contains("pub trait TaskEvents"));
     assert!(!source.contains("pub struct CreatedHandle"));
     assert!(!source.contains("pub type TaskStore"));

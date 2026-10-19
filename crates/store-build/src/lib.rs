@@ -1,13 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generates Rust event types, event loaders, and entity stores from a
-//! [`quent_schema::Schema`].
+//! Generates Rust event types, event loaders, entity stores, and model stores
+//! from a [`quent_schema::Schema`].
 //!
 //! - **Event loaders** read entity-scoped events as Rust types. Some store
 //!   implementations use them to load events.
 //! - **Entity stores** provide entity listing, lookup, and schema-defined
 //!   accessors, such as `my_entity.my_event().my_attribute()`.
+//! - **Model stores** combine the entity stores for an entire application event
+//!   model captured by a schema.
 //!
 //! The crate including the generated code must depend on `quent-store`. Add
 //! `quent-store-build` as a build dependency of that crate.
@@ -61,6 +63,7 @@ use quote::quote;
 
 mod entities;
 mod event_loaders;
+mod model;
 
 /// Generates event types and their typed stored-event retrieval API.
 ///
@@ -102,10 +105,17 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     }
 
     let loaders = event_loaders::generate(schema, opts.filesystem);
+    let model_store = opts
+        .entity_store
+        .native
+        .then(|| model::generate(schema, &events))
+        .transpose()?;
+
     let file = syn::parse2::<syn::File>(quote! {
         #events
 
         #loaders
+        #model_store
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;
 
@@ -126,6 +136,7 @@ pub struct Options {
 
     /// Generate the selected entity stores and typed access to their events.
     ///
+    /// Generates a model-wide `<Model>Store` with typed entity access.
     /// Defaults to a native in-memory store. Disabling all stores also disables
     /// typed entity event access.
     ///

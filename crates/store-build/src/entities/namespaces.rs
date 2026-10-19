@@ -75,7 +75,7 @@ pub(super) fn extend(
 
 /// Returns the name of a struct, enum, type alias, trait, or module, or `None`
 /// for other items.
-fn ident(item: &syn::Item) -> Option<&syn::Ident> {
+pub(crate) fn ident(item: &syn::Item) -> Option<&syn::Ident> {
     match item {
         syn::Item::Struct(item) => Some(&item.ident),
         syn::Item::Enum(item) => Some(&item.ident),

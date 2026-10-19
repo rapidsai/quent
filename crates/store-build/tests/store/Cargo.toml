@@ -15,6 +15,11 @@ serde = ["quent-store/serde", "quent-store/io-ndjson", "quent-store/io-msgpack",
 [dependencies]
 quent-store = { path = "../../../store", default-features = false }
 
+[dev-dependencies]
+quent-instrumentation-build-example = { path = "../../../instrumentation-build/example" }
+tempfile = "3"
+
 [build-dependencies]
 quent-schema = { path = "../../../schema", features = ["test-utils"] }
 quent-store-build = { path = "../.." }
+quent-yaml = { path = "../../../yaml" }
