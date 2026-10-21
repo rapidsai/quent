@@ -5,8 +5,7 @@
 
 use std::marker::PhantomData;
 
-use quent_events::{EntityMarker, EntityRef};
-use uuid::Uuid;
+use crate::{EntityMarker, EntityRef, Uuid};
 
 /// An entity UUID scoped to its entity marker.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

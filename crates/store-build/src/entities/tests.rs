@@ -171,3 +171,91 @@ fn entity_modules_keep_store_types_separate_from_schema_types() {
     );
     generate_str(&schema, &Options::default()).unwrap();
 }
+
+#[test]
+fn ref_tree_support_requires_the_schema_constraint() {
+    use quent_schema::builder::AnnotationsBuilder;
+    for ref_tree in [false, true] {
+        let mut annotations = AnnotationsBuilder::new()
+            .with_constraint("quent.ref-target.v0.1.0", Some("Root".to_owned()));
+        if ref_tree {
+            annotations = annotations.with_constraint("quent.ref-tree.v0.1.0", None);
+        }
+        let parent = DataType::EntityRef {
+            data: None,
+            annotations: annotations.build().unwrap(),
+        };
+        let schema = schema(
+            "Demo",
+            [
+                entity("Root", [event("created", [])]),
+                entity(
+                    "Nested::Child",
+                    [event(
+                        "created",
+                        [field(
+                            "parent",
+                            DataType::Option(Box::new(quent_schema::test_utils::record_type(
+                                "Parent",
+                            ))),
+                        )],
+                    )],
+                ),
+            ],
+            [record("Parent", [field("reference", parent)])],
+        );
+        let source = generate_str(
+            &schema,
+            &Options {
+                filesystem: false,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            source
+                .matches("::quent_store::RefTreeEntityMarker for")
+                .count(),
+            if ref_tree { 2 } else { 0 }
+        );
+        assert_eq!(source.contains("::quent_store::RefTreeIndex"), ref_tree);
+        assert_eq!(source.contains("pub fn build_ref_tree_index"), ref_tree);
+    }
+}
+
+#[test]
+fn parent_id_event_is_available_without_ref_tree_support() {
+    generate_str(
+        &schema("Demo", [entity("Task", [event("parent_id", [])])], []),
+        &Options::default(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn rejects_cyclic_parent_type_graphs_during_generation() {
+    use quent_schema::builder::AnnotationsBuilder;
+    let reference = |target: &str| DataType::EntityRef {
+        data: None,
+        annotations: AnnotationsBuilder::new()
+            .with_constraint("quent.ref-target.v0.1.0", Some(target.to_owned()))
+            .with_constraint("quent.ref-tree.v0.1.0", None)
+            .build()
+            .unwrap(),
+    };
+    for entities in [
+        vec![entity(
+            "A",
+            [event("created", [field("parent", reference("A"))])],
+        )],
+        vec![
+            entity("A", [event("created", [field("parent", reference("B"))])]),
+            entity("B", [event("created", [field("parent", reference("A"))])]),
+        ],
+    ] {
+        assert!(matches!(
+            generate_str(&schema("Demo", entities, []), &Options::default()),
+            Err(GenerateError::RefTree(_))
+        ));
+    }
+}

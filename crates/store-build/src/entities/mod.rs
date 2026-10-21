@@ -18,6 +18,7 @@ use crate::{EntityStoreImplementations, GenerateError, entities::store::EventSto
 mod accessors;
 mod handles;
 pub(crate) mod namespaces;
+pub(crate) mod ref_tree;
 mod store;
 
 #[cfg(test)]
@@ -47,9 +48,10 @@ pub(super) fn generate(
     stores: &EntityStoreImplementations,
 ) -> Result<(), GenerateError> {
     let mut names = BTreeMap::new();
+    let generate_ref_tree = ref_tree::uses_constraint(schema);
     for entity in schema.entities() {
         let items = namespaces::for_entity(events, entity, &mut names)?;
-        let generated = generate_entity(entity, opts, stores)?;
+        let generated = generate_entity(schema, entity, opts, stores, generate_ref_tree)?;
         namespaces::extend(items, generated, entity)?;
     }
     Ok(())
@@ -57,9 +59,11 @@ pub(super) fn generate(
 
 /// Generates event handles, an access trait, and indices for one entity.
 fn generate_entity(
+    schema: &Schema,
     entity: &Entity,
     opts: &Options,
     stores: &EntityStoreImplementations,
+    generate_ref_tree: bool,
 ) -> Result<syn::File, GenerateError> {
     let mut namespace = entity.path().namespace().to_vec();
     let module = module_ident(entity.path().name());
@@ -97,6 +101,9 @@ fn generate_entity(
             "native event index accessor".to_owned(),
         ),
     ]);
+    if generate_ref_tree {
+        method_names.insert("parent_id".to_owned(), "Reference Tree parent".to_owned());
+    }
     let mut code = Vec::new();
     for event in entity.events() {
         let handle = handles::ident(event);
@@ -121,6 +128,8 @@ fn generate_entity(
     let native_store = stores
         .native
         .then(|| store::generate_entity(entity, &event_index_ident, &access, &marker, &code));
+    let ref_tree =
+        generate_ref_tree.then(|| ref_tree::generate(schema, entity, &marker, &original));
     let docs = format!("Provides event-type-scoped access for `{}`.", entity.path());
     syn::parse2(quote! {
         pub mod #module {
@@ -130,6 +139,7 @@ fn generate_entity(
                 #(#methods)*
             }
             #native_store
+            #ref_tree
         }
     })
     .map_err(GenerateError::InvalidGeneratedCode)

@@ -17,11 +17,39 @@ fn reference(data: Option<DataType>) -> DataType {
     }
 }
 
+fn parent_reference() -> DataType {
+    DataType::EntityRef {
+        data: None,
+        annotations: AnnotationsBuilder::new()
+            .with_constraint("quent.ref-target.v0.1.0", Some("Parent".to_owned()))
+            .with_constraint("quent.ref-tree.v0.1.0", None)
+            .build()
+            .unwrap(),
+    }
+}
+
 pub(super) fn schema() -> Schema {
     quent_schema::test_utils::schema(
         "ScopedEvents",
         [
+            entity(
+                "Child",
+                [event_with(
+                    "declared",
+                    Cardinality::Multi,
+                    [field("parent", parent_reference())],
+                )],
+            ),
+            entity(
+                "NestedChild",
+                [
+                    event("unrelated", [field("reference", reference(None))]),
+                    event("declared", [field("parent", record_type("ParentRecord"))]),
+                ],
+            ),
             entity("Parent", [event("created", [])]),
+            entity("RefTree", [event("created", [])]),
+            entity("Visit", [event("created", [])]),
             entity(
                 "Worker",
                 [event("renamed", [field("string", DataType::String)])],
@@ -73,8 +101,48 @@ pub(super) fn schema() -> Schema {
             ),
         ],
         [
+            record(
+                "ParentRecord",
+                [field(
+                    "type",
+                    DataType::Option(Box::new(DataType::List(Box::new(parent_reference())))),
+                )],
+            ),
             record("Shared", [field("label", DataType::String)]),
             record("Nested::Record", [field("count", DataType::U64)]),
         ],
+    )
+}
+
+pub(super) fn tree_schema() -> Schema {
+    fn parent(target: &str) -> DataType {
+        DataType::EntityRef {
+            data: None,
+            annotations: AnnotationsBuilder::new()
+                .with_constraint("quent.ref-target.v0.1.0", Some(target.to_owned()))
+                .with_constraint("quent.ref-tree.v0.1.0", None)
+                .build()
+                .unwrap(),
+        }
+    }
+    quent_schema::test_utils::schema(
+        "Tree",
+        [
+            entity("Root", [event("created", [])]),
+            entity("OtherRoot", [event("created", [])]),
+            entity(
+                "ZBranch",
+                [event("created", [field("parent", parent("Root"))])],
+            ),
+            entity(
+                "Branch",
+                [event("created", [field("parent", parent("Root"))])],
+            ),
+            entity(
+                "Leaf",
+                [event("created", [field("parent", parent("Branch"))])],
+            ),
+        ],
+        [],
     )
 }

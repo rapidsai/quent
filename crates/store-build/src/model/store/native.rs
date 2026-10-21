@@ -3,10 +3,8 @@
 
 //! Generation of model-wide native entity stores.
 
-use std::collections::BTreeSet;
-
 use proc_macro2::TokenStream;
-use quent_events_build::common::{module_ident, relative_type_path, type_ident};
+use quent_events_build::common::{relative_type_path, type_ident};
 use quent_schema::Schema;
 use quote::quote;
 
@@ -42,37 +40,23 @@ pub(super) fn generate(
         .entities()
         .map(|entity| relative_type_path(entity.path(), &[], ""))
         .collect::<Vec<_>>();
-    let mut field_names = BTreeSet::new();
-    let fields = schema
-        .entities()
-        .map(|entity| {
-            let segments = entity
-                .path()
-                .namespace()
-                .iter()
-                .chain(std::iter::once(entity.path().name()));
-            let name = segments
-                .map(|segment| {
-                    module_ident(segment)
-                        .to_string()
-                        .trim_start_matches("r#")
-                        .to_owned()
-                })
-                .collect::<Vec<_>>()
-                .join("_");
-            let mut candidate = name.clone();
-            let mut suffix = 2;
-            while !field_names.insert(candidate.clone()) {
-                candidate = format!("{name}_{suffix}");
-                suffix += 1;
+    let generate_ref_tree = crate::entities::ref_tree::uses_constraint(schema);
+    let fields = crate::model::entity_names(schema);
+    let build_ref_tree_index = generate_ref_tree.then(|| {
+        quote! {
+            /// Builds a relationship index from the loaded entities.
+            ///
+            /// # Errors
+            ///
+            /// Returns an error if entity IDs overlap across types, or a parent
+            /// is absent or has the wrong type.
+            pub fn build_ref_tree_index(&self) -> ::quent_store::Result<::quent_store::RefTreeIndex> {
+                let mut index = ::quent_store::RefTreeIndexBuilder::default();
+                #(self.#fields.index_ref_tree(&mut index)?;)*
+                index.build().map_err(::quent_store::Error::from)
             }
-            if candidate == name && entity.path().namespace().is_empty() {
-                module_ident(entity.path().name())
-            } else {
-                quote::format_ident!("{}", candidate)
-            }
-        })
-        .collect::<Vec<_>>();
+        }
+    });
     let implementations = markers.iter().zip(&fields).map(|(marker, field)| quote! {
         impl ::quent_store::entity::EntityStore<#marker> for #name {
             type Error = ::quent_store::Error;
@@ -116,6 +100,8 @@ pub(super) fn generate(
                     #(let #fields = ::quent_store::entity::native::NativeStore::<#markers>::try_from_loader(_loader)?;)*
                     Ok(Self { #(#fields,)* })
                 }
+
+                #build_ref_tree_index
 
                 /// Lists the IDs of one entity type.
                 pub fn entities<E: ::quent_store::events::EntityMarker>(&self) -> ::quent_store::Result<impl Iterator<Item = ::quent_store::Id<E>>>

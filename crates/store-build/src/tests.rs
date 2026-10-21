@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_schema::{
+    DataType,
     builder::{AnnotationsBuilder, EntityBuilder, SchemaBuilder},
-    test_utils::{entity, event},
+    test_utils::{entity, event, field},
 };
 
 use super::*;
@@ -78,19 +79,28 @@ fn generate_returns_unregistered_constraint_warnings() {
         .with_constraint("example.unknown.v0.1.0", None)
         .build()
         .unwrap();
+    let parent = DataType::EntityRef {
+        data: None,
+        annotations: AnnotationsBuilder::new()
+            .with_constraint("quent.ref-target.v0.1.0", Some("Root".to_owned()))
+            .with_constraint("quent.ref-tree.v0.1.0", None)
+            .build()
+            .unwrap(),
+    };
     let query = EntityBuilder::try_new("Query")
         .unwrap()
-        .with_event(event("created", []))
+        .with_event(event("created", [field("parent", parent)]))
         .with_annotations(annotations)
         .build()
         .unwrap();
     let schema = SchemaBuilder::try_new("Demo")
         .unwrap()
+        .with_entity(entity("Root", [event("created", [])]))
         .with_entity(query)
         .build()
         .unwrap();
     let output = tempfile::tempdir().unwrap();
-    let options = Options {
+    let mut options = Options {
         out_dir: output.path().to_owned(),
         ..Options::default()
     };
@@ -98,6 +108,15 @@ fn generate_returns_unregistered_constraint_warnings() {
     let generated = generate(&schema, &options).unwrap();
 
     assert_eq!(generated.warnings, ["example.unknown.v0.1.0"]);
+
+    options.entity_store.native = false;
+    let generated = generate(&schema, &options).unwrap();
+    assert!(
+        generated
+            .warnings
+            .iter()
+            .any(|name| name == "quent.ref-tree.v0.1.0")
+    );
 }
 
 #[test]

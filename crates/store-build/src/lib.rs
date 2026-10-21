@@ -72,13 +72,13 @@ mod model;
 /// Returns an error when the options are inconsistent, the schema cannot be
 /// generated, or the output cannot be written.
 pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
-    let warnings = quent_events_build::validate_schema(schema)?;
+    let warnings = validate_schema(schema, opts)?;
     let file_name = opts
         .file_name
         .clone()
         .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
     let path = opts.out_dir.join(file_name);
-    std::fs::write(&path, generate_str(schema, opts)?)?;
+    std::fs::write(&path, generate_str_unvalidated(schema, opts)?)?;
     Ok(GenerateInfo { path, warnings })
 }
 
@@ -89,37 +89,8 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// Returns an error when the options are inconsistent, generated names
 /// conflict, event generation fails, or the combined output is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
-    if opts.filesystem && !opts.events.combined_event {
-        return Err(GenerateError::FilesystemRequiresCombinedEvent);
-    }
-
-    if opts.filesystem && !opts.events.serde {
-        return Err(GenerateError::FilesystemRequiresSerde);
-    }
-    let event_opts = &opts.events;
-    let events = quent_events_build::generate_str(schema, event_opts, &event_runtime())?;
-    let mut events =
-        syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
-    if opts.entity_store.native {
-        entities::generate(schema, event_opts, &mut events, &opts.entity_store)?;
-    }
-
-    let loaders = event_loaders::generate(schema, opts.filesystem);
-    let model_store = opts
-        .entity_store
-        .native
-        .then(|| model::generate(schema, &events))
-        .transpose()?;
-
-    let file = syn::parse2::<syn::File>(quote! {
-        #events
-
-        #loaders
-        #model_store
-    })
-    .map_err(GenerateError::InvalidGeneratedCode)?;
-
-    Ok(prettyplease::unparse(&file))
+    validate_schema(schema, opts)?;
+    generate_str_unvalidated(schema, opts)
 }
 
 /// Options controlling stored-event retrieval source generation.
@@ -136,7 +107,9 @@ pub struct Options {
 
     /// Generate the selected entity stores and typed access to their events.
     ///
-    /// Generates a model-wide `<Model>Store` with typed entity access.
+    /// Generates a model-wide `<Model>Store` with typed entity access. Schemas
+    /// using `quent.ref-tree` also support index construction and typed tree
+    /// traversal.
     /// Defaults to a native in-memory store. Disabling all stores also disables
     /// typed entity event access.
     ///
@@ -180,6 +153,8 @@ impl Default for Options {
 /// An error from generating stored-event retrieval source.
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
+    #[error("invalid Reference Tree schema: {0}")]
+    RefTree(#[from] quent_ref_tree::RefTreeError),
     #[error("filesystem loading requires combined-event generation")]
     FilesystemRequiresCombinedEvent,
     #[error("filesystem loading requires serde generation")]
@@ -204,6 +179,68 @@ pub struct GenerateInfo {
     pub path: PathBuf,
     /// Constraint names without registered validators.
     pub warnings: Vec<String>,
+}
+
+/// Validates the constraints used by the selected store generation options.
+///
+/// Returns constraint names without registered validators as warnings.
+fn validate_schema(schema: &Schema, opts: &Options) -> Result<Vec<String>, GenerateError> {
+    if opts.entity_store.native {
+        let report = quent_constraints::validate::<(
+            quent_ref_target::RefTargetConstraint,
+            quent_ref_tree::RefTreeConstraint,
+        )>(schema);
+        report
+            .base_constraints
+            .map_err(quent_events_build::Error::from)?;
+        let (ref_target, ref_tree) = report.results;
+        ref_target.map_err(quent_events_build::Error::from)?;
+        ref_tree?;
+        Ok(report.unregistered_constraints)
+    } else {
+        let report =
+            quent_constraints::validate::<(quent_ref_target::RefTargetConstraint,)>(schema);
+        report
+            .base_constraints
+            .map_err(quent_events_build::Error::from)?;
+        let (ref_target,) = report.results;
+        ref_target.map_err(quent_events_build::Error::from)?;
+        Ok(report.unregistered_constraints)
+    }
+}
+
+fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    if opts.filesystem && !opts.events.combined_event {
+        return Err(GenerateError::FilesystemRequiresCombinedEvent);
+    }
+
+    if opts.filesystem && !opts.events.serde {
+        return Err(GenerateError::FilesystemRequiresSerde);
+    }
+    let event_opts = &opts.events;
+    let events = quent_events_build::generate_str(schema, event_opts, &event_runtime())?;
+    let mut events =
+        syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
+    if opts.entity_store.native {
+        entities::generate(schema, event_opts, &mut events, &opts.entity_store)?;
+    }
+
+    let loaders = event_loaders::generate(schema, opts.filesystem);
+    let model_store = opts
+        .entity_store
+        .native
+        .then(|| model::generate(schema, &events))
+        .transpose()?;
+
+    let file = syn::parse2::<syn::File>(quote! {
+        #events
+
+        #loaders
+        #model_store
+    })
+    .map_err(GenerateError::InvalidGeneratedCode)?;
+
+    Ok(prettyplease::unparse(&file))
 }
 
 fn event_runtime() -> quent_events_build::Runtime {

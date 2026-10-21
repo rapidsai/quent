@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_store::{
-    Error, Timestamped,
-    entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, Id, native::NativeStore},
+    Error, Id, Timestamped,
+    entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, native::NativeStore},
 };
 
 #[allow(unused_imports, dead_code)]
@@ -266,4 +266,75 @@ fn checked_handles_reject_other_variants_and_borrow_valid_events() {
         unreachable!()
     };
     assert!(std::ptr::eq(handle.string(), string));
+}
+
+#[test]
+fn reference_tree_parents_follow_annotations_and_event_order() {
+    use self::model::{
+        Child, ChildEvent, NestedChild, NestedChildEvent, Parent, ParentEvent, ParentRecord,
+    };
+    let id = Uuid::from_u128(1);
+    let first = Uuid::from_u128(2);
+    let later = Uuid::from_u128(3);
+    let root =
+        NativeStore::<Parent>::try_from_events([Event::new(id, 0, ParentEvent::Created)]).unwrap();
+    assert_eq!(root.entity(id).unwrap().unwrap().parent_id(), None);
+    let child = NativeStore::<Child>::try_from_events([
+        Event::new(
+            id,
+            20,
+            ChildEvent::Declared {
+                parent: EntityRef::new(later, ()),
+            },
+        ),
+        Event::new(
+            id,
+            10,
+            ChildEvent::Declared {
+                parent: EntityRef::new(first, ()),
+            },
+        ),
+    ])
+    .unwrap();
+    let parent: Id<Parent> = child.entity(id).unwrap().unwrap().parent_id().unwrap();
+    assert_eq!(parent.uuid(), first);
+    for (references, expected) in [
+        (None, None),
+        (Some(vec![]), None),
+        (
+            Some(vec![EntityRef::new(first, ()), EntityRef::new(later, ())]),
+            Some(first),
+        ),
+    ] {
+        let nested = NativeStore::<NestedChild>::try_from_events([
+            Event::new(
+                id,
+                0,
+                NestedChildEvent::Unrelated {
+                    reference: EntityRef::new(later, ()),
+                },
+            ),
+            Event::new(
+                id,
+                10,
+                NestedChildEvent::Declared {
+                    parent: ParentRecord { r#type: references },
+                },
+            ),
+        ])
+        .unwrap();
+        assert_eq!(
+            nested.entity(id).unwrap().unwrap().parent_id(),
+            expected.map(Id::<Parent>::new)
+        );
+    }
+    let missing = NativeStore::<NestedChild>::try_from_events([Event::new(
+        id,
+        0,
+        NestedChildEvent::Unrelated {
+            reference: EntityRef::new(later, ()),
+        },
+    )])
+    .unwrap();
+    assert_eq!(missing.entity(id).unwrap().unwrap().parent_id(), None);
 }

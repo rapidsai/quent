@@ -631,6 +631,7 @@ version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
+ "quent-events",
  "quent-ref-target",
  "quent-schema",
  "rustc-hash",
@@ -669,6 +670,7 @@ dependencies = [
  "quent-build-info",
  "quent-events",
  "quent-io",
+ "quent-ref-tree",
  "quent-time",
  "rustc-hash",
  "serde",
@@ -684,7 +686,10 @@ version = "0.2.0"
 dependencies = [
  "prettyplease",
  "proc-macro2",
+ "quent-constraints",
  "quent-events-build",
+ "quent-ref-target",
+ "quent-ref-tree",
  "quent-schema",
  "quote",
  "syn 3.0.6",
@@ -696,6 +701,7 @@ name = "quent-store-build-entity-store-test"
 version = "0.2.0"
 dependencies = [
  "quent-instrumentation-build-example",
+ "quent-ref-tree",
  "quent-schema",
  "quent-store",
  "quent-store-build",

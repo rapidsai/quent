@@ -2845,6 +2845,7 @@ version = "0.2.0"
 dependencies = [
  "petgraph",
  "quent-constraints",
+ "quent-events",
  "quent-ref-target",
  "quent-schema",
  "rustc-hash",
@@ -3014,6 +3015,7 @@ dependencies = [
  "quent-events",
  "quent-instrumentation",
  "quent-io",
+ "quent-ref-tree",
  "quent-time",
  "rustc-hash",
  "serde",
@@ -3030,7 +3032,10 @@ version = "0.2.0"
 dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
+ "quent-constraints",
  "quent-events-build",
+ "quent-ref-target",
+ "quent-ref-tree",
  "quent-schema",
  "quote",
  "syn 3.0.6",

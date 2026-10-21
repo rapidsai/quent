@@ -15,6 +15,7 @@ quent-store = {
 }
 
 [dev-dependencies]
+quent-ref-tree = { path = "../../../ref-tree", features = ["analysis"] }
 quent-instrumentation-build-example = { path = "../../../instrumentation-build/example" }
 tempfile = "3"
 

@@ -4,13 +4,15 @@
 //! Runs instrumentation and loads its filesystem-exported events.
 
 use quent_store::{
+    RefTreeEntityMarker, RefTreeNode,
     context::ContextSet,
     entity::EntityHandle,
     event::{EventLoader, filesystem},
 };
 
 use crate::demo::{
-    Connection, Demo, DemoStore, Query, connection::ConnectionEvents, server::ServerEvents,
+    Connection, Demo, DemoStore, DemoTree, DemoTreeVisitor, Query, Server,
+    connection::ConnectionEvents, server::ServerEvents,
 };
 
 #[allow(unused_imports, dead_code)]
@@ -98,5 +100,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Build the relationship index, then select one root instance.
+    let index = store.build_ref_tree_index()?;
+    if let Some(root) = store.entities::<Server>()?.next() {
+        let tree = index.ref_tree(root)?;
+        println!("\nEntity tree:");
+        tree.walk(&mut TreePrinter::default());
+    }
     Ok(())
+}
+
+#[derive(Default)]
+struct TreePrinter {
+    depth: usize,
+}
+
+impl DemoTreeVisitor for TreePrinter {
+    fn visit<'a, E: RefTreeEntityMarker>(&mut self, node: RefTreeNode<'a, E>)
+    where
+        RefTreeNode<'a, E>: DemoTree,
+    {
+        println!(
+            "{}{} [{}]",
+            "  ".repeat(self.depth),
+            node.type_name(),
+            node.entity_id().uuid()
+        );
+        self.depth += 1;
+        node.walk_children(self);
+        self.depth -= 1;
+    }
 }
