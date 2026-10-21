@@ -14,7 +14,7 @@
 
 use quent_events::Event;
 use quent_nvtx_analyzer::{NvtxModel, NvtxSpan, SpanId};
-use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
+use quent_nvtx_sink::quent::nvtx::{self, NvtxEventAttributes, NvtxMessage, SinkEvent};
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
@@ -64,15 +64,18 @@ pub fn stream_id() -> Uuid {
     Uuid::nil()
 }
 
-/// Put an [`NvtxEvent`] in an event envelope at an exact timestamp.
-pub fn at(timestamp: TimeUnixNanoSec, event: NvtxEvent) -> Event<NvtxEvent> {
+/// Put an [`SinkEvent`] in an event envelope at an exact timestamp.
+pub fn at(timestamp: TimeUnixNanoSec, event: SinkEvent) -> Event<SinkEvent> {
     Event::new(stream_id(), timestamp, event)
 }
 
 /// Attributes carrying only an immediate string message.
 pub fn message(text: &str) -> NvtxEventAttributes {
     NvtxEventAttributes {
-        message: Some(NvtxMessage::String(text.to_owned())),
+        message: Some(NvtxMessage {
+            string: Some(text.to_owned()),
+            registered_handle: None,
+        }),
         ..Default::default()
     }
 }
@@ -83,20 +86,27 @@ pub fn range_start(
     domain: u64,
     range_id: u64,
     text: &str,
-) -> Event<NvtxEvent> {
+) -> Event<SinkEvent> {
     at(
         timestamp,
-        NvtxEvent::RangeStart {
-            domain,
-            range_id,
-            attributes: message(text),
+        SinkEvent::RangeStart {
+            data: nvtx::RangeStart {
+                domain,
+                range_id,
+                attributes: message(text),
+            },
         },
     )
 }
 
 /// A `nvtxDomainRangeEnd` closing the process-wide range `range_id`.
-pub fn range_end(timestamp: TimeUnixNanoSec, domain: u64, range_id: u64) -> Event<NvtxEvent> {
-    at(timestamp, NvtxEvent::RangeEnd { domain, range_id })
+pub fn range_end(timestamp: TimeUnixNanoSec, domain: u64, range_id: u64) -> Event<SinkEvent> {
+    at(
+        timestamp,
+        SinkEvent::RangeEnd {
+            data: nvtx::RangeEnd { domain, range_id },
+        },
+    )
 }
 
 /// A `nvtxDomainRangePushEx` opening a nested range on `thread_id`.
@@ -107,20 +117,27 @@ pub fn range_push(
     domain: u64,
     thread_id: u32,
     text: &str,
-) -> Event<NvtxEvent> {
+) -> Event<SinkEvent> {
     at(
         timestamp,
-        NvtxEvent::RangePush {
-            domain,
-            thread_id,
-            attributes: message(text),
+        SinkEvent::RangePush {
+            data: nvtx::RangePush {
+                domain,
+                thread_id,
+                attributes: message(text),
+            },
         },
     )
 }
 
 /// A `nvtxDomainRangePop` closing the innermost push on `thread_id`.
-pub fn range_pop(timestamp: TimeUnixNanoSec, domain: u64, thread_id: u32) -> Event<NvtxEvent> {
-    at(timestamp, NvtxEvent::RangePop { domain, thread_id })
+pub fn range_pop(timestamp: TimeUnixNanoSec, domain: u64, thread_id: u32) -> Event<SinkEvent> {
+    at(
+        timestamp,
+        SinkEvent::RangePop {
+            data: nvtx::RangePop { domain, thread_id },
+        },
+    )
 }
 
 /// A `nvtxDomainRangePushEx` carrying a non-zero category, which the statistics
@@ -131,15 +148,17 @@ pub fn range_push_in_category(
     thread_id: u32,
     category: u32,
     text: &str,
-) -> Event<NvtxEvent> {
+) -> Event<SinkEvent> {
     at(
         timestamp,
-        NvtxEvent::RangePush {
-            domain,
-            thread_id,
-            attributes: NvtxEventAttributes {
-                category,
-                ..message(text)
+        SinkEvent::RangePush {
+            data: nvtx::RangePush {
+                domain,
+                thread_id,
+                attributes: NvtxEventAttributes {
+                    category,
+                    ..message(text)
+                },
             },
         },
     )
@@ -156,15 +175,20 @@ pub fn resource_create(
     identifier_type: i32,
     identifier: u64,
     text: &str,
-) -> Event<NvtxEvent> {
+) -> Event<SinkEvent> {
     at(
         timestamp,
-        NvtxEvent::ResourceCreate {
-            domain,
-            handle,
-            identifier_type,
-            identifier,
-            message: Some(NvtxMessage::String(text.to_owned())),
+        SinkEvent::ResourceCreate {
+            data: nvtx::ResourceCreate {
+                domain,
+                handle,
+                identifier_type,
+                identifier,
+                message: Some(NvtxMessage {
+                    string: Some(text.to_owned()),
+                    registered_handle: None,
+                }),
+            },
         },
     )
 }
@@ -173,18 +197,25 @@ pub fn resource_create(
 ///
 /// Takes no domain because the NVTX event carries none — which is why the
 /// analyzer must match on the handle alone.
-pub fn resource_destroy(timestamp: TimeUnixNanoSec, handle: u64) -> Event<NvtxEvent> {
-    at(timestamp, NvtxEvent::ResourceDestroy { handle })
+pub fn resource_destroy(timestamp: TimeUnixNanoSec, handle: u64) -> Event<SinkEvent> {
+    at(
+        timestamp,
+        SinkEvent::ResourceDestroy {
+            data: nvtx::ResourceDestroy { handle },
+        },
+    )
 }
 
 /// A `nvtxDomainMarkEx` instant, which also lets a fixture set the trace end
 /// without opening a range.
-pub fn mark(timestamp: TimeUnixNanoSec, domain: u64, text: &str) -> Event<NvtxEvent> {
+pub fn mark(timestamp: TimeUnixNanoSec, domain: u64, text: &str) -> Event<SinkEvent> {
     at(
         timestamp,
-        NvtxEvent::Mark {
-            domain,
-            attributes: message(text),
+        SinkEvent::Mark {
+            data: nvtx::Mark {
+                domain,
+                attributes: message(text),
+            },
         },
     )
 }

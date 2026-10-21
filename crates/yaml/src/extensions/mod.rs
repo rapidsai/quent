@@ -16,6 +16,7 @@ use quent_constraints::{Constraint, validate};
 use quent_dag::{DagConstraint, DagRole};
 use quent_fsm::FsmConstraint;
 use quent_log::LogConstraint;
+use quent_nvtx::NvtxConstraint;
 use quent_os::OsConstraint;
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
@@ -29,6 +30,7 @@ use crate::diag::{Diagnostic, Diagnostics};
 pub(crate) mod dag;
 pub(crate) mod fsm;
 pub(crate) mod log;
+pub(crate) mod nvtx;
 pub(crate) mod os;
 pub(crate) mod reference;
 pub(crate) mod resource;
@@ -89,6 +91,10 @@ impl Elaborator {
             if let Some(entity) = log::elaborate(name, spec, self, sink) {
                 entities.push(entity);
             }
+        }
+        if let Some((entity, generated)) = nvtx::elaborate(model, sink) {
+            records.extend(generated);
+            entities.push(entity);
         }
         ModelElaboration { entities, records }
     }
@@ -230,6 +236,10 @@ impl Elaborator {
                 )
             } else if name == LogConstraint::NAME {
                 Some("the log constraint is set from a `logs:` declaration, not written directly")
+            } else if name == NvtxConstraint::NAME {
+                Some(
+                    "the NVTX constraint is set from `integrations.nvtx: true`, not written directly",
+                )
             } else {
                 None
             };
@@ -243,7 +253,12 @@ impl Elaborator {
     }
 }
 
-pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option<Vec<Diagnostic>> {
+pub(crate) fn validate_schema(
+    schema: &Schema,
+    model: &Model,
+    sink: &mut Diagnostics,
+) -> Option<Vec<Diagnostic>> {
+    nvtx::validate_processes(schema, model, sink);
     let report = validate::<(
         RefTargetConstraint,
         RefTreeConstraint,
@@ -252,6 +267,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         OsConstraint,
         LogConstraint,
         DagConstraint,
+        NvtxConstraint,
     )>(schema);
     if let Err(error) = report.base_constraints {
         for entity in error.entities_without_events {
@@ -276,7 +292,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         }
     }
 
-    let (ref_target, ref_tree, fsm, resource, os, log, dag) = report.results;
+    let (ref_target, ref_tree, fsm, resource, os, log, dag, nvtx) = report.results;
     for result in [
         ref_target.map_err(|error| error.to_string()),
         ref_tree.map_err(|error| error.to_string()),
@@ -285,6 +301,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         os.map_err(|error| error.to_string()),
         log.map_err(|error| error.to_string()),
         dag.map_err(|error| error.to_string()),
+        nvtx.map_err(|error| error.to_string()),
     ] {
         if let Err(error) = result {
             sink.error("", error, None);

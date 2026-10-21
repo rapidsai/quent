@@ -20,6 +20,7 @@ filesystem = [
 ]
 
 [dependencies]
+quent-nvtx-sink = { path = "../../../../integrations/nvtx/sink" }
 quent-analyzer = { path = "../../../../crates/analyzer" }
 quent-events = { workspace = true, features = ["serde"] }
 quent-store = { path = "../../../../crates/store", default-features = false, features = ["serde"] }

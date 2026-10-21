@@ -5,6 +5,9 @@ quent: '0.1.0'
 model: Simulator
 doc: Query-engine simulator event model.
 
+integrations:
+  nvtx: true
+
 records:
   EngineImplementationAttributes:
     doc: Details about the simulated query engine implementation.
@@ -181,6 +184,12 @@ entities:
         attributes:
           instance_name: string
           network_id: { scope-ref: Network }
+
+  Process:
+    events:
+      started:
+        attributes:
+          identity: { os: process }
 
 fsms:
   Query:

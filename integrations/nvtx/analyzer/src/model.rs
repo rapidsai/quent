@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use quent_events::Event;
-use quent_nvtx_events::NvtxEvent;
+use quent_nvtx_sink::quent::nvtx::{self, SinkEvent};
 use quent_time::{OrderedCollector, TimeUnixNanoSec};
 
 use crate::anomalies::ReconstructionAnomalies;
@@ -175,7 +175,7 @@ impl NvtxModelBuilder {
     /// Events may arrive in any order and may reference handles registered
     /// anywhere in the stream. Incomplete pairs are represented rather than
     /// dropped or guessed — see the crate docs for what each case yields.
-    pub fn build(events: impl IntoIterator<Item = Event<NvtxEvent>>) -> NvtxModel {
+    pub fn build(events: impl IntoIterator<Item = Event<SinkEvent>>) -> NvtxModel {
         // Pass 1a — materialize in timestamp order. Equal timestamps keep
         // arrival order, so replay is deterministic.
         let mut collector = OrderedCollector::default();
@@ -205,10 +205,13 @@ impl NvtxModelBuilder {
             trace_end = trace_end.max(event.timestamp);
 
             match event.data {
-                NvtxEvent::RangeStart {
-                    domain,
-                    range_id,
-                    attributes,
+                SinkEvent::RangeStart {
+                    data:
+                        nvtx::RangeStart {
+                            domain,
+                            range_id,
+                            attributes,
+                        },
                 } => {
                     let name = tables.resolve_message(domain, &attributes.message);
                     if let Some(span) =
@@ -222,29 +225,34 @@ impl NvtxModelBuilder {
                 }
                 // The domain on a `RangeEnd` is redundant: `range_id` is
                 // process-globally unique, so it alone identifies the range.
-                NvtxEvent::RangeEnd { range_id, .. } => {
-                    match ranges.end(range_id, event.timestamp) {
-                        Some(span) => slots.push(Some(span)),
-                        None => anomalies.orphan_range_ends += 1,
-                    }
-                }
-                NvtxEvent::RangePush {
-                    domain,
-                    thread_id,
-                    attributes,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd { range_id, .. },
+                } => match ranges.end(range_id, event.timestamp) {
+                    Some(span) => slots.push(Some(span)),
+                    None => anomalies.orphan_range_ends += 1,
+                },
+                SinkEvent::RangePush {
+                    data:
+                        nvtx::RangePush {
+                            domain,
+                            thread_id,
+                            attributes,
+                        },
                 } => {
                     let name = tables.resolve_message(domain, &attributes.message);
                     let id = SpanId(slots.len());
                     slots.push(None);
                     pushes.push(id, thread_id, domain, name, attributes, event.timestamp);
                 }
-                NvtxEvent::RangePop { domain, thread_id } => {
-                    match pushes.pop(thread_id, domain, event.timestamp) {
-                        Some((id, span)) => fill(&mut slots, id, span),
-                        None => anomalies.orphan_range_pops += 1,
-                    }
-                }
-                NvtxEvent::Mark { domain, attributes } => marks.push(NvtxMark {
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop { domain, thread_id },
+                } => match pushes.pop(thread_id, domain, event.timestamp) {
+                    Some((id, span)) => fill(&mut slots, id, span),
+                    None => anomalies.orphan_range_pops += 1,
+                },
+                SinkEvent::Mark {
+                    data: nvtx::Mark { domain, attributes },
+                } => marks.push(NvtxMark {
                     domain,
                     name: tables.resolve_message(domain, &attributes.message),
                     category: category_id(attributes.category),
@@ -252,15 +260,18 @@ impl NvtxModelBuilder {
                     payload: attributes.payload,
                     timestamp: event.timestamp,
                 }),
-                NvtxEvent::ResourceCreate {
-                    domain,
-                    handle,
-                    identifier_type,
-                    // Interpreting the raw identifier bits depends on
-                    // `identifier_type`; decoding extension classes is out of
-                    // scope for this crate.
-                    identifier: _,
-                    message,
+                SinkEvent::ResourceCreate {
+                    data:
+                        nvtx::ResourceCreate {
+                            domain,
+                            handle,
+                            identifier_type,
+                            // Interpreting the raw identifier bits depends on
+                            // `identifier_type`; decoding extension classes is out of
+                            // scope for this crate.
+                            identifier: _,
+                            message,
+                        },
                 } => {
                     let name = tables.resolve_message(domain, &message);
                     if let Some(span) =
@@ -273,21 +284,25 @@ impl NvtxModelBuilder {
                 }
                 // Matched on `handle` alone — the event carries no domain, so
                 // there is nothing else to key on.
-                NvtxEvent::ResourceDestroy { handle } => {
-                    match resources.destroy(handle, event.timestamp) {
-                        Some(span) => slots.push(Some(span)),
-                        None => anomalies.orphan_resource_destroys += 1,
-                    }
-                }
+                SinkEvent::ResourceDestroy {
+                    data: nvtx::ResourceDestroy { handle },
+                } => match resources.destroy(handle, event.timestamp) {
+                    Some(span) => slots.push(Some(span)),
+                    None => anomalies.orphan_resource_destroys += 1,
+                },
                 // Consumed by pass 1; they only advance the trace end here.
                 // Listed explicitly rather than caught by `_`, so a new
-                // `NvtxEvent` variant fails to compile instead of being
+                // `SinkEvent` variant fails to compile instead of being
                 // silently discarded.
-                NvtxEvent::DomainCreate { .. }
-                | NvtxEvent::DomainDestroy { .. }
-                | NvtxEvent::RegisterString { .. }
-                | NvtxEvent::NameCategory { .. }
-                | NvtxEvent::NameThread { .. } => {}
+                SinkEvent::DomainCreate { .. }
+                | SinkEvent::DomainDestroy { .. }
+                | SinkEvent::RegisterString { .. }
+                | SinkEvent::NameCategory { .. }
+                | SinkEvent::NameThread { .. }
+                | SinkEvent::Initialized { .. }
+                | SinkEvent::SchemaRegister { .. }
+                | SinkEvent::EnumRegister { .. }
+                | SinkEvent::BinaryPayload { .. } => {}
             }
         }
 

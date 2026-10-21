@@ -150,6 +150,13 @@ pub struct SimulatorUiAnalyzer {
     pub model: SimulatorModel,
 }
 
+impl SimulatorUiAnalyzer {
+    /// Returns reconstructed NVTX models keyed by sink entity ID.
+    pub fn nvtx_models(&self) -> impl Iterator<Item = (Uuid, &quent_nvtx_analyzer::NvtxModel)> {
+        self.model.nvtx.iter().map(|(&id, model)| (id, model))
+    }
+}
+
 /// `quent-open` viewer entry for the simulator model: renders [`SimulatorEvent`]
 /// streams with [`SimulatorUiAnalyzer`]. The required `Viewer` path
 /// `quent-open` names when building a viewer for this analyzer's models.

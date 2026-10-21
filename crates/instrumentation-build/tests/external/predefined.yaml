@@ -1,0 +1,30 @@
+quent: '0.2.0'
+model: Predefined
+
+records:
+  Message:
+    fields:
+      text: string
+
+entities:
+  Annotations:
+    events:
+      mark:
+        multi: true
+        attributes:
+          message: Message
+      link:
+        multi: true
+        attributes:
+          target: ref
+      closed: {}
+
+fsms:
+  Task:
+    states:
+      started:
+        initial: true
+        attributes:
+          message: Message
+        to: [finished]
+      finished: {}

@@ -8,9 +8,10 @@ ui = ["quent-query-engine-server/ui"]
 swagger = ["quent-query-engine-server/swagger"]
 
 [dependencies]
+serde.workspace = true
+quent-nvtx-ui = { path = "../../../../integrations/nvtx/ui" }
 axum = { version = "0.8.7" }
 clap = { version = "4.5", features = ["derive", "env"] }
-nvtx-server = { path = "../../../../integrations/nvtx/server" }
 quent-analyzer = { path = "../../../../crates/analyzer" }
 quent-io = { path = "../../../../crates/io" }
 quent-mcp = { path = "../../quent-mcp" }
@@ -27,3 +28,10 @@ quent-store = { path = "../../../../crates/store", features = [
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+quent-events.workspace = true
+quent-nvtx-sink = { path = "../../../../integrations/nvtx/sink" }
+serde_json.workspace = true
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

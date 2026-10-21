@@ -263,7 +263,7 @@ beforeEach(() => {
   capturedOnExpandChange = undefined;
   capturedLongEntityProps = undefined;
   vi.mocked(clientApi.useNvtxStream).mockReturnValue({
-    contextId: undefined,
+    sinkId: undefined,
     catalog: null,
     viewport: null,
     isLoading: false,
@@ -411,7 +411,7 @@ describe('QueryResourceTree — NVTX filters', () => {
     } as unknown as NvtxCatalog;
     vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
     vi.mocked(clientApi.useNvtxStream).mockReturnValue({
-      contextId: 'context-1',
+      sinkId: 'sink-1',
       catalog,
       viewport: null,
       isLoading: false,
@@ -483,7 +483,7 @@ describe('QueryResourceTree — NVTX filters', () => {
     } as unknown as NvtxCatalog;
     vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
     vi.mocked(clientApi.useNvtxStream).mockReturnValue({
-      contextId: 'context-1',
+      sinkId: 'sink-1',
       catalog,
       viewport: null,
       isLoading: false,
@@ -543,7 +543,7 @@ describe('QueryResourceTree — NVTX filters', () => {
     } as unknown as NonNullable<ReturnType<typeof clientApi.useNvtxStream>['viewport']>;
     vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
     vi.mocked(clientApi.useNvtxStream).mockReturnValue({
-      contextId: 'context-1',
+      sinkId: 'sink-1',
       catalog,
       viewport,
       isLoading: false,
@@ -777,7 +777,7 @@ describe('QueryResourceTree — resource filtering', () => {
 
   it('shows an empty state with Show All selected when neither tree has matches', async () => {
     vi.mocked(clientApi.useNvtxStream).mockReturnValue({
-      contextId: 'context-1',
+      sinkId: 'sink-1',
       catalog: {
         domains: [
           {

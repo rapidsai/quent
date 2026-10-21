@@ -72,8 +72,24 @@ pub fn analyzer_service_router_with_routes<A>(
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
+    analyzer_service_router_with_cache(
+        AnalyzerCache::<A>::new(importer, lister),
+        cors,
+        additional_routes,
+    )
+}
+
+/// Builds a router sharing an analyzer cache with application-owned routes.
+pub fn analyzer_service_router_with_cache<A>(
+    analyzers: AnalyzerCache<A>,
+    cors: Option<String>,
+    additional_routes: AxumRouter,
+) -> Result<AxumRouter, Box<dyn std::error::Error>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
     let state = ServiceState {
-        analyzers: AnalyzerCache::<A>::new(importer, lister),
+        analyzers,
         timelines: TimelineCache::new(),
     };
 

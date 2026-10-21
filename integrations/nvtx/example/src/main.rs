@@ -1,34 +1,37 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Runnable NVTX capture demo: debug-prints each captured event.
-//!
-//! ```text
-//! pixi run cargo run -p quent-nvtx-example
-//! ```
+#[allow(unused)]
+mod instrumentation {
+    include!(concat!(env!("OUT_DIR"), "/nvtx_sink.rs"));
+}
 
-use quent_instrumentation::{ContextInner, EventCallback};
+use instrumentation::{Context, NvtxSink, NvtxSinkEvent, Process, quent::nvtx::Sink};
+use quent_instrumentation::EventCallback;
 use quent_nvtx_bridge::Capture;
-use quent_nvtx_events::NvtxEvent;
-use uuid::Uuid;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let session = Uuid::now_v7();
-    let printer = EventCallback::<NvtxEvent>::new(|event| {
+    let printer = EventCallback::<NvtxSinkEvent>::new(|event| {
         println!("[{} @ {}] {:?}", event.id, event.timestamp, event.data);
     });
-    // TODO(johanpel): Move NVTX events into the schema so this example can use a generated
-    // Context + Observer instead of ContextInner.
-    let context = ContextInner::try_new(session)?;
-    let observer = context.block_on(async { context.observer::<NvtxEvent>(&printer).await })?;
+    let context = Context::<NvtxSink>::try_new(printer)?;
+    let mut process = context.observer::<Process>().handle();
+    process.started(instrumentation::quent::os::Process {
+        native_id: std::process::id(),
+    })?;
+    let capture = Capture::install(context.observer::<Sink>(), process.as_any_entity_ref())?;
 
-    let capture = Capture::install(session, observer)?;
-
-    nvtx::mark(c"startup");
-    let local_range = nvtx::LocalRange::new(c"phase-1");
-    drop(local_range);
-    let range = nvtx::Range::new(c"phase-2");
+    let domain = nvtx::Domain::new(c"application");
+    domain.mark(
+        domain
+            .event_attributes_builder()
+            .message(c"started")
+            .payload(1.5_f64)
+            .build(),
+    );
+    let range = domain.range(c"work");
     drop(range);
+    drop(domain);
 
     drop(capture);
     Ok(())

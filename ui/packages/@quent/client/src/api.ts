@@ -95,12 +95,24 @@ async function httpFetchEngineContexts(engineId: string): Promise<EngineContexts
   return apiFetch<EngineContexts>(`/engines/${engineId}/contexts`);
 }
 
+async function httpFetchNvtxSinks(engineId: string): Promise<string[]> {
+  const response = await apiFetchResponse(`/engines/${engineId}/nvtx`);
+  if (response.status === 404) {
+    return [];
+  }
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return parseJsonWithBigInt<string[]>(await response.text());
+}
+
 /** Fetch stable NVTX metadata, resolving a 404 to optional absence. */
 async function httpFetchNvtxCatalog(
-  contextId: string,
+  engineId: string,
+  sinkId: string,
   queryStartUnixNs: bigint
 ): Promise<NvtxCatalog | null> {
-  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/catalog`, {
+  const response = await apiFetchResponse(`/engines/${engineId}/nvtx/${sinkId}/catalog`, {
     params: { query_start: queryStartUnixNs },
   });
   if (response.status === 404) {
@@ -113,12 +125,13 @@ async function httpFetchNvtxCatalog(
 }
 
 async function httpFetchNvtxViewport(
-  contextId: string,
+  engineId: string,
+  sinkId: string,
   queryStartUnixNs: bigint,
   request: NvtxViewportRequest
 ): Promise<NvtxViewportResponse | null> {
   const canonical = canonicalizeNvtxRequest(request);
-  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/viewport`, {
+  const response = await apiFetchResponse(`/engines/${engineId}/nvtx/${sinkId}/viewport`, {
     params: { query_start: queryStartUnixNs },
     fetchOptions: {
       method: 'POST',
@@ -232,6 +245,7 @@ const httpClient: ApiClient = {
   fetchQueryBundle: httpFetchQueryBundle,
   fetchListEngines: httpFetchListEngines,
   fetchEngineContexts: httpFetchEngineContexts,
+  fetchNvtxSinks: httpFetchNvtxSinks,
   fetchNvtxCatalog: httpFetchNvtxCatalog,
   fetchNvtxViewport: httpFetchNvtxViewport,
   fetchListQueries: httpFetchListQueries,
@@ -258,6 +272,8 @@ export const fetchListEngines = (...args: Parameters<ApiClient['fetchListEngines
   getApiClient().fetchListEngines(...args);
 export const fetchEngineContexts = (...args: Parameters<ApiClient['fetchEngineContexts']>) =>
   getApiClient().fetchEngineContexts(...args);
+export const fetchNvtxSinks = (...args: Parameters<ApiClient['fetchNvtxSinks']>) =>
+  getApiClient().fetchNvtxSinks(...args);
 export const fetchNvtxCatalog = (...args: Parameters<ApiClient['fetchNvtxCatalog']>) =>
   getApiClient().fetchNvtxCatalog(...args);
 export const fetchNvtxViewport = (...args: Parameters<ApiClient['fetchNvtxViewport']>) =>

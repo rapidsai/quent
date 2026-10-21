@@ -25,6 +25,7 @@ prettyplease = "0.3.0"
 proc-macro2 = "1"
 quent-constraints = { path = "../../../crates/constraints" }
 quent-fsm = { path = "../../../crates/fsm" }
+quent-nvtx = { path = "../../../integrations/nvtx/constraint" }
 quent-ref-target = { path = "../../../crates/ref-target" }
 quent-schema = { path = "../../../crates/schema" }
 quent-yaml = { path = "../../../crates/yaml" }

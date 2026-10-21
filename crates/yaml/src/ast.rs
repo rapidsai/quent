@@ -47,12 +47,21 @@ pub(crate) struct Model {
     pub(crate) records: IndexMap<String, Record>,
     #[serde(default)]
     pub(crate) entities: IndexMap<String, Entity>,
+    #[serde(default)]
+    pub(crate) integrations: Integrations,
 
     // Built-in extension AST nodes.
     #[serde(default)]
     pub(crate) fsms: IndexMap<String, FsmSpec>,
     #[serde(default)]
     pub(crate) logs: IndexMap<String, LogSpec>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Integrations {
+    #[serde(default)]
+    pub(crate) nvtx: bool,
 }
 
 /// A record: named fields plus annotations.

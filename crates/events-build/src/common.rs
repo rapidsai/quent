@@ -5,7 +5,7 @@
 
 use convert_case::{Boundary, Case, Casing};
 use proc_macro2::{Span, TokenStream};
-use quent_schema::{Identifier, Path};
+use quent_schema::{Annotations, Identifier, Path};
 use quote::{ToTokens, quote};
 use std::collections::HashSet;
 use syn::Ident;
@@ -185,6 +185,37 @@ pub fn raw_ident(name: String) -> Ident {
     } else {
         Ident::new_raw(&name, Span::call_site())
     }
+}
+
+pub(crate) fn parse_extern_type(
+    path: &Path,
+    annotations: &Annotations,
+) -> Result<Option<syn::Path>, Error> {
+    let Some(metadata) = annotations.metadata("quent.codegen.rust.type") else {
+        return Ok(None);
+    };
+    let parse = || {
+        let value = metadata.data().unwrap_or_default();
+        let path = syn::parse_str::<syn::Path>(value)?;
+        if path
+            .segments
+            .iter()
+            .any(|segment| !segment.arguments.is_empty())
+        {
+            return Err(syn::Error::new_spanned(
+                path,
+                "expected a path without generic arguments",
+            ));
+        }
+        Ok(path)
+    };
+    parse()
+        .map(Some)
+        .map_err(|source| Error::InvalidExternType {
+            path: path.clone(),
+            value: metadata.data().map(str::to_owned),
+            source,
+        })
 }
 
 /// Pretty-print tokens the same way the generators do, for comparing generated

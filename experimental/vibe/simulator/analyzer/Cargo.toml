@@ -5,6 +5,8 @@ edition.workspace =  true
 publish.workspace = true
 
 [dependencies]
+quent-nvtx-analyzer = { path = "../../../../integrations/nvtx/analyzer" }
+quent-nvtx-sink = { path = "../../../../integrations/nvtx/sink" }
 quent-analyzer = { path = "../../../../crates/analyzer" }
 quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
 quent-events = { path = "../../../../crates/events" }

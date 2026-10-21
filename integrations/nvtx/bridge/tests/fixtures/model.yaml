@@ -1,0 +1,12 @@
+quent: '0.2.0'
+model: NvtxCapture
+
+integrations:
+  nvtx: true
+
+entities:
+  Process:
+    events:
+      started:
+        attributes:
+          identity: { os: process }

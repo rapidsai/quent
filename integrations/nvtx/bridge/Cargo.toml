@@ -9,7 +9,7 @@ publish.workspace = true
 
 [dependencies]
 libc = "0.2"
-quent-nvtx-events = { path = "../events" }
+quent-nvtx-sink = { path = "../sink" }
 nvtx-injection = { path = "../injection" }
 nvtx-sys = { workspace = true }
 quent-events = { path = "../../../crates/events" }
@@ -19,8 +19,14 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 uuid = { workspace = true }
 
+[build-dependencies]
+quent-instrumentation-build = { path = "../../../crates/instrumentation-build" }
+quent-yaml = { path = "../../../crates/yaml" }
+
 [target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dev-dependencies]
+quent-nvtx-analyzer = { path = "../analyzer" }
 nvtx = { workspace = true }
 nvtx-injection = { path = "../injection", features = ["static-injection"] }
 quent-instrumentation = { path = "../../../crates/instrumentation", features = ["io-callback"] }
 tokio = { workspace = true, features = ["rt"] }
+serde_json.workspace = true

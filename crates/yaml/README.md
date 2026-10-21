@@ -340,6 +340,71 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin log-sink
 ```
 
+## NVTX sinks
+
+Enable NVTX under the top-level `integrations` key. This adds exactly one entity
+type, `quent::nvtx::Sink`, and its event records to the schema. At least one
+entity in the schema must represent an OS process:
+
+```yaml
+quent: alpha
+model: nvtx_sink
+integrations:
+  nvtx: true
+entities:
+  Process:
+    events:
+      started:
+        attributes:
+          identity: { os: process }
+```
+
+The NVTX entity has a once-only `initialized` event with a single `process` attribute,
+an ordinary type-erased `ref` without data. It associates an NVTX instance with
+a process instance without declaring a scope relationship. Its remaining events
+are repeatable:
+`range_push`, `range_pop`, `range_start`, `range_end`, `mark`, `domain_create`,
+`domain_destroy`, `register_string`, `name_category`, `name_thread`,
+`resource_create`, `resource_destroy`, `schema_register`, `enum_register`, and
+`binary_payload`. Each carries one `data` attribute referencing a canonical
+record, such as `quent::nvtx::RangePush`.
+
+The 15 call records and four shared records (`NvtxEventAttributes`, `NvtxColor`,
+`NvtxMessage`, and `NvtxPayload`) are generated once under `quent::nvtx`, shared
+by all instances. Handles remain raw integers, and domain zero denotes the default
+domain. Field names and widths match the existing NVTX event vocabulary.
+
+`NvtxMessage` has optional `string` and `registered_handle` fields. Producers
+must populate exactly one. `NvtxPayload` contains `payload_type: i32` and
+`value: u64`. Store the tagged union member's bits, using two's complement for
+signed integers and `to_bits()` for floating-point values. For 32-bit members,
+zero the upper 32 bits. Optional message, color, and payload attributes remain
+optional.
+
+Rust generation imports `SinkEvent` and the canonical records from
+`quent-nvtx-sink`, using `quent.codegen.rust.type` metadata added by the integration.
+Generated Rust crates must depend on `quent-nvtx-sink`. The complete definitions
+remain in the schema for validation and other language generators.
+
+The generated NVTX entity and its events cannot be customized. The
+`quent.nvtx.v0.1.0` constraint is attached automatically and cannot be written
+directly in YAML.
+
+All process entity types share the single `quent::nvtx::Sink` entity type. Each process instance can have its own NVTX
+instance, identified by a UUID and associated through `initialized.process`.
+The NVTX entity is a separate root in schemas using the reference-tree
+constraint; its process reference carries no target-type restriction.
+
+The [NVTX sink example](../../integrations/nvtx/example/) captures calls made through the NVTX
+Rust API and prints the events received by the generated context. It requires
+Linux 64-bit:
+
+```console
+cargo run -p quent-nvtx-example
+```
+
+The example installs the bridge with a sink observer and a process reference.
+
 ## Type reference
 
 Scalar attributes support `bool`, `string`, `uuid`, `dynamic`, `u8`, `u16`,

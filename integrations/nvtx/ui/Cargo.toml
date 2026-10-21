@@ -14,7 +14,7 @@ serde.workspace = true
 ts-rs.workspace = true
 
 [dev-dependencies]
-quent-nvtx-events = { path = "../events" }
+quent-nvtx-sink = { path = "../sink" }
 quent-events = { path = "../../../crates/events" }
 serde_json.workspace = true
 uuid.workspace = true

@@ -14,7 +14,7 @@ and links a small shim so NVTX initializes capture **in-process**. Runtime
 loading through `NVTX_INJECTION64_PATH` is not supported.
 
 **In-process capture requires 64-bit Linux.** `nvtx-injection` enforces this at
-compile time. The event types, analyzer, server, and UI build without the
+compile time. The event types, analyzer, and UI build without the
 injection crate. The bridge is used only when capturing NVTX events.
 
 ## Contents
@@ -29,15 +29,20 @@ injection crate. The bridge is used only when capturing NVTX events.
 | Crate                 | Path             | Role                                                                                                                                                                                                                                         |
 | --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nvtx-injection`      | `injection/`     | The **NVTX C ABI layer**, intended for upstreaming. Fills NVTX's callback tables, copies caller-owned values into `Record`, and calls a `Fn(Record)` hook. Supports in-process `static-injection` only.                              |
-| `quent-nvtx-events`   | `events/`        | The NVTX event types used by the Quent observer and analyzer.                                                                                                                                                                                 |
-| `quent-nvtx-bridge`   | `bridge/`        | Queues owned `Record` values, converts them to `NvtxEvent` on a worker, and forwards them to an observer. Depends on the Linux-only injection crate.                                                                                         |
+| `quent-nvtx-sink` | `sink/` | Schema-generated NVTX event types used by the bridge. |
+| `quent-nvtx-bridge`   | `bridge/`        | Queues owned `Record` values, converts them to `SinkEvent` on a worker, and forwards them to an observer. Depends on the Linux-only injection crate.                                                                                         |
 | `quent-nvtx-example`  | `example/`       | A runnable example that forwards NVTX events to an observer.                                                                                                                                                                                 |
 | `quent-nvtx-analyzer` | `analyzer/`      | Reconstructs ranges, names, and resources from recorded NVTX events.                                                                                                                                                                         |
 | `quent-nvtx-ui`       | `ui/`            | Defines the NVTX viewport data and presentation contracts.                                                                                                                                                                                   |
-| `nvtx-server`         | `server/`        | Loads NVTX streams and serves the analyzer and UI data through HTTP routes.                                                                                                                                                                  |
 
-The server reads recorded `NvtxEvent` values directly. Recording applications
-use the bridge to convert injection `Record`s.
+The bridge and analyzer share the schema-generated event types in
+`quent-nvtx-sink`. The filesystem stream is named `quent::nvtx::Sink`.
+
+NVTX events use the application's generated schema loader. Application analysis
+reconstructs an `NvtxModel` for each sink and exposes it through
+the simulator analyzer's `nvtx_models` method. Application-owned routes serve
+these models using the same analyzer cache as the regular server, without a
+separate NVTX importer or cache. The query-engine domain does not depend on NVTX.
 
 ## How capture works
 
@@ -54,14 +59,37 @@ use the bridge to convert injection `Record`s.
    thread's OS ID. It queues the owned record for a worker to convert and send
    to the observer.
 5. The worker owns the observer. Dropping the capture closes its queue, drains
-   records accepted before it closed, then flushes the observer. The hook and
-   callback pointers stay installed for the process lifetime. Later calls are
-   ignored.
+   records accepted before it closed, and releases its observer. Exporter
+   flushing occurs when the final observer owner is dropped. The hook and
+   callback pointers stay installed for the process lifetime. Later calls are ignored.
 
 ## Using it
 
-Create an observer, then pass it to `Capture::install` before the NVTX events to
-capture. See the [runnable example](example/src/main.rs) for the complete setup.
+`Capture::install` accepts a regular `Observer<E>` whose payload is the shared
+`quent_nvtx_sink::quent::nvtx::SinkEvent`, plus a type-erased reference to the parent process:
+
+```rust
+let capture = Capture::install(
+    context.observer::<instrumentation::quent::nvtx::Sink>(),
+    process.as_any_entity_ref(),
+)?;
+```
+
+Installation creates an NVTX instance and emits `Initialized` with the process
+reference before captured events. The process reference is not validated at runtime.
+Captured events share the new instance UUID and retain their original timestamps.
+The capture worker drains accepted records before releasing its observer.
+Other observer owners, including handles and generated contexts, must also be
+released before exporter flushing completes.
+
+The [runnable example](example/src/main.rs) creates a process handle and obtains
+the sink observer from a generated application context. Its schema enables
+`integrations.nvtx: true`; Rust generation imports the payload and records from
+`quent-nvtx-sink`. The application combined-event enum wraps the shared payload.
+
+```console
+cargo run -p quent-nvtx-example
+```
 
 Installation is one-shot. The hook remains installed after the capture is
 dropped, but events are discarded. An exporter that emits NVTX for every
@@ -89,7 +117,7 @@ pixi run cargo run -p quent-nvtx-example
 ```
 
 It prints one line per event — entity `id`, capture `timestamp` (ns), and the
-`NvtxEvent`:
+`SinkEvent`:
 
 ```text
 [019f… @ 1784726504601037528] Mark { domain: 0, attributes: { message: Some(String("startup")), .. } }

@@ -1,17 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+mod nvtx;
+
 use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
-use nvtx_server::{import_context_events, routes as nvtx_routes};
 use quent_analyzer::context::index_contexts;
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use quent_mcp::{http_routes as mcp_routes, local_api_base};
 use quent_query_engine_analyzer::ui::QuentViewer;
 use quent_query_engine_server::{
-    analyzer_service_router_with_routes, collector_service, initialize_tracing,
+    analyzer_cache::AnalyzerCache, analyzer_service_router_with_cache, collector_service,
+    initialize_tracing,
 };
 use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
 use quent_simulator_instrumentation as instrumentation;
@@ -95,7 +97,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let importer_output_dir = output_dir.clone();
     let lister_output_dir = output_dir.clone();
-    let nvtx_output_dir = output_dir.clone();
 
     let format = match exporter.as_str() {
         "ndjson" => Format::Ndjson,
@@ -146,19 +147,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
     };
 
+    let analyzers = AnalyzerCache::<SimulatorUiAnalyzer>::new(Box::new(importer), Box::new(lister));
+    let additional_routes = axum::Router::new()
+        .nest("/api/engines", nvtx::routes(analyzers.clone()))
+        .merge(mcp_routes);
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            analyzer_service_router_with_routes::<SimulatorUiAnalyzer>(
-                Box::new(importer),
-                Box::new(lister),
-                cors_address,
-                nvtx_routes(Box::new(move |context_id| {
-                    import_context_events(&nvtx_output_dir, context_id)
-                }))
-                .merge(mcp_routes),
-            )?
-            .into_make_service(),
+            analyzer_service_router_with_cache(analyzers, cors_address, additional_routes)?
+                .into_make_service(),
         )
         .await?;
         Ok::<(), Box<dyn std::error::Error>>(())

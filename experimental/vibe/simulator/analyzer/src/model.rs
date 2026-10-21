@@ -16,7 +16,7 @@ use quent_query_engine_analyzer::{
     OperatorEntityMut, QueryEngineModel, QueryEngineModelMut, plan_tree::PlanTree,
 };
 use quent_query_engine_ui::EntityRef;
-use quent_simulator_store::SimulatorEvent;
+use quent_simulator_store::{self as schema, SimulatorEvent};
 use quent_ui::{FsmTypeSelection, ResourceGroupTypeDecl};
 use uuid::Uuid;
 
@@ -103,6 +103,7 @@ fn derive_resource_scope_types(
 
 /// A model of the simulator engine
 pub struct SimulatorModel {
+    pub(crate) nvtx: HashMap<Uuid, quent_nvtx_analyzer::NvtxModel>,
     pub(crate) engine: Engine,
     pub(crate) workers: HashMap<Uuid, Worker>,
     pub(crate) queries: HashMap<Uuid, Query>,
@@ -497,6 +498,7 @@ impl Using for SimulatorModel {
 }
 
 pub struct SimulatorModelBuilder {
+    nvtx: HashMap<Uuid, Vec<Event<quent_nvtx_sink::quent::nvtx::SinkEvent>>>,
     engine_id: Uuid,
     engine: Option<Engine>,
     workers: HashMap<Uuid, Worker>,
@@ -526,6 +528,7 @@ impl SimulatorModelBuilder {
         }
         Ok(Self {
             engine_id,
+            nvtx: HashMap::default(),
             engine: None,
             workers: HashMap::default(),
             queries: HashMap::default(),
@@ -553,6 +556,16 @@ impl SimulatorModelBuilder {
             data,
         } = event;
         match data {
+            SimulatorEvent::Quent(schema::quent::QuentEvent::Nvtx(
+                schema::quent::nvtx::NvtxEvent::Sink(data),
+            )) => {
+                self.nvtx
+                    .entry(id)
+                    .or_default()
+                    .push(Event::new(id, timestamp, data));
+                Ok(())
+            }
+            SimulatorEvent::Process(_) => Ok(()),
             SimulatorEvent::Task(t) => {
                 let task_builder = match self.tasks.entry(id) {
                     Entry::Occupied(entry) => entry.into_mut(),
@@ -751,6 +764,11 @@ impl SimulatorModelBuilder {
         .collect();
 
         let mut model = SimulatorModel {
+            nvtx: self
+                .nvtx
+                .into_iter()
+                .map(|(id, events)| (id, quent_nvtx_analyzer::NvtxModelBuilder::build(events)))
+                .collect(),
             engine,
             workers: self.workers,
             queries,

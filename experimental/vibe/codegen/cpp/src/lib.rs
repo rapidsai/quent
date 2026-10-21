@@ -6,6 +6,7 @@
 mod common;
 mod dynamic_attributes;
 mod facade;
+mod nvtx;
 mod types;
 
 use std::path::{Component, Path, PathBuf};
@@ -36,18 +37,6 @@ pub struct Options {
     pub dynamic_attributes_path: String,
     /// Exporter constructors to expose in the generated API.
     pub exporters: Exporters,
-    /// Whether generated contexts can capture NVTX events.
-    pub nvtx: NvtxSupport,
-}
-
-/// Optional NVTX capture support in generated bindings.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum NvtxSupport {
-    /// Preserve the API without NVTX dependencies.
-    #[default]
-    Disabled,
-    /// Allow active exporters to capture NVTX events.
-    Enabled,
 }
 
 /// Exporter constructors generated for a bridge.
@@ -86,7 +75,6 @@ impl Default for Options {
             io_path: "quent_io".to_owned(),
             dynamic_attributes_path: "quent_dynamic_attributes".to_owned(),
             exporters: Exporters::default(),
-            nvtx: NvtxSupport::Disabled,
         }
     }
 }
@@ -128,7 +116,7 @@ pub enum GenerateError {
 pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, GenerateError> {
     validate_schema(schema)?;
     validate_options(options)?;
-    validate_names(schema, options)?;
+    validate_names(schema)?;
     let instrumentation = parse_path(&options.instrumentation_path)?;
     let runtime = parse_path(&options.runtime_path)?;
     let io = parse_path(&options.io_path)?;
@@ -201,7 +189,7 @@ fn validate_options(options: &Options) -> Result<(), GenerateError> {
     Ok(())
 }
 
-fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateError> {
+fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     let mut file_names = ["uuid", "dynamic_attributes", "context"]
         .into_iter()
         .map(str::to_owned)
@@ -224,7 +212,7 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
 
         let entity_name = path_pascal(entity.path());
         if entity.path().namespace().is_empty()
-            && [
+            && ([
                 "Uuid",
                 "EntityId",
                 "Handle",
@@ -235,11 +223,7 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
                 "Context",
             ]
             .contains(&entity_name.as_str())
-            || entity.path().namespace().is_empty()
-                && entity_name == "NvtxCapture"
-                && options.nvtx == NvtxSupport::Enabled
-            // Schema and NVTX payloads must not share a filesystem/collector stream.
-            || options.nvtx == NvtxSupport::Enabled && entity.path() == "NvtxEvent"
+                || entity_name == "NvtxCapture" && nvtx::enabled(schema))
         {
             return Err(GenerateError::NameCollision { name: entity_name });
         }
@@ -446,17 +430,6 @@ fn context_file(
     let include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
     let namespace = &detail_namespace;
     let uuid_namespace = format!("{detail_namespace}::uuid");
-    let nvtx_enabled = options.nvtx == NvtxSupport::Enabled;
-    let nvtx_declaration = if nvtx_enabled {
-        "    #[derive(Debug, Clone, Copy, PartialEq, Eq)]\n    enum NvtxCapture { Disabled, Enabled }\n"
-    } else {
-        ""
-    };
-    let nvtx_parameter = if nvtx_enabled {
-        ", nvtx_capture: NvtxCapture"
-    } else {
-        ""
-    };
     let mut exporter_declarations =
         String::from("        #[Self = \"ExporterOptions\"] fn none() -> Box<ExporterOptions>;\n");
     if options.exporters.ndjson {
@@ -488,10 +461,10 @@ pub mod ffi {{
         include!("{include}");
         type UUID = super::super::uuid::ffi::UUID;
     }}
-{nvtx_declaration}    extern "Rust" {{
+    extern "Rust" {{
         type ExporterOptions;
 {exporter_declarations}        type Context;
-        fn create_context(options: Box<ExporterOptions>{nvtx_parameter}) -> Result<Box<Context>>;
+        fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>;
         fn id(self: &Context) -> UUID;
     }}
 }}
@@ -502,36 +475,7 @@ pub mod ffi {{
         .any()
         .then(|| quote! { Options(#io::ExporterOptions), });
     let option_match = options.exporters.any().then(|| {
-        if nvtx_enabled {
-            quote! {
-                ExporterKind::Options(options) => {
-                    let inner = <#context_ty>::try_new(options.clone())
-                        .map_err(|error| error.to_string())?;
-                    if nvtx_capture == ffi::NvtxCapture::Enabled {
-                        let context_id = inner.id();
-                        let runtime = #runtime::ContextInner::try_new(context_id)
-                            .map_err(|error| error.to_string())?;
-                        let observer = runtime.block_on(
-                            runtime.observer::<quent_nvtx_events::NvtxEvent>(&options)
-                        ).map_err(|error| error.to_string())?;
-                        let capture = quent_nvtx_bridge::Capture::install(
-                            context_id, observer
-                        ).map_err(|error| error.to_string())?;
-                        Ok(Box::new(Context {
-                            _nvtx_capture: Some(capture),
-                            inner,
-                        }))
-                    } else {
-                        Ok(Box::new(Context {
-                            _nvtx_capture: None,
-                            inner,
-                        }))
-                    }
-                }
-            }
-        } else {
-            quote! { ExporterKind::Options(options) => <#context_ty>::try_new(options), }
-        }
+        quote! { ExporterKind::Options(options) => <#context_ty>::try_new(options), }
     });
     let mut exporter_methods = Vec::new();
     if options.exporters.ndjson {
@@ -580,41 +524,13 @@ pub mod ffi {{
                 }
             }
         });
-    // Rust drops fields in declaration order: drain the capture worker and flush
-    // its observer before releasing the schema context.
-    let nvtx_fields = nvtx_enabled.then(|| {
-        quote! {
-            _nvtx_capture: Option<quent_nvtx_bridge::Capture>,
-        }
-    });
-    let create_context = if nvtx_enabled {
-        quote! {
-            pub fn create_context(
-                options: Box<ExporterOptions>,
-                nvtx_capture: ffi::NvtxCapture,
-            ) -> Result<Box<Context>, String> {
-                match options.inner {
-                    ExporterKind::Noop => {
-                        let inner = <#context_ty>::try_new(#runtime::Noop)
-                            .map_err(|error| error.to_string())?;
-                        Ok(Box::new(Context {
-                            _nvtx_capture: None,
-                            inner,
-                        }))
-                    }
-                    #option_match
-                }
-            }
-        }
-    } else {
-        quote! {
-            pub fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>, String> {
-                let inner = match options.inner {
-                    ExporterKind::Noop => <#context_ty>::try_new(#runtime::Noop),
-                    #option_match
-                }.map_err(|error| error.to_string())?;
-                Ok(Box::new(Context { inner }))
-            }
+    let create_context = quote! {
+        pub fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>, String> {
+            let inner = match options.inner {
+                ExporterKind::Noop => <#context_ty>::try_new(#runtime::Noop),
+                #option_match
+            }.map_err(|error| error.to_string())?;
+            Ok(Box::new(Context { inner }))
         }
     };
     let tokens = quote! {
@@ -632,7 +548,6 @@ pub mod ffi {{
         }
 
         pub struct Context {
-            #nvtx_fields
             pub(crate) inner: #context_ty
         }
 

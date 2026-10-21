@@ -12,10 +12,12 @@ mod records;
 #[cfg(test)]
 mod tests;
 
+pub use events::{event_type_path, extern_type};
+
 use proc_macro2::TokenStream;
 use quent_constraints::{BaseConstraintsError, Report};
 use quent_ref_target::{RefTargetConstraint, RefTargetError};
-use quent_schema::Schema;
+use quent_schema::{Path, Schema};
 use quote::quote;
 
 /// Validates base and reference-target constraints and returns unregistered constraint names.
@@ -37,6 +39,10 @@ pub fn validate_schema(schema: &Schema) -> Result<Vec<String>, Error> {
 
 /// Returns event types using runtime paths supplied by the calling generator.
 ///
+/// Record metadata `quent.codegen.rust.type` selects an extern Rust type whose
+/// public fields must match the schema's generated names and types; all schema
+/// fields remain required. The type is re-exported under the schema-generated name.
+///
 /// # Errors
 ///
 /// Returns validation or type-generation errors.
@@ -50,7 +56,7 @@ pub fn generate_str(schema: &Schema, opts: &Options, runtime: &Runtime) -> Resul
 /// # Errors
 ///
 /// Returns an error for invalid derives or excessive nesting in a schema event
-/// or record field's type.
+/// or record field's type, or invalid extern type metadata.
 pub fn generate_namespace(
     schema: &Schema,
     opts: &Options,
@@ -60,17 +66,18 @@ pub fn generate_namespace(
     let records = namespace
         .records()
         .iter()
-        .map(|record| records::record_struct(record, opts, runtime))
+        .map(|record| records::record_struct(schema, record, opts, runtime))
         .collect::<Result<Vec<_>, _>>()?;
     let events = namespace
         .entities()
         .iter()
-        .map(|entity| events::entity_event_payload_enum(entity, opts, runtime))
+        .map(|entity| events::entity_event_payload_enum(schema, entity, opts, runtime))
         .collect::<Result<Vec<_>, _>>()?;
     let markers = namespace
         .entities()
         .iter()
-        .map(|entity| events::entity_types(entity, runtime));
+        .map(|entity| events::entity_types(entity, runtime))
+        .collect::<Result<Vec<_>, _>>()?;
     let model = model::generate(schema, namespace, opts, runtime)?;
     Ok(NamespaceCode {
         declarations: quote! { #(#records)* #(#events)* #(#markers)* },
@@ -126,6 +133,14 @@ pub enum Error {
     InvalidRefTarget(#[from] RefTargetError),
     #[error("invalid derive path {derive:?}")]
     InvalidDerive { derive: String, source: syn::Error },
+    #[error(
+        "schema type `{path}` has invalid `quent.codegen.rust.type` metadata {value:?}: {source}"
+    )]
+    InvalidExternType {
+        path: Path,
+        value: Option<String>,
+        source: syn::Error,
+    },
     #[error("generated code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
     #[error("field type nesting exceeds the maximum depth of {max}")]

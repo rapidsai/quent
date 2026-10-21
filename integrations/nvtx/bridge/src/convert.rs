@@ -4,10 +4,7 @@
 //! Decode owned NVTX records without accessing application memory.
 
 use nvtx_injection::record::{Attributes, Message, Record, String as RecordString};
-use nvtx_sys::ffi::nvtxPayloadType_t;
-use quent_nvtx_events::{
-    NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
-};
+use quent_nvtx_sink::quent::nvtx::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) fn current_thread_id() -> u32 {
@@ -28,67 +25,87 @@ fn compute_thread_id() -> u32 {
 /// Convert an owned injection record into an NVTX event.
 ///
 /// Push/pop records receive the calling thread's OS ID.
-pub fn convert(record: Record) -> NvtxEvent {
+pub fn convert(record: Record) -> SinkEvent {
     convert_with_thread_id(record, None)
 }
 
-pub(crate) fn convert_with_thread_id(record: Record, caller_thread_id: Option<u32>) -> NvtxEvent {
+pub(crate) fn convert_with_thread_id(record: Record, caller_thread_id: Option<u32>) -> SinkEvent {
     match record {
         Record::RangePush {
             domain,
             attributes: raw,
-        } => NvtxEvent::RangePush {
-            domain,
-            thread_id: caller_thread_id.unwrap_or_else(current_thread_id),
-            attributes: attributes(raw),
+        } => SinkEvent::RangePush {
+            data: RangePush {
+                domain,
+                thread_id: caller_thread_id.unwrap_or_else(current_thread_id),
+                attributes: attributes(raw),
+            },
         },
-        Record::RangePop { domain } => NvtxEvent::RangePop {
-            domain,
-            thread_id: caller_thread_id.unwrap_or_else(current_thread_id),
+        Record::RangePop { domain } => SinkEvent::RangePop {
+            data: RangePop {
+                domain,
+                thread_id: caller_thread_id.unwrap_or_else(current_thread_id),
+            },
         },
         Record::RangeStart {
             domain,
             range_id,
             attributes: raw,
-        } => NvtxEvent::RangeStart {
-            domain,
-            range_id,
-            attributes: attributes(raw),
+        } => SinkEvent::RangeStart {
+            data: RangeStart {
+                domain,
+                range_id,
+                attributes: attributes(raw),
+            },
         },
-        Record::RangeEnd { domain, range_id } => NvtxEvent::RangeEnd { domain, range_id },
+        Record::RangeEnd { domain, range_id } => SinkEvent::RangeEnd {
+            data: RangeEnd { domain, range_id },
+        },
         Record::Mark {
             domain,
             attributes: raw,
-        } => NvtxEvent::Mark {
-            domain,
-            attributes: attributes(raw),
+        } => SinkEvent::Mark {
+            data: Mark {
+                domain,
+                attributes: attributes(raw),
+            },
         },
-        Record::DomainCreate { domain, name } => NvtxEvent::DomainCreate {
-            domain,
-            name: string(name),
+        Record::DomainCreate { domain, name } => SinkEvent::DomainCreate {
+            data: DomainCreate {
+                domain,
+                name: string(name),
+            },
         },
-        Record::DomainDestroy { domain } => NvtxEvent::DomainDestroy { domain },
+        Record::DomainDestroy { domain } => SinkEvent::DomainDestroy {
+            data: DomainDestroy { domain },
+        },
         Record::RegisterString {
             domain,
             handle,
             string: raw,
-        } => NvtxEvent::RegisterString {
-            domain,
-            handle,
-            string: string(raw),
+        } => SinkEvent::RegisterString {
+            data: RegisterString {
+                domain,
+                handle,
+                string: string(raw),
+            },
         },
         Record::NameCategory {
             domain,
             category,
             name,
-        } => NvtxEvent::NameCategory {
-            domain,
-            category,
-            name: string(name),
+        } => SinkEvent::NameCategory {
+            data: NameCategory {
+                domain,
+                category,
+                name: string(name),
+            },
         },
-        Record::NameThread { thread_id, name } => NvtxEvent::NameThread {
-            thread_id,
-            name: string(name),
+        Record::NameThread { thread_id, name } => SinkEvent::NameThread {
+            data: NameThread {
+                thread_id,
+                name: string(name),
+            },
         },
         Record::ResourceCreate {
             domain,
@@ -96,14 +113,18 @@ pub(crate) fn convert_with_thread_id(record: Record, caller_thread_id: Option<u3
             identifier_type,
             identifier,
             message: raw,
-        } => NvtxEvent::ResourceCreate {
-            domain,
-            handle,
-            identifier_type,
-            identifier,
-            message: raw.map(message),
+        } => SinkEvent::ResourceCreate {
+            data: ResourceCreate {
+                domain,
+                handle,
+                identifier_type,
+                identifier,
+                message: raw.map(message),
+            },
         },
-        Record::ResourceDestroy { handle } => NvtxEvent::ResourceDestroy { handle },
+        Record::ResourceDestroy { handle } => SinkEvent::ResourceDestroy {
+            data: ResourceDestroy { handle },
+        },
     }
 }
 
@@ -115,38 +136,23 @@ fn attributes(raw: Attributes) -> NvtxEventAttributes {
             value: raw.value,
         }),
         message: raw.message.map(message),
-        payload: raw.payload.map(|raw| {
-            let bits = raw.bits;
-            let value = match raw.payload_type {
-                tag if tag == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT64 as i32 => {
-                    NvtxPayloadValue::Int64(bits as i64)
-                }
-                tag if tag == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_DOUBLE as i32 => {
-                    NvtxPayloadValue::Double(f64::from_bits(bits))
-                }
-                tag if tag == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT32 as i32 => {
-                    NvtxPayloadValue::UnsignedInt32(bits as u32)
-                }
-                tag if tag == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT32 as i32 => {
-                    NvtxPayloadValue::Int32(bits as i32)
-                }
-                tag if tag == nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_FLOAT as i32 => {
-                    NvtxPayloadValue::Float(f32::from_bits(bits as u32))
-                }
-                _ => NvtxPayloadValue::UnsignedInt64(bits),
-            };
-            NvtxPayload {
-                payload_type: raw.payload_type,
-                value,
-            }
+        payload: raw.payload.map(|raw| NvtxPayload {
+            payload_type: raw.payload_type,
+            value: raw.bits,
         }),
     }
 }
 
 fn message(raw: Message) -> NvtxMessage {
     match raw {
-        Message::String(raw) => NvtxMessage::String(string(raw)),
-        Message::RegisteredHandle(handle) => NvtxMessage::RegisteredHandle(handle),
+        Message::String(raw) => NvtxMessage {
+            string: Some(string(raw)),
+            registered_handle: None,
+        },
+        Message::RegisteredHandle(handle) => NvtxMessage {
+            string: None,
+            registered_handle: Some(handle),
+        },
     }
 }
 

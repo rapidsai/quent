@@ -255,15 +255,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
-name = "cobs"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fa961b519f0b462e3a3b4a34b64d119eeaca1d59af726fe450bbba07a9fc0a1"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
 name = "codespan-reporting"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -359,18 +350,6 @@ name = "either"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
-
-[[package]]
-name = "embedded-io"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef1a6892d9eef45c8fa6b9e0086428a2cca8491aca8f787c534a3d6d0bcb3ced"
-
-[[package]]
-name = "embedded-io"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
 name = "encoding_rs"
@@ -984,18 +963,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05c8b63e8d9609db387f0324918f81d68fe27748f084ef092fb35954d0539a85"
 
 [[package]]
-name = "postcard"
-version = "1.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6764c3b5dd454e283a30e6dfe78e9b31096d9e32036b5d1eaac7a6119ccb9a24"
-dependencies = [
- "cobs",
- "embedded-io 0.4.0",
- "embedded-io 0.6.1",
- "serde",
-]
-
-[[package]]
 name = "prettyplease"
 version = "0.2.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1323,12 +1290,9 @@ version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-build",
- "nvtx-injection",
  "quent-dynamic-attributes",
  "quent-instrumentation",
  "quent-io",
- "quent-nvtx-bridge",
- "quent-nvtx-events",
  "quent-readme-example",
  "quent-schema-codegen-cpp",
  "quent-yaml",
@@ -1450,9 +1414,7 @@ dependencies = [
  "http",
  "quent-events",
  "quent-io-collector",
- "quent-io-msgpack",
  "quent-io-ndjson",
- "quent-io-postcard",
  "quent-io-types",
  "serde",
  "uuid",
@@ -1473,20 +1435,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-io-msgpack"
-version = "0.2.0"
-dependencies = [
- "async-trait",
- "quent-events",
- "quent-io-types",
- "rmp-serde",
- "serde",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "quent-io-ndjson"
 version = "0.2.0"
 dependencies = [
@@ -1495,20 +1443,6 @@ dependencies = [
  "quent-io-types",
  "serde",
  "serde_json",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "quent-io-postcard"
-version = "0.2.0"
-dependencies = [
- "async-trait",
- "postcard",
- "quent-events",
- "quent-io-types",
- "serde",
  "tokio",
  "tracing",
  "uuid",
@@ -1537,6 +1471,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-nvtx"
+version = "0.2.0"
+dependencies = [
+ "quent-constraints",
+ "quent-schema",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-nvtx-bridge"
 version = "0.2.0"
 dependencies = [
@@ -1545,8 +1488,10 @@ dependencies = [
  "nvtx-sys",
  "quent-events",
  "quent-instrumentation",
- "quent-nvtx-events",
+ "quent-instrumentation-build",
+ "quent-nvtx-sink",
  "quent-time",
+ "quent-yaml",
  "thiserror",
  "tokio",
  "uuid",
@@ -1560,24 +1505,28 @@ dependencies = [
  "cxx-build",
  "nvtx-injection",
  "quent-dynamic-attributes",
+ "quent-events",
  "quent-instrumentation",
+ "quent-instrumentation-build",
  "quent-io",
  "quent-nvtx-bridge",
- "quent-nvtx-events",
- "quent-readme-example",
+ "quent-nvtx-sink",
  "quent-schema-codegen-cpp",
  "quent-yaml",
- "serde_json",
  "tempfile",
  "uuid",
 ]
 
 [[package]]
-name = "quent-nvtx-events"
+name = "quent-nvtx-sink"
 version = "0.2.0"
 dependencies = [
  "quent-events",
+ "quent-events-build",
+ "quent-nvtx",
+ "quent-schema",
  "serde",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -1657,6 +1606,7 @@ dependencies = [
  "proc-macro2",
  "quent-constraints",
  "quent-fsm",
+ "quent-nvtx",
  "quent-ref-target",
  "quent-schema",
  "quent-yaml",
@@ -2058,6 +2008,7 @@ dependencies = [
  "quent-dag",
  "quent-fsm",
  "quent-log",
+ "quent-nvtx",
  "quent-os",
  "quent-ref-target",
  "quent-ref-tree",
@@ -2114,25 +2065,6 @@ name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
-
-[[package]]
-name = "rmp"
-version = "0.8.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba8be72d372b2c9b35542551678538b562e7cf86c3315773cae48dfbfe7790c"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "rmp-serde"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72f81bee8c8ef9b577d1681a70ebbc962c232461e397b22c208c43c04b67a155"
-dependencies = [
- "rmp",
- "serde",
-]
 
 [[package]]
 name = "rustc-hash"

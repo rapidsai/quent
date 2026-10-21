@@ -17,6 +17,7 @@ export {
   fetchDataFlow,
   fetchEntityList,
   fetchEngineContexts,
+  fetchNvtxSinks,
   fetchNvtxCatalog,
   fetchNvtxViewport,
 } from './api';

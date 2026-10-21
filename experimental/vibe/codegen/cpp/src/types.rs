@@ -81,6 +81,29 @@ fn regular_entity_file(
     let entity_ty = rust_path(instrumentation, entity.path(), "");
     let observer_ident = format_ident!("{observer_name}");
     let handle_ident = format_ident!("{handle_name}");
+    let capture = if crate::nvtx::is_sink(entity) {
+        extern_body.push_str(&format!(
+            "        type NvtxCapture;\n        fn install_capture(observer: &{observer_name}, process: UUID) -> Result<Box<NvtxCapture>>;\n"
+        ));
+        quote! {
+            pub struct NvtxCapture {
+                _inner: ::quent_nvtx_bridge::Capture,
+            }
+
+            pub fn install_capture(
+                observer: &#observer_ident,
+                process: ffi::UUID,
+            ) -> Result<Box<NvtxCapture>, String> {
+                let capture = ::quent_nvtx_bridge::Capture::install(
+                    observer.inner.clone(),
+                    #runtime::EntityRef::new(#runtime::Uuid::from(process), ()),
+                ).map_err(|error| error.to_string())?;
+                Ok(Box::new(NvtxCapture { _inner: capture }))
+            }
+        }
+    } else {
+        quote! {}
+    };
     let mut methods = Vec::new();
     for event in entity.events() {
         let rust_method = raw_ident(to_case(event.name(), Case::Snake));
@@ -187,6 +210,7 @@ pub mod ffi {{
     );
 
     let tokens = quote! {
+        #capture
         pub struct #observer_ident { inner: #instrumentation::Observer<#entity_ty> }
         pub struct #handle_ident { inner: #instrumentation::Handle<#entity_ty> }
 

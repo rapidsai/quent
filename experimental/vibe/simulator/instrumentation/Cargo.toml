@@ -8,6 +8,7 @@ publish.workspace = true
 collector = ["quent-instrumentation/io-collector"]
 
 [dependencies]
+quent-nvtx-sink = { path = "../../../../integrations/nvtx/sink" }
 quent-events = { workspace = true, features = ["serde"] }
 quent-instrumentation = { path = "../../../../crates/instrumentation", features = [
     "io-msgpack",

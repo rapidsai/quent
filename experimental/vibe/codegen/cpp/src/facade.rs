@@ -9,7 +9,7 @@ use quent_ref_target::RefTarget;
 use quent_schema::{Annotations, Cardinality, DataType, Entity, Event, Field, Path, Schema};
 
 use crate::common::{cxx_safe, path_pascal, path_snake, to_case};
-use crate::{GenerateError, GeneratedFile, NvtxSupport, Options};
+use crate::{GenerateError, GeneratedFile, Options};
 
 pub(crate) fn emit(schema: &Schema, options: &Options) -> Result<GeneratedFile, GenerateError> {
     let mut output = String::from("#pragma once\n");
@@ -32,6 +32,12 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Result<GeneratedFile, 
     );
 
     emit_common(options, &mut output);
+    if crate::nvtx::enabled(schema) {
+        output.push_str(&format!(
+            "namespace {} {{ class NvtxCapture; }}\n",
+            options.namespace
+        ));
+    }
     emit_handle_forwards(schema, options, &mut output);
     emit_value_types(schema, options, &mut output)?;
     emit_event_payloads(schema, options, &mut output);
@@ -40,6 +46,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Result<GeneratedFile, 
     emit_conversions(schema, options, &mut output);
     emit_handles(schema, options, &mut output);
     emit_context_methods(schema, options, &mut output);
+    emit_nvtx_capture(schema, options, &mut output);
 
     Ok(GeneratedFile {
         name: "quent.hpp".to_owned(),
@@ -576,11 +583,6 @@ fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String)
 
 fn emit_context_declaration(schema: &Schema, options: &Options, output: &mut String) {
     let namespace = &options.namespace;
-    if options.nvtx == NvtxSupport::Enabled {
-        output.push_str(&format!(
-            "namespace {namespace} {{\nusing NvtxCapture = detail::NvtxCapture;\n}}  // namespace {namespace}\n\n"
-        ));
-    }
     output.push_str(&format!(
         r#"namespace {namespace} {{
 class Context final {{
@@ -591,11 +593,6 @@ class Context final {{
   static Context none();
 "#
     ));
-    let nvtx_parameter = if options.nvtx == NvtxSupport::Enabled {
-        ", NvtxCapture nvtx_capture = NvtxCapture::Disabled"
-    } else {
-        ""
-    };
     for (enabled, name, argument) in [
         (options.exporters.ndjson, "ndjson", "output_dir"),
         (options.exporters.msgpack, "msgpack", "output_dir"),
@@ -604,7 +601,7 @@ class Context final {{
     ] {
         if enabled {
             output.push_str(&format!(
-                "  static Context {name}(std::string {argument}{nvtx_parameter});\n"
+                "  static Context {name}(std::string {argument});\n"
             ));
         }
     }
@@ -710,8 +707,13 @@ fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
         let prefix = path_snake(entity.path());
         let entity_type = public_entity_type(entity, options);
         let public_handle = format!("::{base_namespace}::Handle<{entity_type}>");
+        let capture_friend = if crate::nvtx::is_sink(entity) {
+            format!("\n  friend class ::{base_namespace}::NvtxCapture;")
+        } else {
+            String::new()
+        };
         output.push_str(&format!(
-            "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {public_handle} handle() const;\n  {public_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\ntemplate <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n"
+            "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {public_handle} handle() const;\n  {public_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;{capture_friend}\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\ntemplate <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n"
         ));
         for event in entity.events() {
             let method = cxx_safe(&to_case(event.name(), Case::Snake));
@@ -909,25 +911,13 @@ fn public_event_fields<'a>(entity: &Entity, event: &'a Event) -> impl Iterator<I
 
 fn emit_context_methods(schema: &Schema, options: &Options, output: &mut String) {
     let namespace = &options.namespace;
-    let nvtx_enabled = options.nvtx == NvtxSupport::Enabled;
-    let none_capture = if nvtx_enabled {
-        ", NvtxCapture::Disabled"
-    } else {
-        ""
-    };
     output.push_str(&format!(
         r#"namespace {namespace} {{
 inline Context Context::none() {{
-  return Context(detail::create_context(detail::ExporterOptions::none(){none_capture}));
+  return Context(detail::create_context(detail::ExporterOptions::none()));
 }}
 "#
     ));
-    let nvtx_parameter = if nvtx_enabled {
-        ", NvtxCapture nvtx_capture"
-    } else {
-        ""
-    };
-    let nvtx_argument = if nvtx_enabled { ", nvtx_capture" } else { "" };
     for (enabled, name, argument) in [
         (options.exporters.ndjson, "ndjson", "output_dir"),
         (options.exporters.msgpack, "msgpack", "output_dir"),
@@ -936,7 +926,7 @@ inline Context Context::none() {{
     ] {
         if enabled {
             output.push_str(&format!(
-                "inline Context Context::{name}(std::string {argument}{nvtx_parameter}) {{\n  return Context(detail::create_context(\n      detail::ExporterOptions::{name}(::rust::String(std::move({argument}))){nvtx_argument}));\n}}\n"
+                "inline Context Context::{name}(std::string {argument}) {{\n  return Context(detail::create_context(\n      detail::ExporterOptions::{name}(::rust::String(std::move({argument})))));\n}}\n"
             ));
         }
     }
@@ -1297,4 +1287,38 @@ fn entity_namespace(base: &str, path: &Path) -> String {
         )
         .collect::<Vec<_>>()
         .join("::")
+}
+
+fn emit_nvtx_capture(schema: &Schema, options: &Options, output: &mut String) {
+    let Some(entity) = schema
+        .entities()
+        .find(|entity| crate::nvtx::is_sink(entity))
+    else {
+        return;
+    };
+    let namespace = &options.namespace;
+    let public_namespace = public_entity_namespace(entity, options);
+    let raw_namespace = raw_entity_namespace(entity, options);
+    let observer = format!("{}Observer", path_pascal(entity.path()));
+    output.push_str(&format!(
+        r#"namespace {namespace} {{
+class NvtxCapture final {{
+ public:
+  NvtxCapture(NvtxCapture&&) = default;
+  NvtxCapture& operator=(NvtxCapture&&) = default;
+
+  template <typename Process>
+  static NvtxCapture install(const ::{public_namespace}::{observer}& observer,
+                             EntityId<Process> process) {{
+    return NvtxCapture(::{raw_namespace}::install_capture(*observer.inner_, process.raw()));
+  }}
+
+ private:
+  explicit NvtxCapture(::rust::Box<::{raw_namespace}::NvtxCapture> inner)
+      : inner_(std::move(inner)) {{}}
+  ::rust::Box<::{raw_namespace}::NvtxCapture> inner_;
+}};
+}}  // namespace {namespace}
+"#
+    ));
 }

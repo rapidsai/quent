@@ -80,70 +80,23 @@ shutdown waits until the last observer or handle is destroyed. Once-cardinality
 events on non-FSM entities expose `<event>_emitted()` predicates on their
 handles.
 
-## Optional NVTX capture
+## NVTX capture
 
-NVTX support is disabled by default. To generate an NVTX-capable bridge, set
-the generation option:
-
-```rust
-let options = quent_schema_codegen_cpp::Options {
-    nvtx: quent_schema_codegen_cpp::NvtxSupport::Enabled,
-    // Set crate_name, instrumentation_path, and exporters for your application.
-    ..Default::default()
-};
-```
-
-The consuming bridge crate then needs `quent-nvtx-bridge`, `quent-nvtx-events`,
-and `nvtx-injection` from the same Quent revision as its other Quent
-dependencies. The generator itself does not depend on these crates. The
-current `nvtx-injection` crate supports Linux 64-bit targets only, so
-NVTX-enabled consumer builds require that platform. Enable `nvtx-injection`'s
-`static-injection` feature for in-process capture.
-
-Generation support does not start capture. Enable capture explicitly when
-constructing an active exporter:
+Schemas enabling `integrations.nvtx: true` generate `NvtxCapture` automatically.
+Pass the regular sink observer and the associated process entity ID:
 
 ```cpp
-auto context = quent::Context::ndjson(
-    "./events", quent::NvtxCapture::Enabled);
-// Run annotated work while context is alive.
-// Events emitted during or after context destruction may not be exported.
+auto observer = context.quent_nvtx_sink_observer();
+auto capture = quent::NvtxCapture::install(*observer, process.id());
+nvtxMarkA("work");
 ```
 
-`msgpack`, `postcard`, and `collector` accept the same optional capture
-parameter. It defaults to `NvtxCapture::Disabled`; `Context::none()` never
-captures, including the raw bridge's no-op exporter branch. When generation
-support is disabled, the existing factory signatures are unchanged.
+The capture creates and initializes the sink instance. Its destructor stops
+capture and drains accepted records. It retains its Rust observer, so it can
+outlive the context that supplied the observer. Installation is one-shot per
+process.
 
-Collector capture also requires the receiving collector to route the
-`NvtxEvent` stream. A schema-only generated collector does not provide that
-route automatically; enabling capture on the sender does not add receiver
-support.
-
-The context owns a `quent_nvtx_bridge::Capture` using its context ID and
-exporter configuration. Capture queues owned injection records and converts
-them to `quent_nvtx_events::NvtxEvent` on a worker that owns the observer.
-NVTX remains a separate event stream; no schema entities need to be added.
-Dropping the context closes and drains the capture queue, joins the worker,
-and waits for the observer to flush before releasing the schema context.
-Moving the context preserves this ownership.
-
-Hook registration is one-shot per process. Constructing another capture-enabled
-context returns an error without ending the first context's capture. Destroying
-the capturing context does not permit capture to restart. Disabled contexts do
-not claim the hook. Events emitted during context destruction may be discarded;
-events emitted after destruction are not exported. Stop and join NVTX producers
-before destroying the context if complete capture is required. Do not destroy
-the context on its exporter or Quent runtime worker: joining the capture worker
-there can deadlock.
-
-The readme example bridge offers a Cargo `nvtx` feature to demonstrate opt-in
-generation:
-
-```sh
-cargo build --manifest-path experimental/vibe/codegen/Cargo.toml \
-    -p quent-demo-cpp-bridge --features nvtx
-```
-
-Its existing example calls still default to capture disabled. The enabled
-compiled regression fixture exercises runtime selection and capture separately.
+The consuming Rust bridge crate must depend on `quent-nvtx-sink`,
+`quent-nvtx-bridge`, and `nvtx-injection` with `static-injection` enabled.
+Capture currently requires Linux 64-bit. See the
+[compiled fixture](test/nvtx/) for a complete C++ example and dependency setup.

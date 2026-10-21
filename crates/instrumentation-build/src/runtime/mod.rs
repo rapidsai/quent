@@ -24,7 +24,7 @@ pub(crate) fn entity_runtime_types(
     schema: &Schema,
     entity: &Entity,
 ) -> Result<TokenStream, GenerateError> {
-    let handle = handle::entity_handle(entity)?;
+    let handle = handle::entity_handle(schema, entity)?;
     if entity
         .events()
         .any(|event| to_case(event.name(), Case::Snake) == "id")
@@ -45,7 +45,7 @@ pub(crate) fn generate_model(
     schema: &Schema,
     namespaces: &crate::namespace::Namespace<'_>,
     collector_sink: bool,
-) -> TokenStream {
+) -> Result<TokenStream, GenerateError> {
     context::schema_model(schema, namespaces, collector_sink)
 }
 
@@ -218,7 +218,7 @@ mod tests {
             &crate::event_runtime(),
         )
         .unwrap();
-        let model = generate_model(&s, &namespaces, false);
+        let model = generate_model(&s, &namespaces, false).unwrap();
         let src = pretty(quote! {
             #event_types
             #entity_types
@@ -263,7 +263,7 @@ mod tests {
             .unwrap();
         let namespaces = crate::namespace::Namespace::root(&schema);
 
-        let src = pretty(generate_model(&schema, &namespaces, false));
+        let src = pretty(generate_model(&schema, &namespaces, false).unwrap());
 
         assert!(src.contains("P: ::quent_instrumentation::ExporterProvider<foo::QueryEvent>"));
         assert!(

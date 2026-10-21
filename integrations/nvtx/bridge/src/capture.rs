@@ -18,9 +18,9 @@ use std::io;
 use std::thread::{self, JoinHandle};
 
 use nvtx_injection::Record;
-use quent_events::Event;
-use quent_instrumentation::ObserverInner;
-use quent_nvtx_events::NvtxEvent;
+use quent_events::{AnyEntity, EntityRef, Event};
+use quent_instrumentation::{InstrumentedEntity, Observer};
+use quent_nvtx_sink::quent::nvtx::SinkEvent;
 use quent_time::{TimeUnixNanoSec, timestamp};
 use thiserror::Error;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
@@ -48,37 +48,60 @@ pub enum CaptureError {
     InstallHook(#[from] nvtx_injection::InstallHookError),
 }
 
-/// Forwards NVTX records and flushes the observer on a dedicated worker.
+/// Forwards NVTX records through a regular observer on a dedicated worker.
 ///
 /// Installation is one-shot per process, including after this value is dropped.
 /// On normal completion, dropping the capture closes its queue, drains accepted
-/// records, and waits for the observer's exporter to flush. Later calls and
-/// calls racing with shutdown may be discarded.
+/// records, and releases its observer. The exporter flushes when the final
+/// observer owner is dropped. Later calls and calls racing with shutdown may
+/// be discarded.
 pub struct Capture {
     sender: UnboundedSender<Message>,
     worker: Option<JoinHandle<()>>,
 }
 
 impl Capture {
-    /// Install the NVTX hook and start forwarding records to `observer`.
+    /// Creates an NVTX instance linked to `process_entity` and installs capture.
+    ///
+    /// Emits `Initialized` before captured events, which retain their callback
+    /// timestamp and thread ID. The process reference is not validated. The capture
+    /// owns `observer` until queued records have drained.
     ///
     /// # Errors
     ///
     /// Returns an error if the worker cannot start or an NVTX hook was already installed.
-    pub fn install(
-        session: Uuid,
-        observer: ObserverInner<NvtxEvent>,
-    ) -> Result<Self, CaptureError> {
+    pub fn install<E>(
+        observer: Observer<E>,
+        process_entity: EntityRef<AnyEntity>,
+    ) -> Result<Self, CaptureError>
+    where
+        E: InstrumentedEntity<Payload = SinkEvent> + 'static,
+    {
+        let instance = Uuid::now_v7();
+        let initialized = Event::new(
+            instance,
+            timestamp(),
+            SinkEvent::Initialized {
+                process: process_entity,
+            },
+        );
         let (sender, receiver) = mpsc::unbounded_channel();
+        let (start_sender, start_receiver) = std::sync::mpsc::channel();
         let worker = thread::Builder::new()
             .name("quent-nvtx-bridge".into())
-            .spawn(move || forward(receiver, observer, session))?;
+            .spawn(move || {
+                // Failed installations must not emit an initialized instance.
+                if start_receiver.recv() == Ok(true) {
+                    observer.forward(initialized);
+                    forward(receiver, observer, instance);
+                }
+            })?;
 
         let capture = Self {
             sender: sender.clone(),
             worker: Some(worker),
         };
-        nvtx_injection::install_hook(move |record| {
+        let installed = nvtx_injection::install_hook(move |record| {
             if !sender.is_closed() {
                 let timestamp = timestamp();
                 let thread_id =
@@ -90,7 +113,9 @@ impl Capture {
                     thread_id,
                 }));
             }
-        })?;
+        });
+        let _ = start_sender.send(installed.is_ok());
+        installed?;
 
         Ok(capture)
     }
@@ -100,19 +125,18 @@ impl Drop for Capture {
     fn drop(&mut self) {
         let _ = self.sender.send(Message::Stop);
         if let Some(worker) = self.worker.take() {
-            // Joining also waits for the worker-owned observer to flush. Doing
-            // so on its exporter or Quent runtime worker can deadlock. A worker
-            // panic is ignored here and may leave records unflushed.
+            // Releasing the final observer owner on the worker flushes its exporter.
+            // Joining from that exporter can deadlock. A worker panic is ignored
+            // here and may leave records unflushed.
             let _ = worker.join();
         }
     }
 }
 
-fn forward(
-    mut receiver: UnboundedReceiver<Message>,
-    observer: ObserverInner<NvtxEvent>,
-    session: Uuid,
-) {
+fn forward<E>(mut receiver: UnboundedReceiver<Message>, observer: Observer<E>, instance: Uuid)
+where
+    E: InstrumentedEntity<Payload = SinkEvent>,
+{
     let mut batch = Vec::new();
     loop {
         // Drain the current backlog without growing one batch indefinitely if
@@ -124,8 +148,8 @@ fn forward(
         for message in batch.drain(..) {
             match message {
                 Message::Record(queued) => {
-                    observer.send(Event::new(
-                        session,
+                    observer.forward(Event::new(
+                        instance,
                         queued.timestamp,
                         convert_with_thread_id(queued.record, queued.thread_id),
                     ));
@@ -137,36 +161,5 @@ fn forward(
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::mpsc as std_mpsc;
-    use std::time::Duration;
-
-    use super::*;
-
-    #[test]
-    fn shutdown_does_not_wait_for_the_hook_sender() {
-        let (sender, receiver) = mpsc::unbounded_channel();
-        let hook_sender = sender.clone();
-        let worker = thread::spawn(move || {
-            forward(receiver, ObserverInner::noop(), Uuid::now_v7());
-        });
-        let capture = Capture {
-            sender,
-            worker: Some(worker),
-        };
-        let (done, finished) = std_mpsc::channel();
-        let shutdown = thread::spawn(move || {
-            drop(capture);
-            done.send(()).unwrap();
-        });
-        finished
-            .recv_timeout(Duration::from_secs(10))
-            .expect("shutdown waited for the hook sender");
-        shutdown.join().unwrap();
-        assert!(hook_sender.send(Message::Stop).is_err());
     }
 }

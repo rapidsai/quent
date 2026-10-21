@@ -17,22 +17,6 @@ quent-instrumentation = {
 quent-io = { path = "../../../../../../../crates/io", default-features = false, features = ["ndjson"] }
 quent-readme-example = { path = "../../../../../../../examples/readme" }
 
-[features]
-nvtx = ["dep:quent-nvtx-bridge", "dep:quent-nvtx-events", "dep:nvtx-injection"]
-
-[dependencies.quent-nvtx-bridge]
-path = "../../../../../../../integrations/nvtx/bridge"
-optional = true
-
-[dependencies.quent-nvtx-events]
-path = "../../../../../../../integrations/nvtx/events"
-optional = true
-
-[dependencies.nvtx-injection]
-path = "../../../../../../../integrations/nvtx/injection"
-features = ["static-injection"]
-optional = true
-
 [build-dependencies]
 cxx-build = "1"
 quent-schema-codegen-cpp = { path = "../../.." }

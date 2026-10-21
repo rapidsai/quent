@@ -16,13 +16,15 @@ use crate::spec::ViewerSpec;
 pub(crate) const IO_PACKAGE: &str = "quent-io";
 /// Cargo package used before [`IO_PACKAGE`] was introduced.
 pub(crate) const LEGACY_IO_PACKAGE: &str = "quent-exporter";
-/// Cargo package that provides the optional NVTX HTTP routes.
+/// Cargo package providing legacy NVTX routes in pinned Quent revisions.
 pub(crate) const NVTX_SERVER_PACKAGE: &str = "nvtx-server";
 
 /// Boundary whose descendants provide the `quent-io` package.
 ///
 /// Introduced by [commit `aa1e9b1`](https://github.com/rapidsai/quent/commit/aa1e9b1b394f5f978215b69cd5c526291c4b4723).
 const IO_PACKAGE_BOUNDARY: &str = "aa1e9b1b394f5f978215b69cd5c526291c4b4723";
+// TODO(johanpel): Add an upper Git-ancestry boundary for legacy NVTX routes once
+// the server removal has a containing commit. Preserve wrappers for older artifacts.
 /// Boundary whose descendants provide NVTX routes and the extensible analyzer router.
 ///
 /// Introduced by [commit `f40e69c`](https://github.com/rapidsai/quent/commit/f40e69c2d4405c765c6270221e2a58e58ef704a6).

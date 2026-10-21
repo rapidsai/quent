@@ -9,7 +9,7 @@ import type {
   NvtxViewportRequest,
   NvtxViewportWindow,
 } from '@quent/utils';
-import { fetchEngineContexts, fetchNvtxCatalog, fetchNvtxViewport } from './api';
+import { fetchEngineContexts, fetchNvtxSinks, fetchNvtxCatalog, fetchNvtxViewport } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 export { canonicalizeNvtxRequest, canonicalizeNvtxSelections } from './nvtxCanonical';
 
@@ -81,22 +81,22 @@ export const engineContextsQueryOptions = (engineId: string) =>
     staleTime: DEFAULT_STALE_TIME,
   });
 
-export const nvtxCatalogStaleTime = (catalog: NvtxCatalog | null | undefined) =>
-  catalog === null ? 0 : Infinity;
-
-export const nvtxCatalogQueryOptions = (contextId: string, queryStartUnixNs: bigint) => {
+export const nvtxCatalogQueryOptions = (
+  engineId: string,
+  sinkId: string,
+  queryStartUnixNs: bigint
+) => {
   const queryStartKey = queryStartUnixNs.toString(10);
   return queryOptions({
-    queryKey: ['nvtxCatalog', contextId, queryStartKey],
-    queryFn: () => fetchNvtxCatalog(contextId, queryStartUnixNs),
-    // A present catalog is immutable, but the server deliberately leaves an absent
-    // stream retryable so telemetry that appears later can be discovered on remount.
-    staleTime: query => nvtxCatalogStaleTime(query.state.data),
+    queryKey: ['nvtxCatalog', engineId, sinkId, queryStartKey],
+    queryFn: () => fetchNvtxCatalog(engineId, sinkId, queryStartUnixNs),
+    staleTime: Infinity,
   });
 };
 
 export const nvtxViewportQueryOptions = (
-  contextId: string,
+  engineId: string,
+  sinkId: string,
   queryStartUnixNs: bigint,
   request: NvtxViewportRequest,
   options?: { enabled?: boolean; staleTime?: number }
@@ -110,7 +110,8 @@ export const nvtxViewportQueryOptions = (
   return queryOptions({
     queryKey: [
       'nvtxViewport',
-      contextId,
+      engineId,
+      sinkId,
       queryStartKey,
       request.viewport.start,
       request.viewport.end,
@@ -118,7 +119,7 @@ export const nvtxViewportQueryOptions = (
     ],
     // Validation and canonicalization belong to the fetch boundary, where a bad
     // request rejects the query rather than throwing during React render.
-    queryFn: () => fetchNvtxViewport(contextId, queryStartUnixNs, request),
+    queryFn: () => fetchNvtxViewport(engineId, sinkId, queryStartUnixNs, request),
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime ?? DEFAULT_STALE_TIME,
     placeholderData: keepPreviousData,
@@ -128,31 +129,32 @@ export const nvtxViewportQueryOptions = (
 export const useEngineContexts = (engineId: string) =>
   useQuery(engineContextsQueryOptions(engineId));
 
-export const useNvtxCatalog = (contextId: string, queryStartUnixNs: bigint) =>
-  useQuery(nvtxCatalogQueryOptions(contextId, queryStartUnixNs));
+export const useNvtxCatalog = (engineId: string, sinkId: string, queryStartUnixNs: bigint) =>
+  useQuery(nvtxCatalogQueryOptions(engineId, sinkId, queryStartUnixNs));
 
 export const useNvtxViewport = (
-  contextId: string,
+  engineId: string,
+  sinkId: string,
   queryStartUnixNs: bigint,
   request: NvtxViewportRequest,
   options?: { enabled?: boolean; staleTime?: number }
-) => useQuery(nvtxViewportQueryOptions(contextId, queryStartUnixNs, request, options));
+) => useQuery(nvtxViewportQueryOptions(engineId, sinkId, queryStartUnixNs, request, options));
 
-/** First context whose catalog request returned a stream. */
+/** First sink whose catalog request returned a model. */
 export function firstNvtxCatalog(
-  contextIds: string[],
+  sinkIds: string[],
   catalogs: Array<NvtxCatalog | null | undefined>
-): { contextId: string; catalog: NvtxCatalog } | null {
-  for (let index = 0; index < contextIds.length; index++) {
+): { sinkId: string; catalog: NvtxCatalog } | null {
+  for (let index = 0; index < sinkIds.length; index++) {
     const catalog = catalogs[index];
     if (catalog != null) {
-      return { contextId: contextIds[index]!, catalog };
+      return { sinkId: sinkIds[index]!, catalog };
     }
   }
   return null;
 }
 
-/** Resolve the NVTX context for an engine and fetch catalog + viewport. */
+/** Resolve an engine's NVTX sink and fetch its catalog and viewport. */
 export function useNvtxStream(
   engineId: string,
   queryStartUnixNs: bigint,
@@ -164,17 +166,21 @@ export function useNvtxStream(
     categoryFilters?: ReadonlyMap<string, NvtxCategoryFilter>;
   }
 ) {
-  const contextsQuery = useEngineContexts(engineId);
-  const contextIds = contextsQuery.data?.context_ids ?? [];
+  const sinksQuery = useQuery({
+    queryKey: ['nvtxSinks', engineId],
+    queryFn: () => fetchNvtxSinks(engineId),
+    staleTime: DEFAULT_STALE_TIME,
+  });
+  const sinkIds = sinksQuery.data ?? [];
   const catalogQueries = useQueries({
-    queries: contextIds.map(contextId => nvtxCatalogQueryOptions(contextId, queryStartUnixNs)),
+    queries: sinkIds.map(sinkId => nvtxCatalogQueryOptions(engineId, sinkId, queryStartUnixNs)),
   });
   const matched = firstNvtxCatalog(
-    contextIds,
+    sinkIds,
     catalogQueries.map(query => query.data)
   );
   const catalog = matched?.catalog ?? null;
-  const contextId = matched?.contextId;
+  const sinkId = matched?.sinkId;
   const selections = useMemo(
     () =>
       catalog
@@ -186,15 +192,15 @@ export function useNvtxStream(
     (): NvtxViewportRequest => ({ viewport, selections }),
     [viewport, selections]
   );
-  const viewportQuery = useNvtxViewport(contextId ?? '', queryStartUnixNs, request, {
-    enabled: !!contextId && selections.length > 0 && (options?.enabled ?? true),
+  const viewportQuery = useNvtxViewport(engineId, sinkId ?? '', queryStartUnixNs, request, {
+    enabled: !!sinkId && selections.length > 0 && (options?.enabled ?? true),
     staleTime: options?.staleTime,
   });
-  const catalogsPending = contextIds.length > 0 && catalogQueries.some(query => query.isPending);
+  const catalogsPending = sinkIds.length > 0 && catalogQueries.some(query => query.isPending);
   return {
-    contextId,
+    sinkId,
     catalog,
     viewport: viewportQuery.data ?? null,
-    isLoading: contextsQuery.isLoading || catalogsPending,
+    isLoading: sinksQuery.isLoading || catalogsPending,
   };
 }

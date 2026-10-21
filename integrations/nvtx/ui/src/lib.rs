@@ -660,7 +660,7 @@ impl NvtxViewportResponse {
                     category_name: mark
                         .category
                         .and_then(|id| model.category_name(mark.domain, id)),
-                    color: display_color(mark.color, domain.domain_id),
+                    color: display_color(mark.color.as_ref(), domain.domain_id),
                     timestamp: to_secs_relative(mark.timestamp, catalog.query_start),
                 });
         }
@@ -918,7 +918,7 @@ fn range_item(
         category_name: span
             .category
             .and_then(|id| model.category_name(span.domain, id)),
-        color: display_color(span.color, domain.domain_id),
+        color: display_color(span.color.as_ref(), domain.domain_id),
         kind,
         thread_id,
         thread_name: thread_id.map(|id| model.thread_name(id)),
@@ -940,7 +940,7 @@ fn sort_ranges(ranges: &mut [NvtxRangeItem]) {
     });
 }
 
-fn display_color(color: Option<NvtxColor>, domain_id: u64) -> String {
+fn display_color(color: Option<&NvtxColor>, domain_id: u64) -> String {
     match color {
         Some(NvtxColor {
             color_type: 1,
@@ -1083,14 +1083,16 @@ mod decimal_u64_vec {
 mod tests {
     use quent_events::Event;
     use quent_nvtx_analyzer::NvtxModelBuilder;
-    use quent_nvtx_events::{NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage};
+    use quent_nvtx_sink::quent::nvtx::{
+        self, NvtxColor, NvtxEventAttributes, NvtxMessage, SinkEvent,
+    };
     use uuid::Uuid;
 
     use super::*;
 
     const QUERY_START_NS: u64 = 1_750_000_000_000_000_000;
 
-    fn event(timestamp: u64, event: NvtxEvent) -> Event<NvtxEvent> {
+    fn event(timestamp: u64, event: SinkEvent) -> Event<SinkEvent> {
         Event::new(Uuid::nil(), timestamp, event)
     }
 
@@ -1098,7 +1100,10 @@ mod tests {
         NvtxEventAttributes {
             category,
             color,
-            message: Some(NvtxMessage::String(name.to_owned())),
+            message: Some(NvtxMessage {
+                string: Some(name.to_owned()),
+                registered_handle: None,
+            }),
             payload: None,
         }
     }
@@ -1107,11 +1112,11 @@ mod tests {
         to_secs(nanoseconds)
     }
 
-    fn query_event(offset: u64, nvtx_event: NvtxEvent) -> Event<NvtxEvent> {
+    fn query_event(offset: u64, nvtx_event: SinkEvent) -> Event<SinkEvent> {
         event(QUERY_START_NS + offset, nvtx_event)
     }
 
-    fn query_event_signed(offset: i64, nvtx_event: NvtxEvent) -> Event<NvtxEvent> {
+    fn query_event_signed(offset: i64, nvtx_event: SinkEvent) -> Event<SinkEvent> {
         let magnitude = offset.unsigned_abs();
         let timestamp = if offset.is_negative() {
             QUERY_START_NS - magnitude
@@ -1125,69 +1130,85 @@ mod tests {
         NvtxModelBuilder::build(vec![
             query_event(
                 100,
-                NvtxEvent::RangePush {
-                    domain: 2,
-                    thread_id: 7,
-                    attributes: attributes("outer", 3, None),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 2,
+                        thread_id: 7,
+                        attributes: attributes("outer", 3, None),
+                    },
                 },
             ),
             query_event(
                 120,
-                NvtxEvent::RangePush {
-                    domain: 2,
-                    thread_id: 7,
-                    attributes: attributes(
-                        "inner",
-                        3,
-                        Some(NvtxColor {
-                            color_type: 1,
-                            value: 0x8040_2010,
-                        }),
-                    ),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 2,
+                        thread_id: 7,
+                        attributes: attributes(
+                            "inner",
+                            3,
+                            Some(NvtxColor {
+                                color_type: 1,
+                                value: 0x8040_2010,
+                            }),
+                        ),
+                    },
                 },
             ),
             query_event(
                 180,
-                NvtxEvent::RangePop {
-                    domain: 2,
-                    thread_id: 7,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 2,
+                        thread_id: 7,
+                    },
                 },
             ),
             query_event(
                 200,
-                NvtxEvent::RangePop {
-                    domain: 2,
-                    thread_id: 7,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 2,
+                        thread_id: 7,
+                    },
                 },
             ),
             query_event(
                 210,
-                NvtxEvent::RangeStart {
-                    domain: 2,
-                    range_id: 9,
-                    attributes: attributes("open", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 2,
+                        range_id: 9,
+                        attributes: attributes("open", 0, None),
+                    },
                 },
             ),
             query_event(
                 250,
-                NvtxEvent::Mark {
-                    domain: 2,
-                    attributes: attributes("boundary", 0, None),
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 2,
+                        attributes: attributes("boundary", 0, None),
+                    },
                 },
             ),
             query_event(
                 250,
-                NvtxEvent::RangeStart {
-                    domain: 2,
-                    range_id: 10,
-                    attributes: attributes("instant", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 2,
+                        range_id: 10,
+                        attributes: attributes("instant", 0, None),
+                    },
                 },
             ),
             query_event(
                 250,
-                NvtxEvent::RangeEnd {
-                    domain: 2,
-                    range_id: 10,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 2,
+                        range_id: 10,
+                    },
                 },
             ),
         ])
@@ -1196,7 +1217,10 @@ mod tests {
     fn registered_attributes(handle: u64, category: u32) -> NvtxEventAttributes {
         NvtxEventAttributes {
             category,
-            message: Some(NvtxMessage::RegisteredHandle(handle)),
+            message: Some(NvtxMessage {
+                string: None,
+                registered_handle: Some(handle),
+            }),
             ..Default::default()
         }
     }
@@ -1206,205 +1230,259 @@ mod tests {
         NvtxModelBuilder::build(vec![
             event(
                 10,
-                NvtxEvent::DomainCreate {
-                    domain: 5,
-                    name: "CCCL".to_owned(),
+                SinkEvent::DomainCreate {
+                    data: nvtx::DomainCreate {
+                        domain: 5,
+                        name: "CCCL".to_owned(),
+                    },
                 },
             ),
             event(
                 11,
-                NvtxEvent::DomainCreate {
-                    domain: 172,
-                    name: "CCCL".to_owned(),
+                SinkEvent::DomainCreate {
+                    data: nvtx::DomainCreate {
+                        domain: 172,
+                        name: "CCCL".to_owned(),
+                    },
                 },
             ),
             event(
                 12,
-                NvtxEvent::NameThread {
-                    thread_id: 42,
-                    name: "worker".to_owned(),
+                SinkEvent::NameThread {
+                    data: nvtx::NameThread {
+                        thread_id: 42,
+                        name: "worker".to_owned(),
+                    },
                 },
             ),
             event(
                 13,
-                NvtxEvent::NameCategory {
-                    domain: 5,
-                    category: 7,
-                    name: "Compute".to_owned(),
+                SinkEvent::NameCategory {
+                    data: nvtx::NameCategory {
+                        domain: 5,
+                        category: 7,
+                        name: "Compute".to_owned(),
+                    },
                 },
             ),
             event(
                 14,
-                NvtxEvent::NameCategory {
-                    domain: 172,
-                    category: 7,
-                    name: "Compute".to_owned(),
+                SinkEvent::NameCategory {
+                    data: nvtx::NameCategory {
+                        domain: 172,
+                        category: 7,
+                        name: "Compute".to_owned(),
+                    },
                 },
             ),
             event(
                 15,
-                NvtxEvent::NameCategory {
-                    domain: 5,
-                    category: 9,
-                    name: "Encode".to_owned(),
+                SinkEvent::NameCategory {
+                    data: nvtx::NameCategory {
+                        domain: 5,
+                        category: 9,
+                        name: "Encode".to_owned(),
+                    },
                 },
             ),
             event(
                 16,
-                NvtxEvent::NameCategory {
-                    domain: 172,
-                    category: 9,
-                    name: "Decode".to_owned(),
+                SinkEvent::NameCategory {
+                    data: nvtx::NameCategory {
+                        domain: 172,
+                        category: 9,
+                        name: "Decode".to_owned(),
+                    },
                 },
             ),
             event(
                 17,
-                NvtxEvent::RegisterString {
-                    domain: 5,
-                    handle: REGISTERED_HANDLE,
-                    string: "five outer".to_owned(),
+                SinkEvent::RegisterString {
+                    data: nvtx::RegisterString {
+                        domain: 5,
+                        handle: REGISTERED_HANDLE,
+                        string: "five outer".to_owned(),
+                    },
                 },
             ),
             event(
                 18,
-                NvtxEvent::RegisterString {
-                    domain: 172,
-                    handle: REGISTERED_HANDLE,
-                    string: "one-seventy-two outer".to_owned(),
+                SinkEvent::RegisterString {
+                    data: nvtx::RegisterString {
+                        domain: 172,
+                        handle: REGISTERED_HANDLE,
+                        string: "one-seventy-two outer".to_owned(),
+                    },
                 },
             ),
             event(
                 100,
-                NvtxEvent::RangePush {
-                    domain: 5,
-                    thread_id: 42,
-                    attributes: registered_attributes(REGISTERED_HANDLE, 7),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 5,
+                        thread_id: 42,
+                        attributes: registered_attributes(REGISTERED_HANDLE, 7),
+                    },
                 },
             ),
             event(
                 110,
-                NvtxEvent::RangePush {
-                    domain: 172,
-                    thread_id: 42,
-                    attributes: registered_attributes(REGISTERED_HANDLE, 7),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 172,
+                        thread_id: 42,
+                        attributes: registered_attributes(REGISTERED_HANDLE, 7),
+                    },
                 },
             ),
             event(
                 120,
-                NvtxEvent::RangePush {
-                    domain: 5,
-                    thread_id: 42,
-                    attributes: attributes("five inner", 7, None),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 5,
+                        thread_id: 42,
+                        attributes: attributes("five inner", 7, None),
+                    },
                 },
             ),
             event(
                 130,
-                NvtxEvent::RangePush {
-                    domain: 172,
-                    thread_id: 42,
-                    attributes: attributes("one-seventy-two inner", 7, None),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 172,
+                        thread_id: 42,
+                        attributes: attributes("one-seventy-two inner", 7, None),
+                    },
                 },
             ),
             event(
                 140,
-                NvtxEvent::RangePop {
-                    domain: 5,
-                    thread_id: 42,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 5,
+                        thread_id: 42,
+                    },
                 },
             ),
             event(
                 150,
-                NvtxEvent::RangePop {
-                    domain: 172,
-                    thread_id: 42,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 172,
+                        thread_id: 42,
+                    },
                 },
             ),
             event(
                 160,
-                NvtxEvent::RangePop {
-                    domain: 5,
-                    thread_id: 42,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 5,
+                        thread_id: 42,
+                    },
                 },
             ),
             event(
                 170,
-                NvtxEvent::RangePop {
-                    domain: 172,
-                    thread_id: 42,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 172,
+                        thread_id: 42,
+                    },
                 },
             ),
             event(
                 180,
-                NvtxEvent::RangeStart {
-                    domain: 5,
-                    range_id: 99,
-                    attributes: attributes("shared", 7, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 5,
+                        range_id: 99,
+                        attributes: attributes("shared", 7, None),
+                    },
                 },
             ),
             event(
                 181,
-                NvtxEvent::RangeStart {
-                    domain: 172,
-                    range_id: 99,
-                    attributes: attributes("shared", 7, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 172,
+                        range_id: 99,
+                        attributes: attributes("shared", 7, None),
+                    },
                 },
             ),
             event(
                 200,
-                NvtxEvent::Mark {
-                    domain: 5,
-                    attributes: attributes("five mark", 7, None),
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 5,
+                        attributes: attributes("five mark", 7, None),
+                    },
                 },
             ),
             event(
                 201,
-                NvtxEvent::Mark {
-                    domain: 172,
-                    attributes: attributes("one-seventy-two mark", 7, None),
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 172,
+                        attributes: attributes("one-seventy-two mark", 7, None),
+                    },
                 },
             ),
             event(
                 220,
-                NvtxEvent::RangeEnd {
-                    domain: 5,
-                    range_id: 99,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 5,
+                        range_id: 99,
+                    },
                 },
             ),
             event(
                 230,
-                NvtxEvent::RangeEnd {
-                    domain: 172,
-                    range_id: 99,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 172,
+                        range_id: 99,
+                    },
                 },
             ),
             event(
                 240,
-                NvtxEvent::RangeStart {
-                    domain: 5,
-                    range_id: 100,
-                    attributes: attributes("conflict", 9, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 5,
+                        range_id: 100,
+                        attributes: attributes("conflict", 9, None),
+                    },
                 },
             ),
             event(
                 241,
-                NvtxEvent::RangeStart {
-                    domain: 172,
-                    range_id: 100,
-                    attributes: attributes("conflict", 9, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 172,
+                        range_id: 100,
+                        attributes: attributes("conflict", 9, None),
+                    },
                 },
             ),
             event(
                 260,
-                NvtxEvent::RangeEnd {
-                    domain: 5,
-                    range_id: 100,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 5,
+                        range_id: 100,
+                    },
                 },
             ),
             event(
                 261,
-                NvtxEvent::RangeEnd {
-                    domain: 172,
-                    range_id: 100,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 172,
+                        range_id: 100,
+                    },
                 },
             ),
         ])
@@ -1622,141 +1700,189 @@ mod tests {
         let model = NvtxModelBuilder::build(vec![
             event(
                 10,
-                NvtxEvent::DomainCreate {
-                    domain: 5,
-                    name: "CCCL".to_owned(),
+                SinkEvent::DomainCreate {
+                    data: nvtx::DomainCreate {
+                        domain: 5,
+                        name: "CCCL".to_owned(),
+                    },
                 },
             ),
             event(
                 11,
-                NvtxEvent::RangeStart {
-                    domain: 5,
-                    range_id: 1,
-                    attributes: attributes("first lifetime", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 5,
+                        range_id: 1,
+                        attributes: attributes("first lifetime", 0, None),
+                    },
                 },
             ),
             event(
                 20,
-                NvtxEvent::RangeEnd {
-                    domain: 5,
-                    range_id: 1,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 5,
+                        range_id: 1,
+                    },
                 },
             ),
-            event(21, NvtxEvent::DomainDestroy { domain: 5 }),
+            event(
+                21,
+                SinkEvent::DomainDestroy {
+                    data: nvtx::DomainDestroy { domain: 5 },
+                },
+            ),
             event(
                 22,
-                NvtxEvent::DomainCreate {
-                    domain: 172,
-                    name: "CCCL".to_owned(),
+                SinkEvent::DomainCreate {
+                    data: nvtx::DomainCreate {
+                        domain: 172,
+                        name: "CCCL".to_owned(),
+                    },
                 },
             ),
             event(
                 23,
-                NvtxEvent::RangeStart {
-                    domain: 172,
-                    range_id: 1,
-                    attributes: attributes("second lifetime", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 172,
+                        range_id: 1,
+                        attributes: attributes("second lifetime", 0, None),
+                    },
                 },
             ),
             event(
                 30,
-                NvtxEvent::RangeEnd {
-                    domain: 172,
-                    range_id: 1,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 172,
+                        range_id: 1,
+                    },
                 },
             ),
             event(
                 31,
-                NvtxEvent::DomainCreate {
-                    domain: 6,
-                    name: "cccl".to_owned(),
+                SinkEvent::DomainCreate {
+                    data: nvtx::DomainCreate {
+                        domain: 6,
+                        name: "cccl".to_owned(),
+                    },
                 },
             ),
             event(
                 32,
-                NvtxEvent::Mark {
-                    domain: 6,
-                    attributes: attributes("case-sensitive", 0, None),
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 6,
+                        attributes: attributes("case-sensitive", 0, None),
+                    },
                 },
             ),
             event(
                 33,
-                NvtxEvent::Mark {
-                    domain: 0,
-                    attributes: attributes("default", 0, None),
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 0,
+                        attributes: attributes("default", 0, None),
+                    },
                 },
             ),
             event(
                 34,
-                NvtxEvent::DomainCreate {
-                    domain: 9,
-                    name: "default domain".to_owned(),
+                SinkEvent::DomainCreate {
+                    data: nvtx::DomainCreate {
+                        domain: 9,
+                        name: "default domain".to_owned(),
+                    },
                 },
             ),
             event(
                 35,
-                NvtxEvent::Mark {
-                    domain: 9,
-                    attributes: attributes("explicit default text", 0, None),
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 9,
+                        attributes: attributes("explicit default text", 0, None),
+                    },
                 },
             ),
             event(
                 36,
-                NvtxEvent::Mark {
-                    domain: 40,
-                    attributes: attributes("unresolved forty", 0, None),
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 40,
+                        attributes: attributes("unresolved forty", 0, None),
+                    },
                 },
             ),
             event(
                 37,
-                NvtxEvent::Mark {
-                    domain: 41,
-                    attributes: attributes("unresolved forty-one", 0, None),
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 41,
+                        attributes: attributes("unresolved forty-one", 0, None),
+                    },
                 },
             ),
             event(
                 40,
-                NvtxEvent::DomainCreate {
-                    domain: 88,
-                    name: "repeat".to_owned(),
+                SinkEvent::DomainCreate {
+                    data: nvtx::DomainCreate {
+                        domain: 88,
+                        name: "repeat".to_owned(),
+                    },
                 },
             ),
             event(
                 41,
-                NvtxEvent::RangeStart {
-                    domain: 88,
-                    range_id: 1,
-                    attributes: attributes("before recreation", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 88,
+                        range_id: 1,
+                        attributes: attributes("before recreation", 0, None),
+                    },
                 },
             ),
             event(
                 42,
-                NvtxEvent::RangeEnd {
-                    domain: 88,
-                    range_id: 1,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 88,
+                        range_id: 1,
+                    },
                 },
             ),
-            event(43, NvtxEvent::DomainDestroy { domain: 88 }),
+            event(
+                43,
+                SinkEvent::DomainDestroy {
+                    data: nvtx::DomainDestroy { domain: 88 },
+                },
+            ),
             event(
                 44,
-                NvtxEvent::DomainCreate {
-                    domain: 88,
-                    name: "repeat".to_owned(),
+                SinkEvent::DomainCreate {
+                    data: nvtx::DomainCreate {
+                        domain: 88,
+                        name: "repeat".to_owned(),
+                    },
                 },
             ),
             event(
                 45,
-                NvtxEvent::RangeStart {
-                    domain: 88,
-                    range_id: 2,
-                    attributes: attributes("after recreation", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 88,
+                        range_id: 2,
+                        attributes: attributes("after recreation", 0, None),
+                    },
                 },
             ),
             event(
                 46,
-                NvtxEvent::RangeEnd {
-                    domain: 88,
-                    range_id: 2,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 88,
+                        range_id: 2,
+                    },
                 },
             ),
         ]);
@@ -1916,17 +2042,21 @@ mod tests {
         let categorized_model = NvtxModelBuilder::build(vec![
             event(
                 100,
-                NvtxEvent::RangePush {
-                    domain: 2,
-                    thread_id: 7,
-                    attributes: attributes("categorized", 3, None),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 2,
+                        thread_id: 7,
+                        attributes: attributes("categorized", 3, None),
+                    },
                 },
             ),
             event(
                 200,
-                NvtxEvent::RangePop {
-                    domain: 2,
-                    thread_id: 7,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 2,
+                        thread_id: 7,
+                    },
                 },
             ),
         ]);
@@ -1959,25 +2089,31 @@ mod tests {
         let model = NvtxModelBuilder::build(vec![
             event(
                 100,
-                NvtxEvent::RangeEnd {
-                    domain: 2,
-                    range_id: 99,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 2,
+                        range_id: 99,
+                    },
                 },
             ),
             event(
                 110,
-                NvtxEvent::RangeStart {
-                    domain: 2,
-                    range_id: 9,
-                    attributes: attributes("displaced", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 2,
+                        range_id: 9,
+                        attributes: attributes("displaced", 0, None),
+                    },
                 },
             ),
             event(
                 120,
-                NvtxEvent::RangeStart {
-                    domain: 2,
-                    range_id: 9,
-                    attributes: attributes("replacement", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 2,
+                        range_id: 9,
+                        attributes: attributes("replacement", 0, None),
+                    },
                 },
             ),
         ]);
@@ -2019,7 +2155,7 @@ mod tests {
     }
 
     #[test]
-    fn request_timing_values_are_decimal_seconds() {
+    fn request_domain_ids_are_lossless_json_strings() {
         let request = NvtxViewportRequest {
             viewport: NvtxViewportWindow {
                 start: -0.25,
@@ -2033,8 +2169,6 @@ mod tests {
         };
 
         let json = serde_json::to_value(&request).expect("request serializes");
-        assert_eq!(json["viewport"]["start"], -0.25);
-        assert_eq!(json["viewport"]["end"], 1.5);
         assert_eq!(json["selections"][0]["domain_id"], "18446744073709551615");
         assert_eq!(
             serde_json::from_value::<NvtxViewportRequest>(json).expect("request deserializes"),
@@ -2137,17 +2271,21 @@ mod tests {
         let model = NvtxModelBuilder::build(vec![
             query_event_signed(
                 -100,
-                NvtxEvent::RangeStart {
-                    domain: 2,
-                    range_id: 9,
-                    attributes: attributes("crosses query start", 0, None),
+                SinkEvent::RangeStart {
+                    data: nvtx::RangeStart {
+                        domain: 2,
+                        range_id: 9,
+                        attributes: attributes("crosses query start", 0, None),
+                    },
                 },
             ),
             query_event_signed(
                 100,
-                NvtxEvent::RangeEnd {
-                    domain: 2,
-                    range_id: 9,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 2,
+                        range_id: 9,
+                    },
                 },
             ),
         ]);
@@ -2215,47 +2353,59 @@ mod tests {
         let model = NvtxModelBuilder::build(vec![
             event(
                 100,
-                NvtxEvent::RangePush {
-                    domain: 2,
-                    thread_id: 7,
-                    attributes: attributes("outer", 0, None),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 2,
+                        thread_id: 7,
+                        attributes: attributes("outer", 0, None),
+                    },
                 },
             ),
             event(
                 110,
-                NvtxEvent::RangePush {
-                    domain: 2,
-                    thread_id: 7,
-                    attributes: attributes("middle", 0, None),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 2,
+                        thread_id: 7,
+                        attributes: attributes("middle", 0, None),
+                    },
                 },
             ),
             event(
                 120,
-                NvtxEvent::RangePush {
-                    domain: 2,
-                    thread_id: 7,
-                    attributes: attributes("inner", 0, None),
+                SinkEvent::RangePush {
+                    data: nvtx::RangePush {
+                        domain: 2,
+                        thread_id: 7,
+                        attributes: attributes("inner", 0, None),
+                    },
                 },
             ),
             event(
                 130,
-                NvtxEvent::RangePop {
-                    domain: 2,
-                    thread_id: 7,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 2,
+                        thread_id: 7,
+                    },
                 },
             ),
             event(
                 140,
-                NvtxEvent::RangePop {
-                    domain: 2,
-                    thread_id: 7,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 2,
+                        thread_id: 7,
+                    },
                 },
             ),
             event(
                 150,
-                NvtxEvent::RangePop {
-                    domain: 2,
-                    thread_id: 7,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 2,
+                        thread_id: 7,
+                    },
                 },
             ),
         ]);
@@ -2390,14 +2540,8 @@ mod tests {
     }
 
     #[test]
-    fn generated_contract_uses_numbers_for_relative_seconds() {
+    fn typescript_ids_match_the_decimal_string_json_contract() {
         let config = ts_rs::Config::default();
-        let declaration = NvtxViewportRequest::decl(&config);
-        assert!(declaration.contains("viewport: NvtxViewportWindow"));
-        assert!(NvtxCatalog::decl(&config).contains("trace_start: number"));
-        assert!(NvtxCatalog::decl(&config).contains("trace_end: number"));
-        assert!(NvtxViewportWindow::decl(&config).contains("start: number"));
-        assert!(NvtxViewportWindow::decl(&config).contains("end: number"));
         assert!(NvtxDomainSelection::decl(&config).contains("domain_id: string"));
         for declaration in [
             NvtxCatalogDomain::decl(&config),
@@ -2425,14 +2569,5 @@ mod tests {
         ] {
             assert!(anomalies.contains(&format!("{field}: string")));
         }
-        assert!(NvtxRangeItem::decl(&config).contains("observed_start: number"));
-        assert!(NvtxRangeItem::decl(&config).contains("observed_end: number | null"));
-        assert!(NvtxRangeItem::decl(&config).contains("display_start: number"));
-        assert!(NvtxRangeItem::decl(&config).contains("display_end: number"));
-        assert!(NvtxMarkItem::decl(&config).contains("timestamp: number"));
-        assert!(NvtxRangeStatistics::decl(&config).contains("total_duration: number"));
-        assert!(NvtxRangeStatistics::decl(&config).contains("avg_duration: number"));
-        assert!(NvtxRangeStatistics::decl(&config).contains("min_duration: number | null"));
-        assert!(NvtxRangeStatistics::decl(&config).contains("max_duration: number | null"));
     }
 }

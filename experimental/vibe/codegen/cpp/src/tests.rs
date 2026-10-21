@@ -6,114 +6,11 @@ use quent_schema::test_utils::{entity, event};
 use quent_yaml::parse_from_str;
 
 use crate::{
-    Exporters, GenerateError, GeneratedFile, NvtxSupport, Options, bridge_module_declaration, emit,
+    Exporters, GenerateError, GeneratedFile, Options, bridge_module_declaration, emit,
     write_bridge_files_to,
 };
 
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
-
-#[test]
-fn nvtx_support_is_opt_in_and_preserves_disabled_contract() {
-    let schema = parse_from_str(DEMO, None).unwrap().schema;
-    assert_eq!(Options::default().nvtx, NvtxSupport::Disabled);
-    let files = emit(
-        &schema,
-        &Options {
-            exporters: Exporters::all(),
-            ..Options::default()
-        },
-    )
-    .unwrap();
-    let context = files.iter().find(|file| file.name == "context.rs").unwrap();
-    let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
-    assert!(
-        context
-            .content
-            .contains("fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>")
-    );
-    assert!(!context.content.contains("NvtxCapture"));
-    assert!(!context.content.contains("nvtx_injection"));
-    assert!(!context.content.contains("nvtx_bridge"));
-    assert!(!context.content.contains("quent_nvtx_events"));
-    assert!(!facade.content.contains("NvtxCapture"));
-}
-
-#[test]
-fn generates_nvtx_capture_for_every_exporter() {
-    let schema = parse_from_str(DEMO, None).unwrap().schema;
-    for exporters in [Exporters::default(), Exporters::all()] {
-        let files = emit(
-            &schema,
-            &Options {
-                nvtx: NvtxSupport::Enabled,
-                exporters,
-                ..Options::default()
-            },
-        )
-        .unwrap();
-        let context = files.iter().find(|file| file.name == "context.rs").unwrap();
-        let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
-        assert!(context.content.contains("enum NvtxCapture"));
-        assert!(context.content.contains("nvtx_capture: NvtxCapture"));
-        assert_eq!(
-            context
-                .content
-                .contains("quent_nvtx_bridge::Capture::install("),
-            exporters.any(),
-        );
-        assert_eq!(
-            context
-                .content
-                .contains("observer::<quent_nvtx_events::NvtxEvent>"),
-            exporters.any(),
-        );
-        assert!(!context.content.contains("nvtx_injection"));
-        assert!(!context.content.contains("_nvtx_observer"));
-        let fields = &context.content[context.content.find("pub struct Context {").unwrap()..];
-        assert!(fields.contains("_nvtx_capture: Option<quent_nvtx_bridge::Capture>"));
-        let capture = fields.find("_nvtx_capture:").unwrap();
-        let inner = fields.find("pub(crate) inner:").unwrap();
-        assert!(capture < inner);
-        assert!(facade.content.contains("NvtxCapture::Disabled"));
-        for (enabled, name) in [
-            (exporters.ndjson, "ndjson"),
-            (exporters.msgpack, "msgpack"),
-            (exporters.postcard, "postcard"),
-            (exporters.collector, "collector"),
-        ] {
-            assert_eq!(
-                facade.content.contains(&format!("static Context {name}(")),
-                enabled,
-            );
-        }
-        for file in files.iter().filter(|file| file.name.ends_with(".rs")) {
-            syn::parse_file(&file.content).unwrap_or_else(|error| panic!("{}: {error}", file.name));
-        }
-    }
-}
-
-#[test]
-fn nvtx_names_are_reserved_only_when_support_is_enabled() {
-    for name in ["NvtxCapture", "NvtxEvent"] {
-        let schema = parse_from_str(
-            format!("quent: '0.1.0'\nmodel: Test\nentities:\n  {name}: {{ events: {{ emitted: {{}} }} }}\n"),
-            None,
-        )
-        .unwrap()
-        .schema;
-        assert!(emit(&schema, &Options::default()).is_ok());
-        assert!(matches!(
-            emit(
-                &schema,
-                &Options {
-                    nvtx: NvtxSupport::Enabled,
-                    ..Options::default()
-                }
-            ),
-            Err(GenerateError::NameCollision { .. })
-        ));
-    }
-}
 
 #[test]
 fn generates_schema_driven_bridge() {

@@ -27,9 +27,15 @@ export interface ApiClient {
   fetchQueryBundle(engineId: string, queryId: string): Promise<QueryBundle<EntityRef>>;
   fetchListEngines(): Promise<EngineListResponse>;
   fetchEngineContexts(engineId: string): Promise<EngineContexts>;
-  fetchNvtxCatalog(contextId: string, queryStartUnixNs: bigint): Promise<NvtxCatalog | null>;
+  fetchNvtxSinks(engineId: string): Promise<string[]>;
+  fetchNvtxCatalog(
+    engineId: string,
+    sinkId: string,
+    queryStartUnixNs: bigint
+  ): Promise<NvtxCatalog | null>;
   fetchNvtxViewport(
-    contextId: string,
+    engineId: string,
+    sinkId: string,
     queryStartUnixNs: bigint,
     request: NvtxViewportRequest
   ): Promise<NvtxViewportResponse | null>;

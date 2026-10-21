@@ -87,6 +87,7 @@ export async function installSimulatorClient(): Promise<void> {
       }),
     fetchEntityList: (engineId, request) =>
       call<EntityListResponse>({ operation: 'entityList', engineId, request }),
+    fetchNvtxSinks: async () => [],
     fetchNvtxCatalog: async () => null,
     fetchNvtxViewport: async () => null,
   };

@@ -65,7 +65,8 @@ impl<A> AnalyzerCache<A>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    pub(crate) fn new(importer: Box<ImporterFn<A>>, lister: Box<ListerFn>) -> Self {
+    /// Creates a cache using the application's event importer and context index.
+    pub fn new(importer: Box<ImporterFn<A>>, lister: Box<ListerFn>) -> Self {
         Self {
             analyzers: Cache::builder()
                 .max_capacity(32)
@@ -119,7 +120,8 @@ where
         .map_err(|e| ServerError::Cache(format!("blocking task panicked: {e}")))?
     }
 
-    pub(crate) async fn get(&self, engine_id: Uuid) -> ServerResult<Arc<A>> {
+    /// Returns cached analysis, loading its contributing contexts on a cache miss.
+    pub async fn get(&self, engine_id: Uuid) -> ServerResult<Arc<A>> {
         let lister = Arc::clone(&self.lister);
         let importer = Arc::clone(&self.importer);
         self.analyzers

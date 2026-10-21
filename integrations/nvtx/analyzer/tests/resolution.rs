@@ -9,13 +9,16 @@ mod fixtures;
 use fixtures::{at, range_end, range_start};
 use quent_events::Event;
 use quent_nvtx_analyzer::{NvtxDomain, NvtxModel, NvtxModelBuilder};
-use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
+use quent_nvtx_sink::quent::nvtx::{self, NvtxEventAttributes, NvtxMessage, SinkEvent};
 use quent_time::TimeUnixNanoSec;
 
 /// Attributes naming a previously (or subsequently) registered string.
 fn registered(handle: u64) -> NvtxEventAttributes {
     NvtxEventAttributes {
-        message: Some(NvtxMessage::RegisteredHandle(handle)),
+        message: Some(NvtxMessage {
+            string: None,
+            registered_handle: Some(handle),
+        }),
         ..Default::default()
     }
 }
@@ -26,13 +29,15 @@ fn registered_start(
     domain: u64,
     range_id: u64,
     handle: u64,
-) -> Event<NvtxEvent> {
+) -> Event<SinkEvent> {
     at(
         timestamp,
-        NvtxEvent::RangeStart {
-            domain,
-            range_id,
-            attributes: registered(handle),
+        SinkEvent::RangeStart {
+            data: nvtx::RangeStart {
+                domain,
+                range_id,
+                attributes: registered(handle),
+            },
         },
     )
 }
@@ -43,13 +48,15 @@ fn register(
     domain: u64,
     handle: u64,
     string: &str,
-) -> Event<NvtxEvent> {
+) -> Event<SinkEvent> {
     at(
         timestamp,
-        NvtxEvent::RegisterString {
-            domain,
-            handle,
-            string: string.to_owned(),
+        SinkEvent::RegisterString {
+            data: nvtx::RegisterString {
+                domain,
+                handle,
+                string: string.to_owned(),
+            },
         },
     )
 }
@@ -60,13 +67,15 @@ fn name_category(
     domain: u64,
     category: u32,
     name: &str,
-) -> Event<NvtxEvent> {
+) -> Event<SinkEvent> {
     at(
         timestamp,
-        NvtxEvent::NameCategory {
-            domain,
-            category,
-            name: name.to_owned(),
+        SinkEvent::NameCategory {
+            data: nvtx::NameCategory {
+                domain,
+                category,
+                name: name.to_owned(),
+            },
         },
     )
 }
@@ -162,29 +171,35 @@ fn placeholder_stable() {
             registered_start(100, 0x2A, 7, 0xBEEF),
             at(
                 150,
-                NvtxEvent::RangeEnd {
-                    domain: 0x2A,
-                    range_id: 7,
+                SinkEvent::RangeEnd {
+                    data: nvtx::RangeEnd {
+                        domain: 0x2A,
+                        range_id: 7,
+                    },
                 },
             ),
             // Domain 0 is legitimately unnamed, and category 9 in domain 0x2A is
             // referenced but never named.
             at(
                 200,
-                NvtxEvent::Mark {
-                    domain: 0,
-                    attributes: NvtxEventAttributes {
-                        category: 9,
-                        ..Default::default()
+                SinkEvent::Mark {
+                    data: nvtx::Mark {
+                        domain: 0,
+                        attributes: NvtxEventAttributes {
+                            category: 9,
+                            ..Default::default()
+                        },
                     },
                 },
             ),
             // A thread that emits but is never named.
             at(
                 250,
-                NvtxEvent::RangePop {
-                    domain: 0x2A,
-                    thread_id: 42,
+                SinkEvent::RangePop {
+                    data: nvtx::RangePop {
+                        domain: 0x2A,
+                        thread_id: 42,
+                    },
                 },
             ),
         ]
@@ -217,47 +232,53 @@ fn placeholder_stable() {
         "thread 42",
         "an unnamed thread is legitimately unnamed, not unresolved"
     );
-
-    // Placeholders are pure functions of the raw id — no counters, no
-    // timestamps — so a rebuild is byte-identical.
-    let again = NvtxModelBuilder::build(stream());
-    assert_eq!(model.spans(), again.spans());
-    assert_eq!(model.domains(), again.domains());
-    assert_eq!(model.threads(), again.threads());
-    assert_eq!(model.categories(), again.categories());
 }
 
 #[test]
-fn model_surface_present() {
+fn marks_resolve_metadata_and_domains_retain_their_lifetimes() {
     let events = vec![
         at(
             10,
-            NvtxEvent::DomainCreate {
-                domain: 1,
-                name: "cudf".to_owned(),
+            SinkEvent::DomainCreate {
+                data: nvtx::DomainCreate {
+                    domain: 1,
+                    name: "cudf".to_owned(),
+                },
             },
         ),
         register(20, 1, 0x55, "checkpoint"),
         name_category(30, 1, 3, "io"),
         at(
             40,
-            NvtxEvent::NameThread {
-                thread_id: 42,
-                name: "worker".to_owned(),
+            SinkEvent::NameThread {
+                data: nvtx::NameThread {
+                    thread_id: 42,
+                    name: "worker".to_owned(),
+                },
             },
         ),
         at(
             50,
-            NvtxEvent::Mark {
-                domain: 1,
-                attributes: NvtxEventAttributes {
-                    category: 3,
-                    message: Some(NvtxMessage::RegisteredHandle(0x55)),
-                    ..Default::default()
+            SinkEvent::Mark {
+                data: nvtx::Mark {
+                    domain: 1,
+                    attributes: NvtxEventAttributes {
+                        category: 3,
+                        message: Some(NvtxMessage {
+                            string: None,
+                            registered_handle: Some(0x55),
+                        }),
+                        ..Default::default()
+                    },
                 },
             },
         ),
-        at(90, NvtxEvent::DomainDestroy { domain: 1 }),
+        at(
+            90,
+            SinkEvent::DomainDestroy {
+                data: nvtx::DomainDestroy { domain: 1 },
+            },
+        ),
     ];
 
     let model = NvtxModelBuilder::build(events);

@@ -27,7 +27,7 @@ use std::collections::BTreeSet;
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_events::Event;
-use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
+use quent_nvtx_sink::quent::nvtx::{self, NvtxEventAttributes, NvtxMessage, SinkEvent};
 use quent_time::TimeUnixNanoSec;
 
 use crate::span::{NvtxCategory, NvtxDomain, NvtxThread, category_id};
@@ -112,7 +112,7 @@ impl ResolutionTables {
     ///
     /// Order-independent by construction, which is what makes a `RegisterString`
     /// that arrives *after* the range using its handle resolve correctly.
-    pub(crate) fn build(events: &[Event<NvtxEvent>]) -> Self {
+    pub(crate) fn build(events: &[Event<SinkEvent>]) -> Self {
         let mut tables = Self::default();
         for event in events {
             tables.observe(event.timestamp, &event.data);
@@ -121,44 +121,63 @@ impl ResolutionTables {
     }
 
     /// Fold one event into the tables.
-    fn observe(&mut self, timestamp: TimeUnixNanoSec, event: &NvtxEvent) {
+    fn observe(&mut self, timestamp: TimeUnixNanoSec, event: &SinkEvent) {
         match event {
-            NvtxEvent::RangePush {
-                domain,
-                thread_id,
-                attributes,
+            SinkEvent::RangePush {
+                data:
+                    nvtx::RangePush {
+                        domain,
+                        thread_id,
+                        attributes,
+                    },
             } => {
                 self.see_domain(*domain, timestamp);
                 self.threads_seen.insert(*thread_id);
                 self.see_attributes(*domain, attributes);
             }
-            NvtxEvent::RangePop { domain, thread_id } => {
+            SinkEvent::RangePop {
+                data: nvtx::RangePop { domain, thread_id },
+            } => {
                 self.see_domain(*domain, timestamp);
                 self.threads_seen.insert(*thread_id);
             }
-            NvtxEvent::RangeStart {
-                domain, attributes, ..
+            SinkEvent::RangeStart {
+                data:
+                    nvtx::RangeStart {
+                        domain, attributes, ..
+                    },
             }
-            | NvtxEvent::Mark { domain, attributes } => {
+            | SinkEvent::Mark {
+                data: nvtx::Mark { domain, attributes },
+            } => {
                 self.see_domain(*domain, timestamp);
                 self.see_attributes(*domain, attributes);
             }
-            NvtxEvent::RangeEnd { domain, .. } => self.see_domain(*domain, timestamp),
-            NvtxEvent::DomainCreate { domain, name } => {
+            SinkEvent::RangeEnd {
+                data: nvtx::RangeEnd { domain, .. },
+            } => self.see_domain(*domain, timestamp),
+            SinkEvent::DomainCreate {
+                data: nvtx::DomainCreate { domain, name },
+            } => {
                 let lifespan = self.lifespan(*domain, timestamp);
                 // `min` rather than assignment: a stream that somehow repeats a
                 // creation still folds to one deterministic answer.
                 lifespan.created = Some(lifespan.created.unwrap_or(timestamp).min(timestamp));
                 self.domain_names.insert(*domain, name.clone());
             }
-            NvtxEvent::DomainDestroy { domain } => {
+            SinkEvent::DomainDestroy {
+                data: nvtx::DomainDestroy { domain },
+            } => {
                 let lifespan = self.lifespan(*domain, timestamp);
                 lifespan.destroyed = Some(lifespan.destroyed.unwrap_or(timestamp).max(timestamp));
             }
-            NvtxEvent::RegisterString {
-                domain,
-                handle,
-                string,
+            SinkEvent::RegisterString {
+                data:
+                    nvtx::RegisterString {
+                        domain,
+                        handle,
+                        string,
+                    },
             } => {
                 self.see_domain(*domain, timestamp);
                 // Keyed by `(domain, handle)`: the same handle value in another
@@ -166,10 +185,13 @@ impl ResolutionTables {
                 self.registered_strings
                     .insert((*domain, *handle), string.clone());
             }
-            NvtxEvent::NameCategory {
-                domain,
-                category,
-                name,
+            SinkEvent::NameCategory {
+                data:
+                    nvtx::NameCategory {
+                        domain,
+                        category,
+                        name,
+                    },
             } => {
                 self.see_domain(*domain, timestamp);
                 // Naming the "no category" sentinel is meaningless, so it never
@@ -180,14 +202,27 @@ impl ResolutionTables {
                         .insert((*domain, category), name.clone());
                 }
             }
-            NvtxEvent::NameThread { thread_id, name } => {
+            SinkEvent::NameThread {
+                data: nvtx::NameThread { thread_id, name },
+            } => {
                 self.threads_seen.insert(*thread_id);
                 self.thread_names.insert(*thread_id, name.clone());
             }
-            NvtxEvent::ResourceCreate { domain, .. } => self.see_domain(*domain, timestamp),
+            SinkEvent::ResourceCreate {
+                data: nvtx::ResourceCreate { domain, .. },
+            } => self.see_domain(*domain, timestamp),
             // `ResourceDestroy` carries neither a domain nor a message, so it
             // contributes nothing to resolution.
-            NvtxEvent::ResourceDestroy { .. } => {}
+            SinkEvent::ResourceDestroy { .. } => {}
+            SinkEvent::SchemaRegister {
+                data: nvtx::SchemaRegister { domain, .. },
+            }
+            | SinkEvent::EnumRegister {
+                data: nvtx::EnumRegister { domain, .. },
+            } => {
+                self.see_domain(*domain, timestamp);
+            }
+            SinkEvent::Initialized { .. } | SinkEvent::BinaryPayload { .. } => {}
         }
     }
 
@@ -223,13 +258,18 @@ impl ResolutionTables {
     /// back to a placeholder that surfaces the raw handle rather than failing.
     pub(crate) fn resolve_message(&self, domain: u64, message: &Option<NvtxMessage>) -> String {
         match message {
-            Some(NvtxMessage::String(text)) => text.clone(),
-            Some(NvtxMessage::RegisteredHandle(handle)) => self
+            Some(NvtxMessage {
+                string: Some(text), ..
+            }) => text.clone(),
+            Some(NvtxMessage {
+                registered_handle: Some(handle),
+                ..
+            }) => self
                 .registered_strings
                 .get(&(domain, *handle))
                 .cloned()
                 .unwrap_or_else(|| unregistered_string_name(*handle)),
-            None => UNNAMED_MESSAGE.to_owned(),
+            _ => UNNAMED_MESSAGE.to_owned(),
         }
     }
 

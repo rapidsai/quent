@@ -11,7 +11,7 @@ use quent_events_build::{
     common::{module_ident, type_ident},
     data_type::map_data_type,
 };
-use quent_schema::{Entity, Event, Identifier};
+use quent_schema::{Entity, Event, Identifier, Schema};
 use quote::quote;
 
 use crate::GenerateError;
@@ -24,6 +24,7 @@ pub(super) fn ident(event: &Event) -> syn::Ident {
 /// Generates a borrowing event handle with timestamp and field accessors and
 /// checked conversion from a raw event.
 pub(super) fn generate(
+    schema: &Schema,
     entity: &Entity,
     event: &Event,
     namespace: &[Identifier],
@@ -49,7 +50,7 @@ pub(super) fn generate(
                 second: field.name().to_string(),
             });
         }
-        let ty = map_data_type(field.ty(), 0, namespace, &crate::event_runtime())?;
+        let ty = map_data_type(schema, field.ty(), 0, namespace, &crate::event_runtime())?;
         let docs = format!("Borrows the `{}` field.", field.name());
         let mismatch = (entity.events().count() > 1).then(|| {
             quote! {

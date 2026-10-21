@@ -1,0 +1,17 @@
+[package]
+name = "quent-instrumentation-build-external-test"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+quent-events = { path = "../../../events" }
+quent-instrumentation = { path = "../../../instrumentation", features = ["io-callback"] }
+
+[build-dependencies]
+quent-events-build = { path = "../../../events-build" }
+quent-instrumentation-build = { path = "../.." }
+quent-yaml = { path = "../../../yaml" }
+syn = { version = "3.0.3", features = ["full", "parsing"] }

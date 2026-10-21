@@ -62,9 +62,17 @@
 //!
 //! To generate event types that support Serde, set [`EventOptions::serde`] to
 //! `true` and enable the `serde` feature on `quent-instrumentation`.
+//!
+//! # Extern types
+//!
+//! Entity metadata `quent.codegen.rust.type` selects extern payload enums
+//! according to [`quent_events_build::extern_type`]. Extern FSM payloads
+//! must also provide their own `quent_instrumentation::FsmEvent` implementation.
 
 pub use quent_events_build::Options as EventOptions;
 use quent_events_build::{common, namespace};
+#[cfg(test)]
+mod external_tests;
 mod runtime;
 
 use std::path::PathBuf;
@@ -230,7 +238,7 @@ fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, G
     let reexports = runtime::reexports();
     let entity_types = runtime::entity_types(schema);
     let types = generate_namespace(schema, opts, &namespaces)?;
-    let observable = runtime::generate_model(schema, &namespaces, opts.collector_sink);
+    let observable = runtime::generate_model(schema, &namespaces, opts.collector_sink)?;
     let mut file = syn::parse2::<syn::File>(quote! { #reexports #entity_types #types #observable })
         .map_err(GenerateError::InvalidGeneratedCode)?;
     if let Some(package) = opts.analyzer_package.as_deref() {
