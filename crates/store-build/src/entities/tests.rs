@@ -9,6 +9,31 @@ use quent_schema::{
 use crate::{EntityStoreImplementations, GenerateError, Options, generate_str};
 
 #[test]
+fn entity_access_uses_external_payload_path() {
+    use quent_schema::builder::{AnnotationsBuilder, EntityBuilder};
+
+    let annotations = AnnotationsBuilder::new()
+        .with_metadata(
+            "quent.codegen.rust.type",
+            Some("::shared_types::SharedEvent".to_owned()),
+        )
+        .build()
+        .unwrap();
+    let entity = EntityBuilder::try_new("Jobs::Task")
+        .unwrap()
+        .with_annotations(annotations)
+        .with_event(event("updated", [field("name", DataType::String)]))
+        .build()
+        .unwrap();
+    let source = generate_str(&schema("Demo", [entity], []), &Options::default()).unwrap();
+
+    assert!(source.contains("::quent_store::Timestamped<::shared_types::SharedEvent>"));
+    assert!(source.contains("::shared_types::SharedEvent::Updated"));
+    assert!(!source.contains("pub enum TaskEvent"));
+    assert!(!source.contains("TaskEvent::"));
+}
+
+#[test]
 fn generation_defaults_to_native_and_is_independent_of_loading() {
     let schema = schema(
         "Demo",

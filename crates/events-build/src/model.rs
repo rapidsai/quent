@@ -11,7 +11,8 @@ use syn::Ident;
 
 use crate::{
     Error, Options, Runtime,
-    common::{derive_attr, module_ident, path_name_pascal, raw_ident, relative_type_path, to_case},
+    common::{derive_attr, module_ident, path_name_pascal, raw_ident, to_case},
+    events::event_type_path,
     namespace::Namespace,
 };
 
@@ -68,11 +69,15 @@ fn generate_combined(
         event_runtime.serde.as_ref(),
     )?;
 
-    let entity_variants = namespace.entities().iter().map(|entity| {
-        let variant = raw_ident(path_name_pascal(entity.path()));
-        let event = raw_ident(format!("{}Event", path_name_pascal(entity.path())));
-        quote! { #variant(#event) }
-    });
+    let entity_variants = namespace
+        .entities()
+        .iter()
+        .map(|entity| {
+            let variant = raw_ident(path_name_pascal(entity.path()));
+            let event = event_type_path(entity, namespace.path())?;
+            Ok::<_, Error>(quote! { #variant(#event) })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let child_variants = namespace.children_with_entities().map(|child| {
         let segment = child
             .path()
@@ -84,17 +89,21 @@ fn generate_combined(
         quote! { #variant(#module::#child_event) }
     });
 
-    let entity_conversions = namespace.entities().iter().map(|entity| {
-        let variant = raw_ident(path_name_pascal(entity.path()));
-        let source = raw_ident(format!("{}Event", path_name_pascal(entity.path())));
-        quote! {
-            impl ::core::convert::From<#source> for #event {
-                fn from(event: #source) -> Self {
-                    Self::#variant(event)
+    let entity_conversions = namespace
+        .entities()
+        .iter()
+        .map(|entity| {
+            let variant = raw_ident(path_name_pascal(entity.path()));
+            let source = event_type_path(entity, namespace.path())?;
+            Ok::<_, Error>(quote! {
+                impl ::core::convert::From<#source> for #event {
+                    fn from(event: #source) -> Self {
+                        Self::#variant(event)
+                    }
                 }
-            }
-        }
-    });
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut child_conversions = Vec::new();
     for child in namespace.children_with_entities() {
         let segment = child
@@ -114,7 +123,7 @@ fn generate_combined(
             }
         });
         for entity in child.all_entities() {
-            let source = relative_type_path(entity.path(), namespace.path(), "Event");
+            let source = event_type_path(entity, namespace.path())?;
             child_conversions.push(quote! {
                 impl ::core::convert::From<#source> for #event {
                     fn from(event: #source) -> Self {

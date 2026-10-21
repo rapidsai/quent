@@ -49,7 +49,7 @@ pub(super) fn generate(
     let mut names = BTreeMap::new();
     for entity in schema.entities() {
         let items = namespaces::for_entity(events, entity, &mut names)?;
-        let generated = generate_entity(entity, opts, stores)?;
+        let generated = generate_entity(schema, entity, opts, stores)?;
         namespaces::extend(items, generated, entity)?;
     }
     Ok(())
@@ -57,6 +57,7 @@ pub(super) fn generate(
 
 /// Generates event handles, an access trait, and indices for one entity.
 fn generate_entity(
+    schema: &Schema,
     entity: &Entity,
     opts: &Options,
     stores: &EntityStoreImplementations,
@@ -66,9 +67,14 @@ fn generate_entity(
     namespace.push(entity.path().name().clone());
     let parents = vec![quote!(super); namespace.len()];
     let marker = relative_type_path(entity.path(), &[], "");
-    let original = relative_type_path(entity.path(), &[], "Event");
     let marker = quote! { #(#parents::)* #marker };
-    let original = quote! { #(#parents::)* #original };
+    let original = match quent_events_build::extern_type(entity)? {
+        Some(path) => quote! { #path },
+        None => {
+            let original = relative_type_path(entity.path(), &[], "Event");
+            quote! { #(#parents::)* #original }
+        }
+    };
     let entity_name = type_ident(entity.path().name())
         .to_string()
         .trim_start_matches("r#")
@@ -114,7 +120,9 @@ fn generate_entity(
                 });
             }
         }
-        code.push(generate_event(entity, event, &namespace, opts, &original)?);
+        code.push(generate_event(
+            schema, entity, event, &namespace, opts, &original,
+        )?);
     }
     let handles = code.iter().map(|event| &event.handle_type_def);
     let methods = code.iter().map(|event| &event.accessor_method_decl);
@@ -138,6 +146,7 @@ fn generate_entity(
 /// Generates a borrowing handle, an accessor declaration, and store code for
 /// one event.
 fn generate_event(
+    schema: &Schema,
     entity: &Entity,
     event: &Event,
     namespace: &[Identifier],
@@ -145,7 +154,7 @@ fn generate_event(
     original: &TokenStream,
 ) -> Result<EventCode, GenerateError> {
     let handle = handles::ident(event);
-    let handle_type_def = handles::generate(entity, event, namespace, opts, original)?;
+    let handle_type_def = handles::generate(schema, entity, event, namespace, opts, original)?;
     let variant_pattern = handles::variant_pattern(event, original);
     let handle = quote! { #handle };
     let accessor = accessors::generate(entity, event, &handle);

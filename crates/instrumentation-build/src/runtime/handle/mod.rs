@@ -5,10 +5,11 @@
 
 use convert_case::Case;
 use proc_macro2::{Literal, TokenStream};
+use quent_events_build::event_type_path;
 use quent_schema::{Cardinality, Entity, Event, Schema};
 use quote::quote;
 
-use super::{event_ident, marker_ident};
+use super::marker_ident;
 use crate::{
     GenerateError,
     common::{doc_attr_or, raw_ident, relative_root_type, to_case},
@@ -33,19 +34,22 @@ pub(super) fn fsm_handle_type(schema: &Schema) -> TokenStream {
 }
 
 /// Generates entity-specific methods on the generic handle.
-pub(super) fn entity_handle(entity: &Entity) -> Result<GeneratedHandle, GenerateError> {
-    if let Some(handle) = fsm::entity_handle(entity)? {
+pub(super) fn entity_handle(
+    schema: &Schema,
+    entity: &Entity,
+) -> Result<GeneratedHandle, GenerateError> {
+    if let Some(handle) = fsm::entity_handle(schema, entity)? {
         return Ok(handle);
     }
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
     Ok(GeneratedHandle {
-        tokens: ordinary_handle(entity)?,
+        tokens: ordinary_handle(schema, entity)?,
         associated_type: quote! { #handle_ty<Self> },
     })
 }
 
-fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
-    let event_ty = event_ident(entity);
+fn ordinary_handle(schema: &Schema, entity: &Entity) -> Result<TokenStream, GenerateError> {
+    let event_ty = event_type_path(entity, entity.path().namespace())?;
     let marker_ty = marker_ident(entity);
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
 
@@ -79,7 +83,7 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
             };
             let docs = doc_attr_or(event.annotations().docs(), &fallback);
 
-            let params = event_params(entity, event, None)?;
+            let params = event_params(schema, entity, event, None)?;
             let fields = event_fields(event, None);
             let construct = event_construct(&event_ty, &variant, &fields);
 
@@ -132,6 +136,7 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
 }
 
 fn event_params(
+    schema: &Schema,
     entity: &Entity,
     event: &Event,
     omitted_field: Option<&str>,
@@ -142,6 +147,7 @@ fn event_params(
         .map(|field| {
             let name = raw_ident(to_case(field.name(), Case::Snake));
             let ty = map_data_type(
+                schema,
                 field.ty(),
                 0,
                 entity.path().namespace(),
@@ -166,7 +172,7 @@ fn event_fields(event: &Event, replaced_field: Option<(&str, &TokenStream)>) -> 
 }
 
 fn event_construct(
-    event_ty: &syn::Ident,
+    event_ty: &TokenStream,
     variant: &syn::Ident,
     fields: &[TokenStream],
 ) -> TokenStream {

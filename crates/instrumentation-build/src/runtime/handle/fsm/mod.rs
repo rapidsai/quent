@@ -37,7 +37,10 @@ fn reserved_handle_method(state: &Identifier) -> Option<&'static str> {
         .find(|reserved| *reserved == method)
 }
 
-pub(super) fn entity_handle(entity: &Entity) -> Result<Option<GeneratedHandle>, GenerateError> {
+pub(super) fn entity_handle(
+    schema: &Schema,
+    entity: &Entity,
+) -> Result<Option<GeneratedHandle>, GenerateError> {
     let Some(fsm) = Fsm::try_from_entity(entity)? else {
         return Ok(None);
     };
@@ -58,9 +61,13 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<Option<GeneratedHandle>, 
         }
     }
     let handle_ty = typestate::handle_type_path(entity);
-    let fsm_event = fsm_event_impl(entity);
-    let typestate = typestate::entity_impl(entity, &fsm)?;
-    let dynamic = dynamic::entity_impl(entity, &fsm)?;
+    let fsm_event = if quent_events_build::extern_type(entity)?.is_some() {
+        TokenStream::new()
+    } else {
+        fsm_event_impl(entity)
+    };
+    let typestate = typestate::entity_impl(schema, entity, &fsm)?;
+    let dynamic = dynamic::entity_impl(schema, entity, &fsm)?;
     Ok(Some(GeneratedHandle {
         tokens: quote! {
             #fsm_event
@@ -127,8 +134,13 @@ mod tests {
         }
     }
 
+    fn handle(entity: &Entity) -> Result<Option<GeneratedHandle>, GenerateError> {
+        let schema = quent_schema::test_utils::schema("Demo", [entity.clone()], []);
+        entity_handle(&schema, entity)
+    }
+
     fn source(entity: &Entity) -> String {
-        pretty(entity_handle(entity).unwrap().unwrap().tokens)
+        pretty(handle(entity).unwrap().unwrap().tokens)
     }
 
     #[test]
@@ -229,7 +241,7 @@ mod tests {
             .build()
             .unwrap();
 
-        assert!(matches!(entity_handle(&entity), Ok(Some(_))));
+        assert!(matches!(handle(&entity), Ok(Some(_))));
     }
 
     #[test]
@@ -255,7 +267,7 @@ mod tests {
             .unwrap();
 
         assert!(matches!(
-            entity_handle(&entity),
+            handle(&entity),
             Err(GenerateError::TooManyFsmStates { count, .. }) if count == MAX_FSM_STATES + 1
         ));
     }
@@ -282,7 +294,7 @@ mod tests {
                 .unwrap();
 
             assert!(matches!(
-                entity_handle(&entity),
+                handle(&entity),
                 Err(GenerateError::ReservedFsmHandleMethod {
                     state,
                     method,

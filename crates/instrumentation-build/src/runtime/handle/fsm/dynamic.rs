@@ -5,6 +5,7 @@
 
 use convert_case::Case;
 use proc_macro2::{Literal, TokenStream};
+use quent_events_build::event_type_path;
 use quent_fsm::{Fsm, SEQUENCE_FIELD_NAME};
 use quent_schema::{Entity, Event, Schema};
 use quote::quote;
@@ -13,7 +14,7 @@ use super::super::{event_construct, event_fields, event_params};
 use crate::{
     GenerateError,
     common::{doc_attr_or, raw_ident, relative_root_type, to_case},
-    runtime::{event_ident, marker_ident, model_ident},
+    runtime::{marker_ident, model_ident},
 };
 
 pub(super) fn handle_type(schema: &Schema) -> TokenStream {
@@ -65,8 +66,12 @@ pub(super) fn handle_type(schema: &Schema) -> TokenStream {
     }
 }
 
-pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, GenerateError> {
-    let event_ty = event_ident(entity);
+pub(super) fn entity_impl(
+    schema: &Schema,
+    entity: &Entity,
+    fsm: &Fsm,
+) -> Result<TokenStream, GenerateError> {
+    let event_ty = event_type_path(entity, entity.path().namespace())?;
     let marker_ty = marker_ident(entity);
     let typestate_handle_ty = super::typestate::handle_type_path(entity);
     let handle_ty = relative_root_type("DynamicFsmHandle", entity.path().namespace());
@@ -116,6 +121,7 @@ pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, Gen
             }
         }
         transition_methods.push(transition_method(
+            schema,
             entity,
             event,
             &event_ty,
@@ -221,9 +227,10 @@ pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, Gen
 }
 
 fn transition_method(
+    schema: &Schema,
     entity: &Entity,
     event: &Event,
-    event_ty: &syn::Ident,
+    event_ty: &TokenStream,
     entity_name: &str,
     sources: &[usize],
 ) -> Result<TokenStream, GenerateError> {
@@ -233,7 +240,7 @@ fn transition_method(
         event.annotations().docs(),
         &format!("Transition this FSM into `{}`.", event.name()),
     );
-    let params = event_params(entity, event, Some(SEQUENCE_FIELD_NAME))?;
+    let params = event_params(schema, entity, event, Some(SEQUENCE_FIELD_NAME))?;
     let sequence_placeholder = quote! { 0 };
     let fields = event_fields(event, Some((SEQUENCE_FIELD_NAME, &sequence_placeholder)));
     let construct = event_construct(event_ty, &variant, &fields);

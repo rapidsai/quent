@@ -5,6 +5,7 @@
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
+use quent_events_build::event_type_path;
 use quent_schema::{Entity, Schema};
 use quote::quote;
 use syn::Ident;
@@ -95,10 +96,10 @@ pub(super) fn schema_model(
     schema: &Schema,
     namespaces: &Namespace<'_>,
     collector_sink: bool,
-) -> TokenStream {
+) -> Result<TokenStream, GenerateError> {
     let model = model_ident(schema);
     let observers = observers_ident(schema, namespaces);
-    let observers_initializer = observer_storage_initializer(schema, namespaces);
+    let observers_initializer = observer_storage_initializer(schema, namespaces)?;
     let provider_binding = if schema.entities().next().is_some() {
         raw_ident("provider".to_owned())
     } else {
@@ -106,8 +107,8 @@ pub(super) fn schema_model(
     };
     let provider_event_types = schema
         .entities()
-        .map(|entity| relative_type_path(entity.path(), &[], "Event"))
-        .collect::<Vec<_>>();
+        .map(|entity| event_type_path(entity, &[]))
+        .collect::<Result<Vec<_>, _>>()?;
     let provider_bounds = (!provider_event_types.is_empty()).then(|| {
         quote! {
             where
@@ -117,9 +118,11 @@ pub(super) fn schema_model(
     let observer_impls = schema
         .entities()
         .map(|entity| observer_storage_impl(schema, entity));
-    let collector_sink = collector_sink.then(|| collector_sink_impl(schema));
+    let collector_sink = collector_sink
+        .then(|| collector_sink_impl(schema))
+        .transpose()?;
 
-    quote! {
+    Ok(quote! {
         #(#observer_impls)*
 
         impl ::quent_instrumentation::InstrumentedModel for #model {
@@ -146,24 +149,27 @@ pub(super) fn schema_model(
         }
 
         #collector_sink
-    }
+    })
 }
 
-fn collector_sink_impl(schema: &Schema) -> TokenStream {
+fn collector_sink_impl(schema: &Schema) -> Result<TokenStream, GenerateError> {
     let model = model_ident(schema);
-    let routes = schema.entities().map(|entity| {
-        let marker = relative_type_path(entity.path(), &[], "");
-        let event_ty = relative_type_path(entity.path(), &[], "Event");
-        quote! {
-            if entity == <#event_ty as ::quent_instrumentation::EventPayload>::NAME {
-                let event = ::quent_instrumentation::deserialize_event::<#event_ty>(event)?;
-                context.observer::<#marker>().forward(event);
-                return ::core::result::Result::Ok(());
-            }
-        }
-    });
+    let routes = schema
+        .entities()
+        .map(|entity| {
+            let marker = relative_type_path(entity.path(), &[], "");
+            let event_ty = event_type_path(entity, &[])?;
+            Ok::<_, GenerateError>(quote! {
+                if entity == <#event_ty as ::quent_instrumentation::EventPayload>::NAME {
+                    let event = ::quent_instrumentation::deserialize_event::<#event_ty>(event)?;
+                    context.observer::<#marker>().forward(event);
+                    return ::core::result::Result::Ok(());
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-    quote! {
+    Ok(quote! {
         impl ::quent_instrumentation::CollectorRouter for #model {
             fn dispatch(
                 context: &Context<Self>,
@@ -179,41 +185,51 @@ fn collector_sink_impl(schema: &Schema) -> TokenStream {
                 )
             }
         }
-    }
+    })
 }
 
-fn observer_storage_initializer(schema: &Schema, namespace: &Namespace<'_>) -> TokenStream {
+fn observer_storage_initializer(
+    schema: &Schema,
+    namespace: &Namespace<'_>,
+) -> Result<TokenStream, GenerateError> {
     let storage = observers_path(schema, namespace);
-    let entity_fields = namespace.entities().iter().map(|entity| {
-        let field = entity_observer_field(entity);
-        let entity_ty = relative_type_path(entity.path(), &[], "");
-        let event_ty = relative_type_path(entity.path(), &[], "Event");
-        let observer = quote! {
-            context
-                .observer::<#event_ty>(provider)
-                .await?
-        };
-        quote! {
-            #field: ::quent_instrumentation::Observer::<#entity_ty>::new(
-                ::std::sync::Arc::new(#observer),
-            )
-        }
-    });
-    let namespace_fields = namespace.children_with_entities().map(|child| {
-        let segment = child
-            .path()
-            .last()
-            .expect("child namespaces extend their parent");
-        let field = namespace_observers_field(segment);
-        let value = observer_storage_initializer(schema, child);
-        quote! { #field: #value }
-    });
-    quote! {
+    let entity_fields = namespace
+        .entities()
+        .iter()
+        .map(|entity| {
+            let field = entity_observer_field(entity);
+            let entity_ty = relative_type_path(entity.path(), &[], "");
+            let event_ty = event_type_path(entity, &[])?;
+            let observer = quote! {
+                context
+                    .observer::<#event_ty>(provider)
+                    .await?
+            };
+            Ok::<_, GenerateError>(quote! {
+                #field: ::quent_instrumentation::Observer::<#entity_ty>::new(
+                    ::std::sync::Arc::new(#observer),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let namespace_fields = namespace
+        .children_with_entities()
+        .map(|child| {
+            let segment = child
+                .path()
+                .last()
+                .expect("child namespaces extend their parent");
+            let field = namespace_observers_field(segment);
+            let value = observer_storage_initializer(schema, child)?;
+            Ok::<_, GenerateError>(quote! { #field: #value })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(quote! {
         #storage {
             #(#entity_fields,)*
             #(#namespace_fields,)*
         }
-    }
+    })
 }
 
 fn observer_storage_impl(schema: &Schema, entity: &Entity) -> TokenStream {

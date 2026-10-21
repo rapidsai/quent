@@ -1,0 +1,59 @@
+quent: '0.2.0'
+model: Application
+
+# Extern Rust types replace generated Rust type definitions, but the complete
+# schema must always include all schema definitions needed for validation,
+# handle generation, and other language generators.
+#
+# Typically, only YAML extensions set quent.codegen.rust.type to predefined
+# types owned by the Quent repo. While this fixture sets them explicitly to test
+# reuse of types generated from predefined.yaml, it is not representing a
+# typical use case users need to be concerned with.
+#
+# This is NOT an importing mechanism which would feel weird given the repetition
+# of the types displayed here.
+#
+# This is just a mechanism allowing application-agnostic types to be leveraged
+# by analysis code without having to depend on application-specific types.
+
+records:
+  Message:
+    metadata:
+      quent.codegen.rust.type: "::quent_instrumentation_build_external_test::predefined::Message"
+    fields:
+      text: string
+
+entities:
+  Annotations:
+    metadata:
+      quent.codegen.rust.type: "::quent_instrumentation_build_external_test::predefined::AnnotationsEvent"
+    events:
+      mark:
+        multi: true
+        attributes:
+          message: Message
+      link:
+        multi: true
+        attributes:
+          target: ref
+      closed: {}
+
+  Receiver:
+    events:
+      received:
+        multi: true
+        attributes:
+          message: Message
+          history: { list: { option: Message } }
+
+fsms:
+  Task:
+    metadata:
+      quent.codegen.rust.type: "::quent_instrumentation_build_external_test::predefined::TaskEvent"
+    states:
+      started:
+        initial: true
+        attributes:
+          message: Message
+        to: [finished]
+      finished: {}

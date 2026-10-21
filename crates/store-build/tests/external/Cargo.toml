@@ -1,0 +1,15 @@
+[package]
+name = "quent-store-build-external-test"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+quent-store = { path = "../../../store", default-features = false }
+quent-instrumentation-build-external-test = { path = "../../../instrumentation-build/tests/external" }
+
+[build-dependencies]
+quent-store-build = { path = "../.." }
+quent-yaml = { path = "../../../yaml" }

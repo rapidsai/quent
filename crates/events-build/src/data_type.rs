@@ -5,12 +5,12 @@
 
 use proc_macro2::TokenStream;
 use quent_ref_target::RefTarget;
-use quent_schema::{Annotations, DataType};
+use quent_schema::{Annotations, DataType, Schema};
 use quote::quote;
 
 use crate::{
     Error, Runtime,
-    common::{relative_root_type, relative_type_path},
+    common::{parse_extern_type, relative_root_type, relative_type_path},
 };
 
 /// Maximum nesting depth of `Option`/`List`/`EntityRef` wrappers in a schema event
@@ -26,15 +26,17 @@ const MAX_TYPE_DEPTH: usize = 64;
 /// call.
 ///
 /// `event_runtime` supplies Rust paths to types referenced by the generated
-/// code. For example, this can be used to map a schema [`DataType::Uuid`] to
+/// code. Extern record types are resolved from `schema`. For example, this can
+/// be used to map a schema [`DataType::Uuid`] to
 /// either `::quent_instrumentation::Uuid` or `::quent_store::Uuid` depending on
 /// the crate using this function.
 ///
 /// # Errors
 ///
 /// Returns [`Error::TypeNestingTooDeep`] when type nesting exceeds
-/// [`MAX_TYPE_DEPTH`].
+/// [`MAX_TYPE_DEPTH`] or when a referenced record has invalid type binding metadata.
 pub fn map_data_type(
+    schema: &Schema,
     ty: &DataType,
     depth: usize,
     source_namespace: &[quent_schema::Identifier],
@@ -63,14 +65,24 @@ pub fn map_data_type(
         DataType::F32 => quote! { f32 },
         DataType::F64 => quote! { f64 },
         DataType::Option(inner) => {
-            let inner = map_data_type(inner, depth + 1, source_namespace, event_runtime)?;
+            let inner = map_data_type(schema, inner, depth + 1, source_namespace, event_runtime)?;
             quote! { Option<#inner> }
         }
         DataType::List(inner) => {
-            let inner = map_data_type(inner, depth + 1, source_namespace, event_runtime)?;
+            let inner = map_data_type(schema, inner, depth + 1, source_namespace, event_runtime)?;
             quote! { Vec<#inner> }
         }
-        DataType::Record(path) => relative_type_path(path, source_namespace, ""),
+        DataType::Record(path) => {
+            let extern_type = schema
+                .record(path)
+                .map(|record| parse_extern_type(record.path(), record.annotations()))
+                .transpose()?
+                .flatten();
+            match extern_type {
+                Some(path) => quote! { #path },
+                None => relative_type_path(path, source_namespace, ""),
+            }
+        }
         DataType::DynamicRecord => {
             let runtime = &event_runtime.events;
             quote! { #runtime::DynamicAttributes }
@@ -80,7 +92,8 @@ pub fn map_data_type(
             let runtime = &event_runtime.events;
             match data {
                 Some(inner) => {
-                    let inner = map_data_type(inner, depth + 1, source_namespace, event_runtime)?;
+                    let inner =
+                        map_data_type(schema, inner, depth + 1, source_namespace, event_runtime)?;
                     quote! { #runtime::EntityRef<#target, #inner> }
                 }
                 None => quote! { #runtime::EntityRef<#target> },
@@ -115,7 +128,13 @@ mod tests {
             ty = DataType::Option(Box::new(ty));
         }
         assert!(matches!(
-            map_data_type(&ty, 0, &[], &crate::tests::runtime()),
+            map_data_type(
+                &quent_schema::test_utils::schema("M", [], []),
+                &ty,
+                0,
+                &[],
+                &crate::tests::runtime()
+            ),
             Err(Error::TypeNestingTooDeep {
                 max: MAX_TYPE_DEPTH
             })
@@ -132,9 +151,15 @@ mod tests {
             data: Some(Box::new(DataType::U64)),
             annotations: annotations.build().unwrap(),
         };
-        let tokens = map_data_type(&ty, 0, &[], &crate::tests::runtime())
-            .unwrap()
-            .to_string();
+        let tokens = map_data_type(
+            &quent_schema::test_utils::schema("M", [], []),
+            &ty,
+            0,
+            &[],
+            &crate::tests::runtime(),
+        )
+        .unwrap()
+        .to_string();
         assert!(tokens.contains("EntityRef < Cluster , u64 >"), "{tokens}");
     }
 }

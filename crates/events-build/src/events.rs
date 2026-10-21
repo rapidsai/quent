@@ -5,12 +5,15 @@
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
-use quent_schema::Entity;
+use quent_schema::{Entity, Identifier, Schema};
 use quote::quote;
 
 use crate::{
     Error, Options, Runtime,
-    common::{derive_attr, doc_attr, doc_attr_or, path_name_pascal, raw_ident, to_case},
+    common::{
+        derive_attr, doc_attr, doc_attr_or, path_name_pascal, raw_ident, relative_type_path,
+        to_case,
+    },
     data_type::map_data_type,
 };
 
@@ -25,39 +28,60 @@ pub(crate) fn reexports(event_runtime: &Runtime) -> TokenStream {
     }
 }
 
-/// Generates a Rust marker type for a schema entity and links it to that entity's
-/// event payload enum. Also gives the event payload enum its schema entity name.
-pub(crate) fn entity_types(entity: &Entity, event_runtime: &Runtime) -> TokenStream {
+/// Generates a schema entity marker and associates it with its payload type.
+pub(crate) fn entity_types(entity: &Entity, event_runtime: &Runtime) -> Result<TokenStream, Error> {
     let marker = raw_ident(path_name_pascal(entity.path()));
-    let event = raw_ident(format!("{}Event", path_name_pascal(entity.path())));
+    let event = event_type_path(entity, entity.path().namespace())?;
     let marker_doc = format!("Marker type for the `{}` entity.", entity.path());
     let stream_name = entity.path().to_string();
     let runtime = &event_runtime.events;
     let entity_marker = &event_runtime.entity_marker;
-    quote! {
+    let payload = if extern_type(entity)?.is_some() {
+        let mismatch = format!("external EventPayload::NAME must equal `{stream_name}`");
+        quote! {
+            const _: () = {
+                let actual = <#event as #runtime::EventPayload>::NAME.as_bytes();
+                let expected = #stream_name.as_bytes();
+                assert!(actual.len() == expected.len(), #mismatch);
+                let mut index = 0;
+                while index < expected.len() {
+                    assert!(actual[index] == expected[index], #mismatch);
+                    index += 1;
+                }
+            };
+        }
+    } else {
+        quote! {
+            impl #runtime::EventPayload for #event {
+                const NAME: &'static str = #stream_name;
+            }
+        }
+    };
+    Ok(quote! {
         #[doc = #marker_doc]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub struct #marker;
 
-        impl #runtime::EventPayload for #event {
-            const NAME: &'static str = #stream_name;
-        }
+        #payload
 
         impl #entity_marker for #marker {
             type Payload = #event;
         }
-    }
+    })
 }
 
-/// Generates a Rust enum with one variant per schema event declared by the entity.
-/// Each variant carries the data declared by its schema event fields.
+/// Generates a payload enum or re-exports the entity's extern type.
 pub(crate) fn entity_event_payload_enum(
+    schema: &Schema,
     entity: &Entity,
     opts: &Options,
     event_runtime: &Runtime,
 ) -> Result<TokenStream, Error> {
     let entity_pascal = path_name_pascal(entity.path());
     let enum_ident = raw_ident(format!("{entity_pascal}Event"));
+    if let Some(path) = extern_type(entity)? {
+        return Ok(quote! { pub use #path as #enum_ident; });
+    }
     let docs = doc_attr_or(
         entity.annotations().docs(),
         &format!("Events emitted by `{}` entities.", entity.path()),
@@ -81,8 +105,13 @@ pub(crate) fn entity_event_payload_enum(
                 .fields()
                 .map(|field| {
                     let name = raw_ident(to_case(field.name(), Case::Snake));
-                    let ty =
-                        map_data_type(field.ty(), 0, entity.path().namespace(), event_runtime)?;
+                    let ty = map_data_type(
+                        schema,
+                        field.ty(),
+                        0,
+                        entity.path().namespace(),
+                        event_runtime,
+                    )?;
                     let field_docs = doc_attr(field.annotations().docs());
                     Ok::<_, Error>(quote! { #field_docs #name: #ty })
                 })
@@ -103,6 +132,36 @@ pub(crate) fn entity_event_payload_enum(
     })
 }
 
+/// Returns an entity's extern type from `quent.codegen.rust.type`, if present.
+///
+/// The schema must retain all events and fields. The extern enum must match
+/// their generated names and types and supply the required traits, including
+/// `EventPayload` with `NAME` equal to the entity's schema path.
+/// It is re-exported under the schema-generated payload name.
+///
+/// # Errors
+///
+/// Returns an error when the metadata is missing its value or is not a Rust path
+/// without generic arguments.
+pub fn extern_type(entity: &Entity) -> Result<Option<syn::Path>, Error> {
+    crate::common::parse_extern_type(entity.path(), entity.annotations())
+}
+
+/// Returns the extern payload path or the generated path relative to `source_namespace`.
+///
+/// # Errors
+///
+/// Returns an error when the entity's extern type declaration is invalid.
+pub fn event_type_path(
+    entity: &Entity,
+    source_namespace: &[Identifier],
+) -> Result<TokenStream, Error> {
+    Ok(match extern_type(entity)? {
+        Some(path) => quote! { #path },
+        None => relative_type_path(entity.path(), source_namespace, "Event"),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,7 +177,15 @@ mod tests {
             debug: false,
             ..Options::default()
         };
-        pretty(entity_event_payload_enum(entity, &opts, &crate::tests::runtime()).unwrap())
+        pretty(
+            entity_event_payload_enum(
+                &schema("M", [entity.clone()], []),
+                entity,
+                &opts,
+                &crate::tests::runtime(),
+            )
+            .unwrap(),
+        )
     }
 
     #[test]
