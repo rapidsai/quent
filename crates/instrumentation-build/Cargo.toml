@@ -9,6 +9,7 @@ convert_case = "0.12"
 prettyplease.workspace = true
 proc-macro2 = "1"
 quent-constraints = { path = "../constraints" }
+quent-events-build = { path = "../events-build" }
 quent-fsm = { path = "../fsm" }
 quent-ref-target = { path = "../ref-target" }
 quent-schema = { path = "../schema" }

@@ -30,8 +30,8 @@ pub(super) fn generate_event(
     accessor_method_signature: &TokenStream,
 ) -> NativeEventStoreCode {
     let slot = quote::format_ident!("event_{}", method.to_string().trim_start_matches("r#"));
-    // TODO(johanpel): Consider u32 positions with u32::MAX for absent Once events,
-    // and block-based delta encoding for large Multi groups.
+    // TODO(johanpel): Consider u32 positions with u32::MAX for absent Once
+    // events, and block-based delta encoding for large Multi groups.
     if event.cardinality() == Cardinality::Once {
         let event_name = event.name().to_string();
         let accessor_expr = if entity.events().count() == 1 {
@@ -93,7 +93,7 @@ pub(super) fn generate_entity(
             #(#index_fields,)*
         }
         impl ::quent_store::entity::native::EventIndex<#marker> for #event_index_ident {
-            fn record(&mut self, payload: &<#marker as ::quent_events::EntityMarker>::Payload, position: usize) -> ::core::result::Result<(), ::quent_store::Error> {
+            fn record(&mut self, payload: &<#marker as ::quent_store::events::EntityMarker>::Payload, position: usize) -> ::core::result::Result<(), ::quent_store::Error> {
                 match payload { #(#arms,)* }
                 Ok(())
             }

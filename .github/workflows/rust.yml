@@ -67,7 +67,9 @@ jobs:
       - run: pixi run cargo run -p quent-store-build-example --locked
       - run: pixi run cargo fmt --manifest-path crates/store-build/tests/store/Cargo.toml -- --check
       - run: pixi run cargo clippy --manifest-path crates/store-build/tests/store/Cargo.toml --all-targets --locked -- -D warnings
+      - run: pixi run cargo clippy --manifest-path crates/store-build/tests/store/Cargo.toml --no-default-features --all-targets --locked -- -D warnings
       - run: pixi run cargo test --manifest-path crates/store-build/tests/store/Cargo.toml --locked
+      - run: pixi run cargo test --manifest-path crates/store-build/tests/store/Cargo.toml --no-default-features --locked
       - run: pixi run cargo fmt --manifest-path crates/yaml/examples/Cargo.toml -- --check
       - run: pixi run cargo clippy --manifest-path crates/yaml/examples/Cargo.toml --bins --locked -- -D warnings
       - run: pixi run cargo check --manifest-path crates/yaml/examples/Cargo.toml --bins --locked

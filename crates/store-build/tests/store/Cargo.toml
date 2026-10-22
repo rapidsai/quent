@@ -7,10 +7,13 @@ publish = false
 # A separate crate lets build.rs use quent-store-build without a dependency cycle.
 [workspace]
 
+[features]
+default = ["serde"]
+# Serde-enabled builds also compile the filesystem-loading combinations.
+serde = ["quent-store/serde", "quent-store/io-ndjson", "quent-store/io-msgpack", "quent-store/io-postcard"]
+
 [dependencies]
-quent-events = { path = "../../../events", features = ["serde"] }
 quent-store = { path = "../../../store", default-features = false }
-serde = { version = "1", features = ["derive"] }
 
 [build-dependencies]
 quent-schema = { path = "../../../schema", features = ["test-utils"] }

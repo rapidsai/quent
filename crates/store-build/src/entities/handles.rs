@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
-use quent_instrumentation_build::{
+use quent_events_build::{
     Options,
     common::{module_ident, type_ident},
     data_type::map_data_type,
@@ -49,7 +49,7 @@ pub(super) fn generate(
                 second: field.name().to_string(),
             });
         }
-        let ty = map_data_type(field.ty(), 0, namespace, opts)?;
+        let ty = map_data_type(field.ty(), 0, namespace, &crate::event_runtime())?;
         let docs = format!("Borrows the `{}` field.", field.name());
         let mismatch = (entity.events().count() > 1).then(|| {
             quote! {

@@ -1380,6 +1380,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-events-build"
+version = "0.1.0"
+dependencies = [
+ "convert_case 0.12.0",
+ "prettyplease 0.3.0",
+ "proc-macro2",
+ "quent-constraints",
+ "quent-ref-target",
+ "quent-schema",
+ "quote",
+ "syn 3.0.4",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-fsm"
 version = "0.1.0"
 dependencies = [
@@ -1418,6 +1433,7 @@ dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
  "quent-constraints",
+ "quent-events-build",
  "quent-fsm",
  "quent-ref-target",
  "quent-schema",

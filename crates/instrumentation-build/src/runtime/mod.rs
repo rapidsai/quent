@@ -10,9 +10,10 @@ use quent_schema::{Entity, Schema};
 use quote::quote;
 use syn::Ident;
 
-use crate::GenerateError;
-use crate::Options;
-use crate::common::{path_name_pascal, raw_ident, relative_root_type, to_case};
+use crate::{
+    GenerateError,
+    common::{path_name_pascal, raw_ident, relative_root_type, to_case},
+};
 
 mod context;
 mod handle;
@@ -22,9 +23,8 @@ pub(crate) use handle::{MAX_FSM_STATES, MAX_ONCE_EVENTS};
 pub(crate) fn entity_runtime_types(
     schema: &Schema,
     entity: &Entity,
-    opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
-    let handle = handle::entity_handle(entity, opts)?;
+    let handle = handle::entity_handle(entity)?;
     if entity
         .events()
         .any(|event| to_case(event.name(), Case::Snake) == "id")
@@ -156,13 +156,14 @@ fn entity_impl(schema: &Schema, entity: &Entity, handle_type: &TokenStream) -> T
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::pretty;
+    use crate::{Options, pretty};
 
     use quent_fsm::{FsmEntityBuilder, StateDecl};
-    use quent_schema::Cardinality;
-    use quent_schema::DataType;
-    use quent_schema::builder::{EntityBuilder, EventBuilder, SchemaBuilder};
-    use quent_schema::test_utils::{entity, event, field, ident};
+    use quent_schema::{
+        Cardinality, DataType,
+        builder::{EntityBuilder, EventBuilder, SchemaBuilder},
+        test_utils::{entity, event, field, ident},
+    };
 
     fn fsm_state(name: &str, to: &[&str], initial: bool) -> StateDecl {
         StateDecl {
@@ -205,10 +206,18 @@ mod tests {
             .build()
             .unwrap();
         let entity = s.entities().next().unwrap();
-        let event_types = crate::events::entity_types(entity, &Options::default());
-        let entity_types = entity_runtime_types(&s, entity, &Options::default()).unwrap();
+        let entity_types = entity_runtime_types(&s, entity).unwrap();
         let namespaces = crate::namespace::Namespace::root(&s);
-        let generated_model = crate::model::generate(&s, &namespaces, &Options::default()).unwrap();
+        let quent_events_build::NamespaceCode {
+            declarations: event_types,
+            model: generated_model,
+        } = quent_events_build::generate_namespace(
+            &s,
+            &Options::default().events,
+            &namespaces,
+            &crate::event_runtime(),
+        )
+        .unwrap();
         let model = generate_model(&s, &namespaces, false);
         let src = pretty(quote! {
             #event_types

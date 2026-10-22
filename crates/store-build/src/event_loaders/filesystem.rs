@@ -4,7 +4,7 @@
 //! Generation of filesystem event-loader import descriptors.
 
 use proc_macro2::TokenStream;
-use quent_instrumentation_build::common::{relative_type_path, type_ident};
+use quent_events_build::common::{relative_type_path, type_ident};
 use quent_schema::Schema;
 use quote::quote;
 

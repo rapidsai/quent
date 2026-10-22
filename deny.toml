@@ -7,10 +7,12 @@ all-features = true
 # The lint level for security vulnerabilities.
 version = 2
 ignore = [
-    # smartstring is unmaintained and has no safe upgrade. It is pulled in only
-    # by ts-rs's TypeScript formatting toolchain (dprint -> SWC), not by shipped
-    # runtime code. Drop once ts-rs/dprint migrate to a maintained string crate.
-    "RUSTSEC-2026-0249",
+    # utoipa-swagger-ui uses zip 8.6 in its build script to unpack the Swagger UI
+    # distribution. Remove after a release uses zip 9. cargo-deny 0.20.2 only
+    # supports advisory-wide ignores, so these are not scoped to that dependency.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
 ]
 
 [licenses]

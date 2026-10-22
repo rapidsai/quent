@@ -5,6 +5,8 @@
 
 use std::path::{Path, PathBuf};
 
+use quent_instrumentation_build::{GenerateError, Options, generate};
+
 /// Generates and compiles a C++ tutorial bridge for the canonical YAML tutorial.
 pub fn build_cpp(tutorial: &str) -> Result<(), Box<dyn std::error::Error>> {
     let manifest_dir = manifest_dir()?;
@@ -83,10 +85,10 @@ fn repository_root(path: &Path) -> Option<&Path> {
 
 fn generate_instrumentation(
     schema: &quent_schema_codegen_cpp::quent_schema::Schema,
-) -> Result<(), quent_instrumentation_build::GenerateError> {
-    quent_instrumentation_build::generate(
+) -> Result<(), GenerateError> {
+    generate(
         schema,
-        &quent_instrumentation_build::Options {
+        &Options {
             file_name: Some("instrumentation.rs".to_owned()),
             ..Default::default()
         },

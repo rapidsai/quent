@@ -8,31 +8,32 @@ use proc_macro2::TokenStream;
 use quent_schema::Entity;
 use quote::quote;
 
-use crate::common::{derive_attr, doc_attr, doc_attr_or, path_name_pascal, raw_ident, to_case};
-use crate::data_type::map_data_type;
-use crate::{GenerateError, Options};
+use crate::{
+    Error, Options, Runtime,
+    common::{derive_attr, doc_attr, doc_attr_or, path_name_pascal, raw_ident, to_case},
+    data_type::map_data_type,
+};
 
-/// Re-export the runtime types used by event-only generated source.
-pub(crate) fn reexports() -> TokenStream {
+/// Generates `pub use` statements that make shared types such as `Event` and
+/// `EntityRef` available through the generated module.
+pub(crate) fn reexports(event_runtime: &Runtime) -> TokenStream {
+    let runtime = &event_runtime.events;
     quote! {
-        pub use ::quent_events::{
+        pub use #runtime::{
             AnyEntity, DynamicAttributes, EntityRef, Event, Uuid,
         };
     }
 }
 
-/// Generate the schema entity marker and its event metadata implementation.
-pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
+/// Generates a Rust marker type for a schema entity and links it to that entity's
+/// event payload enum. Also gives the event payload enum its schema entity name.
+pub(crate) fn entity_types(entity: &Entity, event_runtime: &Runtime) -> TokenStream {
     let marker = raw_ident(path_name_pascal(entity.path()));
     let event = raw_ident(format!("{}Event", path_name_pascal(entity.path())));
     let marker_doc = format!("Marker type for the `{}` entity.", entity.path());
     let stream_name = entity.path().to_string();
-    let runtime = opts.event_runtime();
-    let events_runtime = if opts.instrumentation {
-        quote! { ::quent_instrumentation::events }
-    } else {
-        quote! { ::quent_events }
-    };
+    let runtime = &event_runtime.events;
+    let entity_marker = &event_runtime.entity_marker;
     quote! {
         #[doc = #marker_doc]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -42,23 +43,32 @@ pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
             const NAME: &'static str = #stream_name;
         }
 
-        impl #events_runtime::EntityMarker for #marker {
+        impl #entity_marker for #marker {
             type Payload = #event;
         }
     }
 }
 
-pub(crate) fn entity_event_enum(
+/// Generates a Rust enum with one variant per schema event declared by the entity.
+/// Each variant carries the data declared by its schema event fields.
+pub(crate) fn entity_event_payload_enum(
     entity: &Entity,
     opts: &Options,
-) -> Result<TokenStream, GenerateError> {
+    event_runtime: &Runtime,
+) -> Result<TokenStream, Error> {
     let entity_pascal = path_name_pascal(entity.path());
     let enum_ident = raw_ident(format!("{entity_pascal}Event"));
     let docs = doc_attr_or(
         entity.annotations().docs(),
         &format!("Events emitted by `{}` entities.", entity.path()),
     );
-    let derives = derive_attr(opts.event_derives, opts.debug, opts.serde, opts.serde)?;
+    let derives = derive_attr(
+        opts.event_derives,
+        opts.debug,
+        opts.serde,
+        opts.serde,
+        event_runtime.serde.as_ref(),
+    )?;
     let variants = entity
         .events()
         .map(|event| {
@@ -71,9 +81,10 @@ pub(crate) fn entity_event_enum(
                 .fields()
                 .map(|field| {
                     let name = raw_ident(to_case(field.name(), Case::Snake));
-                    let ty = map_data_type(field.ty(), 0, entity.path().namespace(), opts)?;
+                    let ty =
+                        map_data_type(field.ty(), 0, entity.path().namespace(), event_runtime)?;
                     let field_docs = doc_attr(field.annotations().docs());
-                    Ok::<_, GenerateError>(quote! { #field_docs #name: #ty })
+                    Ok::<_, Error>(quote! { #field_docs #name: #ty })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             if fields.is_empty() {
@@ -82,7 +93,7 @@ pub(crate) fn entity_event_enum(
                 Ok(quote! { #variant_docs #variant { #(#fields),* } })
             }
         })
-        .collect::<Result<Vec<_>, GenerateError>>()?;
+        .collect::<Result<Vec<_>, Error>>()?;
     Ok(quote! {
         #docs
         #derives
@@ -96,16 +107,18 @@ pub(crate) fn entity_event_enum(
 mod tests {
     use super::*;
     use crate::common::pretty;
-    use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, SchemaBuilder};
-    use quent_schema::test_utils::{entity, event, field, ident, record_type, schema};
-    use quent_schema::{Annotations, Cardinality, DataType, Field};
+    use quent_schema::{
+        Annotations, Cardinality, DataType, Field,
+        builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, SchemaBuilder},
+        test_utils::{entity, event, field, ident, record_type, schema},
+    };
 
     fn event_src(entity: &Entity) -> String {
         let opts = Options {
             debug: false,
             ..Options::default()
         };
-        pretty(entity_event_enum(entity, &opts).unwrap())
+        pretty(entity_event_payload_enum(entity, &opts, &crate::tests::runtime()).unwrap())
     }
 
     #[test]
@@ -150,15 +163,15 @@ mod tests {
                 #[doc = "The `ev` event."]
                 Ev {
                     b: bool,
-                    id: ::quent_instrumentation::Uuid,
+                    id: ::quent_events::Uuid,
                     text: String,
                     n: u32,
                     opt: Option<i32>,
                     list: Vec<String>,
                     rec: SomeRecord,
-                    dynrec: ::quent_instrumentation::DynamicAttributes,
-                    eref: ::quent_instrumentation::EntityRef<AnyEntity>,
-                    eref_payload: ::quent_instrumentation::EntityRef<AnyEntity, u64>
+                    dynrec: ::quent_events::DynamicAttributes,
+                    eref: ::quent_events::EntityRef<AnyEntity>,
+                    eref_payload: ::quent_events::EntityRef<AnyEntity, u64>
                 }
             }
         };
@@ -235,7 +248,7 @@ mod tests {
                 Ev {
                     nested: Option<Vec<Option<u8>>>,
                     nested_lists: Vec<Vec<String>>,
-                    eref_list: ::quent_instrumentation::EntityRef<AnyEntity, Vec<String>>
+                    eref_list: ::quent_events::EntityRef<AnyEntity, Vec<String>>
                 }
             }
         };

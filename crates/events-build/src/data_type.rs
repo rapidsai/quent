@@ -8,42 +8,47 @@ use quent_ref_target::RefTarget;
 use quent_schema::{Annotations, DataType};
 use quote::quote;
 
-use crate::common::{relative_root_type, relative_type_path};
-use crate::{GenerateError, Options};
+use crate::{
+    Error, Runtime,
+    common::{relative_root_type, relative_type_path},
+};
 
-/// Maximum nesting depth of `Option`/`List`/`EntityRef` wrappers a single field
-/// type may have, far above any realistic schema. Self-referential records are
-/// already ruled out by base validation.
-pub(crate) const MAX_TYPE_DEPTH: usize = 64;
+/// Maximum nesting depth of `Option`/`List`/`EntityRef` wrappers in a schema event
+/// or record field's type, far above any realistic schema. Self-referential records
+/// are already ruled out by base validation.
+const MAX_TYPE_DEPTH: usize = 64;
 
-// TODO(johanpel): Extract shared event generation into quent-event-build,
-// allowing store-generated code to use quent-store reexports without a
-// direct quent-events dependency.
-/// Maps a [`DataType`] to Rust type tokens relative to `source_namespace`.
+/// Maps a schema event or record field's [`DataType`] to Rust type tokens.
 ///
-/// Pass zero for `depth` when mapping a standalone type. Runtime types use
-/// `quent_instrumentation` when [`Options::instrumentation`] is enabled and
-/// `quent_events` otherwise.
+/// `depth` increases with each recursive call and is limited to
+/// [`MAX_TYPE_DEPTH`] to prevent stack overflows from deeply nested schema
+/// types supplied from sources likely misbehaving. Pass zero for the initial
+/// call.
+///
+/// `event_runtime` supplies Rust paths to types referenced by the generated
+/// code. For example, this can be used to map a schema [`DataType::Uuid`] to
+/// either `::quent_instrumentation::Uuid` or `::quent_store::Uuid` depending on
+/// the crate using this function.
 ///
 /// # Errors
 ///
-/// Returns [`GenerateError::TypeNestingTooDeep`] when the supplied depth plus
-/// nested wrappers exceeds 64.
+/// Returns [`Error::TypeNestingTooDeep`] when type nesting exceeds
+/// [`MAX_TYPE_DEPTH`].
 pub fn map_data_type(
     ty: &DataType,
     depth: usize,
     source_namespace: &[quent_schema::Identifier],
-    opts: &Options,
-) -> Result<TokenStream, GenerateError> {
+    event_runtime: &Runtime,
+) -> Result<TokenStream, Error> {
     if depth > MAX_TYPE_DEPTH {
-        return Err(GenerateError::TypeNestingTooDeep {
+        return Err(Error::TypeNestingTooDeep {
             max: MAX_TYPE_DEPTH,
         });
     }
     Ok(match ty {
         DataType::Bool => quote! { bool },
         DataType::Uuid => {
-            let runtime = opts.event_runtime();
+            let runtime = &event_runtime.events;
             quote! { #runtime::Uuid }
         }
         DataType::String => quote! { String },
@@ -58,24 +63,24 @@ pub fn map_data_type(
         DataType::F32 => quote! { f32 },
         DataType::F64 => quote! { f64 },
         DataType::Option(inner) => {
-            let inner = map_data_type(inner, depth + 1, source_namespace, opts)?;
+            let inner = map_data_type(inner, depth + 1, source_namespace, event_runtime)?;
             quote! { Option<#inner> }
         }
         DataType::List(inner) => {
-            let inner = map_data_type(inner, depth + 1, source_namespace, opts)?;
+            let inner = map_data_type(inner, depth + 1, source_namespace, event_runtime)?;
             quote! { Vec<#inner> }
         }
         DataType::Record(path) => relative_type_path(path, source_namespace, ""),
         DataType::DynamicRecord => {
-            let runtime = opts.event_runtime();
+            let runtime = &event_runtime.events;
             quote! { #runtime::DynamicAttributes }
         }
         DataType::EntityRef { data, annotations } => {
             let target = ref_target_marker(annotations, source_namespace);
-            let runtime = opts.event_runtime();
+            let runtime = &event_runtime.events;
             match data {
                 Some(inner) => {
-                    let inner = map_data_type(inner, depth + 1, source_namespace, opts)?;
+                    let inner = map_data_type(inner, depth + 1, source_namespace, event_runtime)?;
                     quote! { #runtime::EntityRef<#target, #inner> }
                 }
                 None => quote! { #runtime::EntityRef<#target> },
@@ -84,9 +89,8 @@ pub fn map_data_type(
     })
 }
 
-/// The target-entity marker type for an entity reference, taken from its
-/// ref-target constraint, or the `AnyEntity` marker when it is not restricted
-/// to a target entity.
+/// Returns the Rust marker type for the entity named by the schema's `ref-target`
+/// constraint. Uses `AnyEntity` when no target entity is specified.
 fn ref_target_marker(
     annotations: &Annotations,
     source_namespace: &[quent_schema::Identifier],
@@ -111,8 +115,8 @@ mod tests {
             ty = DataType::Option(Box::new(ty));
         }
         assert!(matches!(
-            map_data_type(&ty, 0, &[], &Options::default()),
-            Err(GenerateError::TypeNestingTooDeep {
+            map_data_type(&ty, 0, &[], &crate::tests::runtime()),
+            Err(Error::TypeNestingTooDeep {
                 max: MAX_TYPE_DEPTH
             })
         ));
@@ -128,7 +132,7 @@ mod tests {
             data: Some(Box::new(DataType::U64)),
             annotations: annotations.build().unwrap(),
         };
-        let tokens = map_data_type(&ty, 0, &[], &Options::default())
+        let tokens = map_data_type(&ty, 0, &[], &crate::tests::runtime())
             .unwrap()
             .to_string();
         assert!(tokens.contains("EntityRef < Cluster , u64 >"), "{tokens}");

@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, SchemaBuilder};
-use quent_schema::test_utils::{entity, event};
+use quent_schema::{
+    builder::{AnnotationsBuilder, EntityBuilder, SchemaBuilder},
+    test_utils::{entity, event},
+};
 
 use super::*;
 
@@ -27,7 +29,10 @@ fn generates_nested_retrieval_apis_with_optional_model_loading() {
     let entity_events_source = generate_str(
         &schema,
         &Options {
-            combined_event: false,
+            events: crate::EventOptions {
+                combined_event: false,
+                ..crate::Options::default().events
+            },
             filesystem: false,
             ..Options::default()
         },
@@ -39,7 +44,10 @@ fn generates_nested_retrieval_apis_with_optional_model_loading() {
     let events_only_source = generate_str(
         &schema,
         &Options {
-            combined_event: true,
+            events: crate::EventOptions {
+                combined_event: true,
+                ..crate::Options::default().events
+            },
             filesystem: false,
             ..Options::default()
         },
@@ -52,7 +60,10 @@ fn generates_nested_retrieval_apis_with_optional_model_loading() {
         generate_str(
             &schema,
             &Options {
-                combined_event: false,
+                events: crate::EventOptions {
+                    combined_event: false,
+                    ..crate::Options::default().events
+                },
                 filesystem: true,
                 ..Options::default()
             }
@@ -87,4 +98,22 @@ fn generate_returns_unregistered_constraint_warnings() {
     let generated = generate(&schema, &options).unwrap();
 
     assert_eq!(generated.warnings, ["example.unknown.v0.1.0"]);
+}
+
+#[test]
+fn filesystem_loading_requires_serde_but_native_stores_do_not() {
+    let schema = SchemaBuilder::try_new("Demo")
+        .unwrap()
+        .with_entity(entity("Query", [event("created", [])]))
+        .build()
+        .unwrap();
+    let mut opts = Options::default();
+    opts.events.serde = false;
+    assert!(matches!(
+        generate_str(&schema, &opts),
+        Err(GenerateError::FilesystemRequiresSerde)
+    ));
+    opts.filesystem = false;
+    let source = generate_str(&schema, &opts).unwrap();
+    assert!(!source.contains("::serde::Serialize"));
 }

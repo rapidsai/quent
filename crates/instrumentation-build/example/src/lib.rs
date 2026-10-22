@@ -117,7 +117,8 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
 
 #[cfg(target_os = "linux")]
 fn current_native_thread_id() -> std::io::Result<u64> {
-    // SAFETY: `gettid` takes no arguments and returns the caller's kernel task ID.
+    // SAFETY: `gettid` takes no arguments and returns the caller's kernel task
+    // ID.
     let native_id = unsafe { libc::syscall(libc::SYS_gettid) };
     if native_id < 0 {
         Err(std::io::Error::last_os_error())
@@ -129,7 +130,8 @@ fn current_native_thread_id() -> std::io::Result<u64> {
 #[cfg(target_os = "macos")]
 fn current_native_thread_id() -> std::io::Result<u64> {
     let mut native_id = 0;
-    // SAFETY: A null thread selects the calling thread, and `native_id` is writable.
+    // SAFETY: A null thread selects the calling thread, and `native_id` is
+    // writable.
     let result = unsafe { libc::pthread_threadid_np(0, &mut native_id) };
     if result == 0 {
         Ok(native_id)

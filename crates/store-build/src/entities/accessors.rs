@@ -4,7 +4,7 @@
 //! Generation of entity-specific event accessor declarations.
 
 use proc_macro2::TokenStream;
-use quent_instrumentation_build::common::module_ident;
+use quent_events_build::common::module_ident;
 use quent_schema::{Cardinality, Entity, Event};
 use quote::quote;
 
@@ -38,14 +38,16 @@ pub(super) fn generate(entity: &Entity, event: &Event, handle: &TokenStream) -> 
             (
                 quote! { ::core::option::Option<#handle<'_>> },
                 quote! {
-                    /// Borrows the recorded event, returning `None` when absent.
+                    /// Borrows the recorded event, returning `None` when
+                    /// absent.
                 },
             )
         } else {
             (
                 quote! { impl ::core::iter::Iterator<Item = #handle<'_>> },
                 quote! {
-                    /// Borrows events in timestamp order; equal timestamps retain input order.
+                    /// Borrows events in timestamp order; equal timestamps
+                    /// retain input order.
                 },
             )
         };

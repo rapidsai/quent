@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
-use quent_instrumentation_build::{
+use quent_events_build::{
     Options,
     common::{module_ident, relative_type_path, type_ident},
 };
@@ -27,7 +27,8 @@ mod tests;
 struct EventCode {
     /// The borrowing handle type and its field accessors.
     ///
-    /// For example, `pub struct InitHandle<'a> { event: &'a Event<TaskEvent> }`.
+    /// For example, `pub struct InitHandle<'a> { event: &'a Event<TaskEvent>
+    /// }`.
     handle_type_def: TokenStream,
     /// An accessor declaration for the entity-specific trait.
     ///
@@ -37,7 +38,8 @@ struct EventCode {
     store: EventStoreCode,
 }
 
-/// Generates event handles, access traits, and indices in their schema namespaces.
+/// Generates event handles, access traits, and indices in their schema
+/// namespaces.
 pub(super) fn generate(
     schema: &Schema,
     opts: &Options,

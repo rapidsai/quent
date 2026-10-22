@@ -215,12 +215,10 @@ fn unpack_zip(
         let mut entry = archive.by_index(index).map_err(zip_error)?;
         // A path that would escape `root` (`..`, absolute) has no enclosed name.
         let Some(relative) = entry.enclosed_name() else {
+            let name = entry.name().map_err(zip_error)?;
             return Err(OpenError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!(
-                    "refusing zip entry that escapes the scratch dir: {}",
-                    entry.name()
-                ),
+                format!("refusing zip entry that escapes the scratch dir: {}", name),
             )));
         };
         // Reject anything that isn't a plain file or directory (e.g. unix symlinks

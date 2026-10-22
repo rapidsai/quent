@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use quent_instrumentation_build::{Options, generate};
+use quent_instrumentation_build::{EventOptions, Options, generate};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=build.rs");
@@ -19,8 +19,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         generate(
             &parsed.schema,
             &Options {
+                events: EventOptions {
+                    serde: true,
+                    ..Default::default()
+                },
                 file_name: Some(format!("{name}.rs")),
-                serde: true,
                 ..Options::default()
             },
         )?;

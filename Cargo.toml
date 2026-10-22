@@ -11,6 +11,7 @@ members = [
     "crates/collector/proto",
     "crates/channel",
     "crates/events",
+    "crates/events-build",
     "crates/io",
     "crates/io/callback",
     "crates/io/collector",
@@ -120,6 +121,7 @@ async-trait = "0.1.89"
 bitcode = { version = "0.6.9", features = ["serde"] }
 cargo_metadata = "0.23"
 cc = "1.2"
+convert_case = "0.12"
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
@@ -133,7 +135,7 @@ prost = "0.14.1"
 protox = "0.9.1"
 pyo3 = "0.29"
 quanta = "0.13.0"
-rmcp = { version = "2.0.0", default-features = false }
+rmcp = { version = "3.5.0", default-features = false }
 quent-collector = { path = "crates/collector/server" }
 quent-collector-client = { path = "crates/collector/client" }
 quent-collector-proto = { path = "crates/collector/proto" }
@@ -142,6 +144,7 @@ quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
 quent-events = { path = "crates/events" }
 quent-resource = { path = "crates/resource" }
 quent-schema = { path = "crates/schema" }
+quote = "1"
 rmp-serde = "1"
 rustc-hash = "2"
 rtrb = "0.4.0"

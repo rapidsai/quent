@@ -26,7 +26,7 @@ pub trait EventLoader<E: EntityMarker> {
 /// # Code generation
 ///
 /// Generated models support this trait only when
-/// `quent_store_build::Options::combined_event` is enabled.
+/// `quent_store_build::EventOptions::combined_event` is enabled.
 pub trait CombinedEventLoader<M: CombinedEventModel> {
     /// Error returned when events cannot be loaded.
     type Error;

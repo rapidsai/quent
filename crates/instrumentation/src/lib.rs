@@ -48,6 +48,9 @@ pub use quent_events::{
 pub use quent_io::{ExporterOptions, ExporterProvider};
 #[cfg(any(feature = "io-ndjson", feature = "io-msgpack", feature = "io-postcard"))]
 pub use quent_io::{FileSystemExporterOptions, FileSystemFormat};
+#[cfg(feature = "serde")]
+#[doc(hidden)]
+pub use serde;
 pub use uuid::Uuid;
 
 /// A caller-supplied typed event sink, selected via the `io-callback` feature.

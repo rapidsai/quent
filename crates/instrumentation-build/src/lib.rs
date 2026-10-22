@@ -1,8 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generates Rust event types and an optional instrumentation surface from a
+//! Generates Rust event types and instrumentation from a
 //! [`quent_schema::Schema`].
+//!
+//! The crate including the generated code must depend on
+//! `quent-instrumentation`. Add `quent-instrumentation-build` as a build
+//! dependency of that crate.
 //!
 //! The usual workflow is build-time generation:
 //!
@@ -34,59 +38,72 @@
 //!
 //! # Restrictions
 //!
-//! The schema does not limit how many events an entity declares, but the
-//! instrumentation surface caps once-cardinality events on non-FSM entities
-//! ([`Cardinality::Once`](quent_schema::Cardinality::Once)) events at 64 per
-//! entity; beyond that, generation fails with
-//! [`GenerateError::TooManyOnceEvents`].
-//! FSM instrumentation supports up to 255 declared states per entity because
-//! dynamic handles use a `u8` state index and reserve zero for a handle that
-//! has not entered its initial state. An FSM with 256 or more states fails with
-//! [`GenerateError::TooManyFsmStates`].
-//! FSM state names that generate methods already provided by an FSM handle,
-//! such as `state`, `try_into`, `uuid`, or `as_entity_ref`, are rejected.
+//! ## Event type limits
 //!
-//! Serde derives are opt-in through [`Options::serde`]. The generated crate
-//! must also depend on `serde` with its derive feature and enable the matching
-//! runtime crate's `serde` feature.
+//! For entities without an FSM, generation supports up to
+//! [`runtime::MAX_ONCE_EVENTS`]
+//! [`Cardinality::Once`](quent_schema::Cardinality::Once) events. Exceeding
+//! this limit returns [`GenerateError::TooManyOnceEvents`].
+//!
+//! Generated FSM handles support up to [`runtime::MAX_FSM_STATES`] states per
+//! entity. Exceeding this limit returns [`GenerateError::TooManyFsmStates`].
+//!
+//! ## Reserved names
+//!
+//! Schema event names that become the Rust method name `id` are rejected. FSM
+//! state names must also avoid existing FSM handle methods, such as `state`,
+//! `try_into`, and `as_entity_ref`.
+//!
+//! Rust type names generated for schema records and entities must not clash
+//! with generated observer types in the same namespace, such as `DemoObservers`
+//! for a model named `Demo`.
+//!
+//! ## Serde requirements
+//!
+//! To generate event types that support Serde, set [`EventOptions::serde`] to
+//! `true` and enable the `serde` feature on `quent-instrumentation`.
 
-pub mod common;
-pub mod data_type;
-mod events;
-mod model;
-mod namespace;
-mod records;
+pub use quent_events_build::Options as EventOptions;
+use quent_events_build::{common, namespace};
 mod runtime;
 
 use std::path::PathBuf;
 
-use quent_constraints::{BaseConstraintsError, Report};
-use quent_fsm::{FsmConstraint, FsmError};
 use quent_schema::{Identifier, Path, Schema};
 use quote::quote;
 
+/// Generates event and instrumentation source for `schema`.
+///
+/// # Errors
+///
+/// Returns [`GenerateError`] if schema validation, code generation, or writing
+/// the output fails.
+pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
+    let warnings = validate_schema(schema)?;
+
+    let file_name = opts
+        .file_name
+        .clone()
+        .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
+    let path = opts.out_dir.join(file_name);
+    std::fs::write(&path, generate_str_unvalidated(schema, opts)?)?;
+    Ok(GenerateInfo { path, warnings })
+}
+
+/// Returns event and instrumentation source for `schema`.
+///
+/// # Errors
+///
+/// Returns [`GenerateError`] if schema validation or code generation fails.
+pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    validate_schema(schema)?;
+    generate_str_unvalidated(schema, opts)
+}
+
 /// Options controlling event and instrumentation source generation.
 pub struct Options {
-    /// Add handles, observers, and context integration to the event types.
-    pub instrumentation: bool,
-
-    /// Derive [`Debug`](std::fmt::Debug) on generated event and record types.
-    pub debug: bool,
-
-    /// Derive `serde::Serialize` and `serde::Deserialize` on generated event
-    /// and record types.
-    ///
-    pub serde: bool,
-
-    /// Derives applied to every generated event payload enum.
-    ///
-    /// Use [`Self::debug`] and [`Self::serde`] for the built-in derives.
-    pub event_derives: &'static [&'static str],
-
-    /// Derives applied to every generated record struct.
-    ///
-    /// Use [`Self::debug`] and [`Self::serde`] for the built-in derives.
-    pub record_derives: &'static [&'static str],
+    /// Options for generated event types, records, and model types.
+    pub events: EventOptions,
 
     /// Directory the generated file is written into.
     pub out_dir: PathBuf,
@@ -95,45 +112,26 @@ pub struct Options {
     /// `None`.
     pub file_name: Option<String>,
 
-    /// Emit model-wide combined event enums and implement the combined
-    /// capability for the generated model.
-    ///
-    /// No namespace enum is emitted without entity events, except at the root.
-    pub combined_event: bool,
-
     /// Cargo package providing the analyzer for this model.
     pub analyzer_package: Option<String>,
 
     /// Generate collector dispatch for the model context.
     ///
-    /// Requires [`Self::serde`]. The generated crate must expose a `collector`
-    /// feature that enables `quent-instrumentation/io-collector`.
+    /// Requires [`Self::events`] to enable [`EventOptions::serde`].
+    ///
+    /// Requires `io-collector` on the consuming crate's `quent-instrumentation`
+    /// dependency.
     pub collector_sink: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
-            instrumentation: true,
-            debug: true,
-            serde: false,
-            event_derives: Default::default(),
-            record_derives: Default::default(),
+            events: EventOptions::default(),
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
-            combined_event: false,
             analyzer_package: None,
             collector_sink: false,
-        }
-    }
-}
-
-impl Options {
-    pub(crate) fn event_runtime(&self) -> proc_macro2::TokenStream {
-        if self.instrumentation {
-            quote! { ::quent_instrumentation }
-        } else {
-            quote! { ::quent_events }
         }
     }
 }
@@ -141,17 +139,10 @@ impl Options {
 /// An error from generating event or instrumentation source.
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
-    #[error("base schema validation failed: {0}")]
-    InvalidSchema(#[from] BaseConstraintsError),
+    #[error(transparent)]
+    Events(#[from] quent_events_build::Error),
     #[error("fsm validation failed: {0}")]
-    InvalidFsm(#[from] FsmError),
-    #[error("invalid derive path {derive:?}")]
-    InvalidDerive {
-        /// The offending derive entry.
-        derive: String,
-        /// The underlying parse error.
-        source: syn::Error,
-    },
+    InvalidFsm(#[from] quent_fsm::FsmError),
     #[error("generated code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
     #[error(
@@ -194,8 +185,6 @@ pub enum GenerateError {
     HandleIdCollision { entity: Path },
     #[error("`collector_sink` requires serde generation")]
     CollectorSinkRequiresSerde,
-    #[error("field type nesting exceeds the maximum depth of {max}")]
-    TypeNestingTooDeep { max: usize },
     #[error("failed to write generated file")]
     Io(#[from] std::io::Error),
 }
@@ -205,71 +194,68 @@ pub struct GenerateInfo {
     pub warnings: Vec<String>,
 }
 
-/// Validates the schema requirements shared by generated event models.
+/// Validates base, reference-target, and FSM constraints for instrumentation
+/// generation.
 ///
 /// Returns constraint names without registered validators as warnings.
-pub fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
-    let Report {
-        base_constraints,
-        unregistered_constraints,
-        results,
-    } = quent_constraints::validate::<(FsmConstraint,)>(schema);
-
-    base_constraints?;
-    let (fsm,) = results;
+fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
+    let report = quent_constraints::validate::<(
+        quent_ref_target::RefTargetConstraint,
+        quent_fsm::FsmConstraint,
+    )>(schema);
+    report
+        .base_constraints
+        .map_err(quent_events_build::Error::from)?;
+    let (ref_target, fsm) = report.results;
+    ref_target.map_err(quent_events_build::Error::from)?;
     fsm?;
-    Ok(unregistered_constraints)
+    Ok(report.unregistered_constraints)
 }
 
-/// Generate event source and, when enabled, instrumentation source for `schema`.
-pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
-    let warnings = validate_schema(schema)?;
-
-    let file_name = opts
-        .file_name
-        .clone()
-        .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
-    let path = opts.out_dir.join(file_name);
-    std::fs::write(&path, generate_str_unvalidated(schema, opts)?)?;
-    Ok(GenerateInfo { path, warnings })
-}
-
-/// Return event source and, when enabled, instrumentation source for `schema`.
-///
-/// # Errors
-///
-/// Returns [`GenerateError`] if schema validation fails, generated names
-/// conflict, a field type exceeds the supported nesting depth, an entity
-/// exceeds an instrumentation event or state limit, a derive entry is not a
-/// parseable Rust path, or the generated code is not valid Rust.
-pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
-    validate_schema(schema)?;
-    generate_str_unvalidated(schema, opts)
+/// Routes shared event generation through `quent-instrumentation`'s runtime and
+/// Serde re-exports.
+fn event_runtime() -> quent_events_build::Runtime {
+    quent_events_build::Runtime {
+        events: syn::parse_quote!(::quent_instrumentation),
+        entity_marker: syn::parse_quote!(::quent_instrumentation::events::EntityMarker),
+        serde: Some(syn::parse_quote!(::quent_instrumentation::serde)),
+    }
 }
 
 fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
-    if opts.collector_sink && !opts.serde {
+    if opts.collector_sink && !opts.events.serde {
         return Err(GenerateError::CollectorSinkRequiresSerde);
     }
     let namespaces = namespace::Namespace::root(schema);
-
-    let reexports = if opts.instrumentation {
-        runtime::reexports()
-    } else {
-        events::reexports()
-    };
-    let entity_types = opts.instrumentation.then(|| runtime::entity_types(schema));
+    let reexports = runtime::reexports();
+    let entity_types = runtime::entity_types(schema);
     let types = generate_namespace(schema, opts, &namespaces)?;
-    let observable = opts
-        .instrumentation
-        .then(|| runtime::generate_model(schema, &namespaces, opts.collector_sink));
-    let file = syn::parse2::<syn::File>(quote! {
-        #reexports
-        #entity_types
-        #types
-        #observable
-    })
-    .map_err(GenerateError::InvalidGeneratedCode)?;
+    let observable = runtime::generate_model(schema, &namespaces, opts.collector_sink);
+    let mut file = syn::parse2::<syn::File>(quote! { #reexports #entity_types #types #observable })
+        .map_err(GenerateError::InvalidGeneratedCode)?;
+    if let Some(package) = opts.analyzer_package.as_deref() {
+        let model_source = file
+            .items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Impl(item)
+                    if item.trait_.as_ref().is_some_and(|(path, _)| {
+                        path.segments
+                            .last()
+                            .is_some_and(|segment| segment.ident == "ModelSource")
+                    }) =>
+                {
+                    Some(item)
+                }
+                _ => None,
+            })
+            .expect("shared generation emits model source metadata");
+        model_source.items.push(syn::parse_quote! {
+            fn analyzer_package() -> ::core::option::Option<&'static str> {
+                ::core::option::Option::Some(#package)
+            }
+        });
+    }
     Ok(prettyplease::unparse(&file))
 }
 
@@ -278,30 +264,15 @@ fn generate_namespace(
     opts: &Options,
     namespace: &namespace::Namespace<'_>,
 ) -> Result<proc_macro2::TokenStream, GenerateError> {
-    let records = namespace
-        .records()
-        .iter()
-        .map(|record| records::record_struct(record, opts))
-        .collect::<Result<Vec<_>, _>>()?;
-    let events = namespace
+    let quent_events_build::NamespaceCode {
+        declarations,
+        model,
+    } = quent_events_build::generate_namespace(schema, &opts.events, namespace, &event_runtime())?;
+    let runtime = namespace
         .entities()
         .iter()
-        .map(|entity| events::entity_event_enum(entity, opts))
+        .map(|entity| runtime::entity_runtime_types(schema, entity))
         .collect::<Result<Vec<_>, _>>()?;
-    let entity_types = namespace
-        .entities()
-        .iter()
-        .map(|entity| events::entity_types(entity, opts))
-        .collect::<Vec<_>>();
-    let runtime = if opts.instrumentation {
-        namespace
-            .entities()
-            .iter()
-            .map(|entity| runtime::entity_runtime_types(schema, entity, opts))
-            .collect::<Result<Vec<_>, _>>()?
-    } else {
-        Vec::new()
-    };
     let children = namespace
         .children()
         .iter()
@@ -312,40 +283,29 @@ fn generate_namespace(
                 .expect("child namespaces extend their parent");
             let module = common::module_ident(segment);
             let contents = generate_namespace(schema, opts, child)?;
-            Ok::<_, GenerateError>(quote! {
-                pub mod #module {
-                    #contents
-                }
-            })
+            Ok::<_, GenerateError>(quote! { pub mod #module { #contents } })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let observer_storage = if opts.instrumentation {
-        runtime::observer_storage(schema, namespace)?
-    } else {
-        quote! {}
-    };
-    let model = model::generate(schema, namespace, opts)?;
-    Ok(quote! {
-        #(#records)*
-        #(#events)*
-        #(#entity_types)*
-        #(#runtime)*
-        #(#children)*
-        #model
-        #observer_storage
-    })
+    let observer_storage = runtime::observer_storage(schema, namespace)?;
+    Ok(quote! { #declarations #(#runtime)* #(#children)* #model #observer_storage })
+}
+
+#[cfg(test)]
+fn pretty(tokens: proc_macro2::TokenStream) -> String {
+    prettyplease::unparse(&syn::parse2::<syn::File>(tokens).expect("tokens form a valid file"))
 }
 
 #[cfg(test)]
 mod path_tests {
     use super::*;
     use quent_constraints::Constraint;
-    use quent_fsm::{FsmEntityBuilder, StateDecl};
+    use quent_fsm::{FsmConstraint, FsmEntityBuilder, StateDecl};
     use quent_ref_target::RefTargetConstraint;
-    use quent_schema::builder::AnnotationsBuilder;
-    use quent_schema::builder::SchemaBuilder;
-    use quent_schema::test_utils::{entity, event, field, path, record, record_type};
-    use quent_schema::{Annotations, DataType};
+    use quent_schema::{
+        Annotations, DataType,
+        builder::{AnnotationsBuilder, SchemaBuilder},
+        test_utils::{entity, event, field, path, record, record_type},
+    };
 
     fn fsm_state(name: &str, to: &[&str], initial: bool) -> StateDecl {
         StateDecl {
@@ -357,25 +317,17 @@ mod path_tests {
     }
 
     #[test]
-    fn generates_event_only_combined_without_instrumentation() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_entity(entity("Query", [event("created", [])]))
-            .build()
-            .unwrap();
-        let opts = Options {
-            instrumentation: false,
-            combined_event: true,
-            ..Options::default()
-        };
-
-        let source = generate_str(&schema, &opts).unwrap();
-
-        assert!(source.contains("impl ::quent_events::CombinedEventModel for Demo"));
-        assert!(source.contains("pub enum DemoEvent"));
-        assert!(!source.contains("quent_instrumentation"));
-        assert!(!source.contains("pub struct Handle"));
-        assert!(!source.contains("Observers"));
+    fn generates_analyzer_package_override() {
+        let schema = SchemaBuilder::try_new("Demo").unwrap().build().unwrap();
+        let source = generate_str(
+            &schema,
+            &Options {
+                analyzer_package: Some("demo-analyzer".to_owned()),
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        assert!(source.contains("::core::option::Option::Some(\"demo-analyzer\")"));
     }
 
     #[test]
@@ -432,41 +384,6 @@ mod path_tests {
             generate_str(&schema, &Options::default()),
             Err(GenerateError::InvalidFsm(_))
         ));
-    }
-
-    #[test]
-    fn built_in_derive_path_spellings_are_deduplicated() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_record(record("Meta", []))
-            .with_entity(entity("Query", [event("created", [])]))
-            .build()
-            .unwrap();
-        let opts = Options {
-            instrumentation: false,
-            debug: true,
-            serde: true,
-            event_derives: &[
-                "Debug",
-                "std::fmt::Debug",
-                "::core::fmt::Debug",
-                "serde::Serialize",
-                "::serde::Serialize",
-            ],
-            record_derives: &[
-                "Debug",
-                "core::fmt::Debug",
-                "::std::fmt::Debug",
-                "serde::Deserialize",
-                "::serde::Deserialize",
-            ],
-            ..Options::default()
-        };
-
-        let source = generate_str(&schema, &opts).unwrap();
-
-        let derives = "#[derive(Debug, ::serde::Serialize, ::serde::Deserialize)]";
-        assert_eq!(source.matches(derives).count(), 2);
     }
 
     #[test]
@@ -546,16 +463,6 @@ mod path_tests {
             generate_str(&schema, &Options::default()),
             Err(GenerateError::HandleIdCollision { .. })
         ));
-        assert!(
-            generate_str(
-                &schema,
-                &Options {
-                    instrumentation: false,
-                    ..Options::default()
-                }
-            )
-            .is_ok()
-        );
     }
 
     #[test]

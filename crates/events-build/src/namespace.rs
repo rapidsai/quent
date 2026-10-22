@@ -4,15 +4,19 @@
 use quent_schema::{Entity, Identifier, Record, Schema};
 
 /// A tree of Rust namespaces containing schema records and entities.
-pub(crate) struct Namespace<'schema> {
+pub struct Namespace<'schema> {
+    /// Schema namespace segments from the root.
     path: Vec<Identifier>,
+    /// Schema records declared directly in this namespace.
     records: Vec<&'schema Record>,
+    /// Schema entities declared directly in this namespace.
     entities: Vec<&'schema Entity>,
+    /// Child namespaces.
     children: Vec<Self>,
 }
 
 impl<'schema> Namespace<'schema> {
-    pub(crate) fn root(schema: &'schema Schema) -> Self {
+    pub fn root(schema: &'schema Schema) -> Self {
         let mut root = Self::new(Vec::new());
         for record in schema.records() {
             root.namespace_mut(record.path().namespace())
@@ -27,28 +31,28 @@ impl<'schema> Namespace<'schema> {
         root
     }
 
-    pub(crate) fn path(&self) -> &[Identifier] {
+    pub fn path(&self) -> &[Identifier] {
         &self.path
     }
 
-    pub(crate) fn records(&self) -> &[&'schema Record] {
+    pub fn records(&self) -> &[&'schema Record] {
         &self.records
     }
 
-    pub(crate) fn entities(&self) -> &[&'schema Entity] {
+    pub fn entities(&self) -> &[&'schema Entity] {
         &self.entities
     }
 
-    pub(crate) fn children(&self) -> &[Self] {
+    pub fn children(&self) -> &[Self] {
         &self.children
     }
 
     /// Returns child namespaces containing entities directly or transitively.
-    pub(crate) fn children_with_entities(&self) -> impl Iterator<Item = &Self> {
+    pub fn children_with_entities(&self) -> impl Iterator<Item = &Self> {
         self.children.iter().filter(|child| child.has_entities())
     }
 
-    pub(crate) fn has_entities(&self) -> bool {
+    pub fn has_entities(&self) -> bool {
         !self.entities.is_empty() || self.children.iter().any(Self::has_entities)
     }
 

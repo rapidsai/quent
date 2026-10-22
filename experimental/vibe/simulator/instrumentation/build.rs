@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use quent_instrumentation_build::{Options, generate};
+use quent_instrumentation_build::{EventOptions, Options, generate};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("../model.yaml");
@@ -18,9 +18,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     generate(
         &parsed.schema,
         &Options {
-            serde: true,
+            events: EventOptions {
+                serde: true,
+                ..Default::default()
+            },
             analyzer_package: Some("quent-simulator-analyzer".to_owned()),
-            collector_sink: true,
+            collector_sink: cfg!(feature = "collector"),
             ..Options::default()
         },
     )?;

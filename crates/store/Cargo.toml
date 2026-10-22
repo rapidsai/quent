@@ -6,9 +6,10 @@ publish.workspace = true
 
 [features]
 default = ["io-ndjson", "io-msgpack", "io-postcard"]
-io-ndjson = ["quent-io/ndjson"]
-io-msgpack = ["quent-io/msgpack"]
-io-postcard = ["quent-io/postcard"]
+io-ndjson = ["quent-io/ndjson", "serde"]
+io-msgpack = ["quent-io/msgpack", "serde"]
+io-postcard = ["quent-io/postcard", "serde"]
+serde = ["dep:serde", "quent-events/serde"]
 
 [dependencies]
 quent-build-info = { path = "../build-info" }
@@ -16,7 +17,7 @@ quent-events = { path = "../events" }
 quent-io = { path = "../io", default-features = false }
 quent-time = { path = "../time" }
 rustc-hash.workspace = true
-serde.workspace = true
+serde = { workspace = true, optional = true }
 smallvec.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use quent_instrumentation_build::common::module_ident;
+use quent_events_build::common::module_ident;
 use quent_schema::Entity;
 
 use crate::GenerateError;
@@ -73,6 +73,8 @@ pub(super) fn extend(
     Ok(())
 }
 
+/// Returns the name of a struct, enum, type alias, trait, or module, or `None`
+/// for other items.
 fn ident(item: &syn::Item) -> Option<&syn::Ident> {
     match item {
         syn::Item::Struct(item) => Some(&item.ident),

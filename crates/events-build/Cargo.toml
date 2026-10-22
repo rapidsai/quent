@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "quent-events-build"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+convert_case.workspace = true
+prettyplease.workspace = true
+proc-macro2.workspace = true
+quent-constraints = { path = "../constraints" }
+quent-ref-target = { path = "../ref-target" }
+quent-schema = { path = "../schema" }
+quote.workspace = true
+syn.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+quent-schema = { path = "../schema", features = ["test-utils"] }

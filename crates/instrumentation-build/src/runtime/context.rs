@@ -10,9 +10,11 @@ use quote::quote;
 use syn::Ident;
 
 use super::model_ident;
-use crate::GenerateError;
-use crate::common::{module_ident, path_name_pascal, raw_ident, relative_type_path, to_case};
-use crate::namespace::Namespace;
+use crate::{
+    GenerateError,
+    common::{module_ident, path_name_pascal, raw_ident, relative_type_path, to_case},
+    namespace::Namespace,
+};
 
 /// Generate observer storage for one schema namespace.
 pub(super) fn observer_storage(
@@ -162,7 +164,6 @@ fn collector_sink_impl(schema: &Schema) -> TokenStream {
     });
 
     quote! {
-        #[cfg(feature = "collector")]
         impl ::quent_instrumentation::CollectorRouter for #model {
             fn dispatch(
                 context: &Context<Self>,

@@ -6,7 +6,6 @@ publish = false
 
 [dependencies]
 quent-instrumentation = { path = "../../instrumentation", features = ["io-callback", "io-ndjson"] }
-serde = { version = "1", features = ["derive"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 libc = "0.2"

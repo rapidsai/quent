@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use quent_instrumentation_build::{Options, generate};
+
 const MODEL: &str = r#"
 quent: '0.1.0'
 model: cpp_list_test
@@ -24,9 +26,9 @@ entities:
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let schema = quent_yaml::parse_from_str(MODEL, None)?.schema;
-    quent_instrumentation_build::generate(
+    generate(
         &schema,
-        &quent_instrumentation_build::Options {
+        &Options {
             file_name: Some("instrumentation.rs".to_owned()),
             ..Default::default()
         },

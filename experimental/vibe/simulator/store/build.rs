@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use quent_store_build::{Options, generate};
+use quent_store_build::{EventOptions, Options, generate};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("../model.yaml");
@@ -18,7 +18,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let generated = generate(
         &parsed.schema,
         &Options {
-            combined_event: true,
+            events: EventOptions {
+                combined_event: true,
+                ..Options::default().events
+            },
             filesystem: cfg!(feature = "filesystem"),
             ..Options::default()
         },
