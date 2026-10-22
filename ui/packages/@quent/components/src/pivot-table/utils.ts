@@ -11,7 +11,6 @@ import {
 } from '@quent/utils';
 import type { StatValue, Statistic, QuantitySpec, ContinuousPaletteName } from '@quent/utils';
 import { scaleColor, type ScaleRange, type ScaleType } from '@quent/utils';
-import type { GroupedDataTableSortFn } from './GroupedDataTable';
 
 // Re-exported for consumers that still import it from here; defined in `@quent/utils`
 export { isNumericValue };
@@ -42,7 +41,11 @@ export function formatNumericStat(n: number | bigint | null, statName: string): 
   return inferFieldFormatter(statName)(n);
 }
 
-export const numericSortingFn: GroupedDataTableSortFn<PivotedRow> = (rowA, rowB, columnId) => {
+interface SortableRow {
+  getValue<T>(columnId: string): T;
+}
+
+export const numericSortingFn = (rowA: SortableRow, rowB: SortableRow, columnId: string) => {
   const a = rowA.getValue<number | bigint | undefined>(columnId);
   const b = rowB.getValue<number | bigint | undefined>(columnId);
   if (a === b) {
