@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 import {
   Button,
@@ -31,6 +31,7 @@ import {
 } from './catalog';
 
 const NO_GROUPING = '__none__';
+const LOADING_DELAY_MS = 200;
 const linkedCellClassName =
   'p-0 [&>a]:block [&>a]:px-2 [&>a]:py-2 [&>a]:focus-visible:outline-none [&>a]:focus-visible:ring-2 [&>a]:focus-visible:ring-inset [&>a]:focus-visible:ring-ring';
 
@@ -197,6 +198,17 @@ export function EntityCatalogTable<T extends CatalogEntity>({
 }
 
 function CatalogLoading() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setVisible(true), LOADING_DELAY_MS);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  if (!visible) {
+    return null;
+  }
+
   return (
     <div aria-label="Loading catalog" className="flex-1 space-y-3 p-4">
       {Array.from({ length: 5 }, (_, index) => (

@@ -104,6 +104,8 @@ export type {
   RequiredMultiSelectOption,
 } from './ui/required-multi-select-field';
 export { Skeleton } from './ui/skeleton';
+export { LoadingOverlay } from './ui/loading-overlay';
+export type { LoadingOverlayProps } from './ui/loading-overlay';
 export { Slider } from './ui/slider';
 export { SliderField } from './ui/slider-field';
 export type { SliderFieldProps } from './ui/slider-field';

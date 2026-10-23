@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState, type KeyboardEvent, type MouseEvent } from 'react';
-import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp, LoaderCircle } from 'lucide-react';
+import { ChevronDown, ChevronFirst, ChevronLast, ChevronUp } from 'lucide-react';
 import {
   DataText,
   Input,
+  LoadingOverlay,
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -149,20 +150,10 @@ export function EntityResults({
           {!isError && !isLoading && !hasValidationErrors && rows.length === 0 && (
             <div className="p-4 text-sm text-muted-foreground">No entities match the filters.</div>
           )}
-          {isLoading && <div className="p-4 text-sm text-muted-foreground">Loading…</div>}
         </div>
 
-        {requestPending && rows.length > 0 && (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-[1px]">
-            <span
-              role="status"
-              aria-live="polite"
-              className="flex items-center gap-2 rounded-lg border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
-            >
-              <LoaderCircle className="size-4 animate-spin text-primary" />
-              Updating…
-            </span>
-          </div>
+        {requestPending && (
+          <LoadingOverlay label={isLoading ? 'Loading…' : 'Updating…'} delayMs={200} />
         )}
       </div>
 

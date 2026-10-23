@@ -4,10 +4,10 @@
 import { useMemo, useState } from 'react';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { queryBundleQueryOptions } from '@quent/client';
+import { LoadingOverlay } from '@quent/components';
 import { queryClient } from '@/lib/queryClient';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import { cn } from '@quent/utils';
-import { QueryLoading } from '@/components/QueryLoading';
 import { RouteError } from '@/components/RouteError';
 import { TabActionSlotsContext, type TabActionSlots } from '@/components/TabActionSlots';
 import { validateDeepLinkSearch } from '@/features/deep-link';
@@ -15,7 +15,11 @@ import { validateDeepLinkSearch } from '@/features/deep-link';
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId')({
   component: QueryLayout,
   errorComponent: RouteError,
-  pendingComponent: QueryLoading,
+  pendingComponent: () => (
+    <div className="relative h-full min-h-[calc(100vh-4rem)]">
+      <LoadingOverlay label="Loading query…" />
+    </div>
+  ),
   pendingMs: 200,
   pendingMinMs: 300,
   validateSearch: validateDeepLinkSearch,
