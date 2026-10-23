@@ -2939,12 +2939,17 @@ dependencies = [
 name = "quent-simulator-instrumentation"
 version = "0.2.0"
 dependencies = [
+ "bitcode",
  "quent-collector-client",
  "quent-events",
  "quent-instrumentation",
  "quent-instrumentation-build",
+ "quent-io",
+ "quent-nvtx-analyzer",
+ "quent-nvtx-events",
  "quent-yaml",
  "serde",
+ "tempfile",
  "uuid",
 ]
 
