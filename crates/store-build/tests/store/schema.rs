@@ -7,6 +7,26 @@ use quent_schema::{
     test_utils::{entity, event, event_with, field, record, record_type},
 };
 
+fn task() -> quent_schema::Entity {
+    quent_fsm::FsmEntityBuilder::new("Nested::type::Task".parse::<quent_schema::Path>().unwrap())
+        .with_states(
+            [
+                ("type", vec!["running"], true),
+                ("running", vec!["running", "done", "failed"], false),
+                ("done", vec![], false),
+                ("failed", vec![], false),
+            ]
+            .map(|(name, to, initial)| quent_fsm::StateDecl {
+                name: name.parse().unwrap(),
+                attributes: vec![field("label", DataType::String)],
+                to: to.into_iter().map(|name| name.parse().unwrap()).collect(),
+                initial,
+            }),
+        )
+        .build()
+        .unwrap()
+}
+
 fn reference(data: Option<DataType>) -> DataType {
     DataType::EntityRef {
         data: data.map(Box::new),
@@ -21,6 +41,7 @@ pub(super) fn schema() -> Schema {
     quent_schema::test_utils::schema(
         "ScopedEvents",
         [
+            task(),
             entity("Parent", [event("created", [])]),
             entity(
                 "Worker",

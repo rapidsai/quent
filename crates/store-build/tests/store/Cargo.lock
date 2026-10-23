@@ -684,7 +684,10 @@ version = "0.2.0"
 dependencies = [
  "prettyplease",
  "proc-macro2",
+ "quent-constraints",
  "quent-events-build",
+ "quent-fsm",
+ "quent-ref-target",
  "quent-schema",
  "quote",
  "syn 3.0.6",
@@ -695,6 +698,7 @@ dependencies = [
 name = "quent-store-build-entity-store-test"
 version = "0.2.0"
 dependencies = [
+ "quent-fsm",
  "quent-instrumentation-build-example",
  "quent-schema",
  "quent-store",

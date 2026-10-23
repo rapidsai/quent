@@ -321,6 +321,12 @@ mod tests {
         const NAME: &'static str = "Alpha";
     }
 
+    impl crate::OrderKey for AlphaEvent {
+        type Key = ();
+
+        fn order_key(&self) -> Self::Key {}
+    }
+
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     struct Alpha;
 

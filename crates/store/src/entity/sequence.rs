@@ -6,7 +6,7 @@
 use std::num::NonZeroUsize;
 
 use quent_events::EntityMarker;
-use quent_time::{OrderedCollector, TimeUnixNanoSec};
+use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec};
 use uuid::Uuid;
 
 use crate::{EntityHandle, Error, Id, Timestamped};
@@ -39,7 +39,10 @@ impl<E: EntityMarker> EventSequence<E> {
     pub(crate) fn try_from_ordered(
         id: Uuid,
         events: OrderedCollector<Timestamped<E::Payload>>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, Error>
+    where
+        E::Payload: OrderKey,
+    {
         let events = events.into_inner();
         if events.is_empty() {
             return Err(Error::EmptyEventSequence(id));
@@ -124,6 +127,12 @@ mod tests {
 
     impl EventPayload for TestEntity {
         const NAME: &'static str = "TestEntity";
+    }
+
+    impl OrderKey for TestEntity {
+        type Key = ();
+
+        fn order_key(&self) -> Self::Key {}
     }
 
     // Checks an empty collector cannot create a sequence.

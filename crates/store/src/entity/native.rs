@@ -6,7 +6,7 @@
 use std::{marker::PhantomData, num::NonZeroUsize};
 
 use quent_events::{EntityMarker, Event};
-use quent_time::{OrderedCollector, TimeUnixNanoSec};
+use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec};
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
@@ -28,8 +28,14 @@ pub struct EntityMap<E: EntityMarker, T> {
 /// Stores indexed entity event sequences in memory.
 pub type NativeStore<E> = EntityMap<E, NativeEntity<E>>;
 
-impl<E: NativeEntityMarker> NativeStore<E> {
+impl<E: NativeEntityMarker> NativeStore<E>
+where
+    E::Payload: OrderKey,
+{
     /// Groups events by UUID, orders each sequence by timestamp, and indexes it.
+    ///
+    /// The payload ordering key determines the order of events with equal
+    /// timestamps.
     ///
     /// # Errors
     ///
@@ -38,8 +44,9 @@ impl<E: NativeEntityMarker> NativeStore<E> {
     ///
     /// # Performance notes
     ///
-    /// Construction is O(n) for n events arriving in timestamp order per entity.
+    /// Collecting n events arriving in key order per entity is O(n).
     /// Inserting m out-of-order events for one entity can take O(m^2).
+    /// Index construction may add further costs.
     pub fn try_from_events(
         events: impl IntoIterator<Item = Event<E::Payload>>,
     ) -> Result<Self, Error> {
@@ -270,6 +277,12 @@ mod tests {
 
     impl EventPayload for TaskEvent {
         const NAME: &'static str = "Task";
+    }
+
+    impl OrderKey for TaskEvent {
+        type Key = ();
+
+        fn order_key(&self) -> Self::Key {}
     }
 
     impl NativeEntityMarker for Task {

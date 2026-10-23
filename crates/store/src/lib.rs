@@ -7,10 +7,11 @@ pub mod context;
 pub mod entity;
 pub mod error;
 pub mod event;
+pub mod fsm;
 
 /// Event types and traits used by generated stores and event loaders.
 pub use quent_events as events;
-pub use quent_time::TimeUnixNanoSec;
+pub use quent_time::{OrderKey, TimeUnixNanoSec, Timestamp};
 /// Serde traits and derives used by generated types; requires the `serde` feature.
 #[cfg(feature = "serde")]
 pub use serde;

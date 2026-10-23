@@ -4,10 +4,11 @@
 //! Generation of native in-memory entity stores.
 
 use proc_macro2::TokenStream;
+use quent_events_build::common::type_ident;
 use quent_schema::{Cardinality, Entity, Event};
 use quote::quote;
 
-use crate::entities::EventCode;
+use crate::entities::{EventCode, handles};
 
 /// Native index, insertion, and accessor implementation fragments.
 pub(super) struct NativeEventStoreCode {
@@ -73,7 +74,9 @@ pub(super) fn generate_entity(
     access: &syn::Ident,
     marker: &TokenStream,
     events: &[EventCode],
+    fsm: Option<&crate::entities::fsm::FsmCode>,
 ) -> TokenStream {
+    let fsm_marker_impl = fsm.map(|fsm| &fsm.store.native.marker_impl);
     let index_fields = events
         .iter()
         .map(|event| &event.store.native.index_field_def);
@@ -101,6 +104,7 @@ pub(super) fn generate_entity(
         impl ::quent_store::entity::native::NativeEntityMarker for #marker {
             type Index = #event_index_ident;
         }
+        #fsm_marker_impl
         impl #access for ::quent_store::entity::native::NativeEntity<#marker> {
             #(#implementations)*
         }
@@ -108,5 +112,34 @@ pub(super) fn generate_entity(
             #(#implementations)*
         }
 
+    }
+}
+
+/// Native FSM marker implementation fragment.
+pub(super) struct NativeFsmStoreCode {
+    pub(super) marker_impl: TokenStream,
+}
+
+pub(super) fn generate_fsm(
+    entity: &Entity,
+    marker: &TokenStream,
+    original: &TokenStream,
+    transition: &syn::Ident,
+) -> NativeFsmStoreCode {
+    let conversions = entity.events().map(|event| {
+        let variant = type_ident(event.name());
+        let handle = handles::ident(event);
+        quote! { #original::#variant { .. } => #transition::#variant(#handle { event }) }
+    });
+    NativeFsmStoreCode {
+        marker_impl: quote! {
+            impl ::quent_store::fsm::native::NativeFsmMarker for #marker {
+                type Transition<'a> = #transition<'a> where Self: 'a;
+
+                fn transition(event: &::quent_store::Timestamped<#original>) -> Self::Transition<'_> {
+                    match &event.data { #(#conversions,)* }
+                }
+            }
+        },
     }
 }

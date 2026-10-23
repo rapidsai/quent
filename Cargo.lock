@@ -3030,7 +3030,10 @@ version = "0.2.0"
 dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
+ "quent-constraints",
  "quent-events-build",
+ "quent-fsm",
+ "quent-ref-target",
  "quent-schema",
  "quote",
  "syn 3.0.6",

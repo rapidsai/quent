@@ -171,3 +171,39 @@ fn entity_modules_keep_store_types_separate_from_schema_types() {
     );
     generate_str(&schema, &Options::default()).unwrap();
 }
+
+fn fsm_entity(final_state: &str) -> quent_schema::Entity {
+    quent_fsm::FsmEntityBuilder::new("Task".parse::<quent_schema::Path>().unwrap())
+        .with_states([
+            quent_fsm::StateDecl {
+                name: "ready".parse().unwrap(),
+                attributes: vec![],
+                to: vec![final_state.parse().unwrap()],
+                initial: true,
+            },
+            quent_fsm::StateDecl {
+                name: final_state.parse().unwrap(),
+                attributes: vec![],
+                to: vec![],
+                initial: false,
+            },
+        ])
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn rejects_fsm_accessor_and_transition_handle_name_conflicts() {
+    for name in [
+        "num_states",
+        "is_empty",
+        "transition",
+        "state",
+        "states",
+        "first",
+        "last",
+        "task_transition",
+    ] {
+        assert_name_conflict(schema("Demo", [fsm_entity(name)], []));
+    }
+}

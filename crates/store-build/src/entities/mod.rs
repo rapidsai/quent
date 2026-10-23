@@ -16,8 +16,10 @@ use quote::quote;
 use crate::{EntityStoreImplementations, GenerateError, entities::store::EventStoreCode};
 
 mod accessors;
+mod fsm;
 mod handles;
 pub(crate) mod namespaces;
+pub(crate) mod ordering;
 mod store;
 
 #[cfg(test)]
@@ -75,7 +77,14 @@ fn generate_entity(
         .to_owned();
     let access = quote::format_ident!("{}Events", entity_name);
     let event_index_ident = quote::format_ident!("{}EventIndex", entity_name);
+    let fsm = quent_fsm::Fsm::try_from_entity(entity)?;
     let mut type_names = BTreeMap::new();
+    if fsm.is_some() {
+        type_names.insert(
+            fsm::ident(entity).to_string(),
+            "FSM transition handle".to_owned(),
+        );
+    }
     let mut method_names = BTreeMap::from([
         ("id".to_owned(), "entity identity".to_owned()),
         (
@@ -97,6 +106,19 @@ fn generate_entity(
             "native event index accessor".to_owned(),
         ),
     ]);
+    if fsm.is_some() {
+        for name in [
+            "num_states",
+            "is_empty",
+            "transition",
+            "state",
+            "states",
+            "first",
+            "last",
+        ] {
+            method_names.insert(name.to_owned(), "FSM accessor".to_owned());
+        }
+    }
     let mut code = Vec::new();
     for event in entity.events() {
         let handle = handles::ident(event);
@@ -118,13 +140,25 @@ fn generate_entity(
     }
     let handles = code.iter().map(|event| &event.handle_type_def);
     let methods = code.iter().map(|event| &event.accessor_method_decl);
-    let native_store = stores
-        .native
-        .then(|| store::generate_entity(entity, &event_index_ident, &access, &marker, &code));
+    let fsm = fsm
+        .as_ref()
+        .map(|fsm| fsm::generate(entity, fsm, opts, &marker, &original));
+    let fsm_declarations = fsm.as_ref().map(|fsm| &fsm.declarations);
+    let native_store = stores.native.then(|| {
+        store::generate_entity(
+            entity,
+            &event_index_ident,
+            &access,
+            &marker,
+            &code,
+            fsm.as_ref(),
+        )
+    });
     let docs = format!("Provides event-type-scoped access for `{}`.", entity.path());
     syn::parse2(quote! {
         pub mod #module {
             #(#handles)*
+            #fsm_declarations
             #[doc = #docs]
             pub trait #access: ::quent_store::entity::EntityHandle<Entity = #marker> {
                 #(#methods)*

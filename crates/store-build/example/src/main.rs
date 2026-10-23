@@ -7,10 +7,12 @@ use quent_store::{
     context::ContextSet,
     entity::EntityHandle,
     event::{EventLoader, filesystem},
+    fsm::{FsmHandle, Sequence, Transition},
 };
 
 use crate::demo::{
-    Connection, Demo, DemoStore, Query, connection::ConnectionEvents, server::ServerEvents,
+    Connection, Demo, DemoStore, Query, connection::ConnectionEvents, query::QueryTransitionHandle,
+    server::ServerEvents,
 };
 
 #[allow(unused_imports, dead_code)]
@@ -95,6 +97,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 transfer.timestamp(),
                 transfer.bytes()
             )
+        }
+    }
+
+    // Each FSM state spans two consecutive transitions. The final transition
+    // closes the last state.
+    for id in store.entities::<Query>()? {
+        let query = store.entity(id)?.unwrap();
+        println!("Query {}: {} states", query.id().uuid(), query.num_states());
+
+        for state in query.states() {
+            let span = state.span();
+            let opening = state.opening_transition();
+            let closing = state.closing_transition();
+            println!(
+                "\t{}: [{}..{}) seq={} next={} final={}",
+                state.name(),
+                span.start(),
+                span.end(),
+                opening.sequence(),
+                closing.name(),
+                closing.is_final()
+            );
+
+            if let QueryTransitionHandle::Running(running) = opening {
+                println!("\t  Rows: {}", running.rows());
+            }
         }
     }
 

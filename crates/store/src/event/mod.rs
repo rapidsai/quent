@@ -47,6 +47,8 @@ pub trait CombinedEventLoader<M: CombinedEventModel> {
 pub trait EntityMarkerInModel<M>: EntityMarker {}
 
 /// Data with a timestamp.
+///
+/// Ordering compares timestamps first, then payload ordering keys.
 #[derive(Clone, Debug)]
 pub struct Timestamped<P> {
     pub timestamp: TimeUnixNanoSec,
@@ -65,10 +67,10 @@ impl<P> Timestamp for Timestamped<P> {
     }
 }
 
-impl<P> OrderKey for Timestamped<P> {
-    type Key = TimeUnixNanoSec;
+impl<P: OrderKey> OrderKey for Timestamped<P> {
+    type Key = (TimeUnixNanoSec, P::Key);
 
     fn order_key(&self) -> Self::Key {
-        self.timestamp
+        (self.timestamp, self.data.order_key())
     }
 }

@@ -19,6 +19,7 @@ quent-instrumentation-build-example = { path = "../../../instrumentation-build/e
 tempfile = "3"
 
 [build-dependencies]
+quent-fsm = { path = "../../../fsm" }
 quent-schema = { path = "../../../schema", features = ["test-utils"] }
 quent-store-build = { path = "../.." }
 quent-yaml = { path = "../../../yaml" }

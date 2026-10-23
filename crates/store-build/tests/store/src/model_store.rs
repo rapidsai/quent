@@ -8,6 +8,7 @@ use quent_store::{
     context::ContextSet,
     entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, native::NativeStore},
     event::filesystem,
+    fsm::{FsmHandle, Transition},
 };
 
 use demo::{Connection, Demo, DemoStore, Query, connection::ConnectionEvents};
@@ -51,6 +52,12 @@ fn loads_example_events_into_the_model_store() {
         store.entity(server.id()).unwrap().unwrap()
     ));
     assert_eq!(store.event_sequence(id).unwrap().events().len(), 5);
+
+    let query_id = store.entities::<Query>().unwrap().next().unwrap();
+    let query = store.entity(query_id).unwrap().unwrap();
+    assert_eq!(query.first().unwrap().name(), "submitted");
+    assert!(query.last().unwrap().closing_transition().is_final());
+    assert_eq!(query.num_states(), query.num_events().get() - 1);
 
     let missing = Id::<Connection>::new(demo::Uuid::nil());
     assert!(store.entity(missing).unwrap().is_none());
