@@ -6,6 +6,26 @@ import * as TabsPrimitive from '@radix-ui/react-tabs';
 
 import { cn } from '@quent/utils';
 
+type TabIndicatorPosition = 'top' | 'bottom';
+
+const indicatorPositionClasses: Record<TabIndicatorPosition, string> = {
+  top: 'before:-top-1',
+  bottom: 'before:-bottom-1',
+};
+
+const tabTriggerClassName = ({
+  indicatorPosition = 'bottom',
+  className,
+}: {
+  indicatorPosition?: TabIndicatorPosition;
+  className?: string;
+} = {}) =>
+  cn(
+    "relative inline-flex items-center justify-center whitespace-nowrap rounded-none px-3 py-1 text-sm font-normal text-muted-foreground ring-offset-background transition-colors before:absolute before:left-2 before:right-2 before:h-0.5 before:rounded-full before:bg-transparent before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=active]:before:bg-primary data-[status=active]:font-medium data-[status=active]:text-foreground data-[status=active]:before:bg-primary cursor-pointer",
+    indicatorPositionClasses[indicatorPosition],
+    className
+  );
+
 const Tabs = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
@@ -35,14 +55,13 @@ TabsList.displayName = TabsPrimitive.List.displayName;
 
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger> & {
+    indicatorPosition?: TabIndicatorPosition;
+  }
+>(({ className, indicatorPosition = 'bottom', ...props }, ref) => (
   <TabsPrimitive.Trigger
     ref={ref}
-    className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-normal ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-muted data-[state=active]:font-semibold data-[state=active]:shadow cursor-pointer',
-      className
-    )}
+    className={tabTriggerClassName({ indicatorPosition, className })}
     {...props}
   />
 ));
@@ -55,7 +74,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      'ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+      'ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2',
       className
     )}
     {...props}
@@ -63,4 +82,5 @@ const TabsContent = React.forwardRef<
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 
-export { Tabs, TabsList, TabsTrigger, TabsContent };
+export { Tabs, TabsList, TabsTrigger, TabsContent, tabTriggerClassName };
+export type { TabIndicatorPosition };

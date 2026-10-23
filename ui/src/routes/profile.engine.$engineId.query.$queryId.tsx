@@ -4,9 +4,9 @@
 import { useMemo, useState } from 'react';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { queryBundleQueryOptions } from '@quent/client';
+import { tabTriggerClassName } from '@quent/components';
 import { queryClient } from '@/lib/queryClient';
 import type { QueryBundle, EntityRef } from '@quent/utils';
-import { cn } from '@quent/utils';
 import { QueryLoading } from '@/components/QueryLoading';
 import { RouteError } from '@/components/RouteError';
 import { TabActionSlotsContext, type TabActionSlots } from '@/components/TabActionSlots';
@@ -25,13 +25,7 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId')
   },
 });
 
-const tabClass = cn(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1',
-  'text-sm font-normal text-muted-foreground transition-all',
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-);
-
-const activeTabClass = cn(tabClass, 'text-foreground font-semibold bg-muted shadow');
+const tabClass = tabTriggerClassName();
 
 function QueryLayout() {
   const { engineId, queryId } = Route.useParams();
@@ -49,7 +43,6 @@ function QueryLayout() {
                 to="/profile/engine/$engineId/query/$queryId/timeline"
                 params={{ engineId, queryId }}
                 className={tabClass}
-                activeProps={{ className: activeTabClass }}
               >
                 Timeline
               </Link>
@@ -57,7 +50,6 @@ function QueryLayout() {
                 to="/profile/engine/$engineId/query/$queryId/operators"
                 params={{ engineId, queryId }}
                 className={tabClass}
-                activeProps={{ className: activeTabClass }}
               >
                 Operators
               </Link>
@@ -65,7 +57,6 @@ function QueryLayout() {
                 to="/profile/engine/$engineId/query/$queryId/entities"
                 params={{ engineId, queryId }}
                 className={tabClass}
-                activeProps={{ className: activeTabClass }}
               >
                 Entities
               </Link>
