@@ -32,6 +32,7 @@ export interface TreeNode {
 }
 
 const ZOOM_DEBOUNCE_MS = 150;
+const NO_EXTRA_ITEMS: readonly never[] = [];
 
 /**
  * useBulkTimelines — manages bulk fetching via Jotai atoms + TanStack Query.
@@ -50,6 +51,7 @@ export function useBulkTimelines<T extends TreeNode>({
   collectVisibleEntriesFn,
   buildBulkParamsFn,
   findItemByIdFn,
+  extraItems = NO_EXTRA_ITEMS,
 }: {
   engineId: string;
   queryId: string;
@@ -64,7 +66,8 @@ export function useBulkTimelines<T extends TreeNode>({
     selectedTypes: Map<string, string>,
     entities: QueryEntities,
     config: { num_bins: number; start: number; end: number },
-    groupFsmFilters?: Map<string, string | null>
+    groupFsmFilters?: Map<string, string | null>,
+    extraItems?: readonly T[]
   ) => Record<string, TimelineRequest<OperatorFilter>>;
   buildBulkParamsFn: (
     item: T,
@@ -74,6 +77,8 @@ export function useBulkTimelines<T extends TreeNode>({
     groupFsmFilters?: Map<string, string | null>
   ) => TimelineRequest<OperatorFilter>;
   findItemByIdFn: (root: T, id: string) => T | undefined;
+  /** Rows to fetch even when the expanded-tree walk skips them, such as pinned rows. */
+  extraItems?: readonly T[];
 }) {
   const store = useStore();
   const queryClient = useQueryClient();
@@ -107,9 +112,9 @@ export function useBulkTimelines<T extends TreeNode>({
         selectedTypes,
         entities,
         bulkConfig,
-        groupFsmFilters
+        groupFsmFilters,
+        extraItems
       ),
-
     [
       rootItem,
       expandedIds,
@@ -118,6 +123,7 @@ export function useBulkTimelines<T extends TreeNode>({
       bulkConfig,
       groupFsmFilters,
       collectVisibleEntriesFn,
+      extraItems,
     ]
   );
 

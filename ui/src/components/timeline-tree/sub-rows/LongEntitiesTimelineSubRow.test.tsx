@@ -33,4 +33,14 @@ describe('createLongEntitiesTimelineSubRow', () => {
       '__long_entities__res-2',
     ]);
   });
+
+  it('is labeled Entities', () => {
+    const subRow = createLongEntitiesTimelineSubRow({
+      engineId: 'engine-1',
+      queryBundle,
+      isDark: false,
+    });
+
+    expect(subRow.label).toBe('Entities');
+  });
 });

@@ -30,6 +30,7 @@ import {
 } from '@quent/utils';
 import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
 import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/resourceFilter';
+import { MAX_PINNED_ROWS } from '@/features/pinned-rows/pinnedRows';
 
 const RESOURCE_A_ID = '01a025ff-ea8b-7881-9d31-72a275872c9d';
 const RESOURCE_B_ID = '01a025ff-ea8b-7881-9d31-72a275872c9e';
@@ -392,4 +393,59 @@ it('round trips structural pipe inspection independently of operator selection a
   const restored = DeepLinkStateV3Schema.parse(decoded.value.data);
   expect(restored.selection).toEqual(shared.selection);
   expect(restored.dag?.edgeWidthField).toBe(shared.dag?.edgeWidthField);
+});
+
+describe('deep-link pinned rows', () => {
+  const withPins = (pinnedRowIds: string[]): DeepLinkStateV3 => ({
+    route: state.route,
+    timeline: state.timeline,
+    resources: { pinnedRowIds },
+  });
+
+  it('round-trips pinned row ids in the order they were arranged', () => {
+    const encoded = encodeDeepLinkState(withPins([RESOURCE_B_ID, RESOURCE_A_ID]));
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+
+    expect(decodeDeepLinkState(encoded.value)).toEqual({
+      ok: true,
+      value: { version: 'v3', data: withPins([RESOURCE_B_ID, RESOURCE_A_ID]) },
+    });
+  });
+
+  it('drops repeated pinned row ids, keeping the first of each', () => {
+    const parsed = DeepLinkStateV3Schema.parse(
+      withPins([RESOURCE_B_ID, RESOURCE_A_ID, RESOURCE_B_ID])
+    );
+
+    expect(parsed.resources?.pinnedRowIds).toEqual([RESOURCE_B_ID, RESOURCE_A_ID]);
+  });
+
+  it('accepts the ids of Entities and Operators rows', () => {
+    const laneId = `__long_entities__${RESOURCE_A_ID}`;
+    const operatorsId = `__operator_timeline__${RESOURCE_B_ID}`;
+
+    const parsed = DeepLinkStateV3Schema.parse(withPins([operatorsId, laneId]));
+
+    expect(parsed.resources?.pinnedRowIds).toEqual([operatorsId, laneId]);
+  });
+
+  it('allows the maximum number of pins and rejects more', () => {
+    const ids = (count: number) => Array.from({ length: count }, (_, i) => `row-${i}`);
+
+    expect(DeepLinkStateV3Schema.validate(withPins(ids(MAX_PINNED_ROWS)))).toBe(true);
+    expect(encodeDeepLinkState(withPins(ids(MAX_PINNED_ROWS + 1)))).toEqual({
+      ok: false,
+      code: 'invalid-state',
+      message: `Shared links support at most ${MAX_PINNED_ROWS} pinned rows.`,
+    });
+  });
+
+  it('leaves links without pins unchanged', () => {
+    const parsed = DeepLinkStateV3Schema.parse({ route: state.route, timeline: state.timeline });
+
+    expect(parsed.resources).toBeUndefined();
+  });
 });

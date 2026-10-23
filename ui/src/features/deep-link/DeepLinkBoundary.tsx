@@ -27,6 +27,7 @@ import {
 } from '@/atoms/entitiesTable';
 import {
   expandedIdsAtom,
+  pinnedIdsAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
@@ -315,6 +316,8 @@ export function DeepLinkBoundary({
       store.set(expandedIdsAtom, new Set(intake.initialExpandedResourceIds));
     }
     if (intake.fields) {
+      // A shared link describes the whole view, so a link without pins clears any in the session.
+      store.set(pinnedIdsAtom, new Set(intake.fields.resources?.pinnedRowIds ?? []));
       const resourceFilter = intake.fields.resources?.resourceFilter;
       store.set(
         resourceFilterAtom,
@@ -435,6 +438,11 @@ export function DeepLinkBoundary({
     const expandedRowIds = [...store.get(expandedIdsAtom)].sort();
     if (expandedRowIds.length > 0) {
       resources.expandedRowIds = expandedRowIds;
+    }
+    // Keep the order the user arranged the pins in.
+    const pinnedRowIds = [...store.get(pinnedIdsAtom)];
+    if (pinnedRowIds.length > 0) {
+      resources.pinnedRowIds = pinnedRowIds;
     }
     const resourceFilter = store.get(resourceFilterAtom);
     if (isResourceFilterActive(resourceFilter)) {

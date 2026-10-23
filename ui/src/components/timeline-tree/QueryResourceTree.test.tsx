@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { waitFor, act } from '@testing-library/react';
+import { waitFor, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithQuery } from '@/test/test-utils';
 import { Provider as JotaiProvider, createStore } from 'jotai';
@@ -24,7 +24,8 @@ import {
   OPERATOR_TIMELINE_ROW_TYPE,
   type TreeTableItem,
 } from '@quent/components';
-import { resourceFilterAtom } from '@/atoms/resourceTree';
+import { pinnedIdsAtom, resourceFilterAtom } from '@/atoms/resourceTree';
+import { EMPTY_RESOURCE_FILTER } from '@/features/resource-filter/resourceFilter';
 import type { ResourceTimelineSubRow } from './sub-rows';
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,10 @@ vi.mock('@quent/hooks', async importOriginal => {
   const actual = await importOriginal<typeof import('@quent/hooks')>();
   return {
     ...actual,
-    useBulkTimelines: () => ({ handleZoomChange: vi.fn(), handleExpand: vi.fn() }),
+    useBulkTimelines: (args: { extraItems?: TreeTableItem[] }) => {
+      capturedBulkExtraItems = args.extraItems;
+      return { handleZoomChange: vi.fn(), handleExpand: vi.fn() };
+    },
     useHighlightedItemIds: () => new Set<string>(),
   };
 });
@@ -55,6 +59,11 @@ let capturedTimelineData: SingleTimelineResponse | null | undefined = undefined;
 let capturedTreeData: TreeTableItem[] = [];
 let capturedHighlightedIds = new Set<string>();
 let capturedExpandedIds = new Set<string>();
+let capturedPinnedItems: TreeTableItem[] = [];
+let capturedHiddenPinnedCount = 0;
+let capturedPinnedCollapse: { isCollapsed: boolean; toggle?: () => void } = { isCollapsed: false };
+let capturedReorderPinned: ((activeId: string, overId: string) => void) | undefined;
+let capturedBulkExtraItems: TreeTableItem[] | undefined;
 let capturedOnExpandChange: ((itemId: string, isExpanded: boolean) => void) | undefined;
 let capturedInlineSelectors: Array<{
   id: string;
@@ -82,14 +91,30 @@ vi.mock('@quent/components', async importOriginal => {
       columns: Array<{
         headerContent?: React.ReactNode;
         subHeaderContent?: React.ReactNode;
-        render?: (props: { item: TreeTableItem; level?: number }) => React.ReactNode;
+        render?: (props: {
+          item: TreeTableItem;
+          level?: number;
+          isPinned?: boolean;
+        }) => React.ReactNode;
       }>;
       controlledExpandedIds?: Set<string>;
       data: TreeTableItem[];
       highlightedItemIds?: Set<string>;
       onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+      pinnedItems?: TreeTableItem[];
+      hiddenPinnedCount?: number;
+      isPinnedCollapsed?: boolean;
+      onTogglePinnedCollapsed?: () => void;
+      onReorderPinned?: (activeId: string, overId: string) => void;
     }) => {
       capturedTreeData = props.data;
+      capturedPinnedItems = props.pinnedItems ?? [];
+      capturedHiddenPinnedCount = props.hiddenPinnedCount ?? 0;
+      capturedPinnedCollapse = {
+        isCollapsed: props.isPinnedCollapsed ?? false,
+        toggle: props.onTogglePinnedCollapsed,
+      };
+      capturedReorderPinned = props.onReorderPinned;
       capturedHighlightedIds = props.highlightedItemIds ?? new Set();
       capturedExpandedIds = props.controlledExpandedIds ?? new Set();
       capturedOnExpandChange = props.onExpandChange;
@@ -120,6 +145,11 @@ vi.mock('@quent/components', async importOriginal => {
             </React.Fragment>
           ))}
           {renderItems(props.data)}
+          {props.pinnedItems?.map(item => (
+            <div key={`pinned-${item.id}`} data-testid="pinned-row">
+              {props.columns[0]?.render?.({ item, level: 0, isPinned: true })}
+            </div>
+          ))}
         </>
       );
     },
@@ -127,7 +157,7 @@ vi.mock('@quent/components', async importOriginal => {
       capturedInlineSelectors.push(props);
       return <div data-testid={props.id} />;
     },
-    ResourceColumn: () => null,
+    ResourceColumn: (props: { description?: React.ReactNode }) => props.description ?? null,
     UsageColumn: () => null,
     TimelineToolbar: ({ filters }: { filters?: React.ReactNode }) => filters,
   };
@@ -238,6 +268,7 @@ function collectRowTypes(items: TreeTableItem[]): string[] {
 const CUSTOM_SUB_ROW_TYPE = 'custom-sub-row';
 const customSubRow: ResourceTimelineSubRow = {
   id: 'custom',
+  label: 'Custom',
   injectRows: rootItem => ({
     ...rootItem,
     children: [
@@ -260,6 +291,11 @@ beforeEach(() => {
   capturedTreeData = [];
   capturedHighlightedIds = new Set();
   capturedExpandedIds = new Set();
+  capturedPinnedItems = [];
+  capturedHiddenPinnedCount = 0;
+  capturedPinnedCollapse = { isCollapsed: false };
+  capturedReorderPinned = undefined;
+  capturedBulkExtraItems = undefined;
   capturedOnExpandChange = undefined;
   capturedLongEntityProps = undefined;
   vi.mocked(clientApi.useNvtxStream).mockReturnValue({
@@ -810,5 +846,345 @@ describe('QueryResourceTree — resource filtering', () => {
 
     expect(await findByText('No resources match this filter.')).toBeInTheDocument();
     expect(capturedTreeData).toEqual([]);
+  });
+});
+
+const SECOND_RESOURCE_ID = 'res-2';
+
+/** Two GPUs side by side, so a filter can keep one and remove the other. */
+const makeTwoResourceBundle = (): QueryBundle<EntityRef> => {
+  const bundle = makeBundle();
+  return {
+    ...bundle,
+    entities: {
+      ...bundle.entities,
+      resources: {
+        ...bundle.entities.resources,
+        [SECOND_RESOURCE_ID]: {
+          id: SECOND_RESOURCE_ID,
+          instance_name: 'GPU 1',
+          type_name: RESOURCE_TYPE,
+        },
+      },
+    },
+    resource_tree: {
+      ResourceGroup: {
+        id: { Engine: ENGINE_ID },
+        children: [
+          { Resource: { Resource: RESOURCE_ID } },
+          { Resource: { Resource: SECOND_RESOURCE_ID } },
+        ],
+      },
+    },
+  } as unknown as QueryBundle<EntityRef>;
+};
+
+/** Engine > worker-0 > GPU 0, with an engine name that must not show up on pinned rows. */
+const makeWorkerBundle = (): QueryBundle<EntityRef> => {
+  const bundle = makeBundle();
+  const workerId = 'worker-id-1';
+  return {
+    ...bundle,
+    entities: {
+      ...bundle.entities,
+      engine: { ...bundle.entities.engine, instance_name: 'holodeck-1234' },
+      workers: {
+        [workerId]: { id: workerId, parent_engine_id: ENGINE_ID, instance_name: 'worker-0' },
+      },
+    },
+    resource_tree: {
+      ResourceGroup: {
+        id: { Engine: ENGINE_ID },
+        children: [
+          {
+            ResourceGroup: {
+              id: { Worker: workerId },
+              children: [{ Resource: { Resource: RESOURCE_ID } }],
+            },
+          },
+        ],
+      },
+    },
+  } as unknown as QueryBundle<EntityRef>;
+};
+
+const pinnedIds = () => capturedPinnedItems.map(item => item.id);
+
+describe('QueryResourceTree — pinned rows', () => {
+  beforeEach(() => {
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
+    vi.mocked(clientApi.fetchBulkTimelines).mockResolvedValue({ entries: {} } as never);
+  });
+
+  function renderWithPins(ids: string[], bundle = makeTwoResourceBundle()) {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set(ids));
+    renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={bundle} />
+      </JotaiProvider>
+    );
+    return store;
+  }
+
+  it('shows a pinned resource in the pinned section', async () => {
+    renderWithPins([SECOND_RESOURCE_ID]);
+
+    await waitFor(() => expect(pinnedIds()).toEqual([SECOND_RESOURCE_ID]));
+    expect(capturedHiddenPinnedCount).toBe(0);
+  });
+
+  it('shows a pinned Entities lane', async () => {
+    const laneId = `__long_entities__${RESOURCE_ID}`;
+    renderWithPins([laneId]);
+
+    await waitFor(() => expect(pinnedIds()).toEqual([laneId]));
+  });
+
+  it('shows nothing and counts nothing for pinned ids that match no row', async () => {
+    renderWithPins(['not-a-row']);
+
+    await waitFor(() => expect(capturedTreeData.length).toBeGreaterThan(0));
+    expect(pinnedIds()).toEqual([]);
+    expect(capturedHiddenPinnedCount).toBe(0);
+  });
+
+  it('hides a pin when a filter removes its row, and restores it when the filter clears', async () => {
+    const laneId = `__long_entities__${SECOND_RESOURCE_ID}`;
+    const store = renderWithPins([SECOND_RESOURCE_ID, laneId, RESOURCE_ID]);
+    await waitFor(() => expect(pinnedIds()).toHaveLength(3));
+
+    act(() =>
+      store.set(resourceFilterAtom, {
+        search: 'GPU 0',
+        resourceTypes: [],
+        fsmTypes: [],
+        showOthers: false,
+      })
+    );
+
+    await waitFor(() => expect(pinnedIds()).toEqual([RESOURCE_ID]));
+    expect(capturedHiddenPinnedCount).toBe(2);
+
+    act(() => store.set(resourceFilterAtom, EMPTY_RESOURCE_FILTER));
+
+    await waitFor(() => expect(pinnedIds()).toHaveLength(3));
+    expect(capturedHiddenPinnedCount).toBe(0);
+    expect([...store.get(pinnedIdsAtom)]).toHaveLength(3);
+  });
+
+  it('keeps every pin while a filter only highlights matches', async () => {
+    const store = renderWithPins([SECOND_RESOURCE_ID, RESOURCE_ID]);
+    await waitFor(() => expect(pinnedIds()).toHaveLength(2));
+
+    act(() =>
+      store.set(resourceFilterAtom, {
+        search: 'GPU 0',
+        resourceTypes: [],
+        fsmTypes: [],
+        showOthers: true,
+      })
+    );
+
+    await waitFor(() => expect(capturedHighlightedIds).toContain(RESOURCE_ID));
+    expect(pinnedIds()).toHaveLength(2);
+    expect(capturedHiddenPinnedCount).toBe(0);
+  });
+
+  it('collapses and expands the pinned section from its header', async () => {
+    renderWithPins([RESOURCE_ID]);
+    await waitFor(() => expect(capturedPinnedCollapse.toggle).toBeDefined());
+    expect(capturedPinnedCollapse.isCollapsed).toBe(false);
+
+    act(() => capturedPinnedCollapse.toggle?.());
+    await waitFor(() => expect(capturedPinnedCollapse.isCollapsed).toBe(true));
+
+    act(() => capturedPinnedCollapse.toggle?.());
+    await waitFor(() => expect(capturedPinnedCollapse.isCollapsed).toBe(false));
+  });
+
+  it('asks for bulk timeline data for pinned resources but not for pinned sub-rows', async () => {
+    renderWithPins([SECOND_RESOURCE_ID, `__long_entities__${RESOURCE_ID}`]);
+
+    await waitFor(() =>
+      expect(capturedBulkExtraItems?.map(item => item.id)).toEqual([SECOND_RESOURCE_ID])
+    );
+  });
+});
+
+describe('QueryResourceTree — pin buttons', () => {
+  beforeEach(() => {
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
+    vi.mocked(clientApi.fetchBulkTimelines).mockResolvedValue({ entries: {} } as never);
+  });
+
+  const pinButtonNames = (container: HTMLElement) =>
+    within(container)
+      .queryAllByRole('button', { name: /^(Pin|Unpin) / })
+      .map(button => button.getAttribute('aria-label'));
+
+  it('offers pinning on resource and Entities rows, not on the root group or NVTX rows', () => {
+    vi.mocked(clientApi.useNvtxStream).mockReturnValue({
+      contextId: 'context-1',
+      catalog: {
+        domains: [
+          {
+            domain_id: '1',
+            source_domain_ids: ['1'],
+            name: 'CCCL',
+            color: '#76b900ff',
+            threads: [],
+            categories: [],
+            has_uncategorized: false,
+          },
+        ],
+      } as unknown as NvtxCatalog,
+      viewport: null,
+      isLoading: false,
+    });
+
+    const { container } = renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    expect(pinButtonNames(container)).toEqual(['Pin GPU 0', 'Pin Entities']);
+  });
+
+  it('pins a row when its button is clicked and unpins it from the pinned section', async () => {
+    const store = createStore();
+    const { getByRole, getAllByRole, getByTestId, queryAllByTestId } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await userEvent.click(getByRole('button', { name: 'Pin GPU 0' }));
+
+    expect([...store.get(pinnedIdsAtom)]).toEqual([RESOURCE_ID]);
+    // One button on the row in the tree and one on its copy in the pinned section.
+    const unpinButtons = getAllByRole('button', { name: 'Unpin GPU 0' });
+    expect(unpinButtons).toHaveLength(2);
+    unpinButtons.forEach(button => expect(button).toHaveAttribute('aria-pressed', 'true'));
+
+    await userEvent.click(within(getByTestId('pinned-row')).getByRole('button'));
+
+    expect(store.get(pinnedIdsAtom).size).toBe(0);
+    expect(queryAllByTestId('pinned-row')).toHaveLength(0);
+    expect(getByRole('button', { name: 'Pin GPU 0' })).toBeInTheDocument();
+  });
+
+  it('shows the worker under a pinned resource instead of the engine name', async () => {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set([RESOURCE_ID]));
+    const { findAllByTestId } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeWorkerBundle()} />
+      </JotaiProvider>
+    );
+
+    const [pinnedRow] = await findAllByTestId('pinned-row');
+
+    expect(within(pinnedRow!).getByText('Worker:')).toBeInTheDocument();
+    expect(within(pinnedRow!).getByText('worker-0')).toBeInTheDocument();
+    expect(within(pinnedRow!).queryByText(/holodeck/)).not.toBeInTheDocument();
+  });
+
+  it('shows the worker on a pinned Entities row', async () => {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set([`__long_entities__${RESOURCE_ID}`]));
+    const { findAllByTestId } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeWorkerBundle()} />
+      </JotaiProvider>
+    );
+
+    const [pinnedRow] = await findAllByTestId('pinned-row');
+
+    expect(within(pinnedRow!).getByText('Entities')).toBeInTheDocument();
+    expect(within(pinnedRow!).getByText('worker-0')).toBeInTheDocument();
+    expect(within(pinnedRow!).getByRole('button', { name: 'Unpin Entities' })).toBeInTheDocument();
+  });
+
+  it('does not label a pinned worker as belonging to itself', async () => {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set(['worker-id-1']));
+    const { findAllByTestId } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeWorkerBundle()} />
+      </JotaiProvider>
+    );
+
+    const [pinnedRow] = await findAllByTestId('pinned-row');
+
+    expect(within(pinnedRow!).queryByText('Worker:')).not.toBeInTheDocument();
+  });
+
+  it('shows no worker line for a pinned row that has no worker', async () => {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set([RESOURCE_ID]));
+    const { findAllByTestId } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    const [pinnedRow] = await findAllByTestId('pinned-row');
+
+    expect(within(pinnedRow!).queryByText('Worker:')).not.toBeInTheDocument();
+  });
+
+  it('does not show the worker line on rows in the tree', async () => {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set([RESOURCE_ID]));
+    const { findAllByTestId, queryAllByText } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeWorkerBundle()} />
+      </JotaiProvider>
+    );
+
+    await findAllByTestId('pinned-row');
+
+    // The one pinned row shows it; the tree rows do not.
+    expect(queryAllByText('Worker:')).toHaveLength(1);
+  });
+});
+
+describe('QueryResourceTree — arranging pinned rows', () => {
+  const LANE_ID = `__long_entities__${RESOURCE_ID}`;
+
+  beforeEach(() => {
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
+    vi.mocked(clientApi.fetchBulkTimelines).mockResolvedValue({ entries: {} } as never);
+  });
+
+  function renderWithPins(ids: string[]) {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set(ids));
+    renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+    return store;
+  }
+
+  const pinnedOrder = () => capturedPinnedItems.map(item => item.id);
+
+  it('lists pinned rows in the order they were pinned, not tree order', async () => {
+    renderWithPins([LANE_ID, RESOURCE_ID]);
+
+    await waitFor(() => expect(pinnedOrder()).toEqual([LANE_ID, RESOURCE_ID]));
+  });
+
+  it('moves a pinned row when it is dropped on another', async () => {
+    const store = renderWithPins([RESOURCE_ID, LANE_ID]);
+    await waitFor(() => expect(capturedReorderPinned).toBeDefined());
+
+    act(() => capturedReorderPinned?.(RESOURCE_ID, LANE_ID));
+
+    await waitFor(() => expect(pinnedOrder()).toEqual([LANE_ID, RESOURCE_ID]));
+    expect([...store.get(pinnedIdsAtom)]).toEqual([LANE_ID, RESOURCE_ID]);
   });
 });

@@ -22,6 +22,7 @@ import {
   computeVisibleMaxValue,
   deriveCapacityLabel,
   buildBulkParamsForItem,
+  collectVisibleEntries,
   ALL_FSMS_COLORS,
   buildBinnedTimelineSeries,
   transformResourceTree,
@@ -703,5 +704,41 @@ describe('buildBinnedTimelineSeries All colour', () => {
       ALL_FSMS_COLORS.light
     );
     expect(series.busy?.color).toBe('state-colour');
+  });
+});
+
+describe('collectVisibleEntries extra items', () => {
+  const entities = { resource_types: {}, resource_group_types: {} } as unknown as QueryEntities;
+  const gpu = makeTreeItem('gpu-0');
+  const worker = makeTreeItem('worker-1', [gpu]);
+  const root = makeTreeItem('root', [worker]);
+  const collect = (extraItems?: TreeTableItem[], expandedIds = new Set(['root'])) =>
+    collectVisibleEntries(
+      [root],
+      expandedIds,
+      new Map(),
+      entities,
+      baseConfig,
+      undefined,
+      extraItems
+    );
+
+  it('requests only the expanded rows when there are no extra items', () => {
+    expect(Object.keys(collect()).sort()).toEqual(['root', 'worker-1']);
+  });
+
+  it('also requests extra items under a collapsed parent', () => {
+    expect(Object.keys(collect([gpu])).sort()).toEqual(['gpu-0', 'root', 'worker-1']);
+  });
+
+  it('builds the same request for an extra item as the walk would', () => {
+    const viaExtra = collect([gpu])['gpu-0'];
+    const viaWalk = collect(undefined, new Set(['root', 'worker-1']))['gpu-0'];
+
+    expect(viaExtra).toEqual(viaWalk);
+  });
+
+  it('adds a repeated or already visible extra item only once', () => {
+    expect(Object.keys(collect([worker, gpu, gpu])).sort()).toEqual(['gpu-0', 'root', 'worker-1']);
   });
 });

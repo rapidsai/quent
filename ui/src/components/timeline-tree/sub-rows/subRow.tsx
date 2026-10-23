@@ -7,17 +7,32 @@ import type { TimelineTreeItem } from '../TimelineTreeTable';
 
 export interface ResourceTimelineSubRow {
   id: string;
+  /** Short name of the row, as plain text. */
+  label: string;
   injectRows: (rootItem: TreeTableItem) => TreeTableItem;
   matches: (item: TimelineTreeItem) => boolean;
-  renderLabel: (item: TimelineTreeItem) => ReactNode;
+  renderLabel: (item: TimelineTreeItem, description?: ReactNode) => ReactNode;
   renderTimeline: (item: TimelineTreeItem) => ReactNode;
 }
 
-export function TimelineSubRowLabel({ children }: { children: string }) {
+export function TimelineSubRowLabel({
+  children,
+  description,
+}: {
+  children: string;
+  description?: ReactNode;
+}) {
   return (
     <span className="flex items-center">
       <span aria-hidden className="mr-4 h-4 w-4 shrink-0" />
-      <span className="text-xs leading-none text-muted-foreground">{children}</span>
+      <span className="flex flex-col gap-1">
+        <span className="text-xs leading-none text-muted-foreground">{children}</span>
+        {description != null && (
+          <span className="text-[11px] font-normal leading-none text-muted-foreground">
+            {description}
+          </span>
+        )}
+      </span>
     </span>
   );
 }
@@ -51,9 +66,12 @@ export function createTimelineSubRow({
 }): ResourceTimelineSubRow {
   return {
     id,
+    label,
     injectRows,
     matches: item => item.type === rowType,
-    renderLabel: () => <TimelineSubRowLabel>{label}</TimelineSubRowLabel>,
+    renderLabel: (_item, description) => (
+      <TimelineSubRowLabel description={description}>{label}</TimelineSubRowLabel>
+    ),
     renderTimeline,
   };
 }

@@ -18,6 +18,7 @@ import { render, screen, waitFor, userEvent } from '@/test/test-utils';
 import { entitiesTableStateAtom, type EntitiesTableState } from '@/atoms/entitiesTable';
 import {
   expandedIdsAtom,
+  pinnedIdsAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
@@ -152,6 +153,20 @@ function SeedExpandedRows({ ids }: { ids: string[] }) {
     setExpandedIds(new Set(ids));
   }, [ids, setExpandedIds]);
   return null;
+}
+
+function SeedPinnedRows({ ids }: { ids: string[] }) {
+  const setPinnedIds = useSetAtom(pinnedIdsAtom);
+
+  useLayoutEffect(() => {
+    setPinnedIds(new Set(ids));
+  }, [ids, setPinnedIds]);
+  return null;
+}
+
+function PinnedRowsProbe() {
+  const pinnedIds = useAtomValue(pinnedIdsAtom);
+  return <output data-testid="pinned-rows">{JSON.stringify([...pinnedIds])}</output>;
 }
 
 function SeedEmptyDataFlowDimensions() {
@@ -721,5 +736,107 @@ describe('DeepLinkBoundary', () => {
         })
       )
     );
+  });
+});
+
+describe('DeepLinkBoundary pinned rows', () => {
+  const LANE_ID = `__long_entities__${RESOURCE_A_ID}`;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function encodeState(resources?: { pinnedRowIds: string[] }) {
+    const encoded = encodeDeepLinkState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 10, end: 40 } },
+      ...(resources ? { resources } : {}),
+    });
+    if (!encoded.ok) {
+      throw new Error('Failed to encode the test link');
+    }
+    return encoded.value;
+  }
+
+  function mockClipboard() {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    return writeText;
+  }
+
+  it('restores pinned rows from a shared link', () => {
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          encodedState={encodeState({ pinnedRowIds: [RESOURCE_B_ID, LANE_ID] })}
+        >
+          <PinnedRowsProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    expect(screen.getByTestId('pinned-rows')).toHaveTextContent(
+      JSON.stringify([RESOURCE_B_ID, LANE_ID])
+    );
+  });
+
+  it('replaces pins already in the session with the ones in the link', () => {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set([RESOURCE_A_ID]));
+    expect([...store.get(pinnedIdsAtom)]).toEqual([RESOURCE_A_ID]);
+
+    render(
+      <JotaiProvider store={store}>
+        <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encodeState()}>
+          <PinnedRowsProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    expect(screen.getByTestId('pinned-rows')).toHaveTextContent('[]');
+  });
+
+  it('copies pinned rows into the shared link', async () => {
+    const writeText = mockClipboard();
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <SeedViewport start={20} end={60} />
+          <SeedPinnedRows ids={[RESOURCE_B_ID, RESOURCE_A_ID]} />
+          <CopyLinkButton />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy Link' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+
+    const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
+    expect(decodeDeepLinkState(encoded!)).toMatchObject({
+      ok: true,
+      value: { data: { resources: { pinnedRowIds: [RESOURCE_B_ID, RESOURCE_A_ID] } } },
+    });
+  });
+
+  it('leaves pins out of the link when nothing is pinned', async () => {
+    const writeText = mockClipboard();
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <SeedViewport start={20} end={60} />
+          <CopyLinkButton />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy Link' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+
+    const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
+    const decoded = decodeDeepLinkState(encoded!);
+    expect(decoded.ok && 'resources' in decoded.value.data).toBe(false);
   });
 });

@@ -595,6 +595,8 @@ export function buildBulkParamsForItem(
 /**
  * Collect all visible rows and their bulk request params.
  * A row is visible if it's the root or all of its ancestors are expanded.
+ * Extra items are requested too, even when the walk skips them, such as pinned rows under a
+ * collapsed parent. A row the walk already reached keeps its entry.
  */
 export function collectVisibleEntries(
   items: TreeTableItem[],
@@ -603,19 +605,16 @@ export function collectVisibleEntries(
   entities: QueryEntities,
   config: TimelineConfig,
   groupFsmFilters?: Map<string, string | null>,
+  extraItems: readonly TreeTableItem[] = [],
   operatorIds: readonly string[] = []
 ): Record<string, TimelineRequest<OperatorFilter>> {
   const result: Record<string, TimelineRequest<OperatorFilter>> = {};
 
+  const request = (item: TreeTableItem) =>
+    buildBulkParamsForItem(item, selectedTypes, entities, config, groupFsmFilters, operatorIds);
+
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(
-      item,
-      selectedTypes,
-      entities,
-      config,
-      groupFsmFilters,
-      operatorIds
-    );
+    result[item.id] = request(item);
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {
@@ -626,6 +625,9 @@ export function collectVisibleEntries(
 
   for (const item of items) {
     walk(item);
+  }
+  for (const item of extraItems) {
+    result[item.id] ??= request(item);
   }
   return result;
 }

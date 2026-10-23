@@ -7,6 +7,8 @@ import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { ChevronRight } from 'lucide-react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@quent/utils';
+import { Button } from './button';
+import { PinnedRowList, type PinnedRowDragArea } from './pinned-row-list';
 
 // Tree-table specific styling variants
 const treeVariants = cva(
@@ -496,6 +498,8 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
 // Timeline rows render at ~75px; keep virtualization estimate aligned with actual row height.
 const DEFAULT_TREE_ROW_HEIGHT = 75;
 const DEFAULT_TREE_OVERSCAN_ROWS = 4;
+// Pinned rows beyond this many scroll inside their own section instead of growing it.
+const MAX_VISIBLE_PINNED_ROWS = 6;
 
 function normalizeTreeData(data: TreeTableDataItem[] | TreeTableDataItem): TreeTableDataItem[] {
   return data instanceof Array ? data : [data];
@@ -798,10 +802,13 @@ export type ColumnComponent<I> = ({
   item,
   level,
   isSelected,
+  isPinned,
 }: {
   item: I;
   level: number;
   isSelected: boolean;
+  /** True when the row is drawn in the pinned section instead of the tree. */
+  isPinned?: boolean;
 }) => React.ReactNode;
 
 export type Column<I> = {
@@ -826,11 +833,24 @@ export function TreeTable<I extends TreeTableDataItem>({
   data,
   columns,
   columnWidths = DEFAULT_COLUMN_WIDTHS,
+  pinnedItems,
+  hiddenPinnedCount = 0,
+  isPinnedCollapsed = false,
+  onTogglePinnedCollapsed,
+  onReorderPinned,
   ...treeViewProps
 }: {
   data: I[];
   columns: Column<I>[];
   columnWidths?: ColumnWidth[];
+  /** Rows to show in a sticky section above the tree, in the order given. */
+  pinnedItems?: I[];
+  /** Pinned rows a filter has hidden; only used to explain why they are missing. */
+  hiddenPinnedCount?: number;
+  isPinnedCollapsed?: boolean;
+  onTogglePinnedCollapsed?: () => void;
+  /** Called when a pinned row is dragged onto another, with the dragged id then the target id. */
+  onReorderPinned?: (activeId: string, overId: string) => void;
 } & TreeViewProps) {
   const [currentColumnWidths, setCurrentColumnWidths] = useState<ColumnWidth[]>(columnWidths);
   const [hasUserResized, setHasUserResized] = useState(false);
@@ -869,7 +889,10 @@ export function TreeTable<I extends TreeTableDataItem>({
 
     const observer = new ResizeObserver(entries => {
       if (entries[0]) {
-        setContainerWidth(node.clientWidth);
+        // clientWidth rounds up, so a fractional layout width would make the
+        // content a fraction of a pixel too wide and show a scrollbar that
+        // cannot move. Floor the exact content-box width instead.
+        setContainerWidth(Math.floor(entries[0].contentRect.width));
         if (!isLayoutReady) {
           setIsLayoutReady(true);
         }
@@ -943,7 +966,13 @@ export function TreeTable<I extends TreeTableDataItem>({
     [renderItemTotalWidth, gridTemplateColumns]
   );
 
-  const renderItem = ({ item, level, isSelected }: TreeTableRenderItemParams) => {
+  const renderRow = (
+    item: TreeTableDataItem,
+    level: number,
+    isSelected: boolean,
+    isPinned = false,
+    dragArea?: PinnedRowDragArea
+  ) => {
     const extended = item as I;
     const indentWidth = Math.max(
       Math.min(level * indentPerLevel, Math.max(firstColumnBodyWidth - 12, 0)),
@@ -958,14 +987,22 @@ export function TreeTable<I extends TreeTableDataItem>({
             return (
               <div
                 key={column.key}
-                className="flex min-w-0 items-center overflow-hidden pr-1"
+                ref={dragArea?.ref as React.Ref<HTMLDivElement> | undefined}
+                {...dragArea?.attributes}
+                {...dragArea?.listeners}
+                className={cn(
+                  'group/info flex min-w-0 items-center overflow-hidden pr-1',
+                  // Dragging starts here, so show the grab cursor; elsewhere nothing is clickable.
+                  !dragArea && 'cursor-default',
+                  dragArea && (dragArea.isDragging ? 'cursor-grabbing' : 'cursor-grab')
+                )}
                 style={{
                   paddingLeft: `${firstCellPaddingLeft}px`,
                   paddingRight: '6px',
                 }}
               >
                 <span className="flex-1 truncate text-left text-sm text-foreground">
-                  {column.render({ item: extended, level, isSelected })}
+                  {column.render({ item: extended, level, isSelected, isPinned })}
                 </span>
               </div>
             );
@@ -976,13 +1013,20 @@ export function TreeTable<I extends TreeTableDataItem>({
               key={column.key}
               className="min-w-0 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
             >
-              {column.render({ item: extended, level, isSelected })}
+              {column.render({ item: extended, level, isSelected, isPinned })}
             </div>
           );
         })}
       </div>
     );
   };
+
+  const renderItem = ({ item, level, isSelected }: TreeTableRenderItemParams) =>
+    renderRow(item, level, isSelected);
+
+  const pinnedRowHeight = treeViewProps.rowHeight ?? DEFAULT_TREE_ROW_HEIGHT;
+  const pinnedCount = pinnedItems?.length ?? 0;
+  const showPinnedSection = pinnedCount > 0 || hiddenPinnedCount > 0;
 
   const handleColumnResizeStart = (index: number, e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -1101,6 +1145,37 @@ export function TreeTable<I extends TreeTableDataItem>({
                   })}
                 </div>
               )}
+              {showPinnedSection && (
+                <section aria-label="Pinned rows" className="border-b border-border pb-4">
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="h-7 w-full justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
+                    aria-expanded={!isPinnedCollapsed}
+                    onClick={onTogglePinnedCollapsed}
+                  >
+                    <ChevronRight
+                      aria-hidden="true"
+                      className={cn('transition-transform', !isPinnedCollapsed && 'rotate-90')}
+                    />
+                    <span>Pinned ({pinnedCount})</span>
+                    {hiddenPinnedCount > 0 && (
+                      <span className="font-normal">{hiddenPinnedCount} hidden by filter</span>
+                    )}
+                  </Button>
+                  {!isPinnedCollapsed && pinnedCount > 0 && (
+                    <PinnedRowList
+                      items={pinnedItems ?? []}
+                      maxHeight={MAX_VISIBLE_PINNED_ROWS * pinnedRowHeight}
+                      rowMinHeight={pinnedRowHeight}
+                      rowPaddingLeft={totalLeftSpacing}
+                      renderRow={(item, dragArea) => renderRow(item, 0, false, true, dragArea)}
+                      onReorder={onReorderPinned}
+                    />
+                  )}
+                </section>
+              )}
+              {showPinnedSection && <div aria-hidden="true" className="h-4" />}
             </div>
             <div style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
               <TreeView

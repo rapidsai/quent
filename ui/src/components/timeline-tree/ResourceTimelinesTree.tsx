@@ -4,8 +4,10 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAtom } from 'jotai';
 import { useCallback, useDeferredValue, useEffect, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@quent/client';
 import {
+  DataText,
   ResourceColumn,
   UsageColumn,
   buildBulkParamsForItem,
@@ -27,6 +29,7 @@ import {
   unpackEntityRef,
   resolveResourceFsmType,
   resourceFsmChoices,
+  workerDisplayName,
 } from '@quent/utils';
 import {
   resourceFilterAtom,
@@ -34,9 +37,11 @@ import {
   selectedFsmTypesAtom,
   selectedTypesAtom,
 } from '@/atoms/resourceTree';
+import { resolvePinnedRows } from '@/features/pinned-rows/pinnedRows';
 import { ResourceFilterSearch } from '@/features/resource-filter/ResourceFilterSearch';
 import { filterResourceTree } from '@/features/resource-filter/resourceFilter';
 import { useAutoExpandMatchingAncestors, useExpandedIds } from '@/hooks/useExpandedIds';
+import { usePinnedCollapsed, usePinnedIds } from '@/hooks/usePinnedIds';
 import type { ResourceTimelineSubRow } from './sub-rows';
 import {
   TimelineTreeTable,
@@ -44,6 +49,8 @@ import {
   type TimelineTreeControls,
   type TimelineTreeItem,
   type TimelineTreeModel,
+  type PinningControls,
+  type RowPinning,
 } from './TimelineTreeTable';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
@@ -63,6 +70,10 @@ export interface ResourceTimelinesTreeModel extends TimelineTreeModel, TimelineT
 export type { ResourceTimelineSubRow };
 
 const EMPTY_SUB_ROWS: readonly ResourceTimelineSubRow[] = [];
+
+function getEntityName(item: TreeTableItem): string | undefined {
+  return 'instance_name' in item.entity ? (item.entity.instance_name ?? undefined) : undefined;
+}
 
 export interface ResourceTimelinesTreeProps {
   engineId: string;
@@ -143,12 +154,16 @@ export function useResourceTimelinesTreeModel({
     }
   }, [rootResourceType, resourceTypeOptions, rootItem.availableResourceTypes, setRootResourceType]);
 
-  const trees = useMemo(() => {
-    const injectSubRows = (item: TreeTableItem) =>
-      subRows.reduce((current, subRow) => subRow.injectRows(current), item);
+  const injectSubRows = useCallback(
+    (item: TreeTableItem) => subRows.reduce((current, subRow) => subRow.injectRows(current), item),
+    [subRows]
+  );
+  // The whole tree with sub-rows, before any filter. Pinned rows are looked up here.
+  const fullTree = useMemo(() => injectSubRows(rootItem), [injectSubRows, rootItem]);
 
+  const trees = useMemo(() => {
     if (!resourceFilterResult.isActive || resourceFilter.showOthers) {
-      return [injectSubRows(rootItem)];
+      return [fullTree];
     }
     if (resourceFilterResult.filteredItems.length === 0) {
       return [];
@@ -157,12 +172,97 @@ export function useResourceTimelinesTreeModel({
     const filteredRoot = { ...rootItem, children: resourceFilterResult.filteredItems };
     return injectSubRows(filteredRoot).children ?? [];
   }, [
+    fullTree,
+    injectSubRows,
     resourceFilter.showOthers,
     resourceFilterResult.filteredItems,
     resourceFilterResult.isActive,
     rootItem,
-    subRows,
   ]);
+
+  const { pinnedIds, togglePin, movePin, isAtPinLimit } = usePinnedIds();
+  const { isPinnedCollapsed, togglePinnedCollapsed } = usePinnedCollapsed();
+  // A pin whose row a filter has removed is hidden, not forgotten; clearing the filter restores it.
+  const { shownItems: pinnedItems, hiddenCount: hiddenPinnedCount } = useMemo(
+    () => resolvePinnedRows(pinnedIds, [fullTree], trees),
+    [fullTree, pinnedIds, trees]
+  );
+  const getPinnedRowDescription = useCallback(
+    (item: TimelineTreeItem) => {
+      const findWorkerName = (
+        row: TimelineTreeItem,
+        workerAbove?: string
+      ): string | null | undefined => {
+        if (row.id === item.id) {
+          return workerAbove;
+        }
+        const worker = entities.workers[row.id];
+        const workerAtOrAbove = worker ? workerDisplayName(worker) : workerAbove;
+        for (const child of row.children ?? []) {
+          const name = findWorkerName(child, workerAtOrAbove);
+          if (name !== null) {
+            return name;
+          }
+        }
+        return null;
+      };
+
+      const workerName = findWorkerName(fullTree as TimelineTreeItem);
+      return workerName ? (
+        <>
+          Worker: <DataText className="text-foreground">{workerName}</DataText>
+        </>
+      ) : undefined;
+    },
+    [entities.workers, fullTree]
+  );
+  // The root group is already summarized by the overview bar, so it has no pin button.
+  const isPinnable = useCallback(
+    (item: TimelineTreeItem) => item.id !== rootItem.id,
+    [rootItem.id]
+  );
+  const getRowName = useCallback(
+    (item: TimelineTreeItem) =>
+      subRows.find(subRow => subRow.matches(item))?.label ??
+      getEntityName(item as TreeTableItem) ??
+      item.id,
+    [subRows]
+  );
+  const rowPinning = useMemo<RowPinning>(
+    () => ({ isPinnable, getName: getRowName, getDescription: getPinnedRowDescription }),
+    [getPinnedRowDescription, getRowName, isPinnable]
+  );
+  const pinning = useMemo<PinningControls>(
+    () => ({
+      items: pinnedItems as TimelineTreeItem[],
+      hiddenCount: hiddenPinnedCount,
+      ids: pinnedIds,
+      isAtLimit: isAtPinLimit,
+      onToggle: togglePin,
+      isCollapsed: isPinnedCollapsed,
+      onToggleCollapsed: togglePinnedCollapsed,
+      onReorder: movePin,
+    }),
+    [
+      hiddenPinnedCount,
+      isAtPinLimit,
+      isPinnedCollapsed,
+      movePin,
+      pinnedIds,
+      pinnedItems,
+      togglePin,
+      togglePinnedCollapsed,
+    ]
+  );
+  // Only real resources and groups have bulk timeline data; sub-rows load their own.
+  const pinnedBulkItems = useMemo(
+    () =>
+      pinnedItems.flatMap(item => {
+        const resourceItem = findItemById(rootItem, item.id);
+        return resourceItem ? [resourceItem] : [];
+      }),
+    [pinnedItems, rootItem]
+  );
   const firstResourceTimelineId = trees[0]?.id ?? null;
 
   const { expandedIds, handleExpandChange } = useExpandedIds(
@@ -193,6 +293,7 @@ export function useResourceTimelinesTreeModel({
     collectVisibleEntriesFn: collectVisibleEntries,
     buildBulkParamsFn: buildBulkParamsForItem,
     findItemByIdFn: findItemById,
+    extraItems: pinnedBulkItems,
   });
 
   const onExpandChange = useCallback(
@@ -240,10 +341,10 @@ export function useResourceTimelinesTreeModel({
   });
 
   const renderLabel = useCallback(
-    (item: TimelineTreeItem) => {
+    (item: TimelineTreeItem, description?: ReactNode, isPinned?: boolean) => {
       const subRow = subRows.find(candidate => candidate.matches(item));
       if (subRow) {
-        return subRow.renderLabel(item);
+        return subRow.renderLabel(item, description);
       }
 
       const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
@@ -258,6 +359,8 @@ export function useResourceTimelinesTreeModel({
       return (
         <ResourceColumn
           item={item as TreeTableItem}
+          description={description}
+          className={isPinned ? undefined : 'cursor-pointer'}
           selectedType={selectedType}
           onTypeChange={(itemId, newType) => {
             setSelectedTypes(previous => new Map(previous).set(itemId, newType));
@@ -328,6 +431,8 @@ export function useResourceTimelinesTreeModel({
     rootItem,
     showOthers: resourceFilter.showOthers,
     trees: trees as TimelineTreeItem[],
+    pinning,
+    rowPinning,
     emptyMessage: 'No resources match this filter.',
     filters: (
       <ResourceFilterSearch

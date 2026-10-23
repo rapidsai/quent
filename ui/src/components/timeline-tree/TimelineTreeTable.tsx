@@ -25,13 +25,40 @@ import type {
 } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { useTabActionSlots } from '@/components/TabActionSlots';
+import { PinnableRowLabel } from './PinnableRowLabel';
 
 export type TimelineTreeItem = TreeTableItem<EntityTypeValue | NvtxTreeEntity>;
 
 export interface TimelineTreeModel {
   trees: TimelineTreeItem[];
-  renderLabel: (item: TimelineTreeItem) => ReactNode;
+  // The description is extra context for the row, given only for rows in the pinned section.
+  renderLabel: (item: TimelineTreeItem, description?: ReactNode, isPinned?: boolean) => ReactNode;
   renderTimeline: (item: TimelineTreeItem) => ReactNode;
+  // Which of this tree's rows can be pinned. Trees that leave it out have no pin buttons.
+  rowPinning?: RowPinning;
+}
+
+export interface RowPinning {
+  isPinnable: (item: TimelineTreeItem) => boolean;
+  // Plain-text name of a row, used to label its pin button.
+  getName: (item: TimelineTreeItem) => string;
+  // Extra context shown only on the pinned copy of a row.
+  getDescription?: (item: TimelineTreeItem) => ReactNode;
+}
+
+export interface PinningControls {
+  // Pinned rows to show above the tree, after any filter has been applied.
+  items: TimelineTreeItem[];
+  // Pinned rows that a filter currently hides.
+  hiddenCount: number;
+  ids: ReadonlySet<string>;
+  isAtLimit: boolean;
+  onToggle: (itemId: string) => void;
+  // Whether the pinned section shows only its header.
+  isCollapsed: boolean;
+  onToggleCollapsed: () => void;
+  // Moves a pinned row to where another pinned row sits, when the user drags it there.
+  onReorder: (activeId: string, overId: string) => void;
 }
 
 export interface TimelineTreeControls {
@@ -44,6 +71,8 @@ export interface TimelineTreeControls {
   timelineData?: SingleTimelineResponse;
   onExpandChange: (itemId: string, isExpanded: boolean) => void;
   onZoomChange?: (range: ZoomRange) => void;
+  // Leave out for trees with no pinning.
+  pinning?: PinningControls;
 }
 
 interface TimelineTreeTableProps {
@@ -108,6 +137,7 @@ export function TimelineTreeTable({
     }
     return { data, modelsByItemId };
   }, [trees]);
+  const { pinning } = controls;
   const columns = useMemo(
     () =>
       [
@@ -121,8 +151,26 @@ export function TimelineTreeTable({
               Resource
             </div>
           ),
-          render: ({ item }: { item: TimelineTreeItem }) =>
-            modelsByItemId.get(item.id)?.renderLabel(item) ?? null,
+          render: ({ item, isPinned }: { item: TimelineTreeItem; isPinned?: boolean }) => {
+            const model = modelsByItemId.get(item.id);
+            const rowPinning = model?.rowPinning;
+            return (
+              <PinnableRowLabel
+                label={
+                  model?.renderLabel(
+                    item,
+                    isPinned ? rowPinning?.getDescription?.(item) : undefined,
+                    isPinned
+                  ) ?? null
+                }
+                name={rowPinning?.getName(item) ?? item.id}
+                isPinnable={pinning != null && (rowPinning?.isPinnable(item) ?? false)}
+                isPinned={pinning?.ids.has(item.id) ?? false}
+                isAtPinLimit={pinning?.isAtLimit ?? false}
+                onTogglePin={() => pinning?.onToggle(item.id)}
+              />
+            );
+          },
         },
         {
           key: 'usage',
@@ -143,7 +191,7 @@ export function TimelineTreeTable({
             modelsByItemId.get(item.id)?.renderTimeline(item) ?? null,
         },
       ] satisfies Column<TimelineTreeItem>[],
-    [controls.onZoomChange, controls.timelineData, durationSeconds, isDark, modelsByItemId]
+    [controls.onZoomChange, controls.timelineData, durationSeconds, isDark, modelsByItemId, pinning]
   );
 
   return (
@@ -165,6 +213,11 @@ export function TimelineTreeTable({
             initialSelectedItemId={controls.initialSelectedItemId}
             columnWidths={[275, 'auto']}
             onExpandChange={controls.onExpandChange}
+            pinnedItems={pinning?.items}
+            hiddenPinnedCount={pinning?.hiddenCount}
+            isPinnedCollapsed={pinning?.isCollapsed}
+            onTogglePinnedCollapsed={pinning?.onToggleCollapsed}
+            onReorderPinned={pinning?.onReorder}
             highlightedItemIds={controls.highlightedItemIds}
             indicatorItemIds={controls.indicatorItemIds}
             controlledExpandedIds={controls.expandedIds}
