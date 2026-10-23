@@ -869,7 +869,10 @@ export function TreeTable<I extends TreeTableDataItem>({
 
     const observer = new ResizeObserver(entries => {
       if (entries[0]) {
-        setContainerWidth(node.clientWidth);
+        // clientWidth rounds up, so a fractional layout width would make the
+        // content a fraction of a pixel too wide and show a scrollbar that
+        // cannot move. Floor the exact content-box width instead.
+        setContainerWidth(Math.floor(entries[0].contentRect.width));
         if (!isLayoutReady) {
           setIsLayoutReady(true);
         }
