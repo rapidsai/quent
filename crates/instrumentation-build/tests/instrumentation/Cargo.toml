@@ -8,7 +8,7 @@ publish = false
 [workspace]
 
 [dependencies]
-quent-instrumentation = { path = "../../../instrumentation", features = ["serde"] }
+quent-instrumentation = { path = "../../../instrumentation", features = ["io-callback", "serde"] }
 
 [build-dependencies]
 quent-instrumentation-build = { path = "../.." }

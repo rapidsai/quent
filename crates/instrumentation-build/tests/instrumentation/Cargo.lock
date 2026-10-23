@@ -397,6 +397,7 @@ dependencies = [
  "quent-dynamic-attributes",
  "quent-events",
  "quent-io",
+ "quent-io-callback",
  "quent-time",
  "serde",
  "thiserror",
@@ -434,6 +435,16 @@ dependencies = [
 
 [[package]]
 name = "quent-io"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "quent-events",
+ "quent-io-types",
+ "uuid",
+]
+
+[[package]]
+name = "quent-io-callback"
 version = "0.2.0"
 dependencies = [
  "async-trait",

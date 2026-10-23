@@ -234,13 +234,20 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
         for event in entity.events() {
             let method = py_safe(&to_case(event.name(), Case::Snake));
             reserve_name(&mut methods, method.clone())?;
+            reserve_name(
+                &mut methods,
+                py_safe(&format!("{}_at", to_case(event.name(), Case::Snake))),
+            )?;
             if event.cardinality() == Cardinality::Once {
                 reserve_name(
                     &mut methods,
                     py_safe(&format!("{}_emitted", to_case(event.name(), Case::Snake))),
                 )?;
             }
-            validate_python_fields(event.fields().map(|field| field.name().as_ref()))?;
+            validate_python_fields(
+                std::iter::once("timestamp_ns")
+                    .chain(event.fields().map(|field| field.name().as_ref())),
+            )?;
             for field in event.fields() {
                 collect_reference_names(field.ty(), &mut references)?;
             }
@@ -829,61 +836,29 @@ fn entity_bindings(
     let observer_export = format!("{name}Observer");
     let handle_export = format!("{name}Handle");
     let entity_ty = rust_path(instrumentation, entity.path(), "");
-    let methods = entity
+    let (methods, helpers): (Vec<_>, Vec<_>) = entity
         .events()
         .map(|event| {
-            let model_method = raw_ident(to_case(event.name(), Case::Snake));
-            let method = raw_ident(py_safe(&to_case(event.name(), Case::Snake)));
-            let params = event
-                .fields()
-                .map(|field| {
-                    let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
-                    quote! { #name: &Bound<'_, PyAny> }
-                })
-                .collect::<Vec<_>>();
-            let bindings = event
-                .fields()
-                .map(|field| {
-                    let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
-                    let value = conversion::convert(
-                        schema,
-                        field.ty(),
-                        quote! { #name },
-                        instrumentation,
-                        runtime,
-                    )?;
-                    Ok::<_, GenerateError>(quote! { let #name = #value; })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let args = event
-                .fields()
-                .map(|field| raw_ident(py_safe(&to_case(field.name(), Case::Snake))))
-                .collect::<Vec<_>>();
-            let signature = (!args.is_empty()).then(|| {
-                quote! {
-                    #[pyo3(signature = (*, #(#args),*))]
-                }
-            });
-            let event_method = match event.cardinality() {
-                Cardinality::Once => quote! {
-                    #signature
-                    #[allow(clippy::too_many_arguments)]
-                    pub fn #method(&mut self, #(#params),*) -> PyResult<()> {
-                        #(#bindings)*
-                        self.inner.#model_method(#(#args),*)
-                            .map_err(|error| EventAlreadyEmittedError::new_err(error.to_string()))
-                    }
-                },
-                Cardinality::Multi => quote! {
-                    #signature
-                    #[allow(clippy::too_many_arguments)]
-                    pub fn #method(&self, #(#params),*) -> PyResult<()> {
-                        #(#bindings)*
-                        self.inner.#model_method(#(#args),*)
-                            .map_err(|error| QuentError::new_err(error.to_string()))
-                    }
-                },
+            let (receiver, error) = match event.cardinality() {
+                Cardinality::Once => (quote! { &mut self }, quote! { EventAlreadyEmittedError }),
+                Cardinality::Multi => (quote! { &self }, quote! { QuentError }),
             };
+            let (event_method, helper) = event_methods(
+                schema,
+                event,
+                false,
+                instrumentation,
+                runtime,
+                receiver,
+                quote! { PyResult<()> },
+                quote! { self.inner },
+                |call| {
+                    quote! {
+                        let result = #call;
+                        result.map_err(|error| #error::new_err(error.to_string()))
+                    }
+                },
+            )?;
             let emitted = (event.cardinality() == Cardinality::Once).then(|| {
                 let emitted = raw_ident(py_safe(&format!(
                     "{}_emitted",
@@ -895,9 +870,11 @@ fn entity_bindings(
                     pub fn #emitted(&self) -> bool { self.inner.#model_emitted() }
                 }
             });
-            Ok::<_, GenerateError>(quote! { #event_method #emitted })
+            Ok::<_, GenerateError>((quote! { #event_method #emitted }, helper))
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .unzip();
     Ok(quote! {
         /// Creates handles for this entity type.
         #[pyclass(name = #observer_export)]
@@ -921,6 +898,7 @@ fn entity_bindings(
 
         impl #handle {
             fn raw_uuid(&self) -> PyResult<#runtime::Uuid> { Ok(self.inner.id()) }
+            #(#helpers)*
         }
 
         #[pymethods]
@@ -966,7 +944,7 @@ fn fsm_entity_bindings(
         .event(fsm.initial_state())
         .expect("validated FSM initial state");
     let initial_target = fsm_state_handle_ident(entity, initial_event.name());
-    let initial_method = fsm_transition_method(
+    let (initial_method, initial_helper) = fsm_transition_method(
         schema,
         initial_event,
         &initial_target,
@@ -984,7 +962,7 @@ fn fsm_entity_bindings(
                 to_case(state.name(), Case::Pascal),
             );
             let marker = raw_ident(to_case(state.name(), Case::Pascal));
-            let methods = fsm
+            let (methods, helpers): (Vec<_>, Vec<_>) = fsm
                 .transitions()
                 .iter()
                 .filter(|transition| transition.source() == state.name())
@@ -995,7 +973,9 @@ fn fsm_entity_bindings(
                     let target = fsm_state_handle_ident(entity, target_event.name());
                     fsm_transition_method(schema, target_event, &target, instrumentation, runtime)
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .unzip();
             let state_name = state.name().to_string();
             let into_dynamic = fsm_into_dynamic_method(&dynamic_handle);
             Ok::<_, GenerateError>(quote! {
@@ -1012,6 +992,7 @@ fn fsm_entity_bindings(
                             .map(|inner| inner.id())
                             .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
                     }
+                    #(#helpers)*
                 }
 
                 #[pymethods]
@@ -1037,10 +1018,12 @@ fn fsm_entity_bindings(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let dynamic_methods = entity
+    let (dynamic_methods, dynamic_helpers): (Vec<_>, Vec<_>) = entity
         .events()
         .map(|event| fsm_dynamic_transition_method(schema, event, instrumentation, runtime))
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .unzip();
     let initial_try_into = fsm_dynamic_try_into_method(
         raw_ident("try_into_initial"),
         &initial_handle,
@@ -1084,6 +1067,7 @@ fn fsm_entity_bindings(
                     .map(|inner| inner.id())
                     .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
             }
+            #initial_helper
         }
 
         #[pymethods]
@@ -1117,6 +1101,7 @@ fn fsm_entity_bindings(
                     .map(|inner| inner.id())
                     .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
             }
+            #(#dynamic_helpers)*
         }
 
         #[pymethods]
@@ -1183,50 +1168,26 @@ fn fsm_dynamic_transition_method(
     event: &quent_schema::Event,
     instrumentation: &syn::Path,
     runtime: &syn::Path,
-) -> Result<TokenStream, GenerateError> {
-    let model_method = raw_ident(to_case(event.name(), Case::Snake));
-    let method = raw_ident(py_safe(&to_case(event.name(), Case::Snake)));
-    let fields = event
-        .fields()
-        .filter(|field| field.name() != SEQUENCE_FIELD_NAME)
-        .collect::<Vec<_>>();
-    let params = fields.iter().map(|field| {
-        let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
-        quote! { #name: &Bound<'_, PyAny> }
-    });
-    let bindings = fields
-        .iter()
-        .map(|field| {
-            let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
-            let value = conversion::convert(
-                schema,
-                field.ty(),
-                quote! { #name },
-                instrumentation,
-                runtime,
-            )?;
-            Ok::<_, GenerateError>(quote! { let #name = #value; })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let args = fields
-        .iter()
-        .map(|field| raw_ident(py_safe(&to_case(field.name(), Case::Snake))))
-        .collect::<Vec<_>>();
-    let signature = (!args.is_empty()).then(|| {
-        quote! { #[pyo3(signature = (*, #(#args),*))] }
-    });
-    Ok(quote! {
-        #signature
-        #[allow(clippy::too_many_arguments)]
-        pub fn #method(&mut self, #(#params),*) -> PyResult<()> {
-            #(#bindings)*
-            self.inner
-                .as_mut()
-                .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))?
-                .#model_method(#(#args),*)
-                .map_err(|error| InvalidFsmTransitionError::new_err(error.to_string()))
-        }
-    })
+) -> Result<(TokenStream, TokenStream), GenerateError> {
+    event_methods(
+        schema,
+        event,
+        true,
+        instrumentation,
+        runtime,
+        quote! { &mut self },
+        quote! { PyResult<()> },
+        quote! { inner },
+        |call| {
+            quote! {
+                let inner = self.inner
+                    .as_mut()
+                    .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))?;
+                let result = #call;
+                result.map_err(|error| InvalidFsmTransitionError::new_err(error.to_string()))
+            }
+        },
+    )
 }
 
 fn fsm_state_handle_ident(
@@ -1246,51 +1207,110 @@ fn fsm_transition_method(
     target_handle: &syn::Ident,
     instrumentation: &syn::Path,
     runtime: &syn::Path,
-) -> Result<TokenStream, GenerateError> {
-    let model_method = raw_ident(to_case(event.name(), Case::Snake));
-    let method = raw_ident(py_safe(&to_case(event.name(), Case::Snake)));
+) -> Result<(TokenStream, TokenStream), GenerateError> {
+    event_methods(
+        schema,
+        event,
+        true,
+        instrumentation,
+        runtime,
+        quote! { &mut self },
+        quote! { PyResult<#target_handle> },
+        quote! { inner },
+        |call| {
+            quote! {
+                let inner = self.inner.take().ok_or_else(|| {
+                    HandleConsumedError::new_err("FSM handle was consumed")
+                })?;
+                Ok(#target_handle { inner: Some(#call) })
+            }
+        },
+    )
+}
+
+/// Generates a Python event method and its `_at` counterpart, returned with
+/// the private helper both delegate to.
+///
+/// The helper belongs outside `#[pymethods]` so Python cannot call it. It
+/// converts the Python arguments and passes `dispatch` the expression calling
+/// the model method on `target` selected by the optional timestamp.
+#[allow(clippy::too_many_arguments)]
+fn event_methods(
+    schema: &Schema,
+    event: &quent_schema::Event,
+    skip_sequence: bool,
+    instrumentation: &syn::Path,
+    runtime: &syn::Path,
+    receiver: TokenStream,
+    output: TokenStream,
+    target: TokenStream,
+    dispatch: impl FnOnce(TokenStream) -> TokenStream,
+) -> Result<(TokenStream, TokenStream), GenerateError> {
+    let name = to_case(event.name(), Case::Snake);
+    let model_method = raw_ident(name.clone());
+    let model_method_at = raw_ident(format!("{name}_at"));
+    let method = raw_ident(py_safe(&name));
+    let method_at = raw_ident(py_safe(&format!("{name}_at")));
+    let helper = raw_ident(format!("_emit_{name}"));
     let fields = event
         .fields()
-        .filter(|field| field.name() != SEQUENCE_FIELD_NAME)
+        .filter(|field| !skip_sequence || field.name() != SEQUENCE_FIELD_NAME)
         .collect::<Vec<_>>();
-    let params = fields.iter().map(|field| {
-        let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
-        quote! { #name: &Bound<'_, PyAny> }
-    });
-    let bindings = fields
-        .iter()
-        .map(|field| {
-            let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
-            let value = conversion::convert(
-                schema,
-                field.ty(),
-                quote! { #name },
-                instrumentation,
-                runtime,
-            )?;
-            Ok::<_, GenerateError>(quote! { let #name = #value; })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     let args = fields
         .iter()
         .map(|field| raw_ident(py_safe(&to_case(field.name(), Case::Snake))))
         .collect::<Vec<_>>();
+    let params = args
+        .iter()
+        .map(|arg| quote! { #arg: &Bound<'_, PyAny> })
+        .collect::<Vec<_>>();
+    let bindings = fields
+        .iter()
+        .zip(&args)
+        .map(|(field, arg)| {
+            let value = conversion::convert(
+                schema,
+                field.ty(),
+                quote! { #arg },
+                instrumentation,
+                runtime,
+            )?;
+            Ok::<_, GenerateError>(quote! { let #arg = #value; })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let signature = (!args.is_empty()).then(|| {
-        quote! {
-            #[pyo3(signature = (*, #(#args),*))]
+        quote! { #[pyo3(signature = (*, #(#args),*))] }
+    });
+    let signature_at = (!args.is_empty()).then(|| {
+        quote! { #[pyo3(signature = (timestamp_ns, *, #(#args),*))] }
+    });
+    let call = dispatch(quote! {
+        match timestamp_ns {
+            Some(timestamp_ns) => #target.#model_method_at(timestamp_ns, #(#args),*),
+            None => #target.#model_method(#(#args),*),
         }
     });
-    Ok(quote! {
+    let methods = quote! {
         #signature
         #[allow(clippy::too_many_arguments)]
-        pub fn #method(&mut self, #(#params),*) -> PyResult<#target_handle> {
-            #(#bindings)*
-            let inner = self.inner.take().ok_or_else(|| {
-                HandleConsumedError::new_err("FSM handle was consumed")
-            })?;
-            Ok(#target_handle { inner: Some(inner.#model_method(#(#args),*)) })
+        pub fn #method(#receiver, #(#params),*) -> #output {
+            self.#helper(None, #(#args),*)
         }
-    })
+
+        #signature_at
+        #[allow(clippy::too_many_arguments)]
+        pub fn #method_at(#receiver, timestamp_ns: u64, #(#params),*) -> #output {
+            self.#helper(Some(timestamp_ns), #(#args),*)
+        }
+    };
+    let helper = quote! {
+        #[allow(clippy::too_many_arguments)]
+        fn #helper(#receiver, timestamp_ns: Option<u64>, #(#params),*) -> #output {
+            #(#bindings)*
+            #call
+        }
+    };
+    Ok((methods, helper))
 }
 
 fn module_registration(schema: &Schema, options: &Options) -> TokenStream {

@@ -49,7 +49,10 @@ can be checked. FSM entities may declare up to 255 states; generation rejects
 observers; existing observers and handles retain their scoped telemetry runtime.
 Exporter shutdown waits until the last observer or handle is released.
 Once-cardinality events on non-FSM entities expose `<event>_emitted()`
-predicates. Generated exceptions derive from `QuentError`. Nested options are
+predicates. Every event and transition method has an
+`<event>_at(timestamp_ns, ...)` variant that uses the given Unix-epoch
+nanosecond timestamp instead of the current time; FSM transition timestamps must
+not decrease. Generated exceptions derive from `QuentError`. Nested options are
 rejected during generation because Python cannot distinguish `None` from
 `Some(None)`.
 

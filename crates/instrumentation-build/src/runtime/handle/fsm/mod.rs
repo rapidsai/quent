@@ -6,11 +6,11 @@
 use proc_macro2::TokenStream;
 use quent_constraints::Constraint as _;
 use quent_fsm::Fsm;
-use quent_schema::{Entity, Identifier, Schema};
+use quent_schema::{Entity, Event, Identifier, Schema};
 use quote::quote;
 
-use super::GeneratedHandle;
-use crate::{GenerateError, runtime::event_ident};
+use super::{GeneratedHandle, timestamped_docs};
+use crate::{GenerateError, common::doc_attr_or, runtime::event_ident};
 
 mod dynamic;
 mod typestate;
@@ -29,6 +29,21 @@ const RESERVED_HANDLE_METHOD_NAMES: [&str; 9] = [
     "as_any_entity_ref",
     "as_any_entity_ref_with",
 ];
+
+/// Documents the transition into `event` and its `_at` counterpart.
+fn transition_docs(event: &Event) -> (TokenStream, TokenStream) {
+    let docs = doc_attr_or(
+        event.annotations().docs(),
+        &format!("Transition this FSM into `{}`.", event.name()),
+    );
+    let at_docs = timestamped_docs(&docs);
+    let at_docs = quote! {
+        #at_docs
+        /// Transitions are ordered by timestamp, so it must not precede the
+        /// previous transition of this instance.
+    };
+    (docs, at_docs)
+}
 
 fn reserved_handle_method(state: &Identifier) -> Option<&'static str> {
     let method = crate::common::to_case(state, convert_case::Case::Snake);
@@ -158,6 +173,8 @@ mod tests {
         assert!(source.contains("impl FsmHandle<Query>"));
         assert!(source.contains("pub fn submitted(self, text: String)"));
         assert!(source.contains("-> FsmHandle<Query, query_state::Submitted>"));
+        assert!(source.contains("pub fn submitted_at("));
+        assert!(source.contains(".transition_at("));
         assert!(source.contains("impl FsmHandle<Query, query_state::Submitted>"));
         assert!(source.contains(".transition(QueryEvent::Submitted"));
         assert!(source.contains("seq: 0"));
@@ -173,8 +190,61 @@ mod tests {
         assert!(source.contains("pub fn try_into<S>("));
         assert!(source.contains("S: ::quent_instrumentation::FsmState<Query>"));
         assert!(source.contains("pub fn submitted(\n        &mut self"));
-        assert!(source.contains("self.inner.transition_mut("));
+        assert!(source.contains("pub fn submitted_at(\n        &mut self"));
+        assert!(source.contains("fn _transition("));
+        assert_eq!(source.matches("::core::option::Option::None,").count(), 3);
+        assert_eq!(
+            source
+                .matches("::core::option::Option::Some(timestamp_ns),")
+                .count(),
+            3
+        );
+        assert!(source.contains("self.inner.transition_mut(event)"));
+        assert!(source.contains("self.inner.transition_mut_at(timestamp_ns, event)"));
         assert!(source.contains("impl FsmHandle<Query, query_state::Ready>"));
+    }
+
+    #[test]
+    fn documents_timestamp_ordering_on_every_timestamped_transition() {
+        let annotations = quent_schema::builder::AnnotationsBuilder::new()
+            .with_docs("Application-defined transition documentation.")
+            .build()
+            .unwrap();
+        let undocumented = FsmEntityBuilder::new("Query".parse::<quent_schema::Path>().unwrap())
+            .with_states([
+                state("submitted", &["ready"], true, vec![]),
+                state("ready", &[], false, vec![]),
+            ])
+            .build()
+            .unwrap();
+        let entity = quent_schema::builder::EntityBuilder::new(undocumented.path().clone())
+            .with_annotations(undocumented.annotations().clone())
+            .with_events(undocumented.events().map(|event| {
+                quent_schema::builder::EventBuilder::new(event.name().clone(), event.cardinality())
+                    .with_fields(event.fields().cloned())
+                    .with_annotations(annotations.clone())
+                    .build()
+                    .unwrap()
+            }))
+            .build()
+            .unwrap();
+
+        let source = source(&entity);
+
+        // Typestate and dynamic handles each generate `submitted_at` and `ready_at`.
+        assert_eq!(
+            source
+                .matches("Application-defined transition documentation.")
+                .count(),
+            8
+        );
+        assert_eq!(
+            source
+                .matches("`timestamp_ns` is the event time in nanoseconds since the Unix epoch.")
+                .count(),
+            4
+        );
+        assert_eq!(source.matches("must not precede the").count(), 4);
     }
 
     #[test]

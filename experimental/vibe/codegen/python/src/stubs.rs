@@ -278,6 +278,10 @@ fn emit_event_method(
         "    def {}(self{suffix}) -> {return_type}: ...\n",
         py_safe(&to_case(event.name(), Case::Snake)),
     ));
+    output.push_str(&format!(
+        "    def {}(self, timestamp_ns: int{suffix}) -> {return_type}: ...\n",
+        py_safe(&format!("{}_at", to_case(event.name(), Case::Snake))),
+    ));
 }
 
 fn state_handle_name(entity: &quent_schema::Entity, state: &quent_schema::Identifier) -> String {

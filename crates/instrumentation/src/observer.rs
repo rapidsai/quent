@@ -6,6 +6,7 @@
 use crate::context::Runtime;
 use quent_events::{Event, EventPayload};
 use quent_io::Exporter;
+use quent_time::TimeUnixNanoSec;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -110,7 +111,27 @@ impl<T> EventSender<T> {
 
     /// Emit an event, converting it into the target type via `Into`.
     pub fn emit(&self, id: Uuid, event: impl Into<T>) {
-        self.send(Event::new_now(id, event.into()));
+        self.emit_with_timestamp(id, None, event);
+    }
+
+    /// Emit an event with a caller-supplied Unix-nanosecond timestamp,
+    /// converting it into the target type via `Into`.
+    pub fn emit_at(&self, id: Uuid, timestamp: TimeUnixNanoSec, event: impl Into<T>) {
+        self.emit_with_timestamp(id, Some(timestamp), event);
+    }
+
+    fn emit_with_timestamp(
+        &self,
+        id: Uuid,
+        timestamp: Option<TimeUnixNanoSec>,
+        event: impl Into<T>,
+    ) {
+        let event = event.into();
+        let event = match timestamp {
+            Some(timestamp) => Event::new(id, timestamp, event),
+            None => Event::new_now(id, event),
+        };
+        self.send(event);
     }
 }
 
@@ -157,7 +178,22 @@ impl<T> ObserverInner<T> {
 
     /// Emit an event for entity `id`, converting it into the stream type.
     pub fn emit(&self, id: Uuid, event: impl Into<T>) {
-        self.events_sender.emit(id, event);
+        self.emit_with_timestamp(id, None, event);
+    }
+
+    /// Emit an event for entity `id` at a caller-supplied Unix-nanosecond
+    /// timestamp, converting it into the stream type.
+    pub fn emit_at(&self, id: Uuid, timestamp: TimeUnixNanoSec, event: impl Into<T>) {
+        self.emit_with_timestamp(id, Some(timestamp), event);
+    }
+
+    pub(crate) fn emit_with_timestamp(
+        &self,
+        id: Uuid,
+        timestamp: Option<TimeUnixNanoSec>,
+        event: impl Into<T>,
+    ) {
+        self.events_sender.emit_with_timestamp(id, timestamp, event);
     }
 
     /// A cloned [`EventSender`] feeding this pipeline.
@@ -380,6 +416,47 @@ mod tests {
         async fn shutdown(self: Box<Self>) -> ExporterResult<()> {
             Ok(())
         }
+    }
+
+    struct TimestampRecordingProvider(Arc<Mutex<Vec<TimeUnixNanoSec>>>);
+
+    struct TimestampRecordingExporter(Arc<Mutex<Vec<TimeUnixNanoSec>>>);
+
+    #[async_trait::async_trait]
+    impl ExporterProvider<TestEvent> for TimestampRecordingProvider {
+        async fn create_exporter(
+            &self,
+            _context_id: Uuid,
+        ) -> ExporterResult<Box<dyn Exporter<TestEvent>>> {
+            Ok(Box::new(TimestampRecordingExporter(Arc::clone(&self.0))))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Exporter<TestEvent> for TimestampRecordingExporter {
+        async fn push(&mut self, event: Event<TestEvent>) -> ExporterResult<()> {
+            self.0.lock().unwrap().push(event.timestamp);
+            Ok(())
+        }
+
+        async fn shutdown(self: Box<Self>) -> ExporterResult<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn emit_at_preserves_caller_supplied_timestamp() {
+        let recorded = Arc::new(Mutex::new(Vec::new()));
+        let provider = TimestampRecordingProvider(Arc::clone(&recorded));
+        let context = crate::ContextInner::try_new(Uuid::now_v7()).unwrap();
+        let observer = context
+            .block_on(async { context.observer::<TestEvent>(&provider).await })
+            .unwrap();
+
+        observer.emit_at(Uuid::now_v7(), 123_456_789, TestEvent);
+        drop(observer);
+
+        assert_eq!(*recorded.lock().unwrap(), vec![123_456_789]);
     }
 
     /// Checks that immediately completing exports let another task run before

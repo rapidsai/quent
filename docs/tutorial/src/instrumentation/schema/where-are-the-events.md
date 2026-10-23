@@ -71,6 +71,12 @@ instance. `timestamp` is the event time in nanoseconds since the Unix epoch,
 and `data` contains the generated event payload. Later lessons add attributes,
 references, and other semantics to that payload.
 
+Events are timestamped when they are emitted. To record an event that happened
+earlier, the Rust and Python APIs provide an `<event>_at` variant of each event
+method that takes `timestamp_ns` first. FSM transitions are ordered by
+timestamp, so each one must not precede the previous transition of the same
+instance.
+
 Drop the context and any remaining handles before reading the files at the end
 of a short-lived program. This gives the background exporter time to drain and
 flush all queued events.

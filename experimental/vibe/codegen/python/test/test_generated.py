@@ -269,6 +269,43 @@ def test_dynamic_fsm_preserves_transition_sequence(tmp_path: Path) -> None:
         assert f'"seq":{sequence}' in serialized
 
 
+def test_timestamped_methods_emit_the_supplied_timestamp(tmp_path: Path) -> None:
+    context = quent.Context(quent.ExporterOptions.ndjson(str(tmp_path)))
+    cluster = context.cluster_observer().handle()
+    cluster.declaration_at(1_001, instance_name="cluster")
+    assert cluster.declaration_emitted()
+    with pytest.raises(quent.EventAlreadyEmittedError):
+        cluster.declaration_at(1_002, instance_name="duplicate")
+
+    info = context.info_observer().handle()
+    info.recorded_at(1_003, message="first", source=None, worker=cluster.id)
+    info.recorded_at(
+        timestamp_ns=1_004, message="second", source=None, worker=cluster.id
+    )
+    context.file_stats_observer().handle().scheduled_at(1_005)
+
+    queued_job = context.job_observer().handle().queued_at(1_006, worker=cluster.id)
+    queued_job.running_at(1_007)
+    with pytest.raises(quent.HandleConsumedError):
+        queued_job.running_at(1_008)
+
+    dynamic_thread = context.thread_observer().handle().into_dynamic()
+    with pytest.raises(quent.InvalidFsmTransitionError):
+        dynamic_thread.active_at(1_009)
+    dynamic_thread.idle_at(1_010, worker=cluster.id)
+    dynamic_thread.active_at(1_011)
+    context.close()
+    del cluster, info, queued_job, dynamic_thread
+
+    serialized = "".join(
+        path.read_text() for path in tmp_path.rglob("*.ndjson") if path.is_file()
+    )
+    for timestamp in [1_001, 1_003, 1_004, 1_005, 1_006, 1_007, 1_010, 1_011]:
+        assert f'"timestamp":{timestamp},' in serialized
+    for timestamp in [1_002, 1_008, 1_009]:
+        assert f'"timestamp":{timestamp},' not in serialized
+
+
 def test_dynamic_fsm_handle_is_accepted_as_entity_reference() -> None:
     context = quent.Context()
     worker_id = uuid.uuid4()

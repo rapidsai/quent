@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use crate::{InstrumentedEntity, ObserverInner};
+use quent_time::TimeUnixNanoSec;
 
 /// An error from emitting through a generated entity handle.
 #[derive(Debug, thiserror::Error)]
@@ -76,7 +77,24 @@ impl<E: InstrumentedEntity> HandleInner<E> {
     /// Hidden because generated event methods provide the typed API.
     #[doc(hidden)]
     pub fn emit(&self, event: E::Payload) {
-        self.observer.emit(self.id, event);
+        self.emit_with_timestamp(None, event);
+    }
+
+    /// Emits an event at a caller-supplied Unix-nanosecond timestamp without
+    /// cardinality tracking.
+    ///
+    /// Hidden because generated event methods provide the typed API.
+    #[doc(hidden)]
+    pub fn emit_at(&self, timestamp: TimeUnixNanoSec, event: E::Payload) {
+        self.emit_with_timestamp(Some(timestamp), event);
+    }
+
+    pub(crate) fn emit_with_timestamp(
+        &self,
+        timestamp: Option<TimeUnixNanoSec>,
+        event: E::Payload,
+    ) {
+        self.observer.emit_with_timestamp(self.id, timestamp, event);
     }
 
     /// Emits an event unless the bit at `INDEX` was previously set.
@@ -92,13 +110,40 @@ impl<E: InstrumentedEntity> HandleInner<E> {
         event_name: &'static str,
         event: E::Payload,
     ) -> Result<(), HandleError> {
+        self.emit_once_with_timestamp::<INDEX>(event_name, None, event)
+    }
+
+    /// Emits an event at a caller-supplied Unix-nanosecond timestamp unless
+    /// the bit at `INDEX` was previously set.
+    ///
+    /// Hidden because generated once-event methods provide the typed API.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HandleError`](crate::HandleError) when the event was already emitted.
+    #[doc(hidden)]
+    pub fn emit_once_at<const INDEX: u32>(
+        &mut self,
+        event_name: &'static str,
+        timestamp: TimeUnixNanoSec,
+        event: E::Payload,
+    ) -> Result<(), HandleError> {
+        self.emit_once_with_timestamp::<INDEX>(event_name, Some(timestamp), event)
+    }
+
+    fn emit_once_with_timestamp<const INDEX: u32>(
+        &mut self,
+        event_name: &'static str,
+        timestamp: Option<TimeUnixNanoSec>,
+        event: E::Payload,
+    ) -> Result<(), HandleError> {
         const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
         let mask = 1u64 << INDEX;
         if self.once_flags & mask != 0 {
             return Err(HandleError::OnceAlreadyEmitted { event: event_name });
         }
         self.once_flags |= mask;
-        self.observer.emit(self.id, event);
+        self.emit_with_timestamp(timestamp, event);
         Ok(())
     }
 

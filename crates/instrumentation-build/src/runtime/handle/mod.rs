@@ -67,6 +67,7 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
         .events()
         .map(|event| {
             let method = raw_ident(to_case(event.name(), Case::Snake));
+            let method_at = raw_ident(format!("{}_at", to_case(event.name(), Case::Snake)));
             let variant = raw_ident(to_case(event.name(), Case::Pascal));
             let fallback = match event.cardinality() {
                 Cardinality::Once => format!(
@@ -78,6 +79,7 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
                 }
             };
             let docs = doc_attr_or(event.annotations().docs(), &fallback);
+            let at_docs = timestamped_docs(&docs);
 
             let params = event_params(entity, event, None)?;
             let fields = event_fields(event, None);
@@ -104,6 +106,15 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
                             self.inner.emit_once::<#bit>(#event_name, #construct)
                         }
 
+                        #at_docs
+                        pub fn #method_at(
+                            &mut self,
+                            timestamp_ns: u64,
+                            #(#params),*
+                        ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                            self.inner.emit_once_at::<#bit>(#event_name, timestamp_ns, #construct)
+                        }
+
                         #[doc = #emitted_doc]
                         pub fn #emitted_method(&self) -> bool {
                             self.inner.is_emitted::<#bit>()
@@ -119,6 +130,16 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
                         self.inner.emit(#construct);
                         ::core::result::Result::Ok(())
                     }
+
+                    #at_docs
+                    pub fn #method_at(
+                        &self,
+                        timestamp_ns: u64,
+                        #(#params),*
+                    ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                        self.inner.emit_at(timestamp_ns, #construct);
+                        ::core::result::Result::Ok(())
+                    }
                 },
             })
         })
@@ -129,6 +150,16 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
             #(#methods)*
         }
     })
+}
+
+/// Documents an `_at` method with its untimestamped counterpart's `docs`
+/// followed by the meaning of `timestamp_ns`.
+fn timestamped_docs(docs: &TokenStream) -> TokenStream {
+    quote! {
+        #docs
+        ///
+        /// `timestamp_ns` is the event time in nanoseconds since the Unix epoch.
+    }
 }
 
 fn event_params(
@@ -174,5 +205,82 @@ fn event_construct(
         quote! { #event_ty::#variant }
     } else {
         quote! { #event_ty::#variant { #(#fields),* } }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quent_schema::{
+        Cardinality, DataType,
+        builder::{AnnotationsBuilder, EntityBuilder, EventBuilder},
+        test_utils::field,
+    };
+
+    use super::ordinary_handle;
+    use crate::pretty;
+
+    #[test]
+    fn schema_docs_apply_to_regular_and_timestamped_methods() {
+        for cardinality in [Cardinality::Once, Cardinality::Multi] {
+            let annotations = AnnotationsBuilder::new()
+                .with_docs("Application-defined event documentation.")
+                .build()
+                .unwrap();
+            let event = EventBuilder::try_new("updated", cardinality)
+                .unwrap()
+                .with_annotations(annotations)
+                .build()
+                .unwrap();
+            let entity = EntityBuilder::try_new("Resource")
+                .unwrap()
+                .with_event(event)
+                .build()
+                .unwrap();
+
+            let source = pretty(ordinary_handle(&entity).unwrap());
+            assert_eq!(
+                source
+                    .matches("Application-defined event documentation.")
+                    .count(),
+                2
+            );
+            assert_eq!(
+                source.matches("`timestamp_ns` is the event time").count(),
+                1
+            );
+            assert!(source.contains("pub fn updated_at("));
+            assert!(!source.contains("must not precede"));
+        }
+    }
+
+    #[test]
+    fn timestamped_methods_share_the_runtime_primitive_of_their_cardinality() {
+        let entity = EntityBuilder::try_new("Resource")
+            .unwrap()
+            .with_event(
+                EventBuilder::try_new("created", Cardinality::Once)
+                    .unwrap()
+                    .with_field(field("size", DataType::U64))
+                    .build()
+                    .unwrap(),
+            )
+            .with_event(
+                EventBuilder::try_new("updated", Cardinality::Multi)
+                    .unwrap()
+                    .build()
+                    .unwrap(),
+            )
+            .build()
+            .unwrap();
+
+        let source = pretty(ordinary_handle(&entity).unwrap());
+        assert!(source.contains("Emit the once-cardinality `created` event for this instance."));
+        let source = source.split_whitespace().collect::<String>();
+        assert!(source.contains("pubfncreated_at(&mutself,timestamp_ns:u64,size:u64,)"));
+        assert!(source.contains(
+            "self.inner.emit_once_at::<0>(\"created\",timestamp_ns,ResourceEvent::Created{size})"
+        ));
+        assert!(source.contains("pubfnupdated_at(&self,timestamp_ns:u64,)"));
+        assert!(source.contains("self.inner.emit_at(timestamp_ns,ResourceEvent::Updated);"));
     }
 }
