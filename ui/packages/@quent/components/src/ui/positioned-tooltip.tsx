@@ -42,8 +42,12 @@ export function PositionedTooltip({
   return createPortal(
     <div
       ref={hostRef}
-      className="pointer-events-none fixed z-[1000] max-w-[min(32rem,calc(100vw-8px))]"
-      style={{ left: position.left, top: position.top }}
+      className="pointer-events-none fixed z-[1000]"
+      style={{
+        left: position.left,
+        top: position.top,
+        maxWidth: `min(32rem, calc(100vw - ${VIEWPORT_MARGIN * 2}px))`,
+      }}
     >
       {children}
     </div>,
