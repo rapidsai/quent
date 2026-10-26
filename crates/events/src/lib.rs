@@ -93,6 +93,7 @@ pub struct Event<P> {
 }
 
 impl<P> Event<P> {
+    /// Creates an event timestamped with Quent's clock.
     #[inline(always)]
     pub fn new_now(id: Uuid, data: P) -> Self {
         Self {
@@ -102,6 +103,12 @@ impl<P> Event<P> {
         }
     }
 
+    /// Creates an event with a caller-supplied timestamp.
+    ///
+    /// `timestamp` must be an absolute Unix-epoch nanosecond timestamp in the
+    /// same time domain as other events in the trace. Quent stores it unchanged
+    /// without validating, synchronizing, or correcting it. See
+    /// [`TimeUnixNanoSec`] for the complete caller contract.
     #[inline(always)]
     pub fn new(id: Uuid, timestamp: TimeUnixNanoSec, data: P) -> Self {
         Self {

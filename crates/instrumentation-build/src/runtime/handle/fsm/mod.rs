@@ -39,8 +39,9 @@ fn transition_docs(event: &Event) -> (TokenStream, TokenStream) {
     let at_docs = timestamped_docs(&docs);
     let at_docs = quote! {
         #at_docs
-        /// Transitions are ordered by timestamp, so it must not precede the
-        /// previous transition of this instance.
+        /// For one FSM instance, the timestamp must not precede its previous
+        /// transition. Equal timestamps are valid. Quent does not enforce this
+        /// ordering requirement.
     };
     (docs, at_docs)
 }
@@ -240,11 +241,14 @@ mod tests {
         );
         assert_eq!(
             source
-                .matches("`timestamp_ns` is the event time in nanoseconds since the Unix epoch.")
+                .matches("`timestamp_ns` is the absolute event time")
                 .count(),
             4
         );
-        assert_eq!(source.matches("must not precede the").count(), 4);
+        assert_eq!(source.matches("must not precede its").count(), 4);
+        assert_eq!(source.matches("Equal timestamps are valid.").count(), 4);
+        assert_eq!(source.matches("Quent does not enforce this").count(), 4);
+        assert_eq!(source.matches("ordering requirement.").count(), 4);
     }
 
     #[test]

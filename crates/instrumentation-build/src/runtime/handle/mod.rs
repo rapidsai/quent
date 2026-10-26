@@ -158,7 +158,11 @@ fn timestamped_docs(docs: &TokenStream) -> TokenStream {
     quote! {
         #docs
         ///
-        /// `timestamp_ns` is the event time in nanoseconds since the Unix epoch.
+        /// `timestamp_ns` is the absolute event time in nanoseconds since the
+        /// Unix epoch. It must use the same time domain as other events in the
+        /// trace; a raw monotonic-clock value or process-relative duration is
+        /// not valid. Quent stores the value unchanged and does not validate,
+        /// synchronize, or correct it.
     }
 }
 
@@ -245,9 +249,13 @@ mod tests {
                 2
             );
             assert_eq!(
-                source.matches("`timestamp_ns` is the event time").count(),
+                source
+                    .matches("`timestamp_ns` is the absolute event time")
+                    .count(),
                 1
             );
+            assert!(source.contains("a raw monotonic-clock value"));
+            assert!(source.contains("Quent stores the value unchanged"));
             assert!(source.contains("pub fn updated_at("));
             assert!(!source.contains("must not precede"));
         }

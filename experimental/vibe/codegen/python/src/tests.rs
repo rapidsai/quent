@@ -60,6 +60,11 @@ fn generates_schema_driven_bridge_and_stubs() {
     assert!(bridge.content.contains("pub fn handle("));
     assert!(bridge.content.contains("pub fn declaration_at("));
     assert!(bridge.content.contains(".declaration_at(timestamp_ns,"));
+    assert!(
+        bridge
+            .content
+            .contains("Emit this event at an absolute Unix-epoch nanosecond timestamp.")
+    );
     assert!(bridge.content.contains("pub struct PyThreadIdleHandle"));
     assert!(bridge.content.contains("pub struct PyThreadActiveHandle"));
     assert!(
@@ -70,6 +75,12 @@ fn generates_schema_driven_bridge_and_stubs() {
     assert!(bridge.content.contains("pub fn into_dynamic("));
     assert!(bridge.content.contains("pub fn active_at("));
     assert!(bridge.content.contains(".active_at(timestamp_ns"));
+    assert!(
+        bridge
+            .content
+            .contains("must not precede this instance's previous transition")
+    );
+    assert!(bridge.content.contains("equal timestamps are valid"));
     assert!(bridge.content.contains("InvalidFsmTransitionError"));
     assert!(bridge.content.contains("InvalidFsmStateError"));
     assert!(bridge.content.contains("pub fn try_into_active("));

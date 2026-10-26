@@ -1284,6 +1284,17 @@ fn event_methods(
     let signature_at = (!args.is_empty()).then(|| {
         quote! { #[pyo3(signature = (timestamp_ns, *, #(#args),*))] }
     });
+    let timestamp_docs = if skip_sequence {
+        "Emit this transition at an absolute Unix-epoch nanosecond timestamp. \
+         The value must share a time domain with the other events in the trace \
+         and must not precede this instance's previous transition; equal \
+         timestamps are valid. Quent stores the value unchanged and does not \
+         validate or correct it."
+    } else {
+        "Emit this event at an absolute Unix-epoch nanosecond timestamp. The \
+         value must share a time domain with the other events in the trace. \
+         Quent stores the value unchanged and does not validate or correct it."
+    };
     let call = dispatch(quote! {
         match timestamp_ns {
             Some(timestamp_ns) => #target.#model_method_at(timestamp_ns, #(#args),*),
@@ -1298,6 +1309,7 @@ fn event_methods(
         }
 
         #signature_at
+        #[doc = #timestamp_docs]
         #[allow(clippy::too_many_arguments)]
         pub fn #method_at(#receiver, timestamp_ns: u64, #(#params),*) -> #output {
             self.#helper(Some(timestamp_ns), #(#args),*)

@@ -114,8 +114,11 @@ impl<T> EventSender<T> {
         self.emit_with_timestamp(id, None, event);
     }
 
-    /// Emit an event with a caller-supplied Unix-nanosecond timestamp,
-    /// converting it into the target type via `Into`.
+    /// Emit an event with a caller-supplied timestamp, converting it into the
+    /// target type via `Into`.
+    ///
+    /// The timestamp is stored unchanged and must satisfy the
+    /// [`TimeUnixNanoSec`] caller contract.
     pub fn emit_at(&self, id: Uuid, timestamp: TimeUnixNanoSec, event: impl Into<T>) {
         self.emit_with_timestamp(id, Some(timestamp), event);
     }
@@ -181,8 +184,11 @@ impl<T> ObserverInner<T> {
         self.emit_with_timestamp(id, None, event);
     }
 
-    /// Emit an event for entity `id` at a caller-supplied Unix-nanosecond
-    /// timestamp, converting it into the stream type.
+    /// Emit an event for entity `id` at a caller-supplied timestamp, converting
+    /// it into the stream type.
+    ///
+    /// The timestamp is stored unchanged and must satisfy the
+    /// [`TimeUnixNanoSec`] caller contract.
     pub fn emit_at(&self, id: Uuid, timestamp: TimeUnixNanoSec, event: impl Into<T>) {
         self.emit_with_timestamp(id, Some(timestamp), event);
     }
