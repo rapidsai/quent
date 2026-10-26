@@ -135,7 +135,7 @@ prost = "0.14.1"
 protox = "0.9.1"
 pyo3 = "0.29"
 quanta = "0.13.0"
-rmcp = { version = "2.0.0", default-features = false }
+rmcp = { version = "3.5.0", default-features = false }
 quent-collector = { path = "crates/collector/server" }
 quent-collector-client = { path = "crates/collector/client" }
 quent-collector-proto = { path = "crates/collector/proto" }
