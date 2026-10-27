@@ -213,7 +213,7 @@ function EdgeConfiguration() {
 }
 
 describe('DAGChart selection', () => {
-  it('pins only the clicked node and toggles pins on Shift+click', async () => {
+  it('pins only the clicked node and unpins it when clicked again', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -227,13 +227,18 @@ describe('DAGChart selection', () => {
     fireEvent.click(first);
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
     expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
+    fireEvent.click(first);
+    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+
     fireEvent.click(second);
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('second');
 
     fireEvent.click(first, { shiftKey: true });
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
-    fireEvent.click(second, { shiftKey: true });
+    fireEvent.click(second);
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
+    fireEvent.click(first);
+    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
   });
 
   it('uses Shift for native node-and-edge box selection', async () => {
@@ -253,7 +258,7 @@ describe('DAGChart selection', () => {
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe,second-pipe');
   });
 
-  it('replaces pipe selection on click and toggles it on Shift+click', async () => {
+  it('pins only the clicked pipe and unpins it when clicked again', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -267,13 +272,18 @@ describe('DAGChart selection', () => {
     fireEvent.click(pipes[0]);
     expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
+    fireEvent.click(pipes[0]);
+    expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
+
     fireEvent.click(pipes[1]);
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('second-pipe');
 
     fireEvent.click(pipes[0], { shiftKey: true });
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe,second-pipe');
-    fireEvent.click(pipes[1], { shiftKey: true });
+    fireEvent.click(pipes[1]);
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
+    fireEvent.click(pipes[0]);
+    expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
   });
 
   it('reveals pipe actions when the pipe receives keyboard focus', async () => {

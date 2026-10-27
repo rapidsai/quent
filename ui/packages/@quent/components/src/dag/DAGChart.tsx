@@ -132,7 +132,7 @@ const VariableWidthEdge = ({
   );
   const inspect = (multiSelect: boolean) => {
     if (pipeRef) {
-      if (multiSelect) {
+      if (multiSelect || isInspected) {
         toggleInspectedPipe(pipeRef);
       } else {
         updateOperatorDetails({ type: 'clear' });
@@ -611,15 +611,18 @@ const FlowLayout = ({
         selectionId: node.id,
         data: selectedOperatorDataFromFlowNode(node),
       };
+      const wasPinned = pinnedOperatorDetailIds.has(node.id);
       const nextSelectedIds = updateOperatorDetails(
-        event.shiftKey ? { type: 'toggle', entry } : { type: 'replace', entries: [entry] }
+        event.shiftKey || wasPinned
+          ? { type: 'toggle', entry }
+          : { type: 'replace', entries: [entry] }
       );
-      if (!event.shiftKey) {
+      if (!event.shiftKey && !wasPinned) {
         replaceInspectedPipes([]);
       }
       onSelectionChange?.([...nextSelectedIds]);
     },
-    [onSelectionChange, replaceInspectedPipes, updateOperatorDetails]
+    [onSelectionChange, pinnedOperatorDetailIds, replaceInspectedPipes, updateOperatorDetails]
   );
 
   const togglePinnedOperator = useCallback(
