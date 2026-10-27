@@ -5,6 +5,7 @@ import { useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DEFAULT_TIMELINE_HEIGHT,
+  EmptyState,
   TimelineActions,
   TimelineController,
   TimelineRuler,
@@ -172,9 +173,11 @@ export function TimelineTreeTable({
             rowHeight={DEFAULT_TIMELINE_HEIGHT}
           />
         ) : (
-          <div className="flex h-full items-center justify-center px-4 text-sm text-muted-foreground">
-            {controls.emptyMessage ?? 'No timeline data available.'}
-          </div>
+          <EmptyState
+            size="compact"
+            dimmed
+            title={controls.emptyMessage ?? 'No timeline data available.'}
+          />
         )}
       </div>
       {children}

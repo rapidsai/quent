@@ -43,7 +43,11 @@ export function PositionedTooltip({
     <div
       ref={hostRef}
       className="pointer-events-none fixed z-[1000]"
-      style={{ left: position.left, top: position.top }}
+      style={{
+        left: position.left,
+        top: position.top,
+        maxWidth: `min(32rem, calc(100vw - ${VIEWPORT_MARGIN * 2}px))`,
+      }}
     >
       {children}
     </div>,

@@ -27,13 +27,13 @@ vi.mock('../timeline/timelineEchartsTheme', () => ({
 vi.mock('../gantt-chart/GanttChart', () => ({
   GanttChart: (props: {
     collapseLabel: string;
-    emptyMessage: ReactNode;
+    emptyState: ReactNode;
     expandable: boolean;
     expandLabel: string;
     maxHeight: number;
   }) => {
     mocks.ganttChart(props);
-    return <div>{props.emptyMessage}</div>;
+    return <div>{props.emptyState}</div>;
   },
 }));
 
@@ -43,7 +43,7 @@ describe('LongEntitiesGantt', () => {
       <LongEntitiesGantt entries={[]} durationSeconds={1} minUsageSeconds={0.06} isDark={false} />
     );
 
-    expect(screen.getByText('No Matching Entities')).toBeInTheDocument();
+    expect(screen.getByText('No matching entities')).toBeInTheDocument();
     expect(
       screen.getByText('Showing entities longer than 60.0ms. Zoom to see more.')
     ).toBeInTheDocument();

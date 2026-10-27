@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useState, type ReactNode } from 'react';
-import { RotateCcw, Search } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { RotateCcw, Search, type LucideIcon } from 'lucide-react';
 import {
   Button,
   DataText,
+  EmptyState,
   Input,
   Select,
   SelectContent,
@@ -31,6 +32,7 @@ import {
 } from './catalog';
 
 const NO_GROUPING = '__none__';
+const LOADING_DELAY_MS = 200;
 const linkedCellClassName =
   'p-0 [&>a]:block [&>a]:px-2 [&>a]:py-2 [&>a]:focus-visible:outline-none [&>a]:focus-visible:ring-2 [&>a]:focus-visible:ring-inset [&>a]:focus-visible:ring-ring';
 
@@ -49,6 +51,8 @@ export interface EntityCatalogTableProps<T extends CatalogEntity> {
   isLoading: boolean;
   error: Error | null;
   emptyMessage: string;
+  /** Icon for the "nothing to list" state; the search no-match state keeps its own. */
+  emptyIcon?: LucideIcon;
   onRetry: () => void;
   renderItemLink: (item: T, children: ReactNode, primary: boolean) => ReactNode;
 }
@@ -62,6 +66,7 @@ export function EntityCatalogTable<T extends CatalogEntity>({
   isLoading,
   error,
   emptyMessage,
+  emptyIcon,
   onRetry,
   renderItemLink,
 }: EntityCatalogTableProps<T>) {
@@ -123,7 +128,7 @@ export function EntityCatalogTable<T extends CatalogEntity>({
         ) : error ? (
           <CatalogError error={error} onRetry={onRetry} />
         ) : items.length === 0 ? (
-          <CatalogMessage>{emptyMessage}</CatalogMessage>
+          <CatalogMessage icon={emptyIcon}>{emptyMessage}</CatalogMessage>
         ) : filteredItems.length === 0 ? (
           <CatalogMessage>No matches for “{search}”.</CatalogMessage>
         ) : (
@@ -197,6 +202,17 @@ export function EntityCatalogTable<T extends CatalogEntity>({
 }
 
 function CatalogLoading() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setVisible(true), LOADING_DELAY_MS);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  if (!visible) {
+    return null;
+  }
+
   return (
     <div aria-label="Loading catalog" className="flex-1 space-y-3 p-4">
       {Array.from({ length: 5 }, (_, index) => (
@@ -221,10 +237,6 @@ function CatalogError({ error, onRetry }: { error: Error; onRetry: () => void })
   );
 }
 
-function CatalogMessage({ children }: { children: ReactNode }) {
-  return (
-    <p className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-      {children}
-    </p>
-  );
+function CatalogMessage({ children, icon }: { children: ReactNode; icon?: LucideIcon }) {
+  return <EmptyState title={children} icon={icon} className="flex-1" />;
 }

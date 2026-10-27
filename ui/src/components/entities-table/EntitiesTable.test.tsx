@@ -392,7 +392,8 @@ describe('EntitiesTable', () => {
 
     renderTable(<EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />);
 
-    expect(screen.getByText('No entities match the filters.')).toBeInTheDocument();
+    expect(screen.getByText('No entities found')).toBeInTheDocument();
+    expect(screen.getByText('No entities match the current filters.')).toBeInTheDocument();
   });
 
   it('shows error state when the query fails', () => {
@@ -422,6 +423,8 @@ describe('EntitiesTable', () => {
 
     const tableContainer = screen.getByRole('table').closest('[aria-busy]');
     expect(tableContainer).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(200));
     expect(screen.getByRole('status')).toHaveTextContent('Updating…');
     expect(screen.getByText('Entity 1')).toBeInTheDocument();
   });

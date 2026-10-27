@@ -132,7 +132,7 @@ postcard = { version = "1", default-features = false, features = ["alloc"] }
 prettyplease = "0.3.0"
 proc-macro2 = "1"
 prost = "0.14.1"
-protox = "0.9.1"
+protox = "0.10.0"
 pyo3 = "0.29"
 quanta = "0.13.0"
 rmcp = { version = "3.5.0", default-features = false }

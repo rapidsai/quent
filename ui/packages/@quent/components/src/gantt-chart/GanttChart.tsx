@@ -46,7 +46,7 @@ export interface GanttChartProps<T extends GanttDatum> {
   isDark: boolean;
   seriesName: string;
   renderItem: GanttRenderItem;
-  emptyMessage: ReactNode;
+  emptyState: ReactNode;
   cursor?: GanttSeriesCursor;
   onEvents?: EChartsEvents;
   gridSpacing?: GanttGridSpacing;
@@ -71,7 +71,7 @@ export function GanttChart<T extends GanttDatum>({
   isDark,
   seriesName,
   renderItem,
-  emptyMessage,
+  emptyState,
   cursor,
   onEvents,
   gridSpacing,
@@ -228,9 +228,7 @@ export function GanttChart<T extends GanttDatum>({
           autoResize={false}
         />
         {data.length === 0 && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-            {emptyMessage}
-          </div>
+          <div className="pointer-events-none absolute inset-0">{emptyState}</div>
         )}
       </HiddenScroll>
       {showPlayhead && <PlayheadLine instance={chartInstance} draggable />}

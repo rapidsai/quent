@@ -19,6 +19,7 @@ import type { GanttHover } from '../gantt-chart/hover';
 import { layoutGanttBar } from '../gantt-chart/utils';
 import { getLongEntitySegmentsAtTimestamp } from './utils';
 import { PointerTooltipPortal } from '../ui/pointer-tooltip-portal';
+import { EmptyState } from '../ui/empty-state';
 import { EntityTooltipContent, type ActiveMark } from '../timeline/TimelineTooltip';
 
 export const LONG_ENTITIES_TIMELINE_HEIGHT = 75;
@@ -218,20 +219,17 @@ export function LongEntitiesGantt({
       expandable
       expandLabel="Expand entities chart"
       collapseLabel="Collapse entities chart"
-      emptyMessage={
-        <div className="flex flex-col items-center gap-0.5 text-center text-muted-foreground opacity-50">
-          {noUsagesInRange ? (
-            <div className="font-medium">No entities in the selected time range</div>
-          ) : (
-            <>
-              <div className="font-medium">No Matching Entities</div>
-              <div className="text-xs">
-                Showing entities longer than {formatDuration(minUsageSeconds * 1_000, 1)}. Zoom to
-                see more.
-              </div>
-            </>
-          )}
-        </div>
+      emptyState={
+        noUsagesInRange ? (
+          <EmptyState size="compact" dimmed title="No entities in the selected time range" />
+        ) : (
+          <EmptyState
+            size="compact"
+            dimmed
+            title="No matching entities"
+            description={`Showing entities longer than ${formatDuration(minUsageSeconds * 1_000, 1)}. Zoom to see more.`}
+          />
+        )
       }
       renderTooltip={renderTooltip}
       cursor={onEntityClick ? 'pointer' : undefined}
