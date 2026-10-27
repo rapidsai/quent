@@ -60,12 +60,12 @@ describe('DAGItemActions', () => {
 
     const pin = screen.getByRole('button', { name: 'Pin details for out to in' });
     expect(pin).toHaveAttribute('aria-pressed', 'true');
-    expect(pin.getAttribute('style')).toContain(
-      'color-mix(in srgb, rgb(18, 52, 86) 42%, transparent)'
-    );
-    expect(
-      screen.getByRole('button', { name: 'Preview details for out to in' }).getAttribute('style')
-    ).toContain('color-mix(in srgb, rgb(18, 52, 86) 14%, transparent)');
+    expect(pin).toHaveClass('hover:bg-[var(--dag-action-hover-background)]');
+    expect(pin.getAttribute('style')).toContain('42%');
+    expect(pin.getAttribute('style')).toContain('54%');
+    const preview = screen.getByRole('button', { name: 'Preview details for out to in' });
+    expect(preview.getAttribute('style')).toContain('14%');
+    expect(preview.getAttribute('style')).toContain('26%');
     expect(screen.queryByRole('button', { name: /filter/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Preview details for out to in' }));

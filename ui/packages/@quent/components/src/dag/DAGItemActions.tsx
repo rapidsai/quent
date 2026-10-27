@@ -19,6 +19,11 @@ interface DAGItemActionsProps {
   onToggleFilter?: () => void;
 }
 
+type ActionStyle = CSSProperties & {
+  '--dag-action-background': string;
+  '--dag-action-hover-background': string;
+};
+
 /** Hover action bar shared by operator nodes and pipes. */
 export function DAGItemActions({
   label,
@@ -33,9 +38,10 @@ export function DAGItemActions({
   onToggleFilter,
 }: DAGItemActionsProps) {
   const actionClass =
-    'flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 px-1.5 py-1 text-[10px] font-medium text-foreground transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring';
-  const actionStyle = (selected: boolean): CSSProperties => ({
-    backgroundColor: `color-mix(in srgb, ${backgroundColor} ${selected ? 42 : 14}%, transparent)`,
+    'flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 bg-[var(--dag-action-background)] px-1.5 py-1 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--dag-action-hover-background)] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring';
+  const actionStyle = (selected: boolean): ActionStyle => ({
+    '--dag-action-background': `color-mix(in srgb, ${backgroundColor} ${selected ? 42 : 14}%, transparent)`,
+    '--dag-action-hover-background': `color-mix(in srgb, ${backgroundColor} ${selected ? 54 : 26}%, transparent)`,
   });
 
   return (
