@@ -85,7 +85,11 @@ pub(super) fn handle_type_path(entity: &Entity) -> TokenStream {
     relative_root_type("FsmHandle", entity.path().namespace())
 }
 
-pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, GenerateError> {
+pub(super) fn entity_impl(
+    entity: &Entity,
+    fsm: &Fsm,
+    timestamped_methods: bool,
+) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let handle_ty = handle_type_path(entity);
@@ -117,6 +121,7 @@ pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, Gen
         &marker_ty,
         &handle_ty,
         &state_module,
+        timestamped_methods,
     )?;
 
     let mut emitted_edges = HashSet::new();
@@ -141,6 +146,7 @@ pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, Gen
                     &marker_ty,
                     &handle_ty,
                     &state_module,
+                    timestamped_methods,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -176,6 +182,7 @@ fn transition_method(
     entity_ty: &syn::Ident,
     handle_ty: &TokenStream,
     state_module: &syn::Ident,
+    timestamped_methods: bool,
 ) -> Result<TokenStream, GenerateError> {
     let method = raw_ident(to_case(event.name(), Case::Snake));
     let method_at = raw_ident(format!("{}_at", to_case(event.name(), Case::Snake)));
@@ -186,6 +193,21 @@ fn transition_method(
     let sequence_placeholder = quote! { 0 };
     let fields = event_fields(event, Some((SEQUENCE_FIELD_NAME, &sequence_placeholder)));
     let construct = event_construct(event_ty, &variant, &fields);
+    let timestamped = timestamped_methods.then(|| {
+        quote! {
+            #at_docs
+            pub fn #method_at(
+                self,
+                timestamp_ns: u64,
+                #(#params),*
+            ) -> #handle_ty<#entity_ty, #state_module::#target_marker> {
+                #handle_ty {
+                    inner: self.inner.transition_at(timestamp_ns, #construct),
+                    _state: ::core::marker::PhantomData,
+                }
+            }
+        }
+    });
 
     Ok(quote! {
         #docs
@@ -196,16 +218,6 @@ fn transition_method(
             }
         }
 
-        #at_docs
-        pub fn #method_at(
-            self,
-            timestamp_ns: u64,
-            #(#params),*
-        ) -> #handle_ty<#entity_ty, #state_module::#target_marker> {
-            #handle_ty {
-                inner: self.inner.transition_at(timestamp_ns, #construct),
-                _state: ::core::marker::PhantomData,
-            }
-        }
+        #timestamped
     })
 }

@@ -33,6 +33,14 @@ pub struct Options {
     pub exporters: Exporters,
     /// Expose a model-specific factory for an embedded collector server.
     pub collector_server: bool,
+    /// Generate an `<event>_at(timestamp_ns, ...)` variant of each event and
+    /// transition method.
+    ///
+    /// Requires the Rust instrumentation at [`Self::instrumentation_path`] to
+    /// be generated with `timestamped_methods` enabled. Disabled by default
+    /// because the generated method names can conflict with existing
+    /// application methods.
+    pub timestamped_methods: bool,
 }
 
 /// Exporter constructors generated for a Python module.
@@ -70,6 +78,7 @@ impl Default for Options {
             dynamic_attributes_path: "quent_dynamic_attributes".to_owned(),
             exporters: Exporters::default(),
             collector_server: false,
+            timestamped_methods: false,
         }
     }
 }
@@ -116,7 +125,15 @@ pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, Ge
     let context = context(schema, options, &instrumentation, &runtime, &io);
     let entities = schema
         .entities()
-        .map(|entity| entity_bindings(schema, entity, &instrumentation, &runtime))
+        .map(|entity| {
+            entity_bindings(
+                schema,
+                entity,
+                &instrumentation,
+                &runtime,
+                options.timestamped_methods,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let module = module_registration(schema, options);
     let tokens = quote! {
@@ -234,10 +251,12 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
         for event in entity.events() {
             let method = py_safe(&to_case(event.name(), Case::Snake));
             reserve_name(&mut methods, method.clone())?;
-            reserve_name(
-                &mut methods,
-                py_safe(&format!("{}_at", to_case(event.name(), Case::Snake))),
-            )?;
+            if options.timestamped_methods {
+                reserve_name(
+                    &mut methods,
+                    py_safe(&format!("{}_at", to_case(event.name(), Case::Snake))),
+                )?;
+            }
             if event.cardinality() == Cardinality::Once {
                 reserve_name(
                     &mut methods,
@@ -245,7 +264,10 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
                 )?;
             }
             validate_python_fields(
-                std::iter::once("timestamp_ns")
+                options
+                    .timestamped_methods
+                    .then_some("timestamp_ns")
+                    .into_iter()
                     .chain(event.fields().map(|field| field.name().as_ref())),
             )?;
             for field in event.fields() {
@@ -827,11 +849,12 @@ fn entity_bindings(
     entity: &quent_schema::Entity,
     instrumentation: &syn::Path,
     runtime: &syn::Path,
+    timestamped: bool,
 ) -> Result<TokenStream, GenerateError> {
     if let Some(fsm) = Fsm::try_from_entity(entity)
         .map_err(|error| GenerateError::InvalidSchema(error.to_string()))?
     {
-        return fsm_entity_bindings(schema, entity, &fsm, instrumentation, runtime);
+        return fsm_entity_bindings(schema, entity, &fsm, instrumentation, runtime, timestamped);
     }
 
     let name = path_pascal(entity.path());
@@ -851,6 +874,7 @@ fn entity_bindings(
                 schema,
                 event,
                 false,
+                timestamped,
                 instrumentation,
                 runtime,
                 receiver,
@@ -925,6 +949,7 @@ fn fsm_entity_bindings(
     fsm: &Fsm,
     instrumentation: &syn::Path,
     runtime: &syn::Path,
+    timestamped: bool,
 ) -> Result<TokenStream, GenerateError> {
     let name = path_pascal(entity.path());
     let observer = format_ident!("Py{name}Observer");
@@ -954,6 +979,7 @@ fn fsm_entity_bindings(
         &initial_target,
         instrumentation,
         runtime,
+        timestamped,
     )?;
 
     let state_classes = entity
@@ -975,7 +1001,14 @@ fn fsm_entity_bindings(
                         .event(transition.target())
                         .expect("validated FSM transition target");
                     let target = fsm_state_handle_ident(entity, target_event.name());
-                    fsm_transition_method(schema, target_event, &target, instrumentation, runtime)
+                    fsm_transition_method(
+                        schema,
+                        target_event,
+                        &target,
+                        instrumentation,
+                        runtime,
+                        timestamped,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
@@ -1024,7 +1057,9 @@ fn fsm_entity_bindings(
         .collect::<Result<Vec<_>, _>>()?;
     let (dynamic_methods, dynamic_helpers): (Vec<_>, Vec<_>) = entity
         .events()
-        .map(|event| fsm_dynamic_transition_method(schema, event, instrumentation, runtime))
+        .map(|event| {
+            fsm_dynamic_transition_method(schema, event, instrumentation, runtime, timestamped)
+        })
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .unzip();
@@ -1172,11 +1207,13 @@ fn fsm_dynamic_transition_method(
     event: &quent_schema::Event,
     instrumentation: &syn::Path,
     runtime: &syn::Path,
+    timestamped: bool,
 ) -> Result<(TokenStream, TokenStream), GenerateError> {
     event_methods(
         schema,
         event,
         true,
+        timestamped,
         instrumentation,
         runtime,
         quote! { &mut self },
@@ -1211,11 +1248,13 @@ fn fsm_transition_method(
     target_handle: &syn::Ident,
     instrumentation: &syn::Path,
     runtime: &syn::Path,
+    timestamped: bool,
 ) -> Result<(TokenStream, TokenStream), GenerateError> {
     event_methods(
         schema,
         event,
         true,
+        timestamped,
         instrumentation,
         runtime,
         quote! { &mut self },
@@ -1232,17 +1271,19 @@ fn fsm_transition_method(
     )
 }
 
-/// Generates a Python event method and its `_at` counterpart, returned with
-/// the private helper both delegate to.
+/// Generates a Python event method and, when `timestamped`, its `_at`
+/// counterpart, returned with the private helper they delegate to.
 ///
 /// The helper belongs outside `#[pymethods]` so Python cannot call it. It
 /// converts the Python arguments and passes `dispatch` the expression calling
-/// the model method on `target` selected by the optional timestamp.
+/// the model method on `target`, selected by the optional timestamp when
+/// `timestamped`.
 #[allow(clippy::too_many_arguments)]
 fn event_methods(
     schema: &Schema,
     event: &quent_schema::Event,
     skip_sequence: bool,
+    timestamped: bool,
     instrumentation: &syn::Path,
     runtime: &syn::Path,
     receiver: TokenStream,
@@ -1299,29 +1340,43 @@ fn event_methods(
          value must share a time domain with the other events in the trace. \
          Quent stores the value unchanged and does not validate or correct it."
     };
-    let call = dispatch(quote! {
-        match timestamp_ns {
-            Some(timestamp_ns) => #target.#model_method_at(timestamp_ns, #(#args),*),
-            None => #target.#model_method(#(#args),*),
+    let (call, timestamp_param, untimestamped_arg) = if timestamped {
+        (
+            quote! {
+                match timestamp_ns {
+                    Some(timestamp_ns) => #target.#model_method_at(timestamp_ns, #(#args),*),
+                    None => #target.#model_method(#(#args),*),
+                }
+            },
+            Some(quote! { timestamp_ns: Option<u64>, }),
+            Some(quote! { None, }),
+        )
+    } else {
+        (quote! { #target.#model_method(#(#args),*) }, None, None)
+    };
+    let call = dispatch(call);
+    let timestamped_method = timestamped.then(|| {
+        quote! {
+            #signature_at
+            #[doc = #timestamp_docs]
+            #[allow(clippy::too_many_arguments)]
+            pub fn #method_at(#receiver, timestamp_ns: u64, #(#params),*) -> #output {
+                self.#helper(Some(timestamp_ns), #(#args),*)
+            }
         }
     });
     let methods = quote! {
         #signature
         #[allow(clippy::too_many_arguments)]
         pub fn #method(#receiver, #(#params),*) -> #output {
-            self.#helper(None, #(#args),*)
+            self.#helper(#untimestamped_arg #(#args),*)
         }
 
-        #signature_at
-        #[doc = #timestamp_docs]
-        #[allow(clippy::too_many_arguments)]
-        pub fn #method_at(#receiver, timestamp_ns: u64, #(#params),*) -> #output {
-            self.#helper(Some(timestamp_ns), #(#args),*)
-        }
+        #timestamped_method
     };
     let helper = quote! {
         #[allow(clippy::too_many_arguments)]
-        fn #helper(#receiver, timestamp_ns: Option<u64>, #(#params),*) -> #output {
+        fn #helper(#receiver, #timestamp_param #(#params),*) -> #output {
             #(#bindings)*
             #call
         }

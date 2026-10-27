@@ -33,18 +33,24 @@ pub(super) fn fsm_handle_type(schema: &Schema) -> TokenStream {
 }
 
 /// Generates entity-specific methods on the generic handle.
-pub(super) fn entity_handle(entity: &Entity) -> Result<GeneratedHandle, GenerateError> {
-    if let Some(handle) = fsm::entity_handle(entity)? {
+pub(super) fn entity_handle(
+    entity: &Entity,
+    timestamped_methods: bool,
+) -> Result<GeneratedHandle, GenerateError> {
+    if let Some(handle) = fsm::entity_handle(entity, timestamped_methods)? {
         return Ok(handle);
     }
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
     Ok(GeneratedHandle {
-        tokens: ordinary_handle(entity)?,
+        tokens: ordinary_handle(entity, timestamped_methods)?,
         associated_type: quote! { #handle_ty<Self> },
     })
 }
 
-fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
+fn ordinary_handle(
+    entity: &Entity,
+    timestamped_methods: bool,
+) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
@@ -97,6 +103,18 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
                          for this instance.",
                         event.name()
                     );
+                    let timestamped = timestamped_methods.then(|| {
+                        quote! {
+                            #at_docs
+                            pub fn #method_at(
+                                &mut self,
+                                timestamp_ns: u64,
+                                #(#params),*
+                            ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                                self.inner.emit_once_at::<#bit>(#event_name, timestamp_ns, #construct)
+                            }
+                        }
+                    });
                     quote! {
                         #docs
                         pub fn #method(
@@ -106,14 +124,7 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
                             self.inner.emit_once::<#bit>(#event_name, #construct)
                         }
 
-                        #at_docs
-                        pub fn #method_at(
-                            &mut self,
-                            timestamp_ns: u64,
-                            #(#params),*
-                        ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
-                            self.inner.emit_once_at::<#bit>(#event_name, timestamp_ns, #construct)
-                        }
+                        #timestamped
 
                         #[doc = #emitted_doc]
                         pub fn #emitted_method(&self) -> bool {
@@ -121,26 +132,33 @@ fn ordinary_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
                         }
                     }
                 }
-                Cardinality::Multi => quote! {
-                    #docs
-                    pub fn #method(
-                        &self,
-                        #(#params),*
-                    ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
-                        self.inner.emit(#construct);
-                        ::core::result::Result::Ok(())
-                    }
+                Cardinality::Multi => {
+                    let timestamped = timestamped_methods.then(|| {
+                        quote! {
+                            #at_docs
+                            pub fn #method_at(
+                                &self,
+                                timestamp_ns: u64,
+                                #(#params),*
+                            ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                                self.inner.emit_at(timestamp_ns, #construct);
+                                ::core::result::Result::Ok(())
+                            }
+                        }
+                    });
+                    quote! {
+                        #docs
+                        pub fn #method(
+                            &self,
+                            #(#params),*
+                        ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                            self.inner.emit(#construct);
+                            ::core::result::Result::Ok(())
+                        }
 
-                    #at_docs
-                    pub fn #method_at(
-                        &self,
-                        timestamp_ns: u64,
-                        #(#params),*
-                    ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
-                        self.inner.emit_at(timestamp_ns, #construct);
-                        ::core::result::Result::Ok(())
+                        #timestamped
                     }
-                },
+                }
             })
         })
         .collect::<Result<Vec<_>, GenerateError>>()?;
@@ -241,7 +259,7 @@ mod tests {
                 .build()
                 .unwrap();
 
-            let source = pretty(ordinary_handle(&entity).unwrap());
+            let source = pretty(ordinary_handle(&entity, true).unwrap());
             assert_eq!(
                 source
                     .matches("Application-defined event documentation.")
@@ -281,7 +299,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let source = pretty(ordinary_handle(&entity).unwrap());
+        let source = pretty(ordinary_handle(&entity, true).unwrap());
         assert!(source.contains("Emit the once-cardinality `created` event for this instance."));
         let source = source.split_whitespace().collect::<String>();
         assert!(source.contains("pubfncreated_at(&mutself,timestamp_ns:u64,size:u64,)"));
@@ -290,5 +308,31 @@ mod tests {
         ));
         assert!(source.contains("pubfnupdated_at(&self,timestamp_ns:u64,)"));
         assert!(source.contains("self.inner.emit_at(timestamp_ns,ResourceEvent::Updated);"));
+    }
+
+    #[test]
+    fn timestamped_methods_are_opt_in() {
+        let entity = EntityBuilder::try_new("Resource")
+            .unwrap()
+            .with_event(
+                EventBuilder::try_new("created", Cardinality::Once)
+                    .unwrap()
+                    .build()
+                    .unwrap(),
+            )
+            .with_event(
+                EventBuilder::try_new("updated", Cardinality::Multi)
+                    .unwrap()
+                    .build()
+                    .unwrap(),
+            )
+            .build()
+            .unwrap();
+
+        let source = pretty(ordinary_handle(&entity, false).unwrap());
+        assert!(source.contains("pub fn created("));
+        assert!(source.contains("pub fn updated("));
+        assert!(!source.contains("_at("));
+        assert!(!source.contains("timestamp_ns"));
     }
 }

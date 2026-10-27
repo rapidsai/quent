@@ -24,6 +24,7 @@ pub(crate) use handle::{MAX_FSM_STATES, MAX_ONCE_EVENTS};
 pub(crate) fn entity_runtime_types(
     schema: &Schema,
     entity: &Entity,
+    timestamped_methods: bool,
 ) -> Result<TokenStream, GenerateError> {
     let event_methods = entity
         .events()
@@ -34,6 +35,24 @@ pub(crate) fn entity_runtime_types(
             entity: entity.path().clone(),
         });
     }
+    if timestamped_methods {
+        validate_timestamped_methods(entity, &event_methods)?;
+    }
+    let handle = handle::entity_handle(entity, timestamped_methods)?;
+    let entity_impl = entity_impl(schema, entity, &handle.associated_type);
+    let handle = handle.tokens;
+    Ok(quote! {
+        #handle
+        #entity_impl
+    })
+}
+
+/// Rejects schemas whose `<event>_at` methods or their `timestamp_ns`
+/// parameter would conflict with other generated names.
+fn validate_timestamped_methods(
+    entity: &Entity,
+    event_methods: &BTreeSet<String>,
+) -> Result<(), GenerateError> {
     if let Some(method) = event_methods
         .iter()
         .map(|method| format!("{method}_at"))
@@ -54,13 +73,7 @@ pub(crate) fn entity_runtime_types(
             event: event.name().clone(),
         });
     }
-    let handle = handle::entity_handle(entity)?;
-    let entity_impl = entity_impl(schema, entity, &handle.associated_type);
-    let handle = handle.tokens;
-    Ok(quote! {
-        #handle
-        #entity_impl
-    })
+    Ok(())
 }
 
 pub(crate) fn generate_model(
@@ -230,7 +243,7 @@ mod tests {
             .build()
             .unwrap();
         let entity = s.entities().next().unwrap();
-        let entity_types = entity_runtime_types(&s, entity).unwrap();
+        let entity_types = entity_runtime_types(&s, entity, false).unwrap();
         let namespaces = crate::namespace::Namespace::root(&s);
         let quent_events_build::NamespaceCode {
             declarations: event_types,

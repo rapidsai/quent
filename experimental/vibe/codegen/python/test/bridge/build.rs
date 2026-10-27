@@ -17,6 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             },
             collector_sink: true,
+            timestamped_methods: true,
             out_dir: out_dir.clone(),
             file_name: Some("model.rs".to_owned()),
             ..Default::default()
@@ -31,6 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         },
         collector_server: true,
+        timestamped_methods: true,
         ..Default::default()
     };
     quent_schema_codegen_python::write_generated_files(

@@ -49,9 +49,11 @@ can be checked. FSM entities may declare up to 255 states; generation rejects
 observers; existing observers and handles retain their scoped telemetry runtime.
 Exporter shutdown waits until the last observer or handle is released.
 Once-cardinality events on non-FSM entities expose `<event>_emitted()`
-predicates. Every event and transition method has an
-`<event>_at(timestamp_ns, ...)` variant that uses a caller-supplied timestamp
-instead of Quent's clock. The value must be a non-negative `u64`-range absolute
+predicates. With `Options::timestamped_methods` enabled, every event and
+transition method has an `<event>_at(timestamp_ns, ...)` variant that uses a
+caller-supplied timestamp instead of Quent's clock. This option is disabled by
+default and requires the Rust instrumentation to be generated with
+`timestamped_methods` enabled as well. The value must be a non-negative `u64`-range absolute
 count of nanoseconds since the Unix epoch. A raw monotonic-clock reading or a
 duration since process start is not valid. Quent stores the integer unchanged:
 it does not validate plausibility, synchronize clocks, compensate for skew, or

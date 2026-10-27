@@ -65,7 +65,11 @@ pub(super) fn handle_type(schema: &Schema) -> TokenStream {
     }
 }
 
-pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, GenerateError> {
+pub(super) fn entity_impl(
+    entity: &Entity,
+    fsm: &Fsm,
+    timestamped_methods: bool,
+) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let typestate_handle_ty = super::typestate::handle_type_path(entity);
@@ -115,7 +119,13 @@ pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, Gen
                 sources.push(source_index);
             }
         }
-        transition_methods.push(transition_method(entity, event, &event_ty, &sources)?);
+        transition_methods.push(transition_method(
+            entity,
+            event,
+            &event_ty,
+            &sources,
+            timestamped_methods,
+        )?);
     }
 
     let state_conversions = entity.events().enumerate().map(|(index, event)| {
@@ -246,6 +256,7 @@ fn transition_method(
     event: &Event,
     event_ty: &syn::Ident,
     sources: &[usize],
+    timestamped_methods: bool,
 ) -> Result<TokenStream, GenerateError> {
     let method = raw_ident(to_case(event.name(), Case::Snake));
     let method_at = raw_ident(format!("{}_at", to_case(event.name(), Case::Snake)));
@@ -294,6 +305,26 @@ fn transition_method(
         /// from the current dynamic state.
     };
 
+    let timestamped = timestamped_methods.then(|| {
+        quote! {
+            #at_docs
+            #errors
+            pub fn #method_at(
+                &mut self,
+                timestamp_ns: u64,
+                #(#params),*
+            ) -> ::core::result::Result<(), ::quent_instrumentation::FsmTransitionError> {
+                self._transition(
+                    &[#(#sources),*],
+                    #target,
+                    #target_name,
+                    ::core::option::Option::Some(timestamp_ns),
+                    #construct,
+                )
+            }
+        }
+    });
+
     Ok(quote! {
         #docs
         #errors
@@ -310,20 +341,6 @@ fn transition_method(
             )
         }
 
-        #at_docs
-        #errors
-        pub fn #method_at(
-            &mut self,
-            timestamp_ns: u64,
-            #(#params),*
-        ) -> ::core::result::Result<(), ::quent_instrumentation::FsmTransitionError> {
-            self._transition(
-                &[#(#sources),*],
-                #target,
-                #target_name,
-                ::core::option::Option::Some(timestamp_ns),
-                #construct,
-            )
-        }
+        #timestamped
     })
 }

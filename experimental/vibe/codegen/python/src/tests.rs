@@ -51,6 +51,7 @@ fn generates_schema_driven_bridge_and_stubs() {
         module_name: "quent_demo".to_owned(),
         instrumentation_path: "quent_readme_example".to_owned(),
         exporters: Exporters::all(),
+        timestamped_methods: true,
         ..Options::default()
     };
     let bridge = emit(&schema, &options).unwrap().remove(0);
@@ -358,11 +359,35 @@ fsms:
         ),
     ] {
         let schema = parse_from_str(schema, None).unwrap().schema;
+        assert!(emit(&schema, &Options::default()).is_ok());
         assert!(matches!(
-            emit(&schema, &Options::default()),
+            emit(&schema, &timestamped()),
             Err(GenerateError::NameCollision { name }) if name == expected
         ));
     }
+}
+
+fn timestamped() -> Options {
+    Options {
+        timestamped_methods: true,
+        ..Options::default()
+    }
+}
+
+#[test]
+fn timestamped_methods_are_opt_in() {
+    let schema = parse_from_str(DEMO, None).unwrap().schema;
+    let bridge = emit(&schema, &Options::default()).unwrap().remove(0);
+    syn::parse_file(&bridge.content).unwrap();
+    assert!(bridge.content.contains("pub fn declaration("));
+    assert!(bridge.content.contains("pub fn active("));
+    assert!(!bridge.content.contains("_at("));
+    assert!(!bridge.content.contains("timestamp_ns"));
+
+    let stubs = emit_stubs(&schema, &Options::default()).unwrap();
+    assert!(stubs[0].content.contains("def declaration("));
+    assert!(!stubs[0].content.contains("_at("));
+    assert!(!stubs[0].content.contains("timestamp_ns"));
 }
 
 #[test]
@@ -383,7 +408,7 @@ fsms:
     )
     .unwrap()
     .schema;
-    let bridge = emit(&schema, &Options::default()).unwrap().remove(0);
+    let bridge = emit(&schema, &timestamped()).unwrap().remove(0);
     syn::parse_file(&bridge.content).unwrap();
     let content = bridge.content.split_whitespace().collect::<String>();
     assert!(content.contains("pubfnfrom_(&mutself,value:&Bound<'_,PyAny>)"));
@@ -394,7 +419,7 @@ fsms:
     assert!(content.contains(".r#return()"));
     assert!(!content.contains("__at"));
 
-    let stubs = emit_stubs(&schema, &Options::default()).unwrap();
+    let stubs = emit_stubs(&schema, &timestamped()).unwrap();
     let server = class_body(&stubs[0].content, "ServerHandle");
     assert!(server.contains("def from_(self, *, value: int) -> None"));
     assert!(server.contains("def from_at(self, timestamp_ns: int, *, value: int) -> None"));
@@ -408,7 +433,7 @@ fsms:
 #[test]
 fn event_methods_and_timestamped_counterparts_share_one_helper() {
     let schema = parse_from_str(DEMO, None).unwrap().schema;
-    let bridge = emit(&schema, &Options::default()).unwrap().remove(0);
+    let bridge = emit(&schema, &timestamped()).unwrap().remove(0);
     let content = bridge.content.split_whitespace().collect::<String>();
     for (method, helper, args) in [
         ("declaration", "_emit_declaration", "instance_name"),

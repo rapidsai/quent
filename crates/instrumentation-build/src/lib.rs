@@ -50,7 +50,10 @@
 //!
 //! ## Reserved names
 //!
-//! Schema event names that become the Rust method name `id` are rejected. FSM
+//! Schema event names that become the Rust method name `id` are rejected. When
+//! [`Options::timestamped_methods`] is enabled, event names must not collide
+//! with another event's `<event>_at` method, and event fields must not be named
+//! `timestamp_ns`. FSM
 //! state names must also avoid existing FSM handle methods, such as `state`,
 //! `try_into`, and `as_entity_ref`.
 //!
@@ -122,6 +125,14 @@ pub struct Options {
     /// Requires `io-collector` on the consuming crate's `quent-instrumentation`
     /// dependency.
     pub collector_sink: bool,
+
+    /// Generate an `<event>_at` variant of each handle event and transition
+    /// method that takes a caller-supplied `timestamp_ns` as its first
+    /// parameter.
+    ///
+    /// Disabled by default because the generated method names can conflict
+    /// with methods an application already defines on generated handles.
+    pub timestamped_methods: bool,
 }
 
 impl Default for Options {
@@ -132,6 +143,7 @@ impl Default for Options {
             file_name: None,
             analyzer_package: None,
             collector_sink: false,
+            timestamped_methods: false,
         }
     }
 }
@@ -290,7 +302,7 @@ fn generate_namespace(
     let runtime = namespace
         .entities()
         .iter()
-        .map(|entity| runtime::entity_runtime_types(schema, entity))
+        .map(|entity| runtime::entity_runtime_types(schema, entity, opts.timestamped_methods))
         .collect::<Result<Vec<_>, _>>()?;
     let children = namespace
         .children()
@@ -425,9 +437,7 @@ mod path_tests {
             )
         );
         assert!(source.contains("impl super::Handle<Query>"));
-        assert!(source.contains("pub fn event_at("));
-        assert!(source.contains("timestamp_ns: u64"));
-        assert!(source.contains("self.inner.emit_once_at::<0>("));
+        assert!(!source.contains("pub fn event_at("));
         assert!(source.contains("impl ::quent_instrumentation::InstrumentedEntity for Query"));
         assert!(source.contains("impl ::quent_instrumentation::events::EntityMarker for Query"));
         assert!(source.contains("type Context = super::Context<super::Demo>"));
@@ -440,6 +450,27 @@ mod path_tests {
         ));
         assert!(source.contains(r#"const NAME: &'static str = "Foo::Query""#));
         assert!(!source.contains("foo_query_observer"));
+    }
+
+    #[test]
+    fn generates_timestamped_methods_when_enabled() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Query", [event("event", [])]))
+            .build()
+            .unwrap();
+
+        let source = generate_str(
+            &schema,
+            &Options {
+                timestamped_methods: true,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        assert!(source.contains("pub fn event_at("));
+        assert!(source.contains("timestamp_ns: u64"));
+        assert!(source.contains("self.inner.emit_once_at::<0>("));
     }
 
     #[test]
@@ -485,6 +516,14 @@ mod path_tests {
             generate_str(&schema, &Options::default()),
             Err(GenerateError::HandleIdCollision { .. })
         ));
+    }
+
+    #[test]
+    fn rejects_timestamped_name_collisions_only_when_enabled() {
+        let timestamped = Options {
+            timestamped_methods: true,
+            ..Options::default()
+        };
 
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
@@ -494,8 +533,9 @@ mod path_tests {
             ))
             .build()
             .unwrap();
+        assert!(generate_str(&schema, &Options::default()).is_ok());
         assert!(matches!(
-            generate_str(&schema, &Options::default()),
+            generate_str(&schema, &timestamped),
             Err(GenerateError::TimestampedEventMethodCollision { method, .. })
                 if method == "started_at"
         ));
@@ -509,8 +549,9 @@ mod path_tests {
                 ))
                 .build()
                 .unwrap();
+            assert!(generate_str(&schema, &Options::default()).is_ok());
             assert!(matches!(
-                generate_str(&schema, &Options::default()),
+                generate_str(&schema, &timestamped),
                 Err(GenerateError::TimestampParameterCollision { event, .. })
                     if event == "started"
             ));

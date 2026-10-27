@@ -53,7 +53,10 @@ fn reserved_handle_method(state: &Identifier) -> Option<&'static str> {
         .find(|reserved| *reserved == method)
 }
 
-pub(super) fn entity_handle(entity: &Entity) -> Result<Option<GeneratedHandle>, GenerateError> {
+pub(super) fn entity_handle(
+    entity: &Entity,
+    timestamped_methods: bool,
+) -> Result<Option<GeneratedHandle>, GenerateError> {
     let Some(fsm) = Fsm::try_from_entity(entity)? else {
         return Ok(None);
     };
@@ -75,8 +78,8 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<Option<GeneratedHandle>, 
     }
     let handle_ty = typestate::handle_type_path(entity);
     let fsm_event = fsm_event_impl(entity);
-    let typestate = typestate::entity_impl(entity, &fsm)?;
-    let dynamic = dynamic::entity_impl(entity, &fsm)?;
+    let typestate = typestate::entity_impl(entity, &fsm, timestamped_methods)?;
+    let dynamic = dynamic::entity_impl(entity, &fsm, timestamped_methods)?;
     Ok(Some(GeneratedHandle {
         tokens: quote! {
             #fsm_event
@@ -144,7 +147,7 @@ mod tests {
     }
 
     fn source(entity: &Entity) -> String {
-        pretty(entity_handle(entity).unwrap().unwrap().tokens)
+        pretty(entity_handle(entity, true).unwrap().unwrap().tokens)
     }
 
     #[test]
@@ -203,6 +206,25 @@ mod tests {
         assert!(source.contains("self.inner.transition_mut(event)"));
         assert!(source.contains("self.inner.transition_mut_at(timestamp_ns, event)"));
         assert!(source.contains("impl FsmHandle<Query, query_state::Ready>"));
+    }
+
+    #[test]
+    fn timestamped_transitions_are_opt_in() {
+        let entity = FsmEntityBuilder::new("Query".parse::<quent_schema::Path>().unwrap())
+            .with_states([
+                state("submitted", &["ready"], true, vec![]),
+                state("ready", &[], false, vec![]),
+            ])
+            .build()
+            .unwrap();
+
+        let source = pretty(entity_handle(&entity, false).unwrap().unwrap().tokens);
+
+        assert!(source.contains("pub fn submitted("));
+        assert!(source.contains("pub fn ready("));
+        assert!(!source.contains("submitted_at"));
+        assert!(!source.contains("ready_at"));
+        assert!(!source.contains("::core::option::Option::Some(timestamp_ns),"));
     }
 
     #[test]
@@ -303,7 +325,7 @@ mod tests {
             .build()
             .unwrap();
 
-        assert!(matches!(entity_handle(&entity), Ok(Some(_))));
+        assert!(matches!(entity_handle(&entity, false), Ok(Some(_))));
     }
 
     #[test]
@@ -329,7 +351,7 @@ mod tests {
             .unwrap();
 
         assert!(matches!(
-            entity_handle(&entity),
+            entity_handle(&entity, false),
             Err(GenerateError::TooManyFsmStates { count, .. }) if count == MAX_FSM_STATES + 1
         ));
     }
@@ -356,7 +378,7 @@ mod tests {
                 .unwrap();
 
             assert!(matches!(
-                entity_handle(&entity),
+                entity_handle(&entity, false),
                 Err(GenerateError::ReservedFsmHandleMethod {
                     state,
                     method,
