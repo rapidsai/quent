@@ -82,7 +82,29 @@ describe('DAGItemActions', () => {
     const toolbar = screen.getByRole('toolbar', { name: 'Actions for Scan' });
     expect(toolbar).toHaveClass('w-full', 'opacity-0', 'group-hover:opacity-100');
     for (const button of within(toolbar).getAllByRole('button')) {
-      expect(button).toHaveClass('flex-1');
+      expect(button).toHaveClass('flex-1', 'cursor-pointer');
     }
+  });
+
+  it('closes the preview when clicking elsewhere', async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <DAGItemActions
+          label="Scan"
+          pinned={false}
+          visible
+          previewContent={<div>Scan preview</div>}
+          onTogglePin={() => undefined}
+        />
+        <button type="button">DAG background</button>
+      </>
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Preview details for Scan' }));
+    expect(screen.getByText('Scan preview')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'DAG background' }));
+    expect(screen.queryByText('Scan preview')).not.toBeInTheDocument();
   });
 });

@@ -213,7 +213,7 @@ function EdgeConfiguration() {
 }
 
 describe('DAGChart selection', () => {
-  it('replaces node selection on click and toggles it on Shift+click', async () => {
+  it('pins only the clicked node and toggles pins on Shift+click', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
