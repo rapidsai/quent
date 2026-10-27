@@ -57,10 +57,9 @@ describe('DAGItemActions', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Pin details for out to in' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
+    const pin = screen.getByRole('button', { name: 'Pin details for out to in' });
+    expect(pin).toHaveAttribute('aria-pressed', 'true');
+    expect(pin).toHaveClass('aria-pressed:bg-primary', 'aria-pressed:text-primary-foreground');
     expect(screen.queryByRole('button', { name: /filter/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Preview details for out to in' }));

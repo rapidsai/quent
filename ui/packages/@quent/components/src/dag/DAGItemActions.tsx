@@ -31,7 +31,7 @@ export function DAGItemActions({
   onToggleFilter,
 }: DAGItemActionsProps) {
   const actionClass =
-    'flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-pressed:bg-primary/15 aria-pressed:text-primary';
+    'flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90';
 
   return (
     <div
