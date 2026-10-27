@@ -19,7 +19,7 @@ use reqwest::{Client, RequestBuilder};
 use rmcp::{
     ErrorData, ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerInfo},
+    model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig},
     tool, tool_handler, tool_router,
     transport::{
         io::stdio,
@@ -289,12 +289,12 @@ impl QuentMcpServer {
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for QuentMcpServer {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut implementation = Implementation::from_build_env();
         implementation.name = SERVER_NAME.to_owned();
         implementation.version = env!("CARGO_PKG_VERSION").to_owned();
 
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.capabilities = ServerCapabilities::builder().enable_tools().build();
         info.server_info = implementation;
         info.instructions = Some(INSTRUCTIONS.to_owned());
@@ -327,7 +327,7 @@ fn allowed_hosts(value: Option<&str>) -> AllowedHosts {
 }
 
 fn http_config(allowed_hosts_value: Option<&str>) -> StreamableHttpServerConfig {
-    let mut config = StreamableHttpServerConfig::default().with_stateful_mode(false);
+    let mut config = StreamableHttpServerConfig::default().with_legacy_session_mode(false);
     match allowed_hosts(allowed_hosts_value) {
         AllowedHosts::Default => {}
         AllowedHosts::Disabled => config = config.disable_allowed_hosts(),
@@ -492,7 +492,7 @@ mod tests {
     #[test]
     fn builds_stateless_http_policy() {
         let config = http_config(None);
-        assert!(!config.stateful_mode);
+        assert!(!config.legacy_session_mode);
     }
 
     #[test]

@@ -4,7 +4,7 @@
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ListX } from 'lucide-react';
 import { queriesQueryOptions, useEngines } from '@quent/client';
 import { Button, DataText } from '@quent/components';
 import { formatDuration } from '@quent/utils';
@@ -88,6 +88,7 @@ export function QuerySelectionPage({ engineId }: { engineId: string }) {
         isLoading={queryList.isLoading}
         error={queryList.error instanceof Error ? queryList.error : null}
         emptyMessage="This engine has no queries."
+        emptyIcon={ListX}
         onRetry={() => void queryList.refetch()}
         renderItemLink={(query, children, primary) => (
           <Link

@@ -16,6 +16,7 @@ import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
 import type { GanttHover } from '../gantt-chart/hover';
 import { GANTT_RESIZE_CONTROL_HEIGHT, layoutGanttBar } from '../gantt-chart/utils';
 import { PointerTooltipPortal } from '../ui/pointer-tooltip-portal';
+import { EmptyState } from '../ui/empty-state';
 import {
   mergeNvtxGanttData,
   NVTX_MIN_BAR_WIDTH_PX,
@@ -179,7 +180,7 @@ export function NvtxGantt({
         expandable
         expandLabel="Expand NVTX chart"
         collapseLabel="Collapse NVTX chart"
-        emptyMessage="No NVTX ranges"
+        emptyState={<EmptyState size="compact" dimmed title="No NVTX ranges" />}
         showPlayhead
         renderTooltip={renderTooltip}
       />
