@@ -13,6 +13,7 @@ interface DAGItemActionsProps {
   visible?: boolean;
   className?: string;
   backgroundColor?: string;
+  previewOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   previewContent: ReactNode;
   onTogglePin: () => void;
@@ -32,6 +33,7 @@ export function DAGItemActions({
   visible = false,
   className,
   backgroundColor = 'hsl(var(--primary))',
+  previewOpen,
   onOpenChange,
   previewContent,
   onTogglePin,
@@ -56,8 +58,14 @@ export function DAGItemActions({
       )}
       onPointerDown={event => event.stopPropagation()}
       onClick={event => event.stopPropagation()}
+      onMouseLeave={event => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement && event.currentTarget.contains(activeElement)) {
+          activeElement.blur();
+        }
+      }}
     >
-      <Popover onOpenChange={onOpenChange}>
+      <Popover open={previewOpen} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>
           <button
             type="button"

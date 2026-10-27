@@ -60,6 +60,7 @@ import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNo
 import { DAGClearSelection } from './DAGClearSelection';
 import { DAGLegend } from './DAGLegend';
 import { DAGItemActions } from './DAGItemActions';
+import { DAGPreviewProvider, useDAGPreview } from './DAGPreviewContext';
 import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
@@ -116,8 +117,9 @@ const VariableWidthEdge = ({
   const replaceInspectedPipes = useReplaceInspectedPipes();
   const updateOperatorDetails = useOperatorDetailsActions();
   const toggleInspectedPipe = useToggleInspectedPipe();
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const { activePreviewId, setActivePreviewId } = useDAGPreview();
+  const previewId = `edge:${id}`;
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
   const pipeRef =
     pipe?.sourcePortId && pipe.targetPortId
@@ -132,6 +134,7 @@ const VariableWidthEdge = ({
   );
   const inspect = (multiSelect: boolean) => {
     if (pipeRef) {
+      setActivePreviewId(null);
       if (multiSelect || isInspected) {
         toggleInspectedPipe(pipeRef);
       } else {
@@ -322,7 +325,8 @@ const VariableWidthEdge = ({
             }}
             onMouseEnter={() => setHoveredPipeId(id)}
             onMouseLeave={() => {
-              if (!previewOpen) {
+              setIsFocused(false);
+              if (activePreviewId !== previewId) {
                 setHoveredPipeId(null);
               }
             }}
@@ -332,10 +336,11 @@ const VariableWidthEdge = ({
             <DAGItemActions
               label={`${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`}
               pinned={isInspected}
-              visible={isHovered || isFocused || previewOpen}
+              visible={isHovered || isFocused || activePreviewId === previewId}
               className="overflow-hidden rounded-md border border-border/70"
+              previewOpen={activePreviewId === previewId}
               onOpenChange={open => {
-                setPreviewOpen(open);
+                setActivePreviewId(open ? previewId : null);
                 setHoveredPipeId(open ? id : null);
               }}
               previewContent={<PipeDetailsBlock pipe={pipe} />}
@@ -439,6 +444,7 @@ const FlowLayout = ({
   const updateNodeInternals = useUpdateNodeInternals();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
+  const { setActivePreviewId } = useDAGPreview();
   const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
   const updateOperatorDetails = useOperatorDetailsActions();
   const inspectedPipes = useInspectedPipes();
@@ -608,6 +614,7 @@ const FlowLayout = ({
 
   const handleNodeClick = useCallback(
     (event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
+      setActivePreviewId(null);
       const entry = {
         selectionId: node.id,
         data: selectedOperatorDataFromFlowNode(node),
@@ -623,7 +630,13 @@ const FlowLayout = ({
       }
       onSelectionChange?.([...nextSelectedIds]);
     },
-    [onSelectionChange, pinnedOperatorDetailIds, replaceInspectedPipes, updateOperatorDetails]
+    [
+      onSelectionChange,
+      pinnedOperatorDetailIds,
+      replaceInspectedPipes,
+      setActivePreviewId,
+      updateOperatorDetails,
+    ]
   );
 
   const togglePinnedOperator = useCallback(
@@ -672,9 +685,10 @@ const FlowLayout = ({
   );
 
   const handleSelectionStart = useCallback(() => {
+    setActivePreviewId(null);
     isBoxSelecting.current = true;
     boxSelection.current = { nodes: [], edges: [] };
-  }, []);
+  }, [setActivePreviewId]);
 
   const handleFlowSelectionChange = useCallback(
     ({
@@ -712,8 +726,9 @@ const FlowLayout = ({
   }, [onSelectionChange, replaceInspectedPipes, updateOperatorDetails]);
 
   const handlePaneClick = useCallback(() => {
+    setActivePreviewId(null);
     onBackgroundClick?.();
-  }, [onBackgroundClick]);
+  }, [onBackgroundClick, setActivePreviewId]);
 
   // Re-fit view when the react-flow container is resized, but only if the user
   // hasn't interacted with the chart (to maintain any focus states applied)
@@ -904,17 +919,19 @@ export const DAGChart = ({
   const containerRef = useRef<HTMLDivElement>(null);
   return (
     <div ref={containerRef} style={{ width: '100%', height }}>
-      <ReactFlowProvider>
-        <FlowLayout
-          data={data}
-          containerRef={containerRef}
-          isDark={isDark}
-          operators={operators}
-          selectedNodeIds={selectedNodeIds}
-          onSelectionChange={onSelectionChange}
-          onBackgroundClick={onBackgroundClick}
-        />
-      </ReactFlowProvider>
+      <DAGPreviewProvider>
+        <ReactFlowProvider>
+          <FlowLayout
+            data={data}
+            containerRef={containerRef}
+            isDark={isDark}
+            operators={operators}
+            selectedNodeIds={selectedNodeIds}
+            onSelectionChange={onSelectionChange}
+            onBackgroundClick={onBackgroundClick}
+          />
+        </ReactFlowProvider>
+      </DAGPreviewProvider>
     </div>
   );
 };

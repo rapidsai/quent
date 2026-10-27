@@ -60,6 +60,7 @@ vi.mock('@xyflow/react', async importOriginal => {
       onSelectionStart,
       onSelectionChange,
       onSelectionEnd,
+      onPaneClick,
       selectionKeyCode,
       multiSelectionKeyCode,
     }: {
@@ -71,6 +72,7 @@ vi.mock('@xyflow/react', async importOriginal => {
       onSelectionStart?: () => void;
       onSelectionChange?: (selection: { nodes: Node[]; edges: Edge[] }) => void;
       onSelectionEnd?: () => void;
+      onPaneClick?: () => void;
       selectionKeyCode?: string;
       multiSelectionKeyCode?: string;
     }) => (
@@ -95,6 +97,9 @@ vi.mock('@xyflow/react', async importOriginal => {
           }}
         >
           Box select all
+        </button>
+        <button type="button" onClick={onPaneClick}>
+          Click DAG background
         </button>
         <svg>
           {edges.map(edge => {
@@ -303,6 +308,36 @@ describe('DAGChart selection', () => {
     fireEvent.focus(pipe);
 
     expect(actions).toHaveClass('opacity-100');
+
+    const pin = within(actions).getByRole('button', {
+      name: 'Pin details for source-out to middle-in',
+    });
+    fireEvent.focus(pin);
+    fireEvent.click(pin);
+    fireEvent.mouseLeave(actions);
+
+    expect(actions).toHaveClass('opacity-0');
+  });
+
+  it('closes an edge preview when the DAG background is clicked', async () => {
+    render(
+      <Provider store={createStore()}>
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Preview details for source-out to middle-in',
+      })
+    );
+    expect(await screen.findByTestId('pipe-details-first-pipe')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Click DAG background' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('pipe-details-first-pipe')).not.toBeInTheDocument()
+    );
   });
 });
 

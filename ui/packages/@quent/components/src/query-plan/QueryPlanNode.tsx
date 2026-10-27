@@ -37,6 +37,7 @@ import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 import { getNodeOpacityClass } from './nodeOpacity';
 import { DAGItemActions } from '../dag/DAGItemActions';
+import { useDAGPreview } from '../dag/DAGPreviewContext';
 import { OperatorDetailsBlock } from '../node-info/OperatorDetailsBlock';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
@@ -118,6 +119,8 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const [closedPreviewOperatorIds, setClosedPreviewOperatorIds] = useState<Set<string>>(
     () => new Set()
   );
+  const { activePreviewId, setActivePreviewId } = useDAGPreview();
+  const previewId = `node:${data.nodeId}`;
 
   const resolvedLabel = useMemo(() => {
     if (nodeLabelField === NODE_LABEL_FIELD.ID) {
@@ -255,6 +258,8 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
           pinned={data.actions.pinned}
           filtered={data.actions.filtered}
           backgroundColor={heatmapColor ?? activeColor}
+          previewOpen={activePreviewId === previewId}
+          onOpenChange={open => setActivePreviewId(open ? previewId : null)}
           className="-mx-4 -mb-2 mt-2 w-[calc(100%+2rem)] overflow-hidden rounded-b-md border-t"
           previewContent={
             <OperatorDetailsBlock
