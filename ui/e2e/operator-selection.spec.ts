@@ -196,15 +196,15 @@ test('Clear stays visible and clickable when the operator chip is wider than the
   await page.setViewportSize({ width: 300, height: 900 });
 
   const clear = page.getByRole('button', { name: 'Clear all filters' });
-  const filterList = page.locator('[data-fit="trailing"]').locator('..');
+  const operatorChip = page.getByRole('button', { name: 'Remove Aggregate' });
   await expect
     .poll(async () => {
       const clearBox = await clear.boundingBox();
-      const listBox = await filterList.boundingBox();
+      const operatorBox = await operatorChip.boundingBox();
       return (
         clearBox !== null &&
-        listBox !== null &&
-        clearBox.x + clearBox.width <= listBox.x + listBox.width + 0.5
+        operatorBox !== null &&
+        clearBox.x + clearBox.width <= operatorBox.x + 0.5
       );
     })
     .toBe(true);

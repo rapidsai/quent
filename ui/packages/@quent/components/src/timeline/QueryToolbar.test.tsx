@@ -152,6 +152,19 @@ describe('QueryToolbar', () => {
     expect(screen.queryByText('No active filters')).not.toBeInTheDocument();
   });
 
+  it('places the clear control before the selected operators', async () => {
+    render(
+      <Provider>
+        <SeedOperatorFilter />
+        <QueryToolbar />
+      </Provider>
+    );
+
+    const clear = await screen.findByRole('button', { name: 'Clear all filters' });
+    const operator = screen.getByText('Scan');
+    expect(clear.compareDocumentPosition(operator) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
   it('clears the full operator selection and pinned details', async () => {
     const user = userEvent.setup();
     render(
