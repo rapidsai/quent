@@ -46,7 +46,6 @@ import {
   useHoveredPipeId,
   useSetHoveredPipeId,
   useInspectedPipes,
-  useReplaceInspectedPipes,
   useOperatorDetailsActions,
   usePinnedOperatorDetailIds,
   useToggleInspectedPipe,
@@ -115,8 +114,6 @@ const VariableWidthEdge = ({
   const inspectedPipes = useInspectedPipes();
   const hoveredPipeId = useHoveredPipeId();
   const setHoveredPipeId = useSetHoveredPipeId();
-  const replaceInspectedPipes = useReplaceInspectedPipes();
-  const updateOperatorDetails = useOperatorDetailsActions();
   const toggleInspectedPipe = useToggleInspectedPipe();
   const [isFocused, setIsFocused] = useState(false);
   const { activePreviewId, setActivePreviewId } = useDAGPreview();
@@ -136,15 +133,10 @@ const VariableWidthEdge = ({
     () => new Set(inspectedPipes.map(inspected => inspected.id)),
     [inspectedPipes]
   );
-  const inspect = (multiSelect: boolean) => {
+  const inspect = () => {
     if (pipeRef) {
       setActivePreviewId(null);
-      if (multiSelect || isInspected) {
-        toggleInspectedPipe(pipeRef);
-      } else {
-        updateOperatorDetails({ type: 'clear' });
-        replaceInspectedPipes([pipeRef]);
-      }
+      toggleInspectedPipe(pipeRef);
     }
   };
   const edgeWidthConfig = useEdgeWidthConfig();
@@ -275,13 +267,13 @@ const VariableWidthEdge = ({
           onBlur={() => setIsFocused(false)}
           onClick={event => {
             event.stopPropagation();
-            inspect(event.shiftKey);
+            inspect();
           }}
           onKeyDown={event => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
               event.stopPropagation();
-              inspect(event.shiftKey);
+              inspect();
             }
           }}
         >
@@ -464,8 +456,6 @@ const FlowLayout = ({
   const { setActivePreviewId } = useDAGPreview();
   const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
   const updateOperatorDetails = useOperatorDetailsActions();
-  const inspectedPipes = useInspectedPipes();
-  const replaceInspectedPipes = useReplaceInspectedPipes();
   const [highlightState] = useHighlightedNodeIds();
   const selectedOperatorIds = useSelectedOperatorIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
@@ -476,11 +466,6 @@ const FlowLayout = ({
   // so toggling the overlay relayouts exactly once.
   const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
-  const isBoxSelecting = useRef(false);
-  const boxSelection = useRef<{
-    nodes: Node<QueryPlanNodeData>[];
-    edges: Edge[];
-  }>({ nodes: [], edges: [] });
   const hierarchyOperators = useMemo(() => {
     if (operators) {
       return operators;
@@ -630,30 +615,16 @@ const FlowLayout = ({
   }, [data, isDark, layoutDirection, flowBarVisible]);
 
   const handleNodeClick = useCallback(
-    (event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
+    (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
       setActivePreviewId(null);
       const entry = {
         selectionId: node.id,
         data: selectedOperatorDataFromFlowNode(node),
       };
-      const wasPinned = pinnedOperatorDetailIds.has(node.id);
-      const nextSelectedIds = updateOperatorDetails(
-        event.shiftKey || wasPinned
-          ? { type: 'toggle', entry }
-          : { type: 'replace', entries: [entry] }
-      );
-      if (!event.shiftKey && !wasPinned) {
-        replaceInspectedPipes([]);
-      }
+      const nextSelectedIds = updateOperatorDetails({ type: 'toggle', entry });
       onSelectionChange?.([...nextSelectedIds]);
     },
-    [
-      onSelectionChange,
-      pinnedOperatorDetailIds,
-      replaceInspectedPipes,
-      setActivePreviewId,
-      updateOperatorDetails,
-    ]
+    [onSelectionChange, setActivePreviewId, updateOperatorDetails]
   );
 
   const togglePinnedOperator = useCallback(
@@ -701,47 +672,6 @@ const FlowLayout = ({
     ]
   );
 
-  const handleSelectionStart = useCallback(() => {
-    setActivePreviewId(null);
-    isBoxSelecting.current = true;
-    boxSelection.current = { nodes: [], edges: [] };
-  }, [setActivePreviewId]);
-
-  const handleFlowSelectionChange = useCallback(
-    ({
-      nodes: selectedNodes,
-      edges: selectedEdges,
-    }: {
-      nodes: Node<QueryPlanNodeData>[];
-      edges: Edge[];
-    }) => {
-      if (isBoxSelecting.current) {
-        boxSelection.current = { nodes: selectedNodes, edges: selectedEdges };
-      }
-    },
-    []
-  );
-
-  const handleSelectionEnd = useCallback(() => {
-    isBoxSelecting.current = false;
-    const nextSelectedIds = updateOperatorDetails({
-      type: 'replace',
-      entries: boxSelection.current.nodes.map(node => ({
-        selectionId: node.id,
-        data: selectedOperatorDataFromFlowNode(node),
-      })),
-    });
-    replaceInspectedPipes(
-      boxSelection.current.edges.flatMap(edge => {
-        const pipe = (edge.data as { pipe?: DAGEdge } | undefined)?.pipe;
-        return pipe?.sourcePortId && pipe.targetPortId
-          ? [{ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId }]
-          : [];
-      })
-    );
-    onSelectionChange?.([...nextSelectedIds]);
-  }, [onSelectionChange, replaceInspectedPipes, updateOperatorDetails]);
-
   const handlePaneClick = useCallback(() => {
     setActivePreviewId(null);
     onBackgroundClick?.();
@@ -768,32 +698,6 @@ const FlowLayout = ({
   useEffect(() => {
     updateNodeInternals(nodes.map(node => node.id));
   }, [nodes, updateNodeInternals]);
-
-  useEffect(() => {
-    if (isBoxSelecting.current) {
-      return;
-    }
-    setNodes(current =>
-      current.every(node => node.selected === pinnedOperatorDetailIds.has(node.id))
-        ? current
-        : current.map(node => {
-            const selected = pinnedOperatorDetailIds.has(node.id);
-            return node.selected === selected ? node : { ...node, selected };
-          })
-    );
-    setEdges(current =>
-      current.every(edge => {
-        const pipe = (edge.data as { pipe?: DAGEdge } | undefined)?.pipe;
-        return edge.selected === inspectedPipes.some(selected => isSamePipe(selected, pipe));
-      })
-        ? current
-        : current.map(edge => {
-            const pipe = (edge.data as { pipe?: DAGEdge } | undefined)?.pipe;
-            const selected = inspectedPipes.some(candidate => isSamePipe(candidate, pipe));
-            return edge.selected === selected ? edge : { ...edge, selected };
-          })
-    );
-  }, [edges, inspectedPipes, nodes, pinnedOperatorDetailIds, setEdges, setNodes]);
 
   // Calculate and apply layout
   useLayoutEffect(() => {
@@ -886,14 +790,10 @@ const FlowLayout = ({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
-      onSelectionStart={handleSelectionStart}
-      onSelectionChange={handleFlowSelectionChange}
-      onSelectionEnd={handleSelectionEnd}
       onPaneClick={handlePaneClick}
       onMoveStart={handleMoveStart}
-      selectionKeyCode="Shift"
-      multiSelectionKeyCode="Shift"
-      className="[&_.react-flow__nodesselection]:hidden"
+      selectionKeyCode={null}
+      multiSelectionKeyCode={null}
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}

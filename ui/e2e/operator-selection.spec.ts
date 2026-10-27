@@ -188,7 +188,7 @@ test('Gantt and entity operator selections stay synchronized with the DAG and de
   await expectNoErrors(page, errors, allowedMissingNvtxCatalogErrors);
 });
 
-test('DAG clicks replace selection unless Shift is held', async ({ page }) => {
+test('DAG clicks add and remove detail pins', async ({ page }) => {
   const errors = await openTimeline(page);
   const logicalAggregate = dagNode(page, LOGICAL_AGGREGATE_ID);
   const finalAggregate = dagNode(page, FINAL_AGGREGATE_ID);
@@ -196,15 +196,14 @@ test('DAG clicks replace selection unless Shift is held', async ({ page }) => {
   await logicalAggregate.click();
   await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
   await finalAggregate.click();
+  await expect(logicalAggregate.locator('.border-2')).toBeVisible();
+  await expect(finalAggregate.locator('.border-2')).toBeVisible();
+
+  await logicalAggregate.click();
   await expect(logicalAggregate.locator('.border-2')).toHaveCount(0);
   await expect(finalAggregate.locator('.border-2')).toBeVisible();
 
-  await logicalAggregate.click({ modifiers: ['Shift'] });
-  await expect(logicalAggregate.locator('.border-2')).toBeVisible();
-  await expect(finalAggregate.locator('.border-2')).toBeVisible();
-
-  await finalAggregate.click({ modifiers: ['Shift'] });
-  await expect(logicalAggregate.locator('.border-2')).toBeVisible();
+  await finalAggregate.click();
   await expect(finalAggregate.locator('.border-2')).toHaveCount(0);
   await expectNoErrors(page, errors, allowedMissingNvtxCatalogErrors);
 });

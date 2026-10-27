@@ -73,8 +73,8 @@ vi.mock('@xyflow/react', async importOriginal => {
       onSelectionChange?: (selection: { nodes: Node[]; edges: Edge[] }) => void;
       onSelectionEnd?: () => void;
       onPaneClick?: () => void;
-      selectionKeyCode?: string;
-      multiSelectionKeyCode?: string;
+      selectionKeyCode?: string | null;
+      multiSelectionKeyCode?: string | null;
     }) => (
       <div
         data-testid="flow"
@@ -218,7 +218,7 @@ function EdgeConfiguration() {
 }
 
 describe('DAGChart selection', () => {
-  it('pins only the clicked node and unpins it when clicked again', async () => {
+  it('adds and removes node pins on click', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -238,7 +238,7 @@ describe('DAGChart selection', () => {
     fireEvent.click(second);
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('second');
 
-    fireEvent.click(first, { shiftKey: true });
+    fireEvent.click(first);
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
     fireEvent.click(second);
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
@@ -246,7 +246,7 @@ describe('DAGChart selection', () => {
     expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
   });
 
-  it('uses Shift for native node-and-edge box selection', async () => {
+  it('disables modifier-based box selection', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -255,15 +255,15 @@ describe('DAGChart selection', () => {
     );
 
     const flow = screen.getByTestId('flow');
-    expect(flow).toHaveAttribute('data-selection-key', 'Shift');
-    expect(flow).toHaveAttribute('data-multi-selection-key', 'Shift');
+    expect(flow).not.toHaveAttribute('data-selection-key');
+    expect(flow).not.toHaveAttribute('data-multi-selection-key');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Box select all' }));
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('middle,source,target');
-    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe,second-pipe');
+    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
   });
 
-  it('pins only the clicked pipe and unpins it when clicked again', async () => {
+  it('adds and removes pipe pins on click', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -275,7 +275,7 @@ describe('DAGChart selection', () => {
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('source');
     const pipes = await screen.findAllByRole('button', { name: /^Inspect pipe / });
     fireEvent.click(pipes[0]);
-    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('source');
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
     expect(screen.getByRole('status', { name: 'source-out to middle-in: pinned' })).toBeVisible();
     fireEvent.click(pipes[0]);
@@ -287,12 +287,13 @@ describe('DAGChart selection', () => {
     fireEvent.click(pipes[1]);
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('second-pipe');
 
-    fireEvent.click(pipes[0], { shiftKey: true });
+    fireEvent.click(pipes[0]);
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe,second-pipe');
     fireEvent.click(pipes[1]);
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
     fireEvent.click(pipes[0]);
     expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('source');
   });
 
   it('reveals pipe actions when the pipe receives keyboard focus', async () => {
