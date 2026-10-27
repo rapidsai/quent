@@ -240,7 +240,8 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         as="div"
         className={cn('text-sm break-words text-center font-normal', {
           'font-bold': data.operationType === 'stage' || isSelected,
-          'px-5': data.actions?.pinned || data.actions?.filtered,
+          'px-8': data.actions?.pinned && data.actions.filtered,
+          'px-5': data.actions && data.actions.pinned !== data.actions.filtered,
         })}
       >
         {resolvedLabel}

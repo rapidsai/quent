@@ -8,7 +8,9 @@ import { DAGItemStatus } from './DAGItemStatus';
 describe('DAGItemStatus', () => {
   it('shows pin, filter, and combined status', () => {
     const { rerender } = render(<DAGItemStatus label="Scan" pinned filtered={false} />);
-    expect(screen.getByRole('status', { name: 'Scan: pinned' })).toBeVisible();
+    const pinned = screen.getByRole('status', { name: 'Scan: pinned' });
+    expect(pinned).toBeVisible();
+    expect(pinned).not.toHaveClass('border', 'bg-card/90', 'shadow-sm');
 
     rerender(<DAGItemStatus label="Scan" pinned={false} filtered />);
     expect(screen.getByRole('status', { name: 'Scan: filtered' })).toBeVisible();
