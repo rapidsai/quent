@@ -7,7 +7,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
 import type { Edge, EdgeProps, Node } from '@xyflow/react';
@@ -295,7 +295,10 @@ describe('DAGChart selection', () => {
 
     const pipe = (await screen.findAllByRole('button', { name: /^Inspect pipe / }))[0];
     const actions = screen.getByRole('toolbar', { name: 'Actions for source-out to middle-in' });
-    expect(actions).toHaveClass('opacity-0');
+    expect(actions).toHaveClass('opacity-0', 'overflow-hidden', 'rounded-md');
+    for (const button of within(actions).getAllByRole('button')) {
+      expect(button).not.toHaveClass('rounded-md');
+    }
 
     fireEvent.focus(pipe);
 

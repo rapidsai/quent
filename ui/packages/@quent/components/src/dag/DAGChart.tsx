@@ -333,6 +333,7 @@ const VariableWidthEdge = ({
               label={`${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`}
               pinned={isInspected}
               visible={isHovered || isFocused || previewOpen}
+              className="overflow-hidden rounded-md border border-border/70"
               onOpenChange={open => {
                 setPreviewOpen(open);
                 setHoveredPipeId(open ? id : null);
