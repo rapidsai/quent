@@ -142,7 +142,7 @@ pub(crate) fn reexports() -> TokenStream {
         pub use ::quent_instrumentation::{
             AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicNull,
             DynamicStruct, DynamicValue, EntityRef, Event, FsmStateMismatch, FsmTransitionError,
-            HandleError, Noop, Observer, RuntimeOptions, Uuid,
+            HandleError, Noop, Observer, RuntimeOptions, TimeUnixNanoSec, Uuid, timestamp,
         };
     }
 }
@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn reexports_dynamic_attribute_value_types() {
+    fn reexports_runtime_api() {
         let source = pretty(reexports());
 
         for name in [
@@ -207,6 +207,8 @@ mod tests {
             "DynamicStruct",
             "DynamicValue",
             "DynamicNull",
+            "TimeUnixNanoSec",
+            "timestamp",
         ] {
             assert!(source.contains(name), "missing re-export for {name}");
         }

@@ -41,6 +41,12 @@ fn timestamps_of(recorded: &[(Uuid, u64)], id: Uuid) -> Vec<u64> {
 }
 
 #[test]
+fn instrumentation_exports_its_timestamp_clock() {
+    let timestamp: quent_instrumentation::TimeUnixNanoSec = quent_instrumentation::timestamp();
+    assert!(timestamp > 0);
+}
+
+#[test]
 fn timestamped_event_methods_emit_the_supplied_timestamp() {
     let mut ids = Vec::new();
     let recorded = recorded_timestamps(|context| {

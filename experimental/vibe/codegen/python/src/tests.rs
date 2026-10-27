@@ -87,6 +87,12 @@ fn generates_schema_driven_bridge_and_stubs() {
     assert!(bridge.content.contains("-> PyResult<PyThreadActiveHandle>"));
     assert!(!bridge.content.contains("enum PyThreadState"));
     assert!(!bridge.content.contains("struct PyUuid"));
+    assert!(bridge.content.contains("pub fn timestamp() -> u64"));
+    assert!(
+        bridge
+            .content
+            .contains("quent_instrumentation::timestamp()")
+    );
     assert!(!bridge.content.contains("pub fn active(&mut self, seq:"));
     assert!(bridge.content.contains(".declaration("));
     assert!(bridge.content.contains("PyClusterHandle"));
@@ -130,6 +136,7 @@ fn generates_schema_driven_bridge_and_stubs() {
     let stubs = emit_stubs(&schema, &options).unwrap();
     assert!(stubs[0].content.contains("import uuid as _uuid\n"));
     assert!(stubs[0].content.contains("def now_v7() -> _uuid.UUID"));
+    assert!(stubs[0].content.contains("def timestamp() -> int"));
     assert!(!stubs[0].content.contains("import uuid\n"));
     assert!(!stubs[0].content.contains("class Uuid:"));
     assert!(stubs[0].content.contains("class QuentError(Exception):"));

@@ -636,6 +636,10 @@ fn helpers(options: &Options, runtime: &syn::Path, dynamic: &syn::Path) -> Token
         pub fn nil_uuid(py: Python<'_>) -> PyResult<Py<PyAny>> {
             __python_uuid(py, #runtime::Uuid::nil())
         }
+        #[pyfunction]
+        pub fn timestamp() -> u64 {
+            #runtime::timestamp()
+        }
     }
 }
 
@@ -1386,6 +1390,7 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             )?;
             module.add_function(wrap_pyfunction!(now_v7, module)?)?;
             module.add_function(wrap_pyfunction!(nil_uuid, module)?)?;
+            module.add_function(wrap_pyfunction!(timestamp, module)?)?;
             module.add_class::<PyDynamicValue>()?;
             module.add_class::<PyExporterOptions>()?;
             module.add_class::<PyContext>()?;

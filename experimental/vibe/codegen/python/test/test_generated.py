@@ -9,6 +9,15 @@ import pytest
 import quent_codegen_test as quent
 
 
+def test_timestamp_uses_quent_clock() -> None:
+    first = quent.timestamp()
+    second = quent.timestamp()
+
+    assert isinstance(first, int)
+    assert first > 0
+    assert second >= first
+
+
 def test_generated_api_accepts_general_mappings() -> None:
     context = quent.Context()
     assert isinstance(context.id, uuid.UUID)
