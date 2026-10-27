@@ -331,7 +331,6 @@ const VariableWidthEdge = ({
           >
             <DAGItemActions
               label={pipeLabel}
-              pinned={isInspected}
               visible={isHovered || isFocused || activePreviewId === previewId}
               className="overflow-hidden rounded-md border border-border/70"
               previewOpen={activePreviewId === previewId}
@@ -340,11 +339,6 @@ const VariableWidthEdge = ({
                 setHoveredPipeId(open ? id : null);
               }}
               previewContent={<PipeDetailsBlock pipe={pipe} />}
-              onTogglePin={() => {
-                if (pipeRef) {
-                  toggleInspectedPipe(pipeRef);
-                }
-              }}
             />
           </div>
         </EdgeLabelRenderer>
@@ -627,20 +621,6 @@ const FlowLayout = ({
     [onSelectionChange, setActivePreviewId, updateOperatorDetails]
   );
 
-  const togglePinnedOperator = useCallback(
-    (node: Node<QueryPlanNodeData>) => {
-      const nextSelectedIds = updateOperatorDetails({
-        type: 'toggle',
-        entry: {
-          selectionId: node.id,
-          data: selectedOperatorDataFromFlowNode(node),
-        },
-      });
-      onSelectionChange?.([...nextSelectedIds]);
-    },
-    [onSelectionChange, updateOperatorDetails]
-  );
-
   const toggleOperatorFilter = useCallback(
     (node: Node<QueryPlanNodeData>) => {
       if (selectedOperatorIds.has(node.id)) {
@@ -754,7 +734,6 @@ const FlowLayout = ({
             pinned: pinnedOperatorDetailIds.has(node.id),
             filtered: getSelectionIds(node).every(id => selectedOperatorIds.has(id)),
             details: selectedOperatorDataFromFlowNode(node),
-            onTogglePin: () => togglePinnedOperator(node),
             onToggleFilter: () => toggleOperatorFilter(node),
           },
         },
@@ -767,7 +746,6 @@ const FlowLayout = ({
       pinnedOperatorDetailIds,
       selectedOperatorIds,
       toggleOperatorFilter,
-      togglePinnedOperator,
     ]
   );
   const renderedEdges = useMemo(

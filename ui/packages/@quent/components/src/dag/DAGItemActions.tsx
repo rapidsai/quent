@@ -2,21 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { CSSProperties, ReactNode } from 'react';
-import { Eye, Filter, Pin } from 'lucide-react';
+import { Eye, Filter } from 'lucide-react';
 import { cn } from '@quent/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 interface DAGItemActionsProps {
   label: string;
-  pinned: boolean;
   filtered?: boolean;
   visible?: boolean;
+  divided?: boolean;
   className?: string;
   backgroundColor?: string;
   previewOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   previewContent: ReactNode;
-  onTogglePin: () => void;
   onToggleFilter?: () => void;
 }
 
@@ -28,15 +27,14 @@ type ActionStyle = CSSProperties & {
 /** Hover action bar shared by operator nodes and pipes. */
 export function DAGItemActions({
   label,
-  pinned,
   filtered,
   visible = false,
+  divided = true,
   className,
   backgroundColor = 'hsl(var(--primary))',
   previewOpen,
   onOpenChange,
   previewContent,
-  onTogglePin,
   onToggleFilter,
 }: DAGItemActionsProps) {
   const actionClass =
@@ -51,8 +49,9 @@ export function DAGItemActions({
       role="toolbar"
       aria-label={`Actions for ${label}`}
       className={cn(
-        'nodrag nopan flex w-full divide-x divide-border bg-card/95 opacity-0 shadow-sm backdrop-blur-sm transition-opacity pointer-events-none',
+        'nodrag nopan flex w-full bg-card/95 opacity-0 shadow-sm backdrop-blur-sm transition-opacity pointer-events-none',
         'group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto',
+        divided && 'divide-x divide-border',
         visible && 'opacity-100 pointer-events-auto',
         className
       )}
@@ -87,17 +86,6 @@ export function DAGItemActions({
           {previewContent}
         </PopoverContent>
       </Popover>
-      <button
-        type="button"
-        className={actionClass}
-        style={actionStyle(pinned)}
-        aria-label={`Pin details for ${label}`}
-        aria-pressed={pinned}
-        onClick={onTogglePin}
-      >
-        <Pin className="size-3" />
-        <span>Pin</span>
-      </button>
       {onToggleFilter && (
         <button
           type="button"

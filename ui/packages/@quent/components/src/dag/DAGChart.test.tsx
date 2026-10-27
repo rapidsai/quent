@@ -314,11 +314,10 @@ describe('DAGChart selection', () => {
 
     expect(actions).toHaveClass('opacity-100');
 
-    const pin = within(actions).getByRole('button', {
-      name: 'Pin details for source-out to middle-in',
+    const preview = within(actions).getByRole('button', {
+      name: 'Preview details for source-out to middle-in',
     });
-    fireEvent.focus(pin);
-    fireEvent.click(pin);
+    fireEvent.focus(preview);
     fireEvent.mouseLeave(actions);
 
     expect(actions).toHaveClass('opacity-0');

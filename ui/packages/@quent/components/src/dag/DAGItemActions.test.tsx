@@ -7,65 +7,53 @@ import { describe, expect, it, vi } from 'vitest';
 import { DAGItemActions } from './DAGItemActions';
 
 describe('DAGItemActions', () => {
-  it('offers preview, pin, and operator filtering without activating the item', async () => {
+  it('offers preview and operator filtering without activating the item', async () => {
     const user = userEvent.setup();
     const activateItem = vi.fn();
-    const togglePin = vi.fn();
     const toggleFilter = vi.fn();
     render(
       <div onClick={activateItem}>
         <DAGItemActions
           label="Scan"
-          pinned={false}
-          filtered={false}
+          filtered
           visible
           previewContent={<div>Scan preview</div>}
-          onTogglePin={togglePin}
           onToggleFilter={toggleFilter}
         />
       </div>
     );
 
     const preview = screen.getByRole('button', { name: 'Preview details for Scan' });
-    const pin = screen.getByRole('button', { name: 'Pin details for Scan' });
     const filter = screen.getByRole('button', { name: 'Filter operator Scan' });
 
-    expect(pin).toHaveAttribute('aria-pressed', 'false');
-    expect(filter).toHaveAttribute('aria-pressed', 'false');
+    expect(filter).toHaveAttribute('aria-pressed', 'true');
+    expect(filter.getAttribute('style')).toContain('42%');
+    expect(filter.getAttribute('style')).toContain('54%');
+    expect(screen.queryByRole('button', { name: /pin details/i })).not.toBeInTheDocument();
 
     await user.click(preview);
     expect(activateItem).not.toHaveBeenCalled();
     expect(screen.getByText('Scan preview')).toBeVisible();
 
-    await user.click(pin);
-    expect(togglePin).toHaveBeenCalledOnce();
-
     await user.click(filter);
     expect(toggleFilter).toHaveBeenCalledOnce();
   });
 
-  it('omits filtering for edges and exposes active labels', async () => {
+  it('offers only preview for edges', async () => {
     const user = userEvent.setup();
     render(
       <DAGItemActions
         label="out to in"
-        pinned
-        filtered
         visible
         backgroundColor="#123456"
         previewContent={<div>Pipe preview</div>}
-        onTogglePin={() => undefined}
       />
     );
 
-    const pin = screen.getByRole('button', { name: 'Pin details for out to in' });
-    expect(pin).toHaveAttribute('aria-pressed', 'true');
-    expect(pin).toHaveClass('hover:bg-[var(--dag-action-hover-background)]');
-    expect(pin.getAttribute('style')).toContain('42%');
-    expect(pin.getAttribute('style')).toContain('54%');
     const preview = screen.getByRole('button', { name: 'Preview details for out to in' });
     expect(preview.getAttribute('style')).toContain('14%');
     expect(preview.getAttribute('style')).toContain('26%');
+    expect(screen.queryByRole('button', { name: /pin/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /filter/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Preview details for out to in' }));
@@ -76,16 +64,16 @@ describe('DAGItemActions', () => {
     render(
       <DAGItemActions
         label="Scan"
-        pinned={false}
         filtered={false}
+        divided={false}
         previewContent={<div>Scan preview</div>}
-        onTogglePin={() => undefined}
         onToggleFilter={() => undefined}
       />
     );
 
     const toolbar = screen.getByRole('toolbar', { name: 'Actions for Scan' });
     expect(toolbar).toHaveClass('w-full', 'opacity-0', 'group-hover:opacity-100');
+    expect(toolbar).not.toHaveClass('divide-x');
     for (const button of within(toolbar).getAllByRole('button')) {
       expect(button).toHaveClass('flex-1', 'cursor-pointer');
     }
@@ -95,13 +83,7 @@ describe('DAGItemActions', () => {
     const user = userEvent.setup();
     render(
       <>
-        <DAGItemActions
-          label="Scan"
-          pinned={false}
-          visible
-          previewContent={<div>Scan preview</div>}
-          onTogglePin={() => undefined}
-        />
+        <DAGItemActions label="Scan" visible previewContent={<div>Scan preview</div>} />
         <button type="button">DAG background</button>
       </>
     );
