@@ -41,13 +41,18 @@ jobs:
   rust:
     name: Rust
     runs-on: ubuntu-latest
+    env:
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
-          cache: true
+          cache: false
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.18.0
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -114,7 +119,7 @@ jobs:
           persist-credentials: false
       - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
-          cache: true
+          cache: false
           working-directory: compat
       - run: pixi run --manifest-path compat/pixi.toml cargo test --package quent-open --locked -- --ignored opens_artifacts_built_by_a_previous_quent_commit
         env:
@@ -130,5 +135,5 @@ jobs:
           persist-credentials: false
       - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
-          cache: true
+          cache: false
       - run: pixi run cargo deny check

@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
       - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
-          cache: true
+          cache: false
       - name: Check Python formatting
         run: pixi run --locked format-python-check
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

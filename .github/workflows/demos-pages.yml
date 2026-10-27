@@ -48,7 +48,7 @@ jobs:
           persist-credentials: false
       - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
-          cache: true
+          cache: false
       - name: Install schema explorer dependencies
         run: pixi run --frozen pnpm --dir experimental/vibe/ui install --frozen-lockfile
       - name: Build schema explorer

@@ -8,6 +8,7 @@ requires-pixi = ">=0.68"
 rust = "=1.97.0"
 rust-src = "=1.97.0"
 cargo-deny = "=0.20.2"
+sccache = "=0.18.0" # Keep in sync with the CI action version.
 nodejs = ">=24.11.0"
 pnpm = ">=11.19.0"
 cmake = ">=3.24"
@@ -29,6 +30,10 @@ rumdl = "*"
 
 [activation]
 scripts = ["integrations/nvtx/activate-bindgen.sh"]
+
+[activation.env]
+RUSTC_WRAPPER = "sccache"
+SCCACHE_IGNORE_SERVER_IO_ERROR = "1"
 
 [tasks]
 # clang-format needs an explicit file list; Git excludes ignored build output and dependencies.
