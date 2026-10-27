@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             },
             collector_sink: true,
-            timestamped_methods: true,
+            generate_timestamped_methods: true,
             out_dir: out_dir.clone(),
             file_name: Some("model.rs".to_owned()),
             ..Default::default()

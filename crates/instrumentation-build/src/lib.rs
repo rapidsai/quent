@@ -51,7 +51,7 @@
 //! ## Reserved names
 //!
 //! Schema event names that become the Rust method name `id` are rejected. When
-//! [`Options::timestamped_methods`] is enabled, event names must not collide
+//! [`Options::generate_timestamped_methods`] is enabled, event names must not collide
 //! with another event's `<event>_at` method, and event fields must not be named
 //! `timestamp_ns`. FSM
 //! state names must also avoid existing FSM handle methods, such as `state`,
@@ -132,7 +132,7 @@ pub struct Options {
     ///
     /// Disabled by default because the generated method names can conflict
     /// with methods an application already defines on generated handles.
-    pub timestamped_methods: bool,
+    pub generate_timestamped_methods: bool,
 }
 
 impl Default for Options {
@@ -143,7 +143,7 @@ impl Default for Options {
             file_name: None,
             analyzer_package: None,
             collector_sink: false,
-            timestamped_methods: false,
+            generate_timestamped_methods: false,
         }
     }
 }
@@ -302,7 +302,9 @@ fn generate_namespace(
     let runtime = namespace
         .entities()
         .iter()
-        .map(|entity| runtime::entity_runtime_types(schema, entity, opts.timestamped_methods))
+        .map(|entity| {
+            runtime::entity_runtime_types(schema, entity, opts.generate_timestamped_methods)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let children = namespace
         .children()
@@ -463,7 +465,7 @@ mod path_tests {
         let source = generate_str(
             &schema,
             &Options {
-                timestamped_methods: true,
+                generate_timestamped_methods: true,
                 ..Options::default()
             },
         )
@@ -521,7 +523,7 @@ mod path_tests {
     #[test]
     fn rejects_timestamped_name_collisions_only_when_enabled() {
         let timestamped = Options {
-            timestamped_methods: true,
+            generate_timestamped_methods: true,
             ..Options::default()
         };
 

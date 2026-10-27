@@ -72,8 +72,9 @@ and `data` contains the generated event payload. Later lessons add attributes,
 references, and other semantics to that payload.
 
 Events are timestamped when they are emitted. To record an event that happened
-earlier, enable the `timestamped_methods` generator option. The Rust and Python
-APIs then provide an `<event>_at` variant of each event method that takes
+earlier, enable the `generate_timestamped_methods` option of the Rust generator
+(and `timestamped_methods` of the Python generator). The generated APIs then
+provide an `<event>_at` variant of each event method that takes
 `timestamp_ns` first. FSM transitions are ordered by timestamp, so each one
 must not precede the previous transition of the same instance.
 

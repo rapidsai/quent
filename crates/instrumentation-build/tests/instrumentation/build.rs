@@ -19,7 +19,7 @@ fn main() {
                 combined_event: true,
                 ..Default::default()
             },
-            timestamped_methods: true,
+            generate_timestamped_methods: true,
             ..Options::default()
         },
     )

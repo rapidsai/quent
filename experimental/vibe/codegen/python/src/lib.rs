@@ -37,7 +37,7 @@ pub struct Options {
     /// transition method.
     ///
     /// Requires the Rust instrumentation at [`Self::instrumentation_path`] to
-    /// be generated with `timestamped_methods` enabled. Disabled by default
+    /// be generated with `generate_timestamped_methods` enabled. Disabled by default
     /// because the generated method names can conflict with existing
     /// application methods.
     pub timestamped_methods: bool,
