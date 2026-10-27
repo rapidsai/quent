@@ -11,6 +11,7 @@ import {
   selectedScaleTypeAtom,
 } from '../atoms/dagControls';
 import { hoveredPipeIdAtom, inspectedPipeRefsAtom } from '../atoms/pipeInspection';
+import { pinnedOperatorDetailIdsAtom } from '../atoms/operatorDetails';
 import { scaleColor } from '@quent/utils';
 
 interface NodeColoringResult {
@@ -22,6 +23,8 @@ interface NodeColoringResult {
   isDimmed: boolean;
   /** True when this node is in the active selection set */
   isSelected: boolean;
+  /** True when this node is included by the canonical operator filter. */
+  isFiltered: boolean;
   /** The currently active color field name, or null */
   colorField: string | null;
 }
@@ -54,8 +57,10 @@ export function useNodeColoring(
   const scaleType = useAtomValue(selectedScaleTypeAtom);
   const hasInspectedPipes = useAtomValue(inspectedPipeRefsAtom).length > 0;
   const hasHoveredPipe = useAtomValue(hoveredPipeIdAtom) !== null;
+  const pinnedOperatorDetailIds = useAtomValue(pinnedOperatorDetailIdsAtom);
 
-  const isSelected = isOperatorGroupSelected(selectedOperatorIds, operatorId, relatedOperatorIds);
+  const isFiltered = isOperatorGroupSelected(selectedOperatorIds, operatorId, relatedOperatorIds);
+  const isSelected = pinnedOperatorDetailIds.has(operatorId);
 
   const { fieldColor, fieldDimmed } = useMemo(() => {
     if (!nodeColoring) {
@@ -77,8 +82,13 @@ export function useNodeColoring(
 
   // Selecting or hovering a pipe de-emphasizes every operator that is not itself selected, like
   // selecting an operator does. The pipe's endpoint operators get no special treatment.
-  const hasSelection = selectedOperatorIds.size > 0 || hasInspectedPipes || hasHoveredPipe;
-  const isDimmed = fieldDimmed || (hasSelection && !isSelected);
+  const hasFilter = selectedOperatorIds.size > 0;
+  const hasDetailsSelection =
+    pinnedOperatorDetailIds.size > 0 || hasInspectedPipes || hasHoveredPipe;
+  const isDimmed =
+    (fieldDimmed && !isSelected) ||
+    (hasFilter && !isFiltered && !isSelected) ||
+    (hasDetailsSelection && !isSelected);
 
-  return { fieldColor, fieldDimmed, isDimmed, isSelected, colorField };
+  return { fieldColor, fieldDimmed, isDimmed, isSelected, isFiltered, colorField };
 }

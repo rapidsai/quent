@@ -17,6 +17,7 @@ import {
   NODE_LABEL_FIELD,
   DAG_LAYOUT_DIRECTION,
   type Operator,
+  type SelectedOperatorGroupData,
   type DagLayoutDirection,
   type QuantitySpec,
   type DAGStatisticSet,
@@ -35,6 +36,8 @@ import { resolveStatisticFields } from '../lib/queryBundle.utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 import { getNodeOpacityClass } from './nodeOpacity';
+import { DAGItemActions } from '../dag/DAGItemActions';
+import { OperatorDetailsBlock } from '../node-info/OperatorDetailsBlock';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -70,6 +73,13 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   hoveredStatValue?: number;
   heatmapRange?: ScaleRange;
   highlightedNodeIds?: ReadonlySet<string> | null;
+  actions?: {
+    pinned: boolean;
+    filtered: boolean;
+    details: SelectedOperatorGroupData;
+    onTogglePin: () => void;
+    onToggleFilter: () => void;
+  };
 }
 
 const nodeVariants = cva(
@@ -105,6 +115,9 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     data.metadata?.relatedOperatorIds
   );
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
+  const [closedPreviewOperatorIds, setClosedPreviewOperatorIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
   const resolvedLabel = useMemo(() => {
     if (nodeLabelField === NODE_LABEL_FIELD.ID) {
@@ -192,7 +205,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const nodeContent = (
     <div
-      className={cn(nodeVariants({ selected: isSelected }), {
+      className={cn('group relative', nodeVariants({ selected: isSelected }), {
         'shadow-glow': isSelected || isActiveHighlight,
         'shadow-node': !isSelected && !isActiveHighlight,
       })}
@@ -235,6 +248,35 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
 
       {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} />}
+
+      {data.actions && (
+        <DAGItemActions
+          label={data.label}
+          pinned={data.actions.pinned}
+          filtered={data.actions.filtered}
+          className="-mx-4 -mb-2 mt-2 w-[calc(100%+2rem)] overflow-hidden rounded-b-md border-t"
+          previewContent={
+            <OperatorDetailsBlock
+              operator={data.actions.details}
+              quantitySpecs={data.quantitySpecs}
+              isOpen={id => !closedPreviewOperatorIds.has(id)}
+              onOpenChange={(id, open) =>
+                setClosedPreviewOperatorIds(current => {
+                  const next = new Set(current);
+                  if (open) {
+                    next.delete(id);
+                  } else {
+                    next.add(id);
+                  }
+                  return next;
+                })
+              }
+            />
+          }
+          onTogglePin={data.actions.onTogglePin}
+          onToggleFilter={data.actions.onToggleFilter}
+        />
+      )}
 
       {data.hasOutgoing && (
         <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />

@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type ComponentType, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import {
+  isValidElement,
+  type ComponentType,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
@@ -11,6 +16,7 @@ import {
   useDagEdgeWidthConfig,
   useEdgeColorPalette,
   useInspectedPipes,
+  usePinnedOperatorDetailIds,
   useSelectedOperatorIds,
   useSelectedEdgeColorField,
   useSelectedScaleType,
@@ -39,6 +45,11 @@ vi.mock('@xyflow/react', async importOriginal => {
     useReactFlow: () => ({ fitView: mocks.fitView }),
     Background: () => null,
     MiniMap: () => null,
+    EdgeLabelRenderer: ({ children }: { children: ReactNode }) =>
+      isValidElement<{ className?: string }>(children) &&
+      children.props.className?.includes('nodrag')
+        ? children
+        : null,
     Panel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     ReactFlow: ({
       nodes = [],
@@ -79,7 +90,7 @@ vi.mock('@xyflow/react', async importOriginal => {
           type="button"
           onClick={() => {
             onSelectionStart?.();
-            onSelectionChange?.({ nodes, edges: [] });
+            onSelectionChange?.({ nodes, edges });
             onSelectionEnd?.();
           }}
         >
@@ -161,11 +172,13 @@ const pipeData: DAGData = {
 };
 
 function SelectionProbe() {
-  const selectedOperatorIds = useSelectedOperatorIds();
+  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
+  const filteredOperatorIds = useSelectedOperatorIds();
   const inspectedPipes = useInspectedPipes();
   return (
     <>
-      <span data-testid="selected-operators">{[...selectedOperatorIds].sort().join(',')}</span>
+      <span data-testid="selected-operators">{[...pinnedOperatorDetailIds].sort().join(',')}</span>
+      <span data-testid="filtered-operators">{[...filteredOperatorIds].sort().join(',')}</span>
       <span data-testid="selected-pipes">
         {inspectedPipes
           .map(pipe => pipe.id)
@@ -213,6 +226,7 @@ describe('DAGChart selection', () => {
 
     fireEvent.click(first);
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
+    expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
     fireEvent.click(second);
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('second');
 
@@ -222,11 +236,11 @@ describe('DAGChart selection', () => {
     expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
   });
 
-  it('uses Shift for native box and click multi-selection', async () => {
+  it('uses Shift for native node-and-edge box selection', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
-        <DAGChart data={selectionData} isDark={false} />
+        <DAGChart data={pipeData} isDark={false} />
       </Provider>
     );
 
@@ -235,7 +249,8 @@ describe('DAGChart selection', () => {
     expect(flow).toHaveAttribute('data-multi-selection-key', 'Shift');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Box select all' }));
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('middle,source,target');
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe,second-pipe');
   });
 
   it('replaces pipe selection on click and toggles it on Shift+click', async () => {
@@ -246,8 +261,11 @@ describe('DAGChart selection', () => {
       </Provider>
     );
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Select source' }));
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('source');
     const pipes = await screen.findAllByRole('button', { name: /^Inspect pipe / });
     fireEvent.click(pipes[0]);
+    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
     fireEvent.click(pipes[1]);
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('second-pipe');
@@ -256,6 +274,22 @@ describe('DAGChart selection', () => {
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe,second-pipe');
     fireEvent.click(pipes[1], { shiftKey: true });
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
+  });
+
+  it('reveals pipe actions when the pipe receives keyboard focus', async () => {
+    render(
+      <Provider store={createStore()}>
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    const pipe = (await screen.findAllByRole('button', { name: /^Inspect pipe / }))[0];
+    const actions = screen.getByRole('toolbar', { name: 'Actions for source-out to middle-in' });
+    expect(actions).toHaveClass('opacity-0');
+
+    fireEvent.focus(pipe);
+
+    expect(actions).toHaveClass('opacity-100');
   });
 });
 

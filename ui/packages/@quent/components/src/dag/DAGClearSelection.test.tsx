@@ -10,7 +10,9 @@ import { describe, expect, it } from 'vitest';
 import {
   useAddInspectedPipe,
   useInspectedPipes,
+  useOperatorDetailsActions,
   useOperatorSelectionActions,
+  usePinnedOperatorDetailIds,
   useSelectedOperatorIds,
   useSyncDisplayedPipes,
 } from '@quent/hooks';
@@ -19,21 +21,28 @@ import { DAGClearSelection } from './DAGClearSelection';
 const EDGES = [{ id: 'e1', source: 'a', target: 'b', sourcePortId: 'out', targetPortId: 'in' }];
 
 function Harness() {
-  const operatorIds = useSelectedOperatorIds();
+  const operatorIds = usePinnedOperatorDetailIds();
+  const filterIds = useSelectedOperatorIds();
   const pipes = useInspectedPipes();
   const addPipe = useAddInspectedPipe();
+  const updateOperatorDetails = useOperatorDetailsActions();
   const updateOperatorSelection = useOperatorSelectionActions();
   useSyncDisplayedPipes(EDGES);
 
   useEffect(() => {
+    const data = { nodeId: 'scan', label: 'Scan', operationType: 'scan', statistics: [] };
+    updateOperatorDetails({
+      type: 'pin',
+      entry: { selectionId: 'scan', data },
+    });
     updateOperatorSelection({
       type: 'add',
       selectionId: 'scan',
       label: 'Scan',
       operatorIds: ['scan'],
-      selectedData: { nodeId: 'scan', label: 'Scan', operationType: 'scan', statistics: [] },
+      selectedData: data,
     });
-  }, [updateOperatorSelection]);
+  }, [updateOperatorDetails, updateOperatorSelection]);
 
   return (
     <>
@@ -46,6 +55,7 @@ function Harness() {
         Add pipe
       </button>
       <span data-testid="operators">{operatorIds.size}</span>
+      <span data-testid="filters">{filterIds.size}</span>
       <span data-testid="pipes">{pipes.length}</span>
     </>
   );
@@ -69,6 +79,7 @@ describe('DAGClearSelection', () => {
     await user.click(screen.getByRole('button', { name: 'Clear selection' }));
 
     expect(screen.getByTestId('operators')).toHaveTextContent('0');
+    expect(screen.getByTestId('filters')).toHaveTextContent('1');
     expect(screen.getByTestId('pipes')).toHaveTextContent('0');
     expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument();
   });

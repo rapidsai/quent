@@ -9,33 +9,33 @@ const query = '00000000-0000-0000-0000-000000000004';
 const pipeDetailsTab = (page: Page) => page.getByRole('tab', { name: 'Pipes' });
 const operatorTab = (page: Page) => page.getByRole('tab', { name: 'Operators' });
 
-test('operators and pipes are selected independently of each other', async ({ page }) => {
+test('operators and pipes share one modifier-aware details selection', async ({ page }) => {
   await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
   const node = page.locator('.react-flow__node').first();
   await expect(node).toBeVisible();
-  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
+  const clearSelection = page.getByRole('button', { name: 'Clear selection' });
   // Only selected nodes get `scale-110`; the hover glow does not.
   const selectedLook = node.locator('.scale-110');
 
   await node.click();
-  await expect(clearAll).toBeVisible();
+  await expect(clearSelection).toBeVisible();
   await expect(selectedLook).toHaveCount(1);
 
   const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
   await pipe.focus();
   await pipe.press('Enter');
-  // The pipe gets its own tab next to the operator's.
+  // Plain edge activation replaces the operator pin.
   await expect(pipeDetailsTab(page)).toBeVisible();
-  await expect(operatorTab(page)).toBeVisible();
-  // Inspecting a pipe leaves the operator filter alone, so the node must still look selected.
-  await expect(clearAll).toBeVisible();
-  await expect(selectedLook).toHaveCount(1);
-
-  // Shift-clicking a selected node deselects only that node. The pipe stays inspected.
-  await node.click({ modifiers: ['Shift'] });
-  await expect(clearAll).toHaveCount(0);
+  await expect(operatorTab(page)).toHaveCount(0);
   await expect(selectedLook).toHaveCount(0);
+
+  // Shift-click adds and removes the node without clearing the pipe.
+  await node.click({ modifiers: ['Shift'] });
+  await expect(operatorTab(page)).toBeVisible();
+  await expect(selectedLook).toHaveCount(1);
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
+  await node.click({ modifiers: ['Shift'] });
+  await expect(selectedLook).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Sending port' })).toBeVisible();
 });
 
@@ -61,26 +61,45 @@ test('selecting a pipe de-emphasizes everything else without selecting any opera
   await expect(dimmed).toHaveCount(0);
 });
 
-test('a pipe closes when activated again, leaving operators alone', async ({ page }) => {
+test('Shift+drag includes intersecting edges in the details selection', async ({ page }) => {
+  await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
+  const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
+  const box = await pipe.boundingBox();
+  expect(box).not.toBeNull();
+
+  await page.keyboard.down('Shift');
+  await page.mouse.move(box!.x - 8, box!.y - 8);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + Math.max(box!.width, 16) + 8, box!.y + box!.height + 8, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+
+  await expect(pipe).toHaveAttribute('aria-pressed', 'true');
+  await expect(pipeDetailsTab(page)).toBeVisible();
+  await expect(page.locator('.react-flow__nodesselection')).toBeHidden();
+});
+
+test('a plain pipe selection replaces operators and Shift toggles the pipe', async ({ page }) => {
   await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
   const node = page.locator('.react-flow__node').first();
   await expect(node).toBeVisible();
-  // Keep an operator selected so there is something to fall back to.
   await node.click();
-  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
-  await expect(clearAll).toBeVisible();
+  await expect(node.locator('.scale-110')).toHaveCount(1);
 
   const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
   await pipe.focus();
   await pipe.press('Enter');
   await expect(pipeDetailsTab(page)).toBeVisible();
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
+  await expect(node.locator('.scale-110')).toHaveCount(0);
 
   await pipe.press('Shift+Enter');
   await expect(pipeDetailsTab(page)).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(0);
   await expect(pipe).toHaveAttribute('aria-pressed', 'false');
-  await expect(clearAll).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear selection' })).toHaveCount(0);
 });
 
 test('pipes are deselected one at a time or all at once from the details panel', async ({
@@ -89,10 +108,7 @@ test('pipes are deselected one at a time or all at once from the details panel',
   await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
   const node = page.locator('.react-flow__node').first();
   await expect(node).toBeVisible();
-  // Keep an operator selected: clearing pipes must never touch it.
   await node.click();
-  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
-  await expect(clearAll).toBeVisible();
 
   const pipes = page.getByRole('button', { name: /^Inspect pipe / });
   const first = pipes.nth(0);
@@ -100,6 +116,7 @@ test('pipes are deselected one at a time or all at once from the details panel',
   await first.focus();
   await first.press('Enter');
   await expect(first).toHaveAttribute('aria-pressed', 'true');
+  await expect(node.locator('.scale-110')).toHaveCount(0);
   await second.focus();
   await second.press('Shift+Enter');
   await expect(second).toHaveAttribute('aria-pressed', 'true');
@@ -119,7 +136,7 @@ test('pipes are deselected one at a time or all at once from the details panel',
   await expect(node.locator('.scale-110')).toHaveCount(0);
 });
 
-test('keyboard pipe inspection preserves operator filters and renders nested endpoint data', async ({
+test('keyboard pipe inspection supports mixed pins and renders nested endpoint data', async ({
   page,
 }) => {
   await page.route(`**/api/engines/${engine}/query/${query}`, async route => {
@@ -184,8 +201,8 @@ test('keyboard pipe inspection preserves operator filters and renders nested end
       )
     )
     .toBeGreaterThan(2);
-  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
-  await expect(clearAll).toBeVisible();
+  const clearSelection = page.getByRole('button', { name: 'Clear selection' });
+  await expect(clearSelection).toBeVisible();
   const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
   await pipe.focus();
   await pipe.press('Enter');
@@ -197,9 +214,9 @@ test('keyboard pipe inspection preserves operator filters and renders nested end
     page.getByRole('region', { name: 'Receiving port' }).getByText('1.00 KiB')
   ).toBeVisible();
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
-  await expect(clearAll).toBeVisible();
+  await expect(clearSelection).toBeVisible();
   await node.click({ modifiers: ['Shift'] });
-  await expect(clearAll).toHaveCount(0);
+  await expect(clearSelection).toBeVisible();
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -263,11 +280,11 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
       edge.locator('.react-flow__edge-path').evaluate(path => (path as SVGElement).style.filter)
     )
     .toContain('drop-shadow');
-  const clearAll = page.getByRole('button', { name: 'Clear all filters' });
-  await expect(clearAll).toBeVisible();
+  const clearSelection = page.getByRole('button', { name: 'Clear selection' });
+  await expect(clearSelection).toBeVisible();
   await output.click();
   await expect(pipeDetailsTab(page)).toBeVisible();
-  await expect(clearAll).toBeVisible();
+  await expect(clearSelection).toBeVisible();
   const sending = page.getByRole('region', { name: 'Sending port' });
   await expect(sending.getByText(sourceLabel, { exact: true })).toBeVisible();
   // The source is still selected and always glows, so only the target shows the hover highlight.

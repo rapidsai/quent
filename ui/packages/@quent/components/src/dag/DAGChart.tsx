@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   MouseEvent,
   type RefObject,
 } from 'react';
@@ -45,8 +46,9 @@ import {
   useHoveredPipeId,
   useSetHoveredPipeId,
   useInspectedPipes,
-  useAddInspectedPipe,
-  useClearInspectedPipes,
+  useReplaceInspectedPipes,
+  useOperatorDetailsActions,
+  usePinnedOperatorDetailIds,
   useToggleInspectedPipe,
   useSyncDisplayedPipes,
   COLOR_REGISTRY_KEYS,
@@ -57,6 +59,8 @@ import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGClearSelection } from './DAGClearSelection';
 import { DAGLegend } from './DAGLegend';
+import { DAGItemActions } from './DAGItemActions';
+import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
 import { resolveDagHeatmap, resolveDagHighlightedNodeIds } from './dagInteraction';
@@ -71,7 +75,6 @@ import {
   type Operator,
   type StatisticField,
   type QuantitySpec,
-  type OperatorSelectionInput,
   type SelectedOperatorGroupData,
   normalizeScaleValue,
 } from '@quent/utils';
@@ -110,10 +113,16 @@ const VariableWidthEdge = ({
   const inspectedPipes = useInspectedPipes();
   const hoveredPipeId = useHoveredPipeId();
   const setHoveredPipeId = useSetHoveredPipeId();
-  const addInspectedPipe = useAddInspectedPipe();
-  const clearInspectedPipes = useClearInspectedPipes();
+  const replaceInspectedPipes = useReplaceInspectedPipes();
+  const updateOperatorDetails = useOperatorDetailsActions();
   const toggleInspectedPipe = useToggleInspectedPipe();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
+  const pipeRef =
+    pipe?.sourcePortId && pipe.targetPortId
+      ? { sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId }
+      : null;
   const isHovered = hoveredPipeId === id;
   const isInspected = inspectedPipes.some(inspected => isSamePipe(inspected, pipe));
   const isEmphasized = isHovered || isInspected;
@@ -122,13 +131,12 @@ const VariableWidthEdge = ({
     [inspectedPipes]
   );
   const inspect = (multiSelect: boolean) => {
-    if (pipe?.sourcePortId && pipe.targetPortId) {
-      const ref = { sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId };
+    if (pipeRef) {
       if (multiSelect) {
-        toggleInspectedPipe(ref);
+        toggleInspectedPipe(pipeRef);
       } else {
-        clearInspectedPipes();
-        addInspectedPipe(ref);
+        updateOperatorDetails({ type: 'clear' });
+        replaceInspectedPipes([pipeRef]);
       }
     }
   };
@@ -136,6 +144,11 @@ const VariableWidthEdge = ({
   const edgeColoring = useEdgeColoring();
   const edgePalette = useEdgeColorPalette()[0];
   const selectedOperatorIds = useSelectedOperatorIds();
+  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
+  const activeOperatorIds = useMemo(
+    () => new Set([...selectedOperatorIds, ...pinnedOperatorDetailIds]),
+    [pinnedOperatorDetailIds, selectedOperatorIds]
+  );
   const interactionData = data as
     | {
         isDark?: boolean;
@@ -181,7 +194,7 @@ const VariableWidthEdge = ({
     hoveredEdgeId: hoveredPipeId ?? undefined,
     inspectedEdgeIds: inspectedPipeIds,
     edgeId: id,
-    selectedNodeIds: selectedOperatorIds,
+    selectedNodeIds: activeOperatorIds,
     highlightedNodeIds,
   });
   const isEdgeDimmed = (edgeDimmed && !isEmphasized) || dimFromInteraction;
@@ -238,7 +251,7 @@ const VariableWidthEdge = ({
           />
         </marker>
       </defs>
-      {pipe?.sourcePortId && pipe.targetPortId && (
+      {pipe && pipeRef && (
         <path
           d={edgePath}
           fill="none"
@@ -251,6 +264,8 @@ const VariableWidthEdge = ({
           aria-pressed={isInspected}
           onMouseEnter={() => setHoveredPipeId(id)}
           onMouseLeave={() => setHoveredPipeId(null)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           onClick={event => {
             event.stopPropagation();
             inspect(event.shiftKey);
@@ -297,6 +312,41 @@ const VariableWidthEdge = ({
           </div>
         </EdgeLabelRenderer>
       )}
+      {pipe?.sourcePortId && pipe.targetPortId && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan absolute"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY - 18}px)`,
+              pointerEvents: 'all',
+            }}
+            onMouseEnter={() => setHoveredPipeId(id)}
+            onMouseLeave={() => {
+              if (!previewOpen) {
+                setHoveredPipeId(null);
+              }
+            }}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+          >
+            <DAGItemActions
+              label={`${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`}
+              pinned={isInspected}
+              visible={isHovered || isFocused || previewOpen}
+              onOpenChange={open => {
+                setPreviewOpen(open);
+                setHoveredPipeId(open ? id : null);
+              }}
+              previewContent={<PipeDetailsBlock pipe={pipe} />}
+              onTogglePin={() => {
+                if (pipeRef) {
+                  toggleInspectedPipe(pipeRef);
+                }
+              }}
+            />
+          </div>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 };
@@ -333,9 +383,9 @@ interface DAGProps {
   height?: string;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
-  /** Controlled selected node IDs. When provided, overrides internal selection state. */
+  /** Controlled pinned operator-detail IDs. When provided, overrides internal detail pins. */
   selectedNodeIds?: string[];
-  /** Called when node selection changes. */
+  /** Called when pinned operator details change. */
   onSelectionChange?: (nodeIds: string[]) => void;
   /** Called when the empty chart background is clicked. */
   onBackgroundClick?: () => void;
@@ -388,6 +438,10 @@ const FlowLayout = ({
   const updateNodeInternals = useUpdateNodeInternals();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
+  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
+  const updateOperatorDetails = useOperatorDetailsActions();
+  const inspectedPipes = useInspectedPipes();
+  const replaceInspectedPipes = useReplaceInspectedPipes();
   const [highlightState] = useHighlightedNodeIds();
   const selectedOperatorIds = useSelectedOperatorIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
@@ -399,7 +453,10 @@ const FlowLayout = ({
   const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
   const isBoxSelecting = useRef(false);
-  const boxSelectedNodes = useRef<Node<QueryPlanNodeData>[]>([]);
+  const boxSelection = useRef<{
+    nodes: Node<QueryPlanNodeData>[];
+    edges: Edge[];
+  }>({ nodes: [], edges: [] });
   const hierarchyOperators = useMemo(() => {
     if (operators) {
       return operators;
@@ -420,33 +477,31 @@ const FlowLayout = ({
     () =>
       [
         ...(controlledSelectedNodeIds === undefined
-          ? selectedOperatorIds
+          ? pinnedOperatorDetailIds
           : controlledSelectedNodeIds),
       ]
         .sort()
         .join('\0'),
-    [controlledSelectedNodeIds, selectedOperatorIds]
+    [controlledSelectedNodeIds, pinnedOperatorDetailIds]
   );
 
   useEffect(() => {
     const operatorIds = new Set(hydratedNodeIdsKey === '' ? [] : hydratedNodeIdsKey.split('\0'));
     const resolved = resolveSelectedOperatorsFromNodes(data.nodes, operatorIds);
     if (controlledSelectedNodeIds !== undefined) {
-      updateOperatorSelection({
-        type: 'replace',
-        selections: [
-          ...resolved.selections,
-          ...[...resolved.unresolvedOperatorIds].map(selectionId => ({
-            selectionId,
-            label: data.nodes.find(node => node.id === selectionId)?.label ?? selectionId,
-            operatorIds: new Set([selectionId]),
-          })),
-        ],
+      updateOperatorDetails({
+        type: 'replaceIds',
+        selectionIds: controlledSelectedNodeIds,
       });
-      return;
     }
-    updateOperatorSelection({ type: 'hydrate', selections: resolved.selections });
-  }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
+    updateOperatorDetails({
+      type: 'hydrate',
+      entries: resolved.selections.map(selection => ({
+        selectionId: selection.selectionId,
+        data: selection.selectedData,
+      })),
+    });
+  }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorDetails]);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {
@@ -536,6 +591,7 @@ const FlowLayout = ({
       source: edge.source,
       target: edge.target,
       type: 'smoothstep',
+      selectable: true,
       // Selection is shown by the edge's own emphasis, not the browser focus box.
       className: 'outline-none focus:outline-none',
       // Pass isDark down to edge components via data
@@ -551,21 +607,39 @@ const FlowLayout = ({
 
   const handleNodeClick = useCallback(
     (event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
-      let nextSelectedIds: Set<string>;
+      const entry = {
+        selectionId: node.id,
+        data: selectedOperatorDataFromFlowNode(node),
+      };
+      const nextSelectedIds = updateOperatorDetails(
+        event.shiftKey ? { type: 'toggle', entry } : { type: 'replace', entries: [entry] }
+      );
       if (!event.shiftKey) {
-        nextSelectedIds = updateOperatorSelection({
-          type: 'replace',
-          selections: [
-            {
-              selectionId: node.id,
-              label: node.data.label,
-              operatorIds: new Set(getSelectionIds(node)),
-              selectedData: selectedOperatorDataFromFlowNode(node),
-            },
-          ],
-        });
-      } else if (selectedOperatorIds.has(node.id)) {
-        nextSelectedIds = updateOperatorSelection({
+        replaceInspectedPipes([]);
+      }
+      onSelectionChange?.([...nextSelectedIds]);
+    },
+    [onSelectionChange, replaceInspectedPipes, updateOperatorDetails]
+  );
+
+  const togglePinnedOperator = useCallback(
+    (node: Node<QueryPlanNodeData>) => {
+      const nextSelectedIds = updateOperatorDetails({
+        type: 'toggle',
+        entry: {
+          selectionId: node.id,
+          data: selectedOperatorDataFromFlowNode(node),
+        },
+      });
+      onSelectionChange?.([...nextSelectedIds]);
+    },
+    [onSelectionChange, updateOperatorDetails]
+  );
+
+  const toggleOperatorFilter = useCallback(
+    (node: Node<QueryPlanNodeData>) => {
+      if (selectedOperatorIds.has(node.id)) {
+        updateOperatorSelection({
           type: 'replace',
           selections: toggleOperatorSelection(
             hierarchyOperators,
@@ -575,7 +649,7 @@ const FlowLayout = ({
           ),
         });
       } else {
-        nextSelectedIds = updateOperatorSelection({
+        updateOperatorSelection({
           type: 'add',
           selectionId: node.id,
           label: node.data.label,
@@ -583,12 +657,10 @@ const FlowLayout = ({
           selectedData: selectedOperatorDataFromFlowNode(node),
         });
       }
-      onSelectionChange?.([...nextSelectedIds]);
     },
     [
       getSelectionIds,
       hierarchyOperators,
-      onSelectionChange,
       operatorSelection.selections,
       selectedOperatorIds,
       updateOperatorSelection,
@@ -597,13 +669,19 @@ const FlowLayout = ({
 
   const handleSelectionStart = useCallback(() => {
     isBoxSelecting.current = true;
-    boxSelectedNodes.current = [];
+    boxSelection.current = { nodes: [], edges: [] };
   }, []);
 
   const handleFlowSelectionChange = useCallback(
-    ({ nodes: selectedNodes }: { nodes: Node<QueryPlanNodeData>[] }) => {
+    ({
+      nodes: selectedNodes,
+      edges: selectedEdges,
+    }: {
+      nodes: Node<QueryPlanNodeData>[];
+      edges: Edge[];
+    }) => {
       if (isBoxSelecting.current) {
-        boxSelectedNodes.current = selectedNodes;
+        boxSelection.current = { nodes: selectedNodes, edges: selectedEdges };
       }
     },
     []
@@ -611,33 +689,23 @@ const FlowLayout = ({
 
   const handleSelectionEnd = useCallback(() => {
     isBoxSelecting.current = false;
-    if (boxSelectedNodes.current.length === 0) {
-      return;
-    }
-
-    const selections = new Map<
-      string,
-      OperatorSelectionInput & { selectedData?: SelectedOperatorGroupData }
-    >(
-      [...operatorSelection.selections.entries()].map(([selectionId, selection]) => [
-        selectionId,
-        { selectionId, ...selection },
-      ])
-    );
-    for (const node of boxSelectedNodes.current) {
-      selections.set(node.id, {
-        selectionId: node.id,
-        label: node.data.label,
-        operatorIds: new Set(getSelectionIds(node)),
-        selectedData: selectedOperatorDataFromFlowNode(node),
-      });
-    }
-    const nextSelectedIds = updateOperatorSelection({
+    const nextSelectedIds = updateOperatorDetails({
       type: 'replace',
-      selections: [...selections.values()],
+      entries: boxSelection.current.nodes.map(node => ({
+        selectionId: node.id,
+        data: selectedOperatorDataFromFlowNode(node),
+      })),
     });
+    replaceInspectedPipes(
+      boxSelection.current.edges.flatMap(edge => {
+        const pipe = (edge.data as { pipe?: DAGEdge } | undefined)?.pipe;
+        return pipe?.sourcePortId && pipe.targetPortId
+          ? [{ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId }]
+          : [];
+      })
+    );
     onSelectionChange?.([...nextSelectedIds]);
-  }, [getSelectionIds, onSelectionChange, operatorSelection.selections, updateOperatorSelection]);
+  }, [onSelectionChange, replaceInspectedPipes, updateOperatorDetails]);
 
   const handlePaneClick = useCallback(() => {
     onBackgroundClick?.();
@@ -670,14 +738,26 @@ const FlowLayout = ({
       return;
     }
     setNodes(current =>
-      current.every(node => node.selected === selectedOperatorIds.has(node.id))
+      current.every(node => node.selected === pinnedOperatorDetailIds.has(node.id))
         ? current
         : current.map(node => {
-            const selected = selectedOperatorIds.has(node.id);
+            const selected = pinnedOperatorDetailIds.has(node.id);
             return node.selected === selected ? node : { ...node, selected };
           })
     );
-  }, [nodes, selectedOperatorIds, setNodes]);
+    setEdges(current =>
+      current.every(edge => {
+        const pipe = (edge.data as { pipe?: DAGEdge } | undefined)?.pipe;
+        return edge.selected === inspectedPipes.some(selected => isSamePipe(selected, pipe));
+      })
+        ? current
+        : current.map(edge => {
+            const pipe = (edge.data as { pipe?: DAGEdge } | undefined)?.pipe;
+            const selected = inspectedPipes.some(candidate => isSamePipe(candidate, pipe));
+            return edge.selected === selected ? edge : { ...edge, selected };
+          })
+    );
+  }, [edges, inspectedPipes, nodes, pinnedOperatorDetailIds, setEdges, setNodes]);
 
   // Calculate and apply layout
   useLayoutEffect(() => {
@@ -730,9 +810,25 @@ const FlowLayout = ({
           hoveredStatValue: dagHeatmap?.values.get(node.id),
           heatmapRange: dagHeatmap?.range,
           highlightedNodeIds,
+          actions: {
+            pinned: pinnedOperatorDetailIds.has(node.id),
+            filtered: getSelectionIds(node).every(id => selectedOperatorIds.has(id)),
+            details: selectedOperatorDataFromFlowNode(node),
+            onTogglePin: () => togglePinnedOperator(node),
+            onToggleFilter: () => toggleOperatorFilter(node),
+          },
         },
       })),
-    [dagHeatmap, highlightedNodeIds, nodes]
+    [
+      dagHeatmap,
+      highlightedNodeIds,
+      getSelectionIds,
+      nodes,
+      pinnedOperatorDetailIds,
+      selectedOperatorIds,
+      toggleOperatorFilter,
+      togglePinnedOperator,
+    ]
   );
   const renderedEdges = useMemo(
     () =>

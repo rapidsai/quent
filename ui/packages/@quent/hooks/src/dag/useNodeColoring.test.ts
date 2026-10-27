@@ -8,6 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { continuousColor } from '@quent/utils';
 import { hoveredPipeIdAtom, inspectedPipeRefsAtom } from '../atoms/pipeInspection';
 import { nodeColoringAtom, selectedScaleTypeAtom } from '../atoms/dagControls';
+import { operatorSelectionActionAtom } from '../atoms/dag';
+import { operatorDetailsActionAtom } from '../atoms/operatorDetails';
 import { isOperatorGroupSelected, useNodeColoring } from './useNodeColoring';
 
 describe('isOperatorGroupSelected', () => {
@@ -83,5 +85,44 @@ describe('useNodeColoring with pipes', () => {
     expect(render('scan', store).result.current.isDimmed).toBe(true);
     store.set(hoveredPipeIdAtom, null);
     expect(render('scan', store).result.current.isDimmed).toBe(false);
+  });
+
+  it('distinguishes pinned details from operator filters', () => {
+    const store = createStore();
+    store.set(operatorSelectionActionAtom, {
+      type: 'add',
+      selectionId: 'filtered',
+      label: 'Filtered',
+      operatorIds: ['filtered'],
+      selectedData: {
+        nodeId: 'filtered',
+        label: 'Filtered',
+        operationType: 'scan',
+        statistics: [],
+      },
+    });
+    store.set(operatorDetailsActionAtom, {
+      type: 'pin',
+      entry: {
+        selectionId: 'pinned',
+        data: {
+          nodeId: 'pinned',
+          label: 'Pinned',
+          operationType: 'join',
+          statistics: [],
+        },
+      },
+    });
+
+    expect(render('filtered', store).result.current).toMatchObject({
+      isFiltered: true,
+      isSelected: false,
+      isDimmed: true,
+    });
+    expect(render('pinned', store).result.current).toMatchObject({
+      isFiltered: false,
+      isSelected: true,
+      isDimmed: false,
+    });
   });
 });

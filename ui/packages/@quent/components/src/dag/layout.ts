@@ -6,7 +6,7 @@ import type { Node, Edge } from '@xyflow/react';
 import { DAG_LAYOUT_DIRECTION, type DagLayoutDirection } from '@quent/utils';
 
 export const NODE_LAYOUT_WIDTH = 200;
-export const NODE_LAYOUT_HEIGHT = 60;
+export const NODE_LAYOUT_HEIGHT = 72;
 
 // NodeFlowBar geometry — these drive both the DAG node height calculation and
 // the inline styles in NodeFlowBar so the two stay in sync automatically.

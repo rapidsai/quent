@@ -66,6 +66,12 @@ function dagNode(page: Page, operatorId: string) {
   return page.locator(`.react-flow__node[data-id="${operatorId}"]`);
 }
 
+async function filterDagNode(page: Page, operatorId: string) {
+  const node = dagNode(page, operatorId);
+  await node.hover();
+  await node.getByRole('button', { name: /^Filter operator / }).click();
+}
+
 function operatorOption(page: Page, label: string, location: string) {
   return page.getByRole('option').filter({ hasText: label }).filter({ hasText: location });
 }
@@ -83,17 +89,14 @@ test('logical operator selection stays synchronized across views and can be clea
   const errors = await openTimeline(page);
   await openOperatorGanttCharts(page);
 
-  await dagNode(page, LOGICAL_AGGREGATE_ID).click();
+  await filterDagNode(page, LOGICAL_AGGREGATE_ID);
 
   await expectSelectedGanttOperators(page, [
     PARTIAL_AGGREGATE_W0_ID,
     FINAL_AGGREGATE_ID,
     PARTIAL_AGGREGATE_W1_ID,
   ]);
-  await expect(page.getByTestId(`operator-accordion-${LOGICAL_AGGREGATE_ID}`)).toBeVisible();
-  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W0_ID}`)).toBeVisible();
-  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toBeVisible();
-  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W1_ID}`)).toBeVisible();
+  await expect(page.getByTestId(`operator-accordion-${LOGICAL_AGGREGATE_ID}`)).toHaveCount(0);
 
   await openEntityOperatorSelect(page);
   await expect(operatorOption(page, 'Aggregate', 'Plan: logical')).toHaveAttribute(
@@ -124,8 +127,8 @@ test('logical operator selection stays synchronized across views and can be clea
   await expect(page.getByRole('button', { name: 'Remove PartialAggregate' })).toBeVisible();
   await expectSelectedGanttOperators(page, [FINAL_AGGREGATE_ID, PARTIAL_AGGREGATE_W1_ID]);
   await expect(page.getByTestId(`operator-accordion-${LOGICAL_AGGREGATE_ID}`)).toHaveCount(0);
-  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toBeVisible();
-  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W1_ID}`)).toBeVisible();
+  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toHaveCount(0);
+  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W1_ID}`)).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Clear all filters' }).click();
   await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
@@ -155,10 +158,10 @@ test('Gantt and entity operator selections stay synchronized with the DAG and de
   await clickGanttAtSecond(worker0Chart, 4.5);
 
   await expectSelectedGanttOperators(page, [PARTIAL_AGGREGATE_W0_ID, FINAL_AGGREGATE_ID]);
-  await expect(dagNode(page, PARTIAL_AGGREGATE_W0_ID).locator('.border-2')).toBeVisible();
-  await expect(dagNode(page, FINAL_AGGREGATE_ID).locator('.border-2')).toBeVisible();
-  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W0_ID}`)).toBeVisible();
-  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toBeVisible();
+  await expect(dagNode(page, PARTIAL_AGGREGATE_W0_ID).locator('.border-2')).toHaveCount(0);
+  await expect(dagNode(page, FINAL_AGGREGATE_ID).locator('.border-2')).toHaveCount(0);
+  await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W0_ID}`)).toHaveCount(0);
+  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toHaveCount(0);
 
   await openEntityOperatorSelect(page);
   const partialAggregate = operatorOption(page, 'PartialAggregate', 'Worker: worker-0');
@@ -169,9 +172,9 @@ test('Gantt and entity operator selections stay synchronized with the DAG and de
   await partialAggregate.click();
   await expect(partialAggregate).toHaveAttribute('aria-selected', 'false');
   await expect(dagNode(page, PARTIAL_AGGREGATE_W0_ID).locator('.border-2')).toHaveCount(0);
-  await expect(dagNode(page, FINAL_AGGREGATE_ID).locator('.border-2')).toBeVisible();
+  await expect(dagNode(page, FINAL_AGGREGATE_ID).locator('.border-2')).toHaveCount(0);
   await expect(page.getByTestId(`operator-accordion-${PARTIAL_AGGREGATE_W0_ID}`)).toHaveCount(0);
-  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toBeVisible();
+  await expect(page.getByTestId(`operator-accordion-${FINAL_AGGREGATE_ID}`)).toHaveCount(0);
 
   await finalAggregate.click();
   await expect(finalAggregate).toHaveAttribute('aria-selected', 'false');
@@ -191,6 +194,7 @@ test('DAG clicks replace selection unless Shift is held', async ({ page }) => {
   const finalAggregate = dagNode(page, FINAL_AGGREGATE_ID);
 
   await logicalAggregate.click();
+  await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
   await finalAggregate.click();
   await expect(logicalAggregate.locator('.border-2')).toHaveCount(0);
   await expect(finalAggregate.locator('.border-2')).toBeVisible();
@@ -209,7 +213,7 @@ test('Clear stays visible and clickable when the operator chip is wider than the
   page,
 }) => {
   const errors = await openTimeline(page);
-  await dagNode(page, LOGICAL_AGGREGATE_ID).click();
+  await filterDagNode(page, LOGICAL_AGGREGATE_ID);
   await expect(page.getByRole('button', { name: 'Remove Aggregate' })).toBeVisible();
 
   // A narrow window gives the same result as a very long operator label.

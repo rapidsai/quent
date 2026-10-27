@@ -5,7 +5,7 @@ import { Fragment, useEffect } from 'react';
 import {
   useInspectedPipeNodes,
   useSetHighlightedNodeIds,
-  useOperatorSelectionActions,
+  useOperatorDetailsActions,
 } from '@quent/hooks';
 import type { DAGEdge, DAGNode } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
@@ -24,10 +24,17 @@ export interface PipeDetailsBlockProps {
 export function PipeDetailsBlock({ pipe, open, onOpenChange }: PipeDetailsBlockProps) {
   const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
-  const updateSelection = useOperatorSelectionActions();
+  const updateDetails = useOperatorDetailsActions();
   const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
-      updateSelection({ type: 'add', ...operatorSelectionFromNode(node) });
+      const selection = operatorSelectionFromNode(node);
+      updateDetails({
+        type: 'pin',
+        entry: {
+          selectionId: selection.selectionId,
+          data: selection.selectedData,
+        },
+      });
     }
   };
   useEffect(

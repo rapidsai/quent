@@ -8,8 +8,8 @@ import {
   useDataFlowFrame,
   useDataFlowIsPlaying,
   useDataFlowMeta,
-  useInspectedPipes,
-  useSelectedOperatorsData,
+  useDisplayedOperatorDetails,
+  useDisplayedPipeDetails,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
 import { OperatorDataFlowBlock, OperatorDetailsBlock, PipeDetailsBlock } from '../node-info';
@@ -29,8 +29,10 @@ export const DAGNodeInfoPanel = ({
   onExpandedChange?: (expanded: boolean) => void;
   onPreferredHeightChange?: (height: number) => void;
 }) => {
-  const inspectedPipes = useInspectedPipes();
-  const selectedOperators = useSelectedOperatorsData();
+  const operatorDetails = useDisplayedOperatorDetails();
+  const pipeDetails = useDisplayedPipeDetails();
+  const selectedOperators = operatorDetails.map(detail => detail.data);
+  const inspectedPipes = pipeDetails.map(detail => detail.pipe);
   const dataFlowEnabled = useDataFlowEnabled();
   const isPlaying = useDataFlowIsPlaying();
   const dataFlowMeta = useDataFlowMeta();
@@ -103,6 +105,7 @@ export const DAGNodeInfoPanel = ({
     setClosedOperatorIds(new Set());
     if (selectedOperators.length > prevOperatorCount) {
       setActiveTab('stats');
+      setIsExpanded(true);
     }
   }
 
@@ -136,10 +139,10 @@ export const DAGNodeInfoPanel = ({
 
   const statsContent = showStatsTab ? (
     <div ref={statsContentRef} className="flex flex-col gap-1 pt-1.5">
-      {selectedOperators.map((operator, index) => (
-        <div key={operator.nodeId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
+      {operatorDetails.map((detail, index) => (
+        <div key={detail.selectionId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
           <OperatorDetailsBlock
-            operator={operator}
+            operator={detail.data}
             quantitySpecs={quantitySpecs}
             isOpen={isOperatorOpen}
             onOpenChange={setOperatorOpen}
@@ -151,12 +154,12 @@ export const DAGNodeInfoPanel = ({
 
   const pipesContent = showPipesTab ? (
     <div ref={pipesContentRef} className="flex flex-col gap-1 pt-1.5">
-      {inspectedPipes.map((pipe, index) => (
-        <div key={pipe.id} className={index > 0 ? 'border-t pt-3 mt-3' : ''}>
+      {pipeDetails.map((detail, index) => (
+        <div key={detail.pipe.id} className={index > 0 ? 'border-t pt-3 mt-3' : ''}>
           <PipeDetailsBlock
-            pipe={pipe}
-            open={isOperatorOpen(pipe.id)}
-            onOpenChange={open => setOperatorOpen(pipe.id, open)}
+            pipe={detail.pipe}
+            open={isOperatorOpen(detail.pipe.id)}
+            onOpenChange={open => setOperatorOpen(detail.pipe.id, open)}
           />
         </div>
       ))}
