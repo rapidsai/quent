@@ -33,7 +33,6 @@ scripts = ["integrations/nvtx/activate-bindgen.sh"]
 
 [activation.env]
 RUSTC_WRAPPER = "sccache"
-SCCACHE_IGNORE_SERVER_IO_ERROR = "1"
 
 [tasks]
 # clang-format needs an explicit file list; Git excludes ignored build output and dependencies.
