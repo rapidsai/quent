@@ -254,6 +254,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
           label={data.label}
           pinned={data.actions.pinned}
           filtered={data.actions.filtered}
+          backgroundColor={heatmapColor ?? activeColor}
           className="-mx-4 -mb-2 mt-2 w-[calc(100%+2rem)] overflow-hidden rounded-b-md border-t"
           previewContent={
             <OperatorDetailsBlock

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Eye, Filter, Pin } from 'lucide-react';
 import { cn } from '@quent/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -12,6 +12,7 @@ interface DAGItemActionsProps {
   filtered?: boolean;
   visible?: boolean;
   className?: string;
+  backgroundColor?: string;
   onOpenChange?: (open: boolean) => void;
   previewContent: ReactNode;
   onTogglePin: () => void;
@@ -25,13 +26,17 @@ export function DAGItemActions({
   filtered,
   visible = false,
   className,
+  backgroundColor = 'hsl(var(--primary))',
   onOpenChange,
   previewContent,
   onTogglePin,
   onToggleFilter,
 }: DAGItemActionsProps) {
   const actionClass =
-    'flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90';
+    'flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 px-1.5 py-1 text-[10px] font-medium text-foreground transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring';
+  const actionStyle = (selected: boolean): CSSProperties => ({
+    backgroundColor: `color-mix(in srgb, ${backgroundColor} ${selected ? 42 : 14}%, transparent)`,
+  });
 
   return (
     <div
@@ -48,7 +53,12 @@ export function DAGItemActions({
     >
       <Popover onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>
-          <button type="button" className={actionClass} aria-label={`Preview details for ${label}`}>
+          <button
+            type="button"
+            className={actionClass}
+            style={actionStyle(false)}
+            aria-label={`Preview details for ${label}`}
+          >
             <Eye className="size-3" />
             <span>Preview</span>
           </button>
@@ -66,6 +76,7 @@ export function DAGItemActions({
       <button
         type="button"
         className={actionClass}
+        style={actionStyle(pinned)}
         aria-label={`Pin details for ${label}`}
         aria-pressed={pinned}
         onClick={onTogglePin}
@@ -77,6 +88,7 @@ export function DAGItemActions({
         <button
           type="button"
           className={actionClass}
+          style={actionStyle(filtered ?? false)}
           aria-label={`Filter operator ${label}`}
           aria-pressed={filtered ?? false}
           onClick={onToggleFilter}

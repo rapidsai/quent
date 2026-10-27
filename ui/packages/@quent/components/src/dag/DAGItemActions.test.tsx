@@ -52,6 +52,7 @@ describe('DAGItemActions', () => {
         pinned
         filtered
         visible
+        backgroundColor="#123456"
         previewContent={<div>Pipe preview</div>}
         onTogglePin={() => undefined}
       />
@@ -59,7 +60,12 @@ describe('DAGItemActions', () => {
 
     const pin = screen.getByRole('button', { name: 'Pin details for out to in' });
     expect(pin).toHaveAttribute('aria-pressed', 'true');
-    expect(pin).toHaveClass('aria-pressed:bg-primary', 'aria-pressed:text-primary-foreground');
+    expect(pin.getAttribute('style')).toContain(
+      'color-mix(in srgb, rgb(18, 52, 86) 42%, transparent)'
+    );
+    expect(
+      screen.getByRole('button', { name: 'Preview details for out to in' }).getAttribute('style')
+    ).toContain('color-mix(in srgb, rgb(18, 52, 86) 14%, transparent)');
     expect(screen.queryByRole('button', { name: /filter/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Preview details for out to in' }));
