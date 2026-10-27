@@ -37,6 +37,7 @@ import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 import { getNodeOpacityClass } from './nodeOpacity';
 import { DAGItemActions } from '../dag/DAGItemActions';
+import { DAGItemStatus } from '../dag/DAGItemStatus';
 import { useDAGPreview } from '../dag/DAGPreviewContext';
 import { OperatorDetailsBlock } from '../node-info/OperatorDetailsBlock';
 
@@ -223,6 +224,14 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         } as React.CSSProperties
       }
     >
+      {data.actions && (
+        <DAGItemStatus
+          label={data.label}
+          pinned={data.actions.pinned}
+          filtered={data.actions.filtered}
+          className="absolute right-1 top-1 z-20"
+        />
+      )}
       {data.hasIncoming && (
         <Handle type="target" position={incomingHandlePosition} className="w-2 h-2 opacity-0" />
       )}
@@ -231,6 +240,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         as="div"
         className={cn('text-sm break-words text-center font-normal', {
           'font-bold': data.operationType === 'stage' || isSelected,
+          'px-5': data.actions?.pinned || data.actions?.filtered,
         })}
       >
         {resolvedLabel}

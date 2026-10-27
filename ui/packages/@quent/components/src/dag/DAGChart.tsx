@@ -60,6 +60,7 @@ import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNo
 import { DAGClearSelection } from './DAGClearSelection';
 import { DAGLegend } from './DAGLegend';
 import { DAGItemActions } from './DAGItemActions';
+import { DAGItemStatus } from './DAGItemStatus';
 import { DAGPreviewProvider, useDAGPreview } from './DAGPreviewContext';
 import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
@@ -121,6 +122,9 @@ const VariableWidthEdge = ({
   const { activePreviewId, setActivePreviewId } = useDAGPreview();
   const previewId = `edge:${id}`;
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
+  const pipeLabel = pipe
+    ? `${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`
+    : id;
   const pipeRef =
     pipe?.sourcePortId && pipe.targetPortId
       ? { sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId }
@@ -334,7 +338,7 @@ const VariableWidthEdge = ({
             onBlur={() => setIsFocused(false)}
           >
             <DAGItemActions
-              label={`${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`}
+              label={pipeLabel}
               pinned={isInspected}
               visible={isHovered || isFocused || activePreviewId === previewId}
               className="overflow-hidden rounded-md border border-border/70"
@@ -350,6 +354,19 @@ const VariableWidthEdge = ({
                 }
               }}
             />
+          </div>
+        </EdgeLabelRenderer>
+      )}
+      {pipe && isInspected && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan absolute"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX + 14}px,${labelY + 14}px)`,
+              pointerEvents: 'none',
+            }}
+          >
+            <DAGItemStatus label={pipeLabel} pinned />
           </div>
         </EdgeLabelRenderer>
       )}

@@ -277,8 +277,12 @@ describe('DAGChart selection', () => {
     fireEvent.click(pipes[0]);
     expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
+    expect(screen.getByRole('status', { name: 'source-out to middle-in: pinned' })).toBeVisible();
     fireEvent.click(pipes[0]);
     expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
+    expect(
+      screen.queryByRole('status', { name: 'source-out to middle-in: pinned' })
+    ).not.toBeInTheDocument();
 
     fireEvent.click(pipes[1]);
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('second-pipe');
