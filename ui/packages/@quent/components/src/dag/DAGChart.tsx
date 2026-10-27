@@ -45,6 +45,8 @@ import {
   useHoveredPipeId,
   useSetHoveredPipeId,
   useInspectedPipes,
+  useAddInspectedPipe,
+  useClearInspectedPipes,
   useToggleInspectedPipe,
   useSyncDisplayedPipes,
   COLOR_REGISTRY_KEYS,
@@ -69,6 +71,7 @@ import {
   type Operator,
   type StatisticField,
   type QuantitySpec,
+  type OperatorSelectionInput,
   type SelectedOperatorGroupData,
   normalizeScaleValue,
 } from '@quent/utils';
@@ -107,6 +110,8 @@ const VariableWidthEdge = ({
   const inspectedPipes = useInspectedPipes();
   const hoveredPipeId = useHoveredPipeId();
   const setHoveredPipeId = useSetHoveredPipeId();
+  const addInspectedPipe = useAddInspectedPipe();
+  const clearInspectedPipes = useClearInspectedPipes();
   const toggleInspectedPipe = useToggleInspectedPipe();
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
   const isHovered = hoveredPipeId === id;
@@ -116,9 +121,15 @@ const VariableWidthEdge = ({
     () => new Set(inspectedPipes.map(inspected => inspected.id)),
     [inspectedPipes]
   );
-  const inspect = () => {
+  const inspect = (multiSelect: boolean) => {
     if (pipe?.sourcePortId && pipe.targetPortId) {
-      toggleInspectedPipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
+      const ref = { sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId };
+      if (multiSelect) {
+        toggleInspectedPipe(ref);
+      } else {
+        clearInspectedPipes();
+        addInspectedPipe(ref);
+      }
     }
   };
   const edgeWidthConfig = useEdgeWidthConfig();
@@ -242,13 +253,13 @@ const VariableWidthEdge = ({
           onMouseLeave={() => setHoveredPipeId(null)}
           onClick={event => {
             event.stopPropagation();
-            inspect();
+            inspect(event.shiftKey);
           }}
           onKeyDown={event => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
               event.stopPropagation();
-              inspect();
+              inspect(event.shiftKey);
             }
           }}
         >
@@ -387,6 +398,8 @@ const FlowLayout = ({
   // so toggling the overlay relayouts exactly once.
   const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
+  const isBoxSelecting = useRef(false);
+  const boxSelectedNodes = useRef<Node<QueryPlanNodeData>[]>([]);
   const hierarchyOperators = useMemo(() => {
     if (operators) {
       return operators;
@@ -537,9 +550,21 @@ const FlowLayout = ({
   }, [data, isDark, layoutDirection, flowBarVisible]);
 
   const handleNodeClick = useCallback(
-    (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
+    (event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
       let nextSelectedIds: Set<string>;
-      if (selectedOperatorIds.has(node.id)) {
+      if (!event.shiftKey) {
+        nextSelectedIds = updateOperatorSelection({
+          type: 'replace',
+          selections: [
+            {
+              selectionId: node.id,
+              label: node.data.label,
+              operatorIds: new Set(getSelectionIds(node)),
+              selectedData: selectedOperatorDataFromFlowNode(node),
+            },
+          ],
+        });
+      } else if (selectedOperatorIds.has(node.id)) {
         nextSelectedIds = updateOperatorSelection({
           type: 'replace',
           selections: toggleOperatorSelection(
@@ -570,6 +595,50 @@ const FlowLayout = ({
     ]
   );
 
+  const handleSelectionStart = useCallback(() => {
+    isBoxSelecting.current = true;
+    boxSelectedNodes.current = [];
+  }, []);
+
+  const handleFlowSelectionChange = useCallback(
+    ({ nodes: selectedNodes }: { nodes: Node<QueryPlanNodeData>[] }) => {
+      if (isBoxSelecting.current) {
+        boxSelectedNodes.current = selectedNodes;
+      }
+    },
+    []
+  );
+
+  const handleSelectionEnd = useCallback(() => {
+    isBoxSelecting.current = false;
+    if (boxSelectedNodes.current.length === 0) {
+      return;
+    }
+
+    const selections = new Map<
+      string,
+      OperatorSelectionInput & { selectedData?: SelectedOperatorGroupData }
+    >(
+      [...operatorSelection.selections.entries()].map(([selectionId, selection]) => [
+        selectionId,
+        { selectionId, ...selection },
+      ])
+    );
+    for (const node of boxSelectedNodes.current) {
+      selections.set(node.id, {
+        selectionId: node.id,
+        label: node.data.label,
+        operatorIds: new Set(getSelectionIds(node)),
+        selectedData: selectedOperatorDataFromFlowNode(node),
+      });
+    }
+    const nextSelectedIds = updateOperatorSelection({
+      type: 'replace',
+      selections: [...selections.values()],
+    });
+    onSelectionChange?.([...nextSelectedIds]);
+  }, [getSelectionIds, onSelectionChange, operatorSelection.selections, updateOperatorSelection]);
+
   const handlePaneClick = useCallback(() => {
     onBackgroundClick?.();
   }, [onBackgroundClick]);
@@ -595,6 +664,20 @@ const FlowLayout = ({
   useEffect(() => {
     updateNodeInternals(nodes.map(node => node.id));
   }, [nodes, updateNodeInternals]);
+
+  useEffect(() => {
+    if (isBoxSelecting.current) {
+      return;
+    }
+    setNodes(current =>
+      current.every(node => node.selected === selectedOperatorIds.has(node.id))
+        ? current
+        : current.map(node => {
+            const selected = selectedOperatorIds.has(node.id);
+            return node.selected === selected ? node : { ...node, selected };
+          })
+    );
+  }, [nodes, selectedOperatorIds, setNodes]);
 
   // Calculate and apply layout
   useLayoutEffect(() => {
@@ -671,8 +754,14 @@ const FlowLayout = ({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
+      onSelectionStart={handleSelectionStart}
+      onSelectionChange={handleFlowSelectionChange}
+      onSelectionEnd={handleSelectionEnd}
       onPaneClick={handlePaneClick}
       onMoveStart={handleMoveStart}
+      selectionKeyCode="Shift"
+      multiSelectionKeyCode="Shift"
+      className="[&_.react-flow__nodesselection]:hidden"
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}

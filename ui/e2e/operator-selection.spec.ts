@@ -185,6 +185,26 @@ test('Gantt and entity operator selections stay synchronized with the DAG and de
   await expectNoErrors(page, errors, allowedMissingNvtxCatalogErrors);
 });
 
+test('DAG clicks replace selection unless Shift is held', async ({ page }) => {
+  const errors = await openTimeline(page);
+  const logicalAggregate = dagNode(page, LOGICAL_AGGREGATE_ID);
+  const finalAggregate = dagNode(page, FINAL_AGGREGATE_ID);
+
+  await logicalAggregate.click();
+  await finalAggregate.click();
+  await expect(logicalAggregate.locator('.border-2')).toHaveCount(0);
+  await expect(finalAggregate.locator('.border-2')).toBeVisible();
+
+  await logicalAggregate.click({ modifiers: ['Shift'] });
+  await expect(logicalAggregate.locator('.border-2')).toBeVisible();
+  await expect(finalAggregate.locator('.border-2')).toBeVisible();
+
+  await finalAggregate.click({ modifiers: ['Shift'] });
+  await expect(logicalAggregate.locator('.border-2')).toBeVisible();
+  await expect(finalAggregate.locator('.border-2')).toHaveCount(0);
+  await expectNoErrors(page, errors, allowedMissingNvtxCatalogErrors);
+});
+
 test('Clear stays visible and clickable when the operator chip is wider than the filter bar', async ({
   page,
 }) => {

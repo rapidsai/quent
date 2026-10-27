@@ -31,8 +31,8 @@ test('operators and pipes are selected independently of each other', async ({ pa
   await expect(clearAll).toBeVisible();
   await expect(selectedLook).toHaveCount(1);
 
-  // Clicking a selected node deselects only that node. The pipe stays inspected.
-  await node.click();
+  // Shift-clicking a selected node deselects only that node. The pipe stays inspected.
+  await node.click({ modifiers: ['Shift'] });
   await expect(clearAll).toHaveCount(0);
   await expect(selectedLook).toHaveCount(0);
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
@@ -57,7 +57,7 @@ test('selecting a pipe de-emphasizes everything else without selecting any opera
   // Every node is dimmed, the pipe's endpoints included.
   await expect(dimmed).toHaveCount(await nodes.count());
 
-  await pipe.press('Enter');
+  await pipe.press('Shift+Enter');
   await expect(dimmed).toHaveCount(0);
 });
 
@@ -76,7 +76,7 @@ test('a pipe closes when activated again, leaving operators alone', async ({ pag
   await expect(pipeDetailsTab(page)).toBeVisible();
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
 
-  await pipe.press('Enter');
+  await pipe.press('Shift+Enter');
   await expect(pipeDetailsTab(page)).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(0);
   await expect(pipe).toHaveAttribute('aria-pressed', 'false');
@@ -97,15 +97,16 @@ test('pipes are deselected one at a time or all at once from the details panel',
   const pipes = page.getByRole('button', { name: /^Inspect pipe / });
   const first = pipes.nth(0);
   const second = pipes.nth(1);
-  for (const pipe of [first, second]) {
-    await pipe.focus();
-    await pipe.press('Enter');
-    await expect(pipe).toHaveAttribute('aria-pressed', 'true');
-  }
+  await first.focus();
+  await first.press('Enter');
+  await expect(first).toHaveAttribute('aria-pressed', 'true');
+  await second.focus();
+  await second.press('Shift+Enter');
+  await expect(second).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(2);
 
-  // Pressing a selected pipe again deselects only that pipe.
-  await first.press('Enter');
+  // Shift+Enter on a selected pipe deselects only that pipe.
+  await first.press('Shift+Enter');
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(1);
   await expect(first).toHaveAttribute('aria-pressed', 'false');
   await expect(second).toHaveAttribute('aria-pressed', 'true');
@@ -197,7 +198,7 @@ test('keyboard pipe inspection preserves operator filters and renders nested end
   ).toBeVisible();
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
   await expect(clearAll).toBeVisible();
-  await node.click();
+  await node.click({ modifiers: ['Shift'] });
   await expect(clearAll).toHaveCount(0);
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
 });

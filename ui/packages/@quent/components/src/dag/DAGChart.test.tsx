@@ -1,15 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type ComponentType, type ReactNode } from 'react';
+import { type ComponentType, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
-import type { Edge, EdgeProps } from '@xyflow/react';
+import type { Edge, EdgeProps, Node } from '@xyflow/react';
 import {
   useDagEdgeColoring,
   useDagEdgeWidthConfig,
   useEdgeColorPalette,
+  useInspectedPipes,
+  useSelectedOperatorIds,
   useSelectedEdgeColorField,
   useSelectedScaleType,
   useSelectedEdgeWidthField,
@@ -39,15 +41,50 @@ vi.mock('@xyflow/react', async importOriginal => {
     MiniMap: () => null,
     Panel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     ReactFlow: ({
+      nodes = [],
       edges,
       edgeTypes,
       children,
+      onNodeClick,
+      onSelectionStart,
+      onSelectionChange,
+      onSelectionEnd,
+      selectionKeyCode,
+      multiSelectionKeyCode,
     }: {
+      nodes?: Node[];
       edges: Edge[];
       edgeTypes: Record<string, ComponentType<EdgeProps>>;
       children: ReactNode;
+      onNodeClick?: (event: ReactMouseEvent, node: Node) => void;
+      onSelectionStart?: () => void;
+      onSelectionChange?: (selection: { nodes: Node[]; edges: Edge[] }) => void;
+      onSelectionEnd?: () => void;
+      selectionKeyCode?: string;
+      multiSelectionKeyCode?: string;
     }) => (
-      <div>
+      <div
+        data-testid="flow"
+        data-selection-key={selectionKeyCode}
+        data-multi-selection-key={multiSelectionKeyCode}
+      >
+        {nodes.map(node => (
+          <button
+            key={node.id}
+            type="button"
+            onClick={event => onNodeClick?.(event, node)}
+          >{`Select ${node.id}`}</button>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            onSelectionStart?.();
+            onSelectionChange?.({ nodes, edges: [] });
+            onSelectionEnd?.();
+          }}
+        >
+          Box select all
+        </button>
         <svg>
           {edges.map(edge => {
             const EdgeComponent = edgeTypes[edge.type ?? 'default'];
@@ -89,6 +126,56 @@ const data: DAGData = {
   queryData: [],
 };
 
+const selectionData: DAGData = {
+  nodes: [
+    { id: 'first', label: 'First', type: 'scan' },
+    { id: 'second', label: 'Second', type: 'filter' },
+  ],
+  edges: [],
+  queryData: [],
+};
+
+const pipeData: DAGData = {
+  nodes: [
+    { id: 'source', label: 'Source', type: 'scan' },
+    { id: 'middle', label: 'Middle', type: 'filter' },
+    { id: 'target', label: 'Target', type: 'output' },
+  ],
+  edges: [
+    {
+      id: 'first-pipe',
+      source: 'source',
+      target: 'middle',
+      sourcePortId: 'source-out',
+      targetPortId: 'middle-in',
+    },
+    {
+      id: 'second-pipe',
+      source: 'middle',
+      target: 'target',
+      sourcePortId: 'middle-out',
+      targetPortId: 'target-in',
+    },
+  ],
+  queryData: [],
+};
+
+function SelectionProbe() {
+  const selectedOperatorIds = useSelectedOperatorIds();
+  const inspectedPipes = useInspectedPipes();
+  return (
+    <>
+      <span data-testid="selected-operators">{[...selectedOperatorIds].sort().join(',')}</span>
+      <span data-testid="selected-pipes">
+        {inspectedPipes
+          .map(pipe => pipe.id)
+          .sort()
+          .join(',')}
+      </span>
+    </>
+  );
+}
+
 function EdgeConfiguration() {
   const [, setColorField] = useSelectedEdgeColorField();
   const [, setWidthField] = useSelectedEdgeWidthField();
@@ -111,6 +198,66 @@ function EdgeConfiguration() {
     </>
   );
 }
+
+describe('DAGChart selection', () => {
+  it('replaces node selection on click and toggles it on Shift+click', async () => {
+    render(
+      <Provider store={createStore()}>
+        <SelectionProbe />
+        <DAGChart data={selectionData} isDark={false} />
+      </Provider>
+    );
+
+    const first = await screen.findByRole('button', { name: 'Select first' });
+    const second = screen.getByRole('button', { name: 'Select second' });
+
+    fireEvent.click(first);
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
+    fireEvent.click(second);
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('second');
+
+    fireEvent.click(first, { shiftKey: true });
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
+    fireEvent.click(second, { shiftKey: true });
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
+  });
+
+  it('uses Shift for native box and click multi-selection', async () => {
+    render(
+      <Provider store={createStore()}>
+        <SelectionProbe />
+        <DAGChart data={selectionData} isDark={false} />
+      </Provider>
+    );
+
+    const flow = screen.getByTestId('flow');
+    expect(flow).toHaveAttribute('data-selection-key', 'Shift');
+    expect(flow).toHaveAttribute('data-multi-selection-key', 'Shift');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Box select all' }));
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
+  });
+
+  it('replaces pipe selection on click and toggles it on Shift+click', async () => {
+    render(
+      <Provider store={createStore()}>
+        <SelectionProbe />
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    const pipes = await screen.findAllByRole('button', { name: /^Inspect pipe / });
+    fireEvent.click(pipes[0]);
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
+    fireEvent.click(pipes[1]);
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('second-pipe');
+
+    fireEvent.click(pipes[0], { shiftKey: true });
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe,second-pipe');
+    fireEvent.click(pipes[1], { shiftKey: true });
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
+  });
+});
 
 describe('DAGChart edge scaling', () => {
   it('renders width and color at the same logarithmic positions and identifies the legend scale', async () => {
