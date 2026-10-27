@@ -177,14 +177,14 @@ function FilterOnly() {
 }
 
 describe('DAGNodeInfoPanel', () => {
-  it('does not show filtered operators as details', () => {
+  it('shows filtered operators in details by default', () => {
     render(
       <Provider>
         <FilterOnly />
       </Provider>
     );
-    expect(screen.queryByTestId('operator-accordion-scan')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Toggle details' })).toBeDisabled();
+    expect(screen.getByTestId('operator-accordion-scan')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Toggle details' })).toBeEnabled();
   });
 
   it('reports expansion changes to its layout container', async () => {

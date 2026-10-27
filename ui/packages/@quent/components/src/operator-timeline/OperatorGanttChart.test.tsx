@@ -99,7 +99,7 @@ function SelectionControls() {
 
 describe('OperatorGanttChart', () => {
   it.each(['plan', 'worker'])(
-    'filters without opening details when an operator is selected from the %s timeline',
+    'filters and opens details when an operator is selected from the %s timeline',
     scope => {
       const operator: Operator = {
         ...makeOperator('scan'),
@@ -140,8 +140,8 @@ describe('OperatorGanttChart', () => {
       });
 
       expect(screen.getByTestId('selection-ids')).toHaveTextContent(JSON.stringify(['scan']));
-      expect(screen.queryByRole('heading', { name: 'Attributes' })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Toggle details' })).toBeDisabled();
+      expect(screen.getByRole('heading', { name: 'Attributes' })).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Toggle details' })).toBeEnabled();
     }
   );
 
@@ -190,14 +190,14 @@ describe('OperatorGanttChart', () => {
     expect(
       screen.getByRole('group', { name: 'Operator Gantt chart: parent, other' })
     ).toHaveAttribute('data-selected-operator-ids', 'other parent');
-    expect(screen.queryByTestId('operator-accordion-parent')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('operator-accordion-other')).not.toBeInTheDocument();
+    expect(screen.getByTestId('operator-accordion-parent')).toBeVisible();
+    expect(screen.getByTestId('operator-accordion-other')).toBeVisible();
 
     clickBar(0);
     expect(screen.getByTestId('selection-ids')).toHaveTextContent(JSON.stringify(['other']));
     expect(screen.getByTestId('selection-groups')).toHaveTextContent(JSON.stringify(['other']));
     expect(screen.queryByTestId('operator-accordion-parent')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('operator-accordion-other')).not.toBeInTheDocument();
+    expect(screen.getByTestId('operator-accordion-other')).toBeVisible();
   });
 
   it('splits a selected parent when a covered child is deselected', () => {
@@ -246,7 +246,7 @@ describe('OperatorGanttChart', () => {
     expect(screen.getByTestId('selected-operators')).toHaveTextContent(JSON.stringify(['right']));
     expect(screen.queryByRole('button', { name: 'Remove parent' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove right' })).toBeInTheDocument();
-    expect(screen.queryByTestId('operator-accordion-right')).not.toBeInTheDocument();
+    expect(screen.getByTestId('operator-accordion-right')).toBeVisible();
     expect(screen.queryByTestId('operator-accordion-parent')).not.toBeInTheDocument();
   });
 });

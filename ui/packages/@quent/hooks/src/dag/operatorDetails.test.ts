@@ -8,6 +8,7 @@ import {
   operatorDetailsActionAtom,
   pinnedOperatorDetailsAtom,
 } from '../atoms/operatorDetails';
+import { selectedOperatorsDataAtom } from '../atoms/dagControls';
 
 const scan = {
   nodeId: 'scan',
@@ -78,5 +79,32 @@ describe('operator details', () => {
     });
     store.set(operatorDetailsActionAtom, { type: 'unpin', selectionId: 'scan' });
     expect(store.get(displayedOperatorDetailsAtom)).toEqual([{ selectionId: 'join', data: join }]);
+  });
+
+  it('combines pins and filters without duplicating an operator', () => {
+    const store = createStore();
+    store.set(
+      selectedOperatorsDataAtom,
+      new Map([
+        ['filtered-scan', scan],
+        ['join', join],
+      ])
+    );
+    const pinnedScan = { ...scan, label: 'Pinned Scan' };
+    store.set(operatorDetailsActionAtom, {
+      type: 'pin',
+      entry: { selectionId: 'dag-scan', data: pinnedScan },
+    });
+
+    expect(store.get(displayedOperatorDetailsAtom)).toEqual([
+      { selectionId: 'dag-scan', data: pinnedScan },
+      { selectionId: 'join', data: join },
+    ]);
+
+    store.set(operatorDetailsActionAtom, { type: 'clear' });
+    expect(store.get(displayedOperatorDetailsAtom)).toEqual([
+      { selectionId: 'filtered-scan', data: scan },
+      { selectionId: 'join', data: join },
+    ]);
   });
 });

@@ -3,6 +3,7 @@
 
 import { atom } from 'jotai';
 import type { SelectedOperatorGroupData } from '@quent/utils';
+import { selectedOperatorsDataAtom } from './dagControls';
 
 export interface OperatorDetailEntry {
   selectionId: string;
@@ -27,11 +28,23 @@ export const pinnedOperatorDetailIdsAtom = atom(
   get => new Set(get(pinnedOperatorDetailsAtom).keys())
 );
 
-export const displayedOperatorDetailsAtom = atom<OperatorDetailEntry[]>(get =>
-  [...get(pinnedOperatorDetailsAtom)].flatMap(([selectionId, data]) =>
-    data ? [{ selectionId, data }] : []
-  )
-);
+export const displayedOperatorDetailsAtom = atom<OperatorDetailEntry[]>(get => {
+  const details = new Map<string, SelectedOperatorGroupData>();
+  const nodeIds = new Set<string>();
+  for (const [selectionId, data] of get(pinnedOperatorDetailsAtom)) {
+    if (data) {
+      details.set(selectionId, data);
+      nodeIds.add(data.nodeId);
+    }
+  }
+  for (const [selectionId, data] of get(selectedOperatorsDataAtom)) {
+    if (!details.has(selectionId) && !nodeIds.has(data.nodeId)) {
+      details.set(selectionId, data);
+      nodeIds.add(data.nodeId);
+    }
+  }
+  return [...details].map(([selectionId, data]) => ({ selectionId, data }));
+});
 
 export const operatorDetailsActionAtom = atom(
   null,

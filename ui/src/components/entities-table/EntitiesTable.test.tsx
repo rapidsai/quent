@@ -283,7 +283,7 @@ describe('EntitiesTable', () => {
     expect(params.request.entry.application.operator_ids).toEqual([]);
   });
 
-  it('keeps operator filters independent from global details', () => {
+  it('shows operator filters in global details without DAG hydration', () => {
     renderTable(
       <>
         <DAGNodeInfoPanel />
@@ -298,8 +298,8 @@ describe('EntitiesTable', () => {
     expect(screen.getByTestId('selected-operator-ids')).toHaveTextContent(
       JSON.stringify(['operator-1'])
     );
-    expect(screen.queryByTestId('operator-accordion-operator-1')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Toggle details' })).toBeDisabled();
+    expect(screen.getByTestId('operator-accordion-operator-1')).toHaveTextContent('Operator One');
+    expect(screen.getByRole('button', { name: 'Toggle details' })).toBeEnabled();
   });
 
   it('supports selecting multiple operators from the dropdown', () => {
