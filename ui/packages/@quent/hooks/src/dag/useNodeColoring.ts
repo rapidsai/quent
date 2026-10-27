@@ -85,10 +85,9 @@ export function useNodeColoring(
   const hasFilter = selectedOperatorIds.size > 0;
   const hasDetailsSelection =
     pinnedOperatorDetailIds.size > 0 || hasInspectedPipes || hasHoveredPipe;
+  const isActive = isSelected || isFiltered;
   const isDimmed =
-    (fieldDimmed && !isSelected) ||
-    (hasFilter && !isFiltered && !isSelected) ||
-    (hasDetailsSelection && !isSelected);
+    (fieldDimmed && !isActive) || (hasFilter && !isActive) || (hasDetailsSelection && !isActive);
 
   return { fieldColor, fieldDimmed, isDimmed, isSelected, isFiltered, colorField };
 }
