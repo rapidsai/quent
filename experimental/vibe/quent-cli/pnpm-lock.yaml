@@ -38,6 +38,9 @@ importers:
 
   .:
     dependencies:
+      '@quent-experimental/query-diff':
+        specifier: workspace:*
+        version: link:query-diff
       '@quent/client':
         specifier: workspace:*
         version: link:../../../ui/packages/@quent/client
@@ -131,6 +134,19 @@ importers:
       tailwind-merge:
         specifier: 'catalog:'
         version: 3.7.0
+    devDependencies:
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(tsx@4.23.15)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  query-diff:
+    dependencies:
+      '@quent/utils':
+        specifier: workspace:*
+        version: link:../../../../ui/packages/@quent/utils
     devDependencies:
       tsdown:
         specifier: 'catalog:'

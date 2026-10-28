@@ -38,12 +38,16 @@ interface ApiFetchOptions {
  * @param endpoint - API endpoint to call
  * @param options - Optional params and fetch options
  */
-async function apiFetchResponse(endpoint: string, options?: ApiFetchOptions): Promise<Response> {
+async function apiFetchResponse(
+  endpoint: string,
+  options?: ApiFetchOptions,
+  baseUrl = getApiBaseUrl()
+): Promise<Response> {
   const { params, fetchOptions } = options ?? {};
   const searchParams = params
     ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`
     : '';
-  const url = `${getApiBaseUrl()}${endpoint}${searchParams}`;
+  const url = `${baseUrl}${endpoint}${searchParams}`;
 
   const defaultOptions: RequestInit = {
     headers: {},
@@ -64,8 +68,12 @@ async function apiFetchResponse(endpoint: string, options?: ApiFetchOptions): Pr
  * @param endpoint - API endpoint to call
  * @param options - Optional params and fetch options
  */
-async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): Promise<T> {
-  const response = await apiFetchResponse(endpoint, options);
+async function apiFetch<T>(
+  endpoint: string,
+  options?: ApiFetchOptions,
+  baseUrl?: string
+): Promise<T> {
+  const response = await apiFetchResponse(endpoint, options, baseUrl);
 
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
@@ -82,27 +90,44 @@ async function apiFetch<T>(endpoint: string, options?: ApiFetchOptions): Promise
  */
 async function httpFetchQueryBundle(
   engineId: string,
-  queryId: string
+  queryId: string,
+  baseUrl?: string
 ): Promise<QueryBundle<EntityRef>> {
-  return apiFetch<QueryBundle<EntityRef>>(`/engines/${engineId}/query/${queryId}`);
+  return apiFetch<QueryBundle<EntityRef>>(
+    `/engines/${engineId}/query/${queryId}`,
+    undefined,
+    baseUrl
+  );
 }
 
-async function httpFetchListEngines(): Promise<EngineListResponse> {
-  return apiFetch<EngineListResponse>('/engines', { params: { with_metadata: true } });
+async function httpFetchListEngines(baseUrl?: string): Promise<EngineListResponse> {
+  return apiFetch<EngineListResponse>(
+    '/engines',
+    { params: { with_metadata: true } },
+    baseUrl
+  );
 }
 
-async function httpFetchEngineContexts(engineId: string): Promise<EngineContexts> {
-  return apiFetch<EngineContexts>(`/engines/${engineId}/contexts`);
+async function httpFetchEngineContexts(
+  engineId: string,
+  baseUrl?: string
+): Promise<EngineContexts> {
+  return apiFetch<EngineContexts>(`/engines/${engineId}/contexts`, undefined, baseUrl);
 }
 
 /** Fetch stable NVTX metadata, resolving a 404 to optional absence. */
 async function httpFetchNvtxCatalog(
   contextId: string,
-  queryStartUnixNs: bigint
+  queryStartUnixNs: bigint,
+  baseUrl?: string
 ): Promise<NvtxCatalog | null> {
-  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/catalog`, {
-    params: { query_start: queryStartUnixNs },
-  });
+  const response = await apiFetchResponse(
+    `/nvtx/contexts/${contextId}/catalog`,
+    {
+      params: { query_start: queryStartUnixNs },
+    },
+    baseUrl
+  );
   if (response.status === 404) {
     return null;
   }
@@ -115,16 +140,21 @@ async function httpFetchNvtxCatalog(
 async function httpFetchNvtxViewport(
   contextId: string,
   queryStartUnixNs: bigint,
-  request: NvtxViewportRequest
+  request: NvtxViewportRequest,
+  baseUrl?: string
 ): Promise<NvtxViewportResponse | null> {
   const canonical = canonicalizeNvtxRequest(request);
-  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/viewport`, {
-    params: { query_start: queryStartUnixNs },
-    fetchOptions: {
-      method: 'POST',
-      body: JSON.stringify(canonical),
+  const response = await apiFetchResponse(
+    `/nvtx/contexts/${contextId}/viewport`,
+    {
+      params: { query_start: queryStartUnixNs },
+      fetchOptions: {
+        method: 'POST',
+        body: JSON.stringify(canonical),
+      },
     },
-  });
+    baseUrl
+  );
   if (response.status === 404) {
     return null;
   }
@@ -149,34 +179,47 @@ function normalizeNvtxViewport(viewport: NvtxViewportResponse): NvtxViewportResp
   };
 }
 
-async function httpFetchListQueries(engineId: string): Promise<QueryListResponse> {
-  return apiFetch<QueryListResponse>(`/engines/${engineId}/queries`);
+async function httpFetchListQueries(
+  engineId: string,
+  baseUrl?: string
+): Promise<QueryListResponse> {
+  return apiFetch<QueryListResponse>(`/engines/${engineId}/queries`, undefined, baseUrl);
 }
 
 async function httpFetchSingleTimeline(
   engineId: string,
   request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
-  durationSeconds: number
+  durationSeconds: number,
+  baseUrl?: string
 ): Promise<SingleTimelineResponse> {
-  return apiFetch<SingleTimelineResponse>(`/engines/${engineId}/timeline/single`, {
-    params: { duration: durationSeconds },
-    fetchOptions: {
-      method: 'POST',
-      body: JSON.stringify(request),
+  return apiFetch<SingleTimelineResponse>(
+    `/engines/${engineId}/timeline/single`,
+    {
+      params: { duration: durationSeconds },
+      fetchOptions: {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
     },
-  });
+    baseUrl
+  );
 }
 
 async function httpFetchBulkTimelines(
   engineId: string,
-  request: BulkTimelineRequest<QueryFilter, OperatorFilter>
+  request: BulkTimelineRequest<QueryFilter, OperatorFilter>,
+  baseUrl?: string
 ): Promise<BulkTimelinesResponse> {
-  return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/timeline/bulk`, {
-    fetchOptions: {
-      method: 'POST',
-      body: JSON.stringify(request),
+  return apiFetch<BulkTimelinesResponse>(
+    `/engines/${engineId}/timeline/bulk`,
+    {
+      fetchOptions: {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
     },
-  });
+    baseUrl
+  );
 }
 
 /**
@@ -185,14 +228,19 @@ async function httpFetchBulkTimelines(
  */
 async function httpFetchEntityList(
   engineId: string,
-  request: EntityListRequest<QueryFilter, OperatorFilter>
+  request: EntityListRequest<QueryFilter, OperatorFilter>,
+  baseUrl?: string
 ): Promise<EntityListResponse> {
-  return apiFetch<EntityListResponse>(`/engines/${engineId}/entities`, {
-    fetchOptions: {
-      method: 'POST',
-      body: JSON.stringify(request),
+  return apiFetch<EntityListResponse>(
+    `/engines/${engineId}/entities`,
+    {
+      fetchOptions: {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
     },
-  });
+    baseUrl
+  );
 }
 
 /**
@@ -206,19 +254,24 @@ async function httpFetchDataFlow(
   engineId: string,
   queryId: string,
   config: TimelineConfig,
-  measures: string[] = []
+  measures: string[] = [],
+  baseUrl?: string
 ): Promise<DataFlowTimelineBinned | null> {
   const request: CategoricalTimelineRequest<QueryFilter> = {
     measures,
     config,
     app_params: { query_id: queryId },
   };
-  const response = await apiFetchResponse(`/engines/${engineId}/timeline/data-flow`, {
-    fetchOptions: {
-      method: 'POST',
-      body: JSON.stringify(request),
+  const response = await apiFetchResponse(
+    `/engines/${engineId}/timeline/data-flow`,
+    {
+      fetchOptions: {
+        method: 'POST',
+        body: JSON.stringify(request),
+      },
     },
-  });
+    baseUrl
+  );
   if (response.status === 501) {
     return null;
   }
@@ -229,17 +282,43 @@ async function httpFetchDataFlow(
 }
 
 const httpClient: ApiClient = {
-  fetchQueryBundle: httpFetchQueryBundle,
-  fetchListEngines: httpFetchListEngines,
-  fetchEngineContexts: httpFetchEngineContexts,
-  fetchNvtxCatalog: httpFetchNvtxCatalog,
-  fetchNvtxViewport: httpFetchNvtxViewport,
-  fetchListQueries: httpFetchListQueries,
-  fetchSingleTimeline: httpFetchSingleTimeline,
-  fetchBulkTimelines: httpFetchBulkTimelines,
-  fetchEntityList: httpFetchEntityList,
-  fetchDataFlow: httpFetchDataFlow,
+  fetchQueryBundle: (engineId, queryId) => httpFetchQueryBundle(engineId, queryId),
+  fetchListEngines: () => httpFetchListEngines(),
+  fetchEngineContexts: engineId => httpFetchEngineContexts(engineId),
+  fetchNvtxCatalog: (contextId, queryStartUnixNs) =>
+    httpFetchNvtxCatalog(contextId, queryStartUnixNs),
+  fetchNvtxViewport: (contextId, queryStartUnixNs, request) =>
+    httpFetchNvtxViewport(contextId, queryStartUnixNs, request),
+  fetchListQueries: engineId => httpFetchListQueries(engineId),
+  fetchSingleTimeline: (engineId, request, durationSeconds) =>
+    httpFetchSingleTimeline(engineId, request, durationSeconds),
+  fetchBulkTimelines: (engineId, request) => httpFetchBulkTimelines(engineId, request),
+  fetchEntityList: (engineId, request) => httpFetchEntityList(engineId, request),
+  fetchDataFlow: (engineId, queryId, config, measures) =>
+    httpFetchDataFlow(engineId, queryId, config, measures),
 };
+
+/** Creates an HTTP client pinned to one API base without mutating global config. */
+export function createHttpApiClient(baseUrl: string): ApiClient {
+  const normalized = baseUrl.replace(/\/+$/u, '');
+  return {
+    fetchQueryBundle: (engineId, queryId) => httpFetchQueryBundle(engineId, queryId, normalized),
+    fetchListEngines: () => httpFetchListEngines(normalized),
+    fetchEngineContexts: engineId => httpFetchEngineContexts(engineId, normalized),
+    fetchNvtxCatalog: (contextId, queryStartUnixNs) =>
+      httpFetchNvtxCatalog(contextId, queryStartUnixNs, normalized),
+    fetchNvtxViewport: (contextId, queryStartUnixNs, request) =>
+      httpFetchNvtxViewport(contextId, queryStartUnixNs, request, normalized),
+    fetchListQueries: engineId => httpFetchListQueries(engineId, normalized),
+    fetchSingleTimeline: (engineId, request, durationSeconds) =>
+      httpFetchSingleTimeline(engineId, request, durationSeconds, normalized),
+    fetchBulkTimelines: (engineId, request) =>
+      httpFetchBulkTimelines(engineId, request, normalized),
+    fetchEntityList: (engineId, request) => httpFetchEntityList(engineId, request, normalized),
+    fetchDataFlow: (engineId, queryId, config, measures) =>
+      httpFetchDataFlow(engineId, queryId, config, measures, normalized),
+  };
+}
 
 export const { getApiClient, setApiClient } = (() => {
   let activeClient: ApiClient = httpClient;
