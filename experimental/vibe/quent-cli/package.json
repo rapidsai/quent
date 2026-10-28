@@ -12,7 +12,7 @@
     "ask": "tsx src/ask.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "pnpm --dir ../../../ui bindings && tsc --noEmit",
+    "typecheck": "pnpm --dir ../../../ui bindings && tsc --noEmit && pnpm --filter @quent-experimental/query-diff typecheck",
     "test": "vitest run",
     "check": "pnpm format:check && pnpm typecheck && pnpm test"
   },
@@ -20,6 +20,7 @@
     "@quent/client": "workspace:*",
     "@quent/query-analysis": "workspace:*",
     "@quent/utils": "workspace:*",
+    "@quent-experimental/query-diff": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "ink": "^7.1.1",

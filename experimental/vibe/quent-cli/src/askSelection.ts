@@ -90,6 +90,26 @@ export async function selectEngine(
   return select(prompt, choices);
 }
 
+export async function selectQuery(
+  api: DiscoveryApi,
+  select: SelectFromList,
+  engineId: string,
+  prompt = 'Select a query',
+  excludedQueryIds: ReadonlySet<string> = new Set()
+): Promise<string> {
+  const queryChoices = stableChoices(
+    (await api.fetchListQueries(engineId)).items
+      .filter(query => !excludedQueryIds.has(query.id))
+      .map(query => ({
+        value: query.id,
+        label: label(query.instance_name, query.id),
+      }))
+  );
+  if (queryChoices.length === 0) {
+    throw new Error(`The Quent API returned no available queries for engine "${engineId}".`);
+  }
+  return select(prompt, queryChoices);
+}
 export function querySelectionKey(engineId: string, queryId: string): string {
   return `${engineId}\0${queryId}`;
 }
