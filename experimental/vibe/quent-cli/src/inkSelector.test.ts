@@ -4,13 +4,27 @@
 import { describe, expect, it } from 'vitest';
 import { act, createElement } from 'react';
 import { renderToString } from 'ink';
+import { QueryTreePrompt } from './inkQueryTreePrompt';
 import { SelectionPrompt } from './inkSelectionPrompt';
-import { filterSelectionChoices, selectionWindow } from './inkSelector.utils';
+import {
+  filterQueryTreeChoices,
+  filterSelectionChoices,
+  selectionWindow,
+} from './inkSelector.utils';
 
 const choices = [
   { value: 'engine-alpha', label: 'Alpha Engine' },
   { value: 'engine-beta', label: 'Beta Engine' },
   { value: 'warehouse', label: 'Production Warehouse' },
+];
+const queryChoices = [
+  {
+    value: 'engine-alpha\0query-1',
+    label: 'Daily report (query-1)',
+    engineId: 'engine-alpha',
+    engineLabel: 'Alpha Engine',
+    queryId: 'query-1',
+  },
 ];
 
 describe('Ink selector', () => {
@@ -31,10 +45,29 @@ describe('Ink selector', () => {
     expect(output).toContain('type to filter');
   });
 
+  it('renders engine branches with multi-select controls', async () => {
+    let output = '';
+    await act(() => {
+      output = renderToString(
+        createElement(QueryTreePrompt, {
+          prompt: 'Select candidate queries',
+          choices: queryChoices,
+          multiple: true,
+        })
+      );
+    });
+
+    expect(output).toContain('◆ Alpha Engine');
+    expect(output).toContain('○ Daily report (query-1)');
+    expect(output).toContain('space toggle');
+  });
+
   it('filters case-insensitively across labels and IDs', () => {
     expect(filterSelectionChoices(choices, 'WARE')).toEqual([choices[2]]);
     expect(filterSelectionChoices(choices, 'engine-beta')).toEqual([choices[1]]);
     expect(filterSelectionChoices(choices, '')).toBe(choices);
+    expect(filterQueryTreeChoices(queryChoices, 'alpha')).toEqual(queryChoices);
+    expect(filterQueryTreeChoices(queryChoices, 'query-1')).toEqual(queryChoices);
   });
 
   it('keeps the selected choice in a bounded scrolling window', () => {
