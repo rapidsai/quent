@@ -1,5 +1,6 @@
 packages:
   - '.'
+  - 'query-diff'
   - '../../../ui/packages/@quent/client'
   - '../../../ui/packages/@quent/query-analysis'
   - '../../../ui/packages/@quent/utils'
