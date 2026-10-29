@@ -888,6 +888,7 @@ const FlowLayout = ({
       <MiniMap
         pannable
         zoomable
+        className="overflow-hidden rounded-md shadow-md"
         nodeStrokeWidth={MINIMAP_NODE_STROKE_WIDTH}
         style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE, background: 'hsl(var(--card))' }}
         maskColor="hsl(var(--muted) / 0.7)"
