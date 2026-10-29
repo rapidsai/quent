@@ -252,7 +252,7 @@ const translateX = (element: HTMLElement) => translation(element)[0];
 const translateY = (element: HTMLElement) => translation(element)[1];
 
 describe('DAGChart selection', () => {
-  it('adds and removes node pins on click', async () => {
+  it('adds and removes node filters on click without changing pins', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -264,19 +264,20 @@ describe('DAGChart selection', () => {
     const second = screen.getByRole('button', { name: 'Select second' });
 
     fireEvent.click(first);
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
-    expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
-    fireEvent.click(first);
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first');
     expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+    fireEvent.click(first);
+    expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
 
     fireEvent.click(second);
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('second');
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('second');
 
     fireEvent.click(first);
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first,second');
     fireEvent.click(second);
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first');
     fireEvent.click(first);
+    expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
     expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
   });
 
@@ -306,10 +307,10 @@ describe('DAGChart selection', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Select source' }));
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('source');
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('source');
     const pipes = await screen.findAllByRole('button', { name: /^Inspect pipe / });
     fireEvent.click(pipes[0]);
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('source');
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('source');
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
     expect(screen.getByRole('status', { name: 'source-out to middle-in: pinned' })).toBeVisible();
     fireEvent.click(pipes[0]);
@@ -327,7 +328,7 @@ describe('DAGChart selection', () => {
     expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
     fireEvent.click(pipes[0]);
     expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('source');
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('source');
   });
 
   it('reveals pipe actions when the pipe receives keyboard focus', async () => {

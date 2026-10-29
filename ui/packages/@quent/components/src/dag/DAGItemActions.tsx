@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { CSSProperties, ReactNode } from 'react';
-import { Eye, Filter } from 'lucide-react';
+import { Eye, Pin } from 'lucide-react';
 import { cn } from '@quent/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 interface DAGItemActionsProps {
   label: string;
-  filtered?: boolean;
+  pinned?: boolean;
   visible?: boolean;
   divided?: boolean;
   className?: string;
@@ -16,7 +16,7 @@ interface DAGItemActionsProps {
   previewOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   previewContent: ReactNode;
-  onToggleFilter?: () => void;
+  onTogglePin?: () => void;
 }
 
 type ActionStyle = CSSProperties & {
@@ -27,7 +27,7 @@ type ActionStyle = CSSProperties & {
 /** Hover action bar shared by operator nodes and pipes. */
 export function DAGItemActions({
   label,
-  filtered,
+  pinned,
   visible = false,
   divided = true,
   className,
@@ -35,7 +35,7 @@ export function DAGItemActions({
   previewOpen,
   onOpenChange,
   previewContent,
-  onToggleFilter,
+  onTogglePin,
 }: DAGItemActionsProps) {
   const actionClass =
     'flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 bg-[var(--dag-action-background)] px-1.5 py-1 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--dag-action-hover-background)] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring';
@@ -86,17 +86,17 @@ export function DAGItemActions({
           {previewContent}
         </PopoverContent>
       </Popover>
-      {onToggleFilter && (
+      {onTogglePin && (
         <button
           type="button"
           className={actionClass}
-          style={actionStyle(filtered ?? false)}
-          aria-label={`Filter operator ${label}`}
-          aria-pressed={filtered ?? false}
-          onClick={onToggleFilter}
+          style={actionStyle(pinned ?? false)}
+          aria-label={`Pin details for ${label}`}
+          aria-pressed={pinned ?? false}
+          onClick={onTogglePin}
         >
-          <Filter className="size-3" />
-          <span>Filter</span>
+          <Pin className="size-3" />
+          <span>Pin</span>
         </button>
       )}
     </div>

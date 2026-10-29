@@ -644,17 +644,18 @@ const FlowLayout = ({
     return { flowNodes, flowEdges };
   }, [data, isDark, layoutDirection, flowBarVisible]);
 
-  const handleNodeClick = useCallback(
-    (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
-      setActivePreviewId(null);
-      const entry = {
-        selectionId: node.id,
-        data: selectedOperatorDataFromFlowNode(node),
-      };
-      const nextSelectedIds = updateOperatorDetails({ type: 'toggle', entry });
+  const togglePinnedOperator = useCallback(
+    (node: Node<QueryPlanNodeData>) => {
+      const nextSelectedIds = updateOperatorDetails({
+        type: 'toggle',
+        entry: {
+          selectionId: node.id,
+          data: selectedOperatorDataFromFlowNode(node),
+        },
+      });
       onSelectionChange?.([...nextSelectedIds]);
     },
-    [onSelectionChange, setActivePreviewId, updateOperatorDetails]
+    [onSelectionChange, updateOperatorDetails]
   );
 
   const toggleOperatorFilter = useCallback(
@@ -686,6 +687,14 @@ const FlowLayout = ({
       selectedOperatorIds,
       updateOperatorSelection,
     ]
+  );
+
+  const handleNodeClick = useCallback(
+    (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
+      setActivePreviewId(null);
+      toggleOperatorFilter(node);
+    },
+    [setActivePreviewId, toggleOperatorFilter]
   );
 
   const handlePaneClick = useCallback(() => {
@@ -819,7 +828,7 @@ const FlowLayout = ({
             pinned: pinnedOperatorDetailIds.has(node.id),
             filtered: getSelectionIds(node).every(id => selectedOperatorIds.has(id)),
             details: selectedOperatorDataFromFlowNode(node),
-            onToggleFilter: () => toggleOperatorFilter(node),
+            onTogglePin: () => togglePinnedOperator(node),
           },
         },
       })),
@@ -830,7 +839,7 @@ const FlowLayout = ({
       nodes,
       pinnedOperatorDetailIds,
       selectedOperatorIds,
-      toggleOperatorFilter,
+      togglePinnedOperator,
     ]
   );
   const renderedEdges = useMemo(

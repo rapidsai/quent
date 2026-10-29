@@ -7,36 +7,36 @@ import { describe, expect, it, vi } from 'vitest';
 import { DAGItemActions } from './DAGItemActions';
 
 describe('DAGItemActions', () => {
-  it('offers preview and operator filtering without activating the item', async () => {
+  it('offers preview and operator pinning without activating the item', async () => {
     const user = userEvent.setup();
     const activateItem = vi.fn();
-    const toggleFilter = vi.fn();
+    const togglePin = vi.fn();
     render(
       <div onClick={activateItem}>
         <DAGItemActions
           label="Scan"
-          filtered
+          pinned
           visible
           previewContent={<div>Scan preview</div>}
-          onToggleFilter={toggleFilter}
+          onTogglePin={togglePin}
         />
       </div>
     );
 
     const preview = screen.getByRole('button', { name: 'Preview details for Scan' });
-    const filter = screen.getByRole('button', { name: 'Filter operator Scan' });
+    const pin = screen.getByRole('button', { name: 'Pin details for Scan' });
 
-    expect(filter).toHaveAttribute('aria-pressed', 'true');
-    expect(filter.getAttribute('style')).toContain('42%');
-    expect(filter.getAttribute('style')).toContain('54%');
-    expect(screen.queryByRole('button', { name: /pin details/i })).not.toBeInTheDocument();
+    expect(pin).toHaveAttribute('aria-pressed', 'true');
+    expect(pin.getAttribute('style')).toContain('42%');
+    expect(pin.getAttribute('style')).toContain('54%');
+    expect(screen.queryByRole('button', { name: /filter/i })).not.toBeInTheDocument();
 
     await user.click(preview);
     expect(activateItem).not.toHaveBeenCalled();
     expect(screen.getByText('Scan preview')).toBeVisible();
 
-    await user.click(filter);
-    expect(toggleFilter).toHaveBeenCalledOnce();
+    await user.click(pin);
+    expect(togglePin).toHaveBeenCalledOnce();
   });
 
   it('offers only preview for edges', async () => {
@@ -64,10 +64,10 @@ describe('DAGItemActions', () => {
     render(
       <DAGItemActions
         label="Scan"
-        filtered={false}
+        pinned={false}
         divided={false}
         previewContent={<div>Scan preview</div>}
-        onToggleFilter={() => undefined}
+        onTogglePin={() => undefined}
       />
     );
 
