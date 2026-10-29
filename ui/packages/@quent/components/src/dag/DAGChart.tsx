@@ -218,6 +218,8 @@ const VariableWidthEdge = ({
       edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeWidthField, fields))(v);
     }
   }
+  const edgeActionsYOffset = edgeLabelValue === undefined ? -18 : -26;
+  const edgeStatusYOffset = edgeLabelValue === undefined ? 14 : 22;
 
   const arrowWidth = strokeWidth * ARROW_WIDTH_MULTIPLIER + ARROW_WIDTH_BASE;
   const arrowDepth = arrowWidth * ARROW_DEPTH_RATIO;
@@ -316,7 +318,7 @@ const VariableWidthEdge = ({
           <div
             className="nodrag nopan absolute"
             style={{
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY - 18}px)`,
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + edgeActionsYOffset}px)`,
               pointerEvents: 'all',
             }}
             onMouseEnter={() => setHoveredPipeId(id)}
@@ -348,7 +350,7 @@ const VariableWidthEdge = ({
           <div
             className="nodrag nopan absolute"
             style={{
-              transform: `translate(-50%, -50%) translate(${labelX + 14}px,${labelY + 14}px)`,
+              transform: `translate(-50%, -50%) translate(${labelX + 14}px,${labelY + edgeStatusYOffset}px)`,
               pointerEvents: 'none',
             }}
           >

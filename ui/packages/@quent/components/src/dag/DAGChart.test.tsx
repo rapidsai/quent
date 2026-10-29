@@ -176,6 +176,18 @@ const pipeData: DAGData = {
   queryData: [],
 };
 
+const metricPipeData: DAGData = {
+  ...pipeData,
+  edges: pipeData.edges.map((edge, index) => {
+    const portStats = [{ key: 'bytes', value: index + 1 }];
+    return {
+      ...edge,
+      portStats,
+      statisticFields: flattenStatistics(portStats),
+    };
+  }),
+};
+
 function SelectionProbe() {
   const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
   const filteredOperatorIds = useSelectedOperatorIds();
@@ -215,6 +227,20 @@ function EdgeConfiguration() {
       <button onClick={() => setScaleType('linear')}>Use linear scale</button>
     </>
   );
+}
+
+function PipeWidthConfiguration() {
+  const [, setWidthField] = useSelectedEdgeWidthField();
+  useDagEdgeWidthConfig(metricPipeData.edges, computeEdgeWidthConfig);
+  return <button onClick={() => setWidthField('bytes')}>Select pipe width</button>;
+}
+
+function translateY(element: HTMLElement): number {
+  const match = element.style.transform.match(/translate\([^,]+px,\s*([^)]+)px\)$/);
+  if (!match) {
+    throw new Error(`Missing pixel translation in "${element.style.transform}"`);
+  }
+  return Number(match[1]);
 }
 
 describe('DAGChart selection', () => {
@@ -321,6 +347,29 @@ describe('DAGChart selection', () => {
     fireEvent.mouseLeave(actions);
 
     expect(actions).toHaveClass('opacity-0');
+  });
+
+  it('moves pipe actions and status clear of a metric label', async () => {
+    render(
+      <Provider store={createStore()}>
+        <PipeWidthConfiguration />
+        <DAGChart data={metricPipeData} isDark={false} />
+      </Provider>
+    );
+
+    const actions = await screen.findByRole('toolbar', {
+      name: 'Actions for source-out to middle-in',
+    });
+    const actionsContainer = actions.parentElement as HTMLElement;
+    const defaultActionsY = translateY(actionsContainer);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select pipe width' }));
+    await waitFor(() => expect(translateY(actionsContainer)).toBeLessThan(defaultActionsY - 7));
+    const metricActionsY = translateY(actionsContainer);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect pipe source-out to middle-in' }));
+    const status = screen.getByRole('status', { name: 'source-out to middle-in: pinned' });
+    expect(translateY(status.parentElement as HTMLElement)).toBeCloseTo(metricActionsY + 48);
   });
 
   it('closes an edge preview when the DAG background is clicked', async () => {
