@@ -538,11 +538,15 @@ const FlowLayout = ({
     });
   }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorDetails]);
 
-  const handleMoveStart = useCallback<OnMoveStart>(event => {
-    if (event !== null) {
-      hasUserInteracted.current = true;
-    }
-  }, []);
+  const handleMoveStart = useCallback<OnMoveStart>(
+    event => {
+      if (event !== null) {
+        hasUserInteracted.current = true;
+        setActivePreviewId(null);
+      }
+    },
+    [setActivePreviewId]
+  );
 
   const getSelectionIds = useCallback((node: Node<QueryPlanNodeData>): string[] => {
     const relatedOperatorIds = node.data.metadata?.relatedOperatorIds ?? [];
