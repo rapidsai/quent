@@ -235,13 +235,16 @@ function PipeWidthConfiguration() {
   return <button onClick={() => setWidthField('bytes')}>Select pipe width</button>;
 }
 
-function translateY(element: HTMLElement): number {
-  const match = element.style.transform.match(/translate\([^,]+px,\s*([^)]+)px\)$/);
+function translation(element: HTMLElement): [number, number] {
+  const match = element.style.transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)$/);
   if (!match) {
     throw new Error(`Missing pixel translation in "${element.style.transform}"`);
   }
-  return Number(match[1]);
+  return [Number(match[1]), Number(match[2])];
 }
+
+const translateX = (element: HTMLElement) => translation(element)[0];
+const translateY = (element: HTMLElement) => translation(element)[1];
 
 describe('DAGChart selection', () => {
   it('adds and removes node pins on click', async () => {
@@ -370,6 +373,11 @@ describe('DAGChart selection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Inspect pipe source-out to middle-in' }));
     const status = screen.getByRole('status', { name: 'source-out to middle-in: pinned' });
     expect(translateY(status.parentElement as HTMLElement)).toBeCloseTo(metricActionsY + 48);
+    expect(translateX(status.parentElement as HTMLElement)).toBe(14);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect pipe middle-out to target-in' }));
+    const wideStatus = screen.getByRole('status', { name: 'middle-out to target-in: pinned' });
+    expect(translateX(wideStatus.parentElement as HTMLElement)).toBeCloseTo(23.5);
   });
 
   it('closes an edge preview when the DAG background is clicked', async () => {

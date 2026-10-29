@@ -89,6 +89,10 @@ const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
 const ARROW_WIDTH_BASE = 8;
 const ARROW_DEPTH_RATIO = 0.6;
+const EDGE_STATUS_X_OFFSET = 14;
+const EDGE_STATUS_ICON_HALF_SIZE = 7;
+const EDGE_STATUS_GAP = 4;
+const VERTICAL_EDGE_EPSILON = 1;
 
 // Layout constants
 const FIT_VIEW_PADDING = 0.1;
@@ -220,6 +224,13 @@ const VariableWidthEdge = ({
   }
   const edgeActionsYOffset = edgeLabelValue === undefined ? -18 : -26;
   const edgeStatusYOffset = edgeLabelValue === undefined ? 14 : 22;
+  const edgeStatusXOffset =
+    Math.abs(sourceX - targetX) < VERTICAL_EDGE_EPSILON
+      ? Math.max(
+          EDGE_STATUS_X_OFFSET,
+          strokeWidth / 2 + EDGE_STATUS_ICON_HALF_SIZE + EDGE_STATUS_GAP
+        )
+      : EDGE_STATUS_X_OFFSET;
 
   const arrowWidth = strokeWidth * ARROW_WIDTH_MULTIPLIER + ARROW_WIDTH_BASE;
   const arrowDepth = arrowWidth * ARROW_DEPTH_RATIO;
@@ -350,7 +361,7 @@ const VariableWidthEdge = ({
           <div
             className="nodrag nopan absolute"
             style={{
-              transform: `translate(-50%, -50%) translate(${labelX + 14}px,${labelY + edgeStatusYOffset}px)`,
+              transform: `translate(-50%, -50%) translate(${labelX + edgeStatusXOffset}px,${labelY + edgeStatusYOffset}px)`,
               pointerEvents: 'none',
             }}
           >
