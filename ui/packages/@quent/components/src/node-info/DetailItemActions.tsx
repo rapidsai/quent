@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Filter, PinOff } from 'lucide-react';
+import { Filter, Pin, PinOff } from 'lucide-react';
 import { cn } from '@quent/utils';
 
 interface DetailItemActionsProps {
@@ -9,7 +9,8 @@ interface DetailItemActionsProps {
   filtered?: boolean;
   pinned: boolean;
   onToggleFilter?: () => void;
-  onUnpin: () => void;
+  onTogglePin?: () => void;
+  onUnpin?: () => void;
 }
 
 const actionClass =
@@ -20,6 +21,7 @@ export function DetailItemActions({
   filtered = false,
   pinned,
   onToggleFilter,
+  onTogglePin,
   onUnpin,
 }: DetailItemActionsProps) {
   return (
@@ -36,16 +38,29 @@ export function DetailItemActions({
           <Filter aria-hidden className="size-3.5" />
         </button>
       )}
-      <button
-        type="button"
-        aria-label={`Unpin ${label}`}
-        title={pinned ? 'Unpin' : 'Not pinned'}
-        disabled={!pinned}
-        className={actionClass}
-        onClick={onUnpin}
-      >
-        <PinOff aria-hidden className="size-3.5" />
-      </button>
+      {onTogglePin && (
+        <button
+          type="button"
+          aria-label={`Pin ${label}`}
+          aria-pressed={pinned}
+          title={pinned ? 'Unpin' : 'Pin'}
+          className={cn(actionClass, pinned && 'bg-primary/10 text-primary')}
+          onClick={onTogglePin}
+        >
+          <Pin aria-hidden className="size-3.5" />
+        </button>
+      )}
+      {onUnpin && (
+        <button
+          type="button"
+          aria-label={`Unpin ${label}`}
+          title="Unpin"
+          className={actionClass}
+          onClick={onUnpin}
+        >
+          <PinOff aria-hidden className="size-3.5" />
+        </button>
+      )}
     </div>
   );
 }

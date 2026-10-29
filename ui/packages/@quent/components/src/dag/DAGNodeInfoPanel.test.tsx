@@ -231,7 +231,7 @@ describe('DAGNodeInfoPanel', () => {
     });
   });
 
-  it('filters and unpins an operator from its detail entry', async () => {
+  it('filters and toggles an operator pin from its detail entry', async () => {
     render(
       <Provider>
         <SelectedNode />
@@ -239,16 +239,21 @@ describe('DAGNodeInfoPanel', () => {
     );
 
     const filter = await screen.findByRole('button', { name: 'Filter operator Logical join' });
-    const unpin = screen.getByRole('button', { name: 'Unpin operator Logical join' });
+    const pin = screen.getByRole('button', { name: 'Pin operator Logical join' });
     expect(filter).toHaveAttribute('aria-pressed', 'false');
-    expect(unpin).toBeEnabled();
+    expect(pin).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(filter);
     expect(filter).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.click(unpin);
+    fireEvent.click(pin);
     expect(screen.getByTestId('operator-accordion-logical')).toBeVisible();
-    expect(unpin).toBeDisabled();
+    expect(pin).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(pin);
+    expect(pin).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(pin);
+    expect(pin).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(filter);
     expect(screen.queryByTestId('operator-accordion-logical')).not.toBeInTheDocument();

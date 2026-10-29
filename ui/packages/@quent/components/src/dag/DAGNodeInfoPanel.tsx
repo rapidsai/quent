@@ -202,8 +202,15 @@ export const DAGNodeInfoPanel = ({
                   filtered={filtered}
                   pinned={pinned}
                   onToggleFilter={toggleFilter}
-                  onUnpin={() =>
-                    updateOperatorDetails({ type: 'unpin', selectionId: detail.selectionId })
+                  onTogglePin={() =>
+                    updateOperatorDetails(
+                      pinned
+                        ? { type: 'unpin', selectionId: detail.selectionId }
+                        : {
+                            type: 'pin',
+                            entry: { selectionId: detail.selectionId, data: detail.data },
+                          }
+                    )
                   }
                 />
               }
