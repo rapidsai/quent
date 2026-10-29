@@ -14,6 +14,21 @@ describe('getNodeOpacityClass', () => {
         operatorId: 'selected',
         isDimmed: false,
         isSelected: true,
+        isFiltered: false,
+      })
+    ).toBe('opacity-100');
+  });
+
+  it('keeps every filtered node highlighted during a DAG hover', () => {
+    expect(
+      getNodeOpacityClass({
+        isHoveredStatActive: false,
+        hasHoveredValue: false,
+        highlightedNodeIds: new Set(['hovered']),
+        operatorId: 'filtered',
+        isDimmed: false,
+        isSelected: false,
+        isFiltered: true,
       })
     ).toBe('opacity-100');
   });
@@ -27,6 +42,7 @@ describe('getNodeOpacityClass', () => {
         operatorId: 'other',
         isDimmed: true,
         isSelected: false,
+        isFiltered: false,
       })
     ).toBe('opacity-35');
   });
@@ -40,6 +56,7 @@ describe('getNodeOpacityClass', () => {
         operatorId: 'logical-node',
         isDimmed: false,
         isSelected: false,
+        isFiltered: false,
       })
     ).toBe('opacity-100');
   });
@@ -53,6 +70,7 @@ describe('getNodeOpacityClass', () => {
         operatorId: 'unrelated-node',
         isDimmed: false,
         isSelected: false,
+        isFiltered: false,
       })
     ).toBe('opacity-20');
   });
