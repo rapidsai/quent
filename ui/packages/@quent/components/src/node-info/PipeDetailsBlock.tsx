@@ -4,8 +4,10 @@
 import { Fragment, useEffect, type ReactNode } from 'react';
 import {
   useInspectedPipeNodes,
+  useOperatorSelection,
+  useOperatorSelectionActions,
+  useSelectedOperatorIds,
   useSetHighlightedNodeIds,
-  useOperatorDetailsActions,
 } from '@quent/hooks';
 import type { DAGEdge, DAGNode } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
@@ -25,17 +27,34 @@ export interface PipeDetailsBlockProps {
 export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDetailsBlockProps) {
   const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
-  const updateDetails = useOperatorDetailsActions();
+  const operatorSelection = useOperatorSelection();
+  const updateOperatorSelection = useOperatorSelectionActions();
+  const selectedOperatorIds = useSelectedOperatorIds();
   const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
       const selection = operatorSelectionFromNode(node);
-      updateDetails({
-        type: 'pin',
-        entry: {
+      const matchingFilterIds = [...operatorSelection.selections]
+        .filter(
+          ([selectionId, current]) =>
+            selectionId === selection.selectionId ||
+            (current.operatorIds.size === selection.operatorIds.size &&
+              [...current.operatorIds].every(id => selection.operatorIds.has(id)))
+        )
+        .map(([selectionId]) => selectionId);
+      const filtered = [...selection.operatorIds].every(id => selectedOperatorIds.has(id));
+      if (filtered && matchingFilterIds.length > 0) {
+        for (const selectionId of matchingFilterIds) {
+          updateOperatorSelection({ type: 'remove', selectionId });
+        }
+      } else {
+        updateOperatorSelection({
+          type: 'add',
           selectionId: selection.selectionId,
-          data: selection.selectedData,
-        },
-      });
+          label: selection.label,
+          operatorIds: selection.operatorIds,
+          selectedData: selection.selectedData,
+        });
+      }
     }
   };
   useEffect(
@@ -121,7 +140,14 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
                   />
                   <button
                     type="button"
-                    aria-label={`Show ${endpoint.node?.label ?? endpoint.operator} operator details`}
+                    aria-label={`Filter by ${endpoint.node?.label ?? endpoint.operator} operator`}
+                    aria-pressed={
+                      endpoint.node
+                        ? [...operatorSelectionFromNode(endpoint.node).operatorIds].every(id =>
+                            selectedOperatorIds.has(id)
+                          )
+                        : false
+                    }
                     disabled={!endpoint.node}
                     className="cursor-pointer break-words text-left text-foreground rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                   >
