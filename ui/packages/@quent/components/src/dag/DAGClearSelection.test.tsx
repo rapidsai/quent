@@ -20,7 +20,7 @@ import { DAGClearSelection } from './DAGClearSelection';
 
 const EDGES = [{ id: 'e1', source: 'a', target: 'b', sourcePortId: 'out', targetPortId: 'in' }];
 
-function Harness() {
+function Harness({ pinOperator = true }: { pinOperator?: boolean }) {
   const operatorIds = usePinnedOperatorDetailIds();
   const filterIds = useSelectedOperatorIds();
   const pipes = useInspectedPipes();
@@ -31,10 +31,12 @@ function Harness() {
 
   useEffect(() => {
     const data = { nodeId: 'scan', label: 'Scan', operationType: 'scan', statistics: [] };
-    updateOperatorDetails({
-      type: 'pin',
-      entry: { selectionId: 'scan', data },
-    });
+    if (pinOperator) {
+      updateOperatorDetails({
+        type: 'pin',
+        entry: { selectionId: 'scan', data },
+      });
+    }
     updateOperatorSelection({
       type: 'add',
       selectionId: 'scan',
@@ -42,7 +44,7 @@ function Harness() {
       operatorIds: ['scan'],
       selectedData: data,
     });
-  }, [updateOperatorDetails, updateOperatorSelection]);
+  }, [pinOperator, updateOperatorDetails, updateOperatorSelection]);
 
   return (
     <>
@@ -62,7 +64,7 @@ function Harness() {
 }
 
 describe('DAGClearSelection', () => {
-  it('clears operators and pipes together, then hides itself', async () => {
+  it('clears filters and pinned operators and pipes together, then hides itself', async () => {
     const user = userEvent.setup();
     render(
       <Provider>
@@ -76,12 +78,12 @@ describe('DAGClearSelection', () => {
     expect(screen.getByTestId('operators')).toHaveTextContent('1');
     expect(screen.getByTestId('pipes')).toHaveTextContent('1');
 
-    await user.click(screen.getByRole('button', { name: 'Clear pinned items' }));
+    await user.click(screen.getByRole('button', { name: 'Clear all selections' }));
 
     expect(screen.getByTestId('operators')).toHaveTextContent('0');
-    expect(screen.getByTestId('filters')).toHaveTextContent('1');
+    expect(screen.getByTestId('filters')).toHaveTextContent('0');
     expect(screen.getByTestId('pipes')).toHaveTextContent('0');
-    expect(screen.queryByRole('button', { name: 'Clear pinned items' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear all selections' })).not.toBeInTheDocument();
   });
 
   it('renders nothing when nothing is selected', () => {
@@ -92,6 +94,24 @@ describe('DAGClearSelection', () => {
         </ReactFlow>
       </Provider>
     );
-    expect(screen.queryByRole('button', { name: 'Clear pinned items' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear all selections' })).not.toBeInTheDocument();
+  });
+
+  it('renders for and clears a filter with its automatic pin', async () => {
+    const user = userEvent.setup();
+    render(
+      <Provider>
+        <ReactFlowProvider>
+          <Harness pinOperator={false} />
+        </ReactFlowProvider>
+      </Provider>
+    );
+
+    expect(screen.getByTestId('operators')).toHaveTextContent('1');
+    expect(screen.getByTestId('filters')).toHaveTextContent('1');
+    await user.click(await screen.findByRole('button', { name: 'Clear all selections' }));
+    expect(screen.getByTestId('operators')).toHaveTextContent('0');
+    expect(screen.getByTestId('filters')).toHaveTextContent('0');
+    expect(screen.queryByRole('button', { name: 'Clear all selections' })).not.toBeInTheDocument();
   });
 });

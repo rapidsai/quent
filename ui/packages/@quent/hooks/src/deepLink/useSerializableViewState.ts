@@ -15,6 +15,7 @@ import {
 } from '@quent/utils';
 import {
   operatorSelectionActionAtom,
+  operatorSelectionAtom,
   selectedOperatorIdsAtom,
   selectedPlanIdAtom,
 } from '../atoms/dag';
@@ -184,7 +185,12 @@ export function useSerializableViewState({
       if (state.selection?.operatorDetailsNodeIds !== undefined) {
         store.set(operatorDetailsActionAtom, {
           type: 'replaceIds',
-          selectionIds: state.selection.operatorDetailsNodeIds,
+          selectionIds: [
+            ...new Set([
+              ...state.selection.operatorDetailsNodeIds,
+              ...store.get(operatorSelectionAtom).selections.keys(),
+            ]),
+          ],
         });
       }
 

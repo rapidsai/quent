@@ -25,8 +25,8 @@ export function DAGItemStatus({ label, pinned, filtered = false, className }: DA
       title={state}
       className={cn('pointer-events-none inline-flex items-center gap-0.5 text-primary', className)}
     >
-      {pinned && <Pin aria-hidden className="size-3.5" />}
       {filtered && <Filter aria-hidden className="size-3.5" />}
+      {pinned && !filtered && <Pin aria-hidden className="size-3.5" />}
     </span>
   );
 }

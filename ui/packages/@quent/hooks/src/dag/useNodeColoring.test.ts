@@ -87,7 +87,7 @@ describe('useNodeColoring with pipes', () => {
     expect(render('scan', store).result.current.isDimmed).toBe(false);
   });
 
-  it('keeps both pinned and filtered operators at full opacity', () => {
+  it('keeps both explicit and filter-created pins at full opacity', () => {
     const store = createStore();
     store.set(operatorSelectionActionAtom, {
       type: 'add',
@@ -116,7 +116,7 @@ describe('useNodeColoring with pipes', () => {
 
     expect(render('filtered', store).result.current).toMatchObject({
       isFiltered: true,
-      isSelected: false,
+      isSelected: true,
       isDimmed: false,
     });
     expect(render('pinned', store).result.current).toMatchObject({

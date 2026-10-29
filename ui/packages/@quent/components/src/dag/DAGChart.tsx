@@ -829,6 +829,7 @@ const FlowLayout = ({
             filtered: getSelectionIds(node).every(id => selectedOperatorIds.has(id)),
             details: selectedOperatorDataFromFlowNode(node),
             onTogglePin: () => togglePinnedOperator(node),
+            onToggleFilter: () => toggleOperatorFilter(node),
           },
         },
       })),
@@ -839,6 +840,7 @@ const FlowLayout = ({
       nodes,
       pinnedOperatorDetailIds,
       selectedOperatorIds,
+      toggleOperatorFilter,
       togglePinnedOperator,
     ]
   );

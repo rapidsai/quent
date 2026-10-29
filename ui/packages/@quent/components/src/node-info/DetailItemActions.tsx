@@ -25,7 +25,7 @@ export function DetailItemActions({
   onUnpin,
 }: DetailItemActionsProps) {
   return (
-    <div className="flex shrink-0 items-center gap-0.5">
+    <div className="flex shrink-0 items-center gap-0.5" onClick={event => event.stopPropagation()}>
       {onToggleFilter && (
         <button
           type="button"
@@ -38,7 +38,7 @@ export function DetailItemActions({
           <Filter aria-hidden className="size-3.5" />
         </button>
       )}
-      {onTogglePin && (
+      {onTogglePin && !filtered && (
         <button
           type="button"
           aria-label={`Pin ${label}`}

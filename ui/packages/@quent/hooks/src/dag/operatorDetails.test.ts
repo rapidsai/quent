@@ -106,5 +106,6 @@ describe('operator details', () => {
       { selectionId: 'filtered-scan', data: scan },
       { selectionId: 'join', data: join },
     ]);
+    expect([...store.get(pinnedOperatorDetailsAtom).keys()]).toEqual(['filtered-scan', 'join']);
   });
 });

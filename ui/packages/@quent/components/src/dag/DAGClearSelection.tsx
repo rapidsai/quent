@@ -2,26 +2,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Panel } from '@xyflow/react';
-import { PinOff } from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   useClearInspectedPipes,
   useDisplayedPipeDetails,
   useOperatorDetailsActions,
+  useOperatorSelectionActions,
   usePinnedOperatorDetailIds,
+  useSelectedOperatorIds,
 } from '@quent/hooks';
 
-/** Clears every pinned DAG detail without changing operator filters. */
+/** Clears every DAG filter and detail selection. */
 export const DAGClearSelection = () => {
   const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
+  const selectedOperatorIds = useSelectedOperatorIds();
   const pipeDetails = useDisplayedPipeDetails();
   const clearPipes = useClearInspectedPipes();
   const updateOperatorDetails = useOperatorDetailsActions();
+  const updateOperatorSelection = useOperatorSelectionActions();
 
-  if (pinnedOperatorDetailIds.size === 0 && pipeDetails.length === 0) {
+  if (
+    pinnedOperatorDetailIds.size === 0 &&
+    selectedOperatorIds.size === 0 &&
+    pipeDetails.length === 0
+  ) {
     return null;
   }
 
   const clearSelection = () => {
+    updateOperatorSelection({ type: 'clear' });
     updateOperatorDetails({ type: 'clear' });
     clearPipes();
   };
@@ -31,11 +40,11 @@ export const DAGClearSelection = () => {
       <button
         type="button"
         onClick={clearSelection}
-        aria-label="Clear pinned items"
+        aria-label="Clear all selections"
         className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border bg-card/90 px-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <PinOff className="size-3" />
-        Clear pinned items
+        <X className="size-3" />
+        Clear all selections
       </button>
     </Panel>
   );

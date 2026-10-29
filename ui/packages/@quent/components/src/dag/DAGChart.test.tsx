@@ -252,7 +252,7 @@ const translateX = (element: HTMLElement) => translation(element)[0];
 const translateY = (element: HTMLElement) => translation(element)[1];
 
 describe('DAGChart selection', () => {
-  it('adds and removes node filters on click without changing pins', async () => {
+  it('adds and removes node filters and pins together on click', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -265,17 +265,21 @@ describe('DAGChart selection', () => {
 
     fireEvent.click(first);
     expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first');
-    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
     fireEvent.click(first);
     expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
 
     fireEvent.click(second);
     expect(screen.getByTestId('filtered-operators')).toHaveTextContent('second');
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('second');
 
     fireEvent.click(first);
     expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first,second');
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
     fireEvent.click(second);
     expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first');
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
     fireEvent.click(first);
     expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
     expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();

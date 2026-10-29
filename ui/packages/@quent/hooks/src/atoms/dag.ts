@@ -19,6 +19,7 @@ import {
   upsertSelectedOperatorData,
 } from '../dag/selectedOperatorData';
 import { selectedOperatorsDataAtom } from './dagControls';
+import { pinnedOperatorDetailsAtom } from './operatorDetails';
 
 export type OperatorSelectionAction =
   | {
@@ -121,6 +122,19 @@ export const operatorSelectionActionAtom = atom(
 
     set(operatorSelectionAtom, nextSelection);
     set(selectedOperatorsDataAtom, nextData);
+    const nextPinnedDetails = new Map(get(pinnedOperatorDetailsAtom));
+    for (const selectionId of currentSelection.selections.keys()) {
+      if (!nextSelection.selections.has(selectionId)) {
+        nextPinnedDetails.delete(selectionId);
+      }
+    }
+    for (const selectionId of nextSelection.selections.keys()) {
+      nextPinnedDetails.set(
+        selectionId,
+        nextData.get(selectionId) ?? nextPinnedDetails.get(selectionId)
+      );
+    }
+    set(pinnedOperatorDetailsAtom, nextPinnedDetails);
     return getSelectedOperatorIds(nextSelection);
   }
 );

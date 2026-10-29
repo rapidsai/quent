@@ -32,7 +32,7 @@ export const displayedOperatorDetailsAtom = atom<OperatorDetailEntry[]>(get => {
   const details = new Map<string, SelectedOperatorGroupData>();
   const nodeIds = new Set<string>();
   for (const [selectionId, data] of get(pinnedOperatorDetailsAtom)) {
-    if (data) {
+    if (data && !nodeIds.has(data.nodeId)) {
       details.set(selectionId, data);
       nodeIds.add(data.nodeId);
     }
@@ -84,6 +84,9 @@ export const operatorDetailsActionAtom = atom(
         break;
     }
 
+    for (const [selectionId, data] of get(selectedOperatorsDataAtom)) {
+      next.set(selectionId, data);
+    }
     set(pinnedOperatorDetailsAtom, next);
     return new Set(next.keys());
   }

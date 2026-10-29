@@ -4,14 +4,17 @@
 import { Fragment, useEffect, type ReactNode } from 'react';
 import {
   useInspectedPipeNodes,
+  useOperatorDetailsActions,
   useOperatorSelection,
   useOperatorSelectionActions,
+  usePinnedOperatorDetailIds,
   useSelectedOperatorIds,
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
 import type { DAGEdge, DAGNode } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
 import { OperatorBadge } from '../timeline/OperatorBadge';
+import { DetailItemActions } from './DetailItemActions';
 import { DetailsEntry } from './DetailsEntry';
 import { OperatorColorBar } from './OperatorColorBar';
 import { StatisticFields } from './StatisticFields';
@@ -29,6 +32,8 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
   const setHighlight = useSetHighlightedNodeIds();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
+  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
+  const updateOperatorDetails = useOperatorDetailsActions();
   const selectedOperatorIds = useSelectedOperatorIds();
   const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
@@ -115,56 +120,76 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
             node: targetNode,
             statistics: pipe.targetPortStats,
           },
-        ].map((endpoint, index) => (
-          <Fragment key={endpoint.heading}>
-            {index > 0 && <hr className="border-dashed border-muted-foreground/25" />}
-            <section
-              aria-label={endpoint.heading}
-              onClick={() => selectOperator(endpoint.node)}
-              onMouseEnter={() => enter(endpoint.operator)}
-              onMouseLeave={() => leave(endpoint.operator)}
-              onFocus={() => enter(endpoint.operator)}
-              onBlur={() => leave(endpoint.operator)}
-              className="cursor-pointer rounded-sm hover:bg-muted/30 focus-within:bg-muted/30"
-            >
-              <h4 className="mb-1 text-xs font-semibold">
-                {endpoint.heading}
-                {endpoint.name ? ` · ${endpoint.name}` : ''}
-              </h4>
-              <dl className="mb-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-xs text-muted-foreground">
-                <dt>Operator</dt>
-                <dd className="flex min-w-0 items-center gap-1.5" title={endpoint.operator}>
-                  <OperatorColorBar
-                    operationType={endpoint.node?.type ?? 'operator'}
-                    className="w-1 self-stretch"
-                  />
-                  <button
-                    type="button"
-                    aria-label={`Filter by ${endpoint.node?.label ?? endpoint.operator} operator`}
-                    aria-pressed={
-                      endpoint.node
-                        ? [...operatorSelectionFromNode(endpoint.node).operatorIds].every(id =>
-                            selectedOperatorIds.has(id)
-                          )
-                        : false
-                    }
-                    disabled={!endpoint.node}
-                    className="cursor-pointer break-words text-left text-foreground rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                  >
-                    {endpoint.node?.label ?? endpoint.operator}
-                  </button>
-                </dd>
-                <dt>Port ID</dt>
-                <dd className="break-all">{endpoint.id}</dd>
-              </dl>
-              {endpoint.statistics?.length ? (
-                <StatisticFields statistics={endpoint.statistics} />
-              ) : (
-                <p className="text-xs text-muted-foreground">No statistics</p>
-              )}
-            </section>
-          </Fragment>
-        ))}
+        ].map((endpoint, index) => {
+          const selection = endpoint.node ? operatorSelectionFromNode(endpoint.node) : null;
+          const filtered =
+            selection !== null &&
+            [...selection.operatorIds].every(id => selectedOperatorIds.has(id));
+          const pinned = selection !== null && pinnedOperatorDetailIds.has(selection.selectionId);
+          return (
+            <Fragment key={endpoint.heading}>
+              {index > 0 && <hr className="border-dashed border-muted-foreground/25" />}
+              <section
+                aria-label={endpoint.heading}
+                onClick={() => selectOperator(endpoint.node)}
+                onMouseEnter={() => enter(endpoint.operator)}
+                onMouseLeave={() => leave(endpoint.operator)}
+                onFocus={() => enter(endpoint.operator)}
+                onBlur={() => leave(endpoint.operator)}
+                className="cursor-pointer rounded-sm hover:bg-muted/30 focus-within:bg-muted/30"
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <h4 className="text-xs font-semibold">
+                    {endpoint.heading}
+                    {endpoint.name ? ` · ${endpoint.name}` : ''}
+                  </h4>
+                  {selection && (
+                    <DetailItemActions
+                      label={`operator ${selection.label}`}
+                      filtered={filtered}
+                      pinned={pinned}
+                      onToggleFilter={() => selectOperator(endpoint.node)}
+                      onTogglePin={() =>
+                        updateOperatorDetails({
+                          type: 'toggle',
+                          entry: {
+                            selectionId: selection.selectionId,
+                            data: selection.selectedData,
+                          },
+                        })
+                      }
+                    />
+                  )}
+                </div>
+                <dl className="mb-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-xs text-muted-foreground">
+                  <dt>Operator</dt>
+                  <dd className="flex min-w-0 items-center gap-1.5" title={endpoint.operator}>
+                    <OperatorColorBar
+                      operationType={endpoint.node?.type ?? 'operator'}
+                      className="w-1 self-stretch"
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Filter by ${endpoint.node?.label ?? endpoint.operator} operator`}
+                      aria-pressed={filtered}
+                      disabled={!endpoint.node}
+                      className="cursor-pointer break-words text-left text-foreground rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                    >
+                      {endpoint.node?.label ?? endpoint.operator}
+                    </button>
+                  </dd>
+                  <dt>Port ID</dt>
+                  <dd className="break-all">{endpoint.id}</dd>
+                </dl>
+                {endpoint.statistics?.length ? (
+                  <StatisticFields statistics={endpoint.statistics} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">No statistics</p>
+                )}
+              </section>
+            </Fragment>
+          );
+        })}
       </div>
     </DetailsEntry>
   );

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useState } from 'react';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { useOperatorDetailsActions, useOperatorSelectionActions } from '@quent/hooks';
 import { getDeterministicColor } from '@quent/utils';
@@ -177,6 +177,24 @@ function FilterOnly() {
 }
 
 describe('DAGNodeInfoPanel', () => {
+  it('scrolls to a newly pinned operator', async () => {
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
+
+    render(
+      <Provider>
+        <SelectedNode />
+      </Provider>
+    );
+
+    const entry = await screen.findByTestId('operator-detail-entry-logical');
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(entry);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  });
+
   it('shows filtered operators in details by default', () => {
     render(
       <Provider>
@@ -231,7 +249,7 @@ describe('DAGNodeInfoPanel', () => {
     });
   });
 
-  it('filters and toggles an operator pin from its detail entry', async () => {
+  it('shows only the filter action while filtered and removes both together', async () => {
     render(
       <Provider>
         <SelectedNode />
@@ -242,18 +260,18 @@ describe('DAGNodeInfoPanel', () => {
     const pin = screen.getByRole('button', { name: 'Pin operator Logical join' });
     expect(filter).toHaveAttribute('aria-pressed', 'false');
     expect(pin).toHaveAttribute('aria-pressed', 'true');
+    expect(filter.compareDocumentPosition(pin)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
     fireEvent.click(filter);
     expect(filter).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.click(pin);
-    expect(screen.getByTestId('operator-accordion-logical')).toBeVisible();
-    expect(pin).toHaveAttribute('aria-pressed', 'false');
-
-    fireEvent.click(pin);
-    expect(pin).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(pin);
-    expect(pin).toHaveAttribute('aria-pressed', 'false');
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(
+      screen.getByTestId('operator-detail-entry-logical')
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Pin operator Logical join' })
+    ).not.toBeInTheDocument();
 
     fireEvent.click(filter);
     expect(screen.queryByTestId('operator-accordion-logical')).not.toBeInTheDocument();
@@ -450,15 +468,45 @@ describe('pipes alongside operators', () => {
     selectOperator(probe);
     expect(screen.queryByRole('tab', { name: 'Pipes' })).not.toBeInTheDocument();
 
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
     act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
     expect(screen.getByRole('tab', { name: 'Operators' })).toBeVisible();
     expect(screen.getByRole('tab', { name: 'Pipes' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('region', { name: 'Sending port' })).toBeVisible();
+    const pipeEntry = screen.getByTestId('pipe-detail-entry-one');
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(pipeEntry);
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Operators' }), { button: 0 });
     expect(screen.getByRole('tab', { name: 'Operators' })).toHaveAttribute('aria-selected', 'true');
     expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['scan']));
     expect(probe.latest().inspectedPipes).toHaveLength(1);
+  });
+
+  it('switches to and scrolls to a newly filtered operator', async () => {
+    const probe = renderPanel();
+    act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
+
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
+    act(() => {
+      probe.latest().updateSelection({
+        type: 'add',
+        selectionId: 'scan',
+        label: 'Table scan',
+        operatorIds: ['scan'],
+        selectedData: {
+          nodeId: 'scan',
+          label: 'Table scan',
+          operationType: 'scan',
+          statistics: [],
+        },
+      });
+    });
+
+    expect(screen.getByRole('tab', { name: 'Operators' })).toHaveAttribute('aria-selected', 'true');
+    const operatorEntry = screen.getByTestId('operator-detail-entry-scan');
+    await waitFor(() => expect(scrollIntoView.mock.contexts.at(-1)).toBe(operatorEntry));
   });
 
   it('stacks each further pipe below the first', () => {

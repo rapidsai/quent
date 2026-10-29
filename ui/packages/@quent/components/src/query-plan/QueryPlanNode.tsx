@@ -80,6 +80,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
     filtered: boolean;
     details: SelectedOperatorGroupData;
     onTogglePin: () => void;
+    onToggleFilter: () => void;
   };
 }
 
@@ -267,6 +268,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         <DAGItemActions
           label={data.label}
           pinned={data.actions.pinned}
+          filtered={data.actions.filtered}
           divided={false}
           backgroundColor={heatmapColor ?? activeColor}
           previewOpen={activePreviewId === previewId}
@@ -291,6 +293,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
             />
           }
           onTogglePin={data.actions.onTogglePin}
+          onToggleFilter={data.actions.onToggleFilter}
         />
       )}
 

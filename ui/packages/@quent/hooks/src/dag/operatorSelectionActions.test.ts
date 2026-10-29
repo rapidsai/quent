@@ -5,6 +5,7 @@ import { createStore } from 'jotai';
 import { describe, expect, it } from 'vitest';
 import { operatorSelectionActionAtom, operatorSelectionAtom } from '../atoms/dag';
 import { selectedOperatorsDataAtom } from '../atoms/dagControls';
+import { pinnedOperatorDetailsAtom } from '../atoms/operatorDetails';
 
 const scanData = {
   nodeId: 'scan',
@@ -40,11 +41,13 @@ describe('operator selection actions', () => {
     expect(selectedIds).toEqual(new Set(['logical-scan', 'physical-scan']));
     expect(store.get(operatorSelectionAtom).selections.has('logical-scan')).toBe(true);
     expect(store.get(selectedOperatorsDataAtom)).toEqual(new Map([['logical-scan', scanData]]));
+    expect(store.get(pinnedOperatorDetailsAtom)).toEqual(new Map([['logical-scan', scanData]]));
 
     store.set(operatorSelectionActionAtom, { type: 'remove', selectionId: 'logical-scan' });
 
     expect(store.get(operatorSelectionAtom).selections.size).toBe(0);
     expect(store.get(selectedOperatorsDataAtom).size).toBe(0);
+    expect(store.get(pinnedOperatorDetailsAtom).size).toBe(0);
   });
 
   it('keeps only the parent data when parent and child selections overlap', () => {

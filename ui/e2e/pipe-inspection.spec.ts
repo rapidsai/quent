@@ -13,7 +13,7 @@ test('operator and pipe clicks add and remove independent detail pins', async ({
   await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
   const node = page.locator('.react-flow__node').first();
   await expect(node).toBeVisible();
-  const clearSelection = page.getByRole('button', { name: 'Clear pinned items' });
+  const clearSelection = page.getByRole('button', { name: 'Clear all selections' });
   // Only selected nodes get `scale-110`; the hover glow does not.
   const selectedLook = node.locator('.scale-110');
 
@@ -77,7 +77,7 @@ test('node and pipe clicks preserve pins of the other type', async ({ page }) =>
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(0);
   await expect(pipe).toHaveAttribute('aria-pressed', 'false');
   await expect(operatorTab(page)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Clear pinned items' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear all selections' })).toBeVisible();
 });
 
 test('pipes are deselected one at a time or all at once from the details panel', async ({
@@ -105,8 +105,8 @@ test('pipes are deselected one at a time or all at once from the details panel',
   await expect(first).toHaveAttribute('aria-pressed', 'false');
   await expect(second).toHaveAttribute('aria-pressed', 'true');
 
-  // Clear pinned items removes the remaining pipe and the selected operator.
-  await page.getByRole('button', { name: 'Clear pinned items' }).click();
+  // Clear all selections removes the remaining pipe and operator filter.
+  await page.getByRole('button', { name: 'Clear all selections' }).click();
   await expect(second).toHaveAttribute('aria-pressed', 'false');
   await expect(pipeDetailsTab(page)).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(0);
@@ -178,7 +178,7 @@ test('keyboard pipe inspection supports mixed pins and renders nested endpoint d
       )
     )
     .toBeGreaterThan(2);
-  const clearSelection = page.getByRole('button', { name: 'Clear pinned items' });
+  const clearSelection = page.getByRole('button', { name: 'Clear all selections' });
   await expect(clearSelection).toBeVisible();
   const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
   await pipe.focus();
@@ -257,7 +257,7 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
       edge.locator('.react-flow__edge-path').evaluate(path => (path as SVGElement).style.filter)
     )
     .toContain('drop-shadow');
-  const clearSelection = page.getByRole('button', { name: 'Clear pinned items' });
+  const clearSelection = page.getByRole('button', { name: 'Clear all selections' });
   await expect(clearSelection).toBeVisible();
   await output.click();
   await expect(pipeDetailsTab(page)).toBeVisible();

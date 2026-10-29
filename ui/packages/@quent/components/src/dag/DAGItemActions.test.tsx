@@ -39,6 +39,28 @@ describe('DAGItemActions', () => {
     expect(togglePin).toHaveBeenCalledOnce();
   });
 
+  it('replaces pin with filter when the operator is filtered', async () => {
+    const user = userEvent.setup();
+    const toggleFilter = vi.fn();
+    render(
+      <DAGItemActions
+        label="Scan"
+        pinned
+        filtered
+        visible
+        previewContent={<div>Scan preview</div>}
+        onTogglePin={() => undefined}
+        onToggleFilter={toggleFilter}
+      />
+    );
+
+    const filter = screen.getByRole('button', { name: 'Filter operator Scan' });
+    expect(filter).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Pin details for Scan' })).not.toBeInTheDocument();
+    await user.click(filter);
+    expect(toggleFilter).toHaveBeenCalledOnce();
+  });
+
   it('offers only preview for edges', async () => {
     const user = userEvent.setup();
     render(

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { DAGItemStatus } from './DAGItemStatus';
 
 describe('DAGItemStatus', () => {
-  it('shows pin, filter, and combined status', () => {
+  it('shows pin or filter status without a redundant pin for filtered items', () => {
     const { rerender } = render(<DAGItemStatus label="Scan" pinned filtered={false} />);
     const pinned = screen.getByRole('status', { name: 'Scan: pinned' });
     expect(pinned).toBeVisible();
@@ -16,7 +16,11 @@ describe('DAGItemStatus', () => {
     expect(screen.getByRole('status', { name: 'Scan: filtered' })).toBeVisible();
 
     rerender(<DAGItemStatus label="Scan" pinned filtered />);
-    expect(screen.getByRole('status', { name: 'Scan: pinned and filtered' })).toBeVisible();
+    const combined = screen.getByRole('status', { name: 'Scan: pinned and filtered' });
+    expect(combined).toBeVisible();
+    const icons = combined.querySelectorAll('svg');
+    expect(icons[0]).toHaveClass('lucide-filter');
+    expect(icons).toHaveLength(1);
   });
 
   it('renders nothing without an active state', () => {
