@@ -362,6 +362,23 @@ describe('DAGChart selection', () => {
     expect(actions).toHaveClass('opacity-0');
   });
 
+  it('hides pipe actions after a pointer selection leaves the pipe', async () => {
+    render(
+      <Provider store={createStore()}>
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    const pipe = (await screen.findAllByRole('button', { name: /^Inspect pipe / }))[0];
+    const actions = screen.getByRole('toolbar', { name: 'Actions for source-out to middle-in' });
+    fireEvent.focus(pipe);
+    fireEvent.mouseEnter(pipe);
+    fireEvent.click(pipe);
+    fireEvent.mouseLeave(pipe);
+
+    expect(actions).toHaveClass('opacity-0');
+  });
+
   it('moves pipe actions and status clear of a metric label', async () => {
     render(
       <Provider store={createStore()}>

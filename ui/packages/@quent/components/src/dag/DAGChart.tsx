@@ -281,6 +281,8 @@ const VariableWidthEdge = ({
           onClick={event => {
             event.stopPropagation();
             inspect();
+            setIsFocused(false);
+            event.currentTarget.blur();
           }}
           onKeyDown={event => {
             if (event.key === 'Enter' || event.key === ' ') {
