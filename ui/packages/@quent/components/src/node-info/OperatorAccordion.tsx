@@ -40,7 +40,7 @@ export const OperatorAccordion = ({
     }
     header={
       <>
-        <DataText className="min-w-0 flex-1 truncate text-xs font-medium" title={operator.label}>
+        <DataText className="min-w-0 flex-1 truncate text-xs font-bold" title={operator.label}>
           {operator.label}
         </DataText>
         <DataText className="shrink-0 rounded bg-muted px-1.5 pt-0.5 pb-px text-xs leading-none capitalize text-muted-foreground">
