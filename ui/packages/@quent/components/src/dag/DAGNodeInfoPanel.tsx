@@ -10,9 +10,21 @@ import {
   useDataFlowMeta,
   useDisplayedOperatorDetails,
   useDisplayedPipeDetails,
+  useInspectedPipeNodes,
+  useOperatorDetailsActions,
+  useOperatorSelection,
+  useOperatorSelectionActions,
+  usePinnedOperatorDetailIds,
+  useSelectedOperatorIds,
+  useToggleInspectedPipe,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
-import { OperatorDataFlowBlock, OperatorDetailsBlock, PipeDetailsBlock } from '../node-info';
+import {
+  DetailItemActions,
+  OperatorDataFlowBlock,
+  OperatorDetailsBlock,
+  PipeDetailsBlock,
+} from '../node-info';
 import { thinScrollbarClass } from '../ui/thin-scroll';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
@@ -31,6 +43,13 @@ export const DAGNodeInfoPanel = ({
 }) => {
   const operatorDetails = useDisplayedOperatorDetails();
   const pipeDetails = useDisplayedPipeDetails();
+  const inspectedPipeNodes = useInspectedPipeNodes();
+  const operatorSelection = useOperatorSelection();
+  const updateOperatorSelection = useOperatorSelectionActions();
+  const selectedOperatorIds = useSelectedOperatorIds();
+  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
+  const updateOperatorDetails = useOperatorDetailsActions();
+  const toggleInspectedPipe = useToggleInspectedPipe();
   const selectedOperators = operatorDetails.map(detail => detail.data);
   const inspectedPipes = pipeDetails.map(detail => detail.pipe);
   const dataFlowEnabled = useDataFlowEnabled();
@@ -139,16 +158,59 @@ export const DAGNodeInfoPanel = ({
 
   const statsContent = showStatsTab ? (
     <div ref={statsContentRef} className="flex flex-col gap-1 pt-1.5">
-      {operatorDetails.map((detail, index) => (
-        <div key={detail.selectionId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
-          <OperatorDetailsBlock
-            operator={detail.data}
-            quantitySpecs={quantitySpecs}
-            isOpen={isOperatorOpen}
-            onOpenChange={setOperatorOpen}
-          />
-        </div>
-      ))}
+      {operatorDetails.map((detail, index) => {
+        const operatorIds = new Set([
+          detail.data.nodeId,
+          ...(detail.data.relatedOperators?.map(operator => operator.nodeId) ?? []),
+        ]);
+        const filtered = [...operatorIds].every(id => selectedOperatorIds.has(id));
+        const matchingFilterIds = [...operatorSelection.selections]
+          .filter(
+            ([selectionId, selection]) =>
+              selectionId === detail.selectionId ||
+              (selection.operatorIds.size === operatorIds.size &&
+                [...selection.operatorIds].every(id => operatorIds.has(id)))
+          )
+          .map(([selectionId]) => selectionId);
+        const pinned = pinnedOperatorDetailIds.has(detail.selectionId);
+        const toggleFilter = () => {
+          if (filtered) {
+            for (const selectionId of matchingFilterIds) {
+              updateOperatorSelection({ type: 'remove', selectionId });
+            }
+          } else {
+            updateOperatorSelection({
+              type: 'add',
+              selectionId: detail.selectionId,
+              label: detail.data.label,
+              operatorIds,
+              selectedData: detail.data,
+            });
+          }
+        };
+
+        return (
+          <div key={detail.selectionId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
+            <OperatorDetailsBlock
+              operator={detail.data}
+              quantitySpecs={quantitySpecs}
+              isOpen={isOperatorOpen}
+              onOpenChange={setOperatorOpen}
+              actions={
+                <DetailItemActions
+                  label={`operator ${detail.data.label}`}
+                  filtered={filtered}
+                  pinned={pinned}
+                  onToggleFilter={toggleFilter}
+                  onUnpin={() =>
+                    updateOperatorDetails({ type: 'unpin', selectionId: detail.selectionId })
+                  }
+                />
+              }
+            />
+          </div>
+        );
+      })}
     </div>
   ) : null;
 
@@ -160,6 +222,20 @@ export const DAGNodeInfoPanel = ({
             pipe={detail.pipe}
             open={isOperatorOpen(detail.pipe.id)}
             onOpenChange={open => setOperatorOpen(detail.pipe.id, open)}
+            actions={
+              <DetailItemActions
+                label={`pipe from ${inspectedPipeNodes.get(detail.pipe.source)?.label ?? detail.pipe.source} to ${inspectedPipeNodes.get(detail.pipe.target)?.label ?? detail.pipe.target}`}
+                pinned
+                onUnpin={() => {
+                  if (detail.pipe.sourcePortId && detail.pipe.targetPortId) {
+                    toggleInspectedPipe({
+                      sourcePortId: detail.pipe.sourcePortId,
+                      targetPortId: detail.pipe.targetPortId,
+                    });
+                  }
+                }}
+              />
+            }
           />
         </div>
       ))}

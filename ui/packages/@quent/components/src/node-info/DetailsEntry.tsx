@@ -10,6 +10,7 @@ export interface DetailsEntryProps {
   bar: ReactNode;
   /** Content of the clickable header row, shown before the chevron. */
   header: ReactNode;
+  actions?: ReactNode;
   triggerLabel: string;
   /** Controlled open state; the entry manages its own state when omitted. */
   open?: boolean;
@@ -22,6 +23,7 @@ export interface DetailsEntryProps {
 export const DetailsEntry = ({
   bar,
   header,
+  actions,
   triggerLabel,
   open,
   onOpenChange,
@@ -36,13 +38,16 @@ export const DetailsEntry = ({
   >
     {bar}
     <div className="min-w-0 flex-1">
-      <CollapsibleTrigger
-        className="group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-0 py-1 my-1 text-left hover:bg-muted/50"
-        aria-label={triggerLabel}
-      >
-        {header}
-        <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-      </CollapsibleTrigger>
+      <div className="my-1 flex min-w-0 items-center gap-1">
+        <CollapsibleTrigger
+          className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm px-0 py-1 text-left hover:bg-muted/50"
+          aria-label={triggerLabel}
+        >
+          {header}
+          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+        </CollapsibleTrigger>
+        {actions}
+      </div>
       <CollapsibleContent>{children}</CollapsibleContent>
     </div>
   </Collapsible>

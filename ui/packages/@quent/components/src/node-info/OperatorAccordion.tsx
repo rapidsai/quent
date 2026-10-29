@@ -16,16 +16,19 @@ export const OperatorAccordion = ({
   operator,
   open,
   onOpenChange,
+  actions,
   children,
 }: {
   operator: SelectedOperatorData;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  actions?: ReactNode;
   children: ReactNode;
 }) => (
   <DetailsEntry
     open={open}
     onOpenChange={onOpenChange}
+    actions={actions}
     testId={`operator-accordion-${operator.nodeId}`}
     bar={
       <OperatorColorBar operationType={operator.operationType} className="w-[3px] self-stretch" />

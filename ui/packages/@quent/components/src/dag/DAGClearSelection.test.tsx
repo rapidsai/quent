@@ -76,12 +76,12 @@ describe('DAGClearSelection', () => {
     expect(screen.getByTestId('operators')).toHaveTextContent('1');
     expect(screen.getByTestId('pipes')).toHaveTextContent('1');
 
-    await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+    await user.click(screen.getByRole('button', { name: 'Clear pinned items' }));
 
     expect(screen.getByTestId('operators')).toHaveTextContent('0');
     expect(screen.getByTestId('filters')).toHaveTextContent('1');
     expect(screen.getByTestId('pipes')).toHaveTextContent('0');
-    expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear pinned items' })).not.toBeInTheDocument();
   });
 
   it('renders nothing when nothing is selected', () => {
@@ -92,6 +92,6 @@ describe('DAGClearSelection', () => {
         </ReactFlow>
       </Provider>
     );
-    expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear pinned items' })).not.toBeInTheDocument();
   });
 });

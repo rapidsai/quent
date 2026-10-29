@@ -231,6 +231,29 @@ describe('DAGNodeInfoPanel', () => {
     });
   });
 
+  it('filters and unpins an operator from its detail entry', async () => {
+    render(
+      <Provider>
+        <SelectedNode />
+      </Provider>
+    );
+
+    const filter = await screen.findByRole('button', { name: 'Filter operator Logical join' });
+    const unpin = screen.getByRole('button', { name: 'Unpin operator Logical join' });
+    expect(filter).toHaveAttribute('aria-pressed', 'false');
+    expect(unpin).toBeEnabled();
+
+    fireEvent.click(filter);
+    expect(filter).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(unpin);
+    expect(screen.getByTestId('operator-accordion-logical')).toBeVisible();
+    expect(unpin).toBeDisabled();
+
+    fireEvent.click(filter);
+    expect(screen.queryByTestId('operator-accordion-logical')).not.toBeInTheDocument();
+  });
+
   it('shows statistics for every selected operator', async () => {
     render(
       <Provider>
@@ -440,5 +463,16 @@ describe('pipes alongside operators', () => {
     act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-2', targetPortId: 'in-2' }));
     expect(screen.getAllByRole('region', { name: 'Sending port' })).toHaveLength(2);
     expect(screen.getAllByRole('region', { name: 'Receiving port' })).toHaveLength(2);
+  });
+
+  it('unpins a pipe from its detail entry without offering a pipe filter', () => {
+    const probe = renderPanel();
+    act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
+
+    expect(screen.queryByRole('button', { name: /filter pipe/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Unpin pipe from scan to join' }));
+
+    expect(probe.latest().inspectedPipes).toHaveLength(0);
+    expect(screen.queryByRole('tab', { name: 'Pipes' })).not.toBeInTheDocument();
   });
 });

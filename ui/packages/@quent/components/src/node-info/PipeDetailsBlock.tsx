@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, type ReactNode } from 'react';
 import {
   useInspectedPipeNodes,
   useSetHighlightedNodeIds,
@@ -19,9 +19,10 @@ export interface PipeDetailsBlockProps {
   /** Controlled open state; the block manages its own state when omitted. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  actions?: ReactNode;
 }
 
-export function PipeDetailsBlock({ pipe, open, onOpenChange }: PipeDetailsBlockProps) {
+export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDetailsBlockProps) {
   const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
   const updateDetails = useOperatorDetailsActions();
@@ -63,6 +64,7 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange }: PipeDetailsBlockP
     <DetailsEntry
       open={open}
       onOpenChange={onOpenChange}
+      actions={actions}
       testId={`pipe-details-${pipe.id}`}
       triggerLabel={`Toggle pipe from ${sourceLabel} to ${targetLabel} details`}
       bar={<span aria-hidden className="w-[3px] shrink-0 self-stretch rounded-full bg-border" />}
