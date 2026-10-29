@@ -46,19 +46,38 @@ export async function calculateLayout<TData extends Record<string, unknown>>(
     }
   }
 
+  const sizeById = new Map(
+    nodes.map(node => [
+      node.id,
+      {
+        width: Math.max(NODE_LAYOUT_WIDTH, node.measured?.width ?? node.width ?? 0),
+        height: Math.max(nodeHeight, node.measured?.height ?? node.height ?? 0),
+      },
+    ])
+  );
+  const layoutWidth = Math.max(
+    NODE_LAYOUT_WIDTH,
+    ...[...sizeById.values()].map(size => size.width)
+  );
+  const layoutHeight = Math.max(nodeHeight, ...[...sizeById.values()].map(size => size.height));
+
   // nodeSize encodes center-to-center distance per axis:
   //   x (within a layer): node width + gap between siblings
   //   y (between layers): node height + gap between layers
-  const nodeSize = [NODE_LAYOUT_WIDTH + NODE_SPACING, nodeHeight + LAYER_SPACING] as const;
+  const nodeSize = [layoutWidth + NODE_SPACING, layoutHeight + LAYER_SPACING] as const;
   // sugiyama is synchronous and layers sources at the shallowest depth by default
   sugiyama().nodeSize(nodeSize)(grf);
 
   // d3-dag reports node centers; ReactFlow expects top-left
   const posMap = new Map<string, { x: number; y: number }>();
   for (const node of grf.nodes()) {
+    const size = sizeById.get(node.data) ?? {
+      width: NODE_LAYOUT_WIDTH,
+      height: nodeHeight,
+    };
     posMap.set(node.data, {
-      x: (node.x ?? 0) - NODE_LAYOUT_WIDTH / 2,
-      y: (node.y ?? 0) - nodeHeight / 2,
+      x: (node.x ?? 0) - size.width / 2,
+      y: (node.y ?? 0) - size.height / 2,
     });
   }
 

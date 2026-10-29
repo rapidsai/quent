@@ -462,6 +462,25 @@ const FlowLayout = ({
   // so toggling the overlay relayouts exactly once.
   const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
+  const appliedMeasuredLayoutKey = useRef<string | null>(null);
+  const estimatedNodeHeight = NODE_LAYOUT_HEIGHT + (flowBarVisible ? FLOW_BAR_HEIGHT : 0);
+  const measuredNodeSizesKey = useMemo(() => {
+    if (nodes.length === 0 || nodes.some(node => !node.measured?.width || !node.measured?.height)) {
+      return null;
+    }
+    return [...nodes]
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map(node => `${node.id}:${node.measured!.width}x${node.measured!.height}`)
+      .join('|');
+  }, [nodes]);
+  const edgeTopologyKey = useMemo(
+    () =>
+      edges
+        .map(edge => `${edge.id}:${edge.source}>${edge.target}`)
+        .sort()
+        .join('|'),
+    [edges]
+  );
   const hierarchyOperators = useMemo(() => {
     if (operators) {
       return operators;
@@ -684,6 +703,7 @@ const FlowLayout = ({
   // Calculate and apply layout
   useLayoutEffect(() => {
     hasUserInteracted.current = false;
+    appliedMeasuredLayoutKey.current = null;
     // calculateLayout is async: rapid dependency changes (e.g. flowBarVisible
     // toggles) can interleave calls, so discard results from stale runs
     // instead of letting them overwrite a newer layout.
@@ -695,7 +715,7 @@ const FlowLayout = ({
         flowNodes,
         flowEdges,
         layoutDirection,
-        NODE_LAYOUT_HEIGHT + (flowBarVisible ? FLOW_BAR_HEIGHT : 0)
+        estimatedNodeHeight
       );
       if (cancelled) {
         return;
@@ -712,7 +732,55 @@ const FlowLayout = ({
     return () => {
       cancelled = true;
     };
-  }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection, flowBarVisible]);
+  }, [data, convertToReactFlow, estimatedNodeHeight, fitView, setNodes, setEdges, layoutDirection]);
+
+  useLayoutEffect(() => {
+    if (!measuredNodeSizesKey) {
+      return;
+    }
+    const layoutKey = `${layoutDirection}|${edgeTopologyKey}|${measuredNodeSizesKey}`;
+    if (appliedMeasuredLayoutKey.current === layoutKey) {
+      return;
+    }
+
+    let cancelled = false;
+    const applyMeasuredLayout = async () => {
+      const layoutResult = await calculateLayout(
+        nodes,
+        edges,
+        layoutDirection,
+        estimatedNodeHeight
+      );
+      if (cancelled) {
+        return;
+      }
+      appliedMeasuredLayoutKey.current = layoutKey;
+      const positions = new Map(layoutResult.nodes.map(node => [node.id, node.position]));
+      setNodes(current =>
+        current.map(node => ({
+          ...node,
+          position: positions.get(node.id) ?? node.position,
+        }))
+      );
+      if (!hasUserInteracted.current) {
+        setTimeout(() => fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM }), 0);
+      }
+    };
+
+    applyMeasuredLayout();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    edgeTopologyKey,
+    edges,
+    estimatedNodeHeight,
+    fitView,
+    layoutDirection,
+    measuredNodeSizesKey,
+    nodes,
+    setNodes,
+  ]);
 
   const dagHeatmap = useMemo(
     () => resolveDagHeatmap(highlightState.hoveredStat, data.nodes),
