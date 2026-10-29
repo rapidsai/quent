@@ -32,13 +32,14 @@ import {
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
+import { useAtom } from 'jotai';
 import { resolveStatisticFields } from '../lib/queryBundle.utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 import { getNodeOpacityClass } from './nodeOpacity';
 import { DAGItemActions } from '../dag/DAGItemActions';
 import { DAGItemStatus } from '../dag/DAGItemStatus';
-import { useDAGPreview } from '../dag/DAGPreviewContext';
+import { activeDAGPreviewIdAtom } from '../dag/dagPreviewState';
 import { OperatorDetailsBlock } from '../node-info/OperatorDetailsBlock';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
@@ -120,7 +121,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const [closedPreviewOperatorIds, setClosedPreviewOperatorIds] = useState<Set<string>>(
     () => new Set()
   );
-  const { activePreviewId, setActivePreviewId } = useDAGPreview();
+  const [activePreviewId, setActivePreviewId] = useAtom(activeDAGPreviewIdAtom);
   const previewId = `node:${data.nodeId}`;
 
   const resolvedLabel = useMemo(() => {

@@ -28,6 +28,7 @@ import {
   type EdgeProps,
   type OnMoveStart,
 } from '@xyflow/react';
+import { useAtom } from 'jotai';
 import '@xyflow/react/dist/style.css';
 import {
   useSelectedOperatorIds,
@@ -60,7 +61,7 @@ import { DAGClearSelection } from './DAGClearSelection';
 import { DAGLegend } from './DAGLegend';
 import { DAGItemActions } from './DAGItemActions';
 import { DAGItemStatus } from './DAGItemStatus';
-import { DAGPreviewProvider, useDAGPreview } from './DAGPreviewContext';
+import { activeDAGPreviewIdAtom } from './dagPreviewState';
 import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
 import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
@@ -120,7 +121,7 @@ const VariableWidthEdge = ({
   const setHoveredPipeId = useSetHoveredPipeId();
   const toggleInspectedPipe = useToggleInspectedPipe();
   const [isFocused, setIsFocused] = useState(false);
-  const { activePreviewId, setActivePreviewId } = useDAGPreview();
+  const [activePreviewId, setActivePreviewId] = useAtom(activeDAGPreviewIdAtom);
   const previewId = `edge:${id}`;
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
   const pipeLabel = pipe
@@ -462,7 +463,7 @@ const FlowLayout = ({
   const updateNodeInternals = useUpdateNodeInternals();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
-  const { setActivePreviewId } = useDAGPreview();
+  const [, setActivePreviewId] = useAtom(activeDAGPreviewIdAtom);
   const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
   const updateOperatorDetails = useOperatorDetailsActions();
   const [highlightState] = useHighlightedNodeIds();
@@ -913,19 +914,17 @@ export const DAGChart = ({
   const containerRef = useRef<HTMLDivElement>(null);
   return (
     <div ref={containerRef} style={{ width: '100%', height }}>
-      <DAGPreviewProvider>
-        <ReactFlowProvider>
-          <FlowLayout
-            data={data}
-            containerRef={containerRef}
-            isDark={isDark}
-            operators={operators}
-            selectedNodeIds={selectedNodeIds}
-            onSelectionChange={onSelectionChange}
-            onBackgroundClick={onBackgroundClick}
-          />
-        </ReactFlowProvider>
-      </DAGPreviewProvider>
+      <ReactFlowProvider>
+        <FlowLayout
+          data={data}
+          containerRef={containerRef}
+          isDark={isDark}
+          operators={operators}
+          selectedNodeIds={selectedNodeIds}
+          onSelectionChange={onSelectionChange}
+          onBackgroundClick={onBackgroundClick}
+        />
+      </ReactFlowProvider>
     </div>
   );
 };
