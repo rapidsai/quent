@@ -1,6 +1,7 @@
 packages:
   - '.'
   - '../../../ui/packages/@quent/client'
+  - '../../../ui/packages/@quent/query-analysis'
   - '../../../ui/packages/@quent/utils'
 
 catalog:

@@ -10,9 +10,6 @@ export function validateQueryBundleContext(context: QuestionContext): void {
       `Query bundle ID "${context.queryBundle.query_id}" does not match requested query "${context.queryId}".`
     );
   }
-  if (!Number.isFinite(context.queryBundle.duration_s) || context.queryBundle.duration_s <= 0) {
-    throw new Error('The query bundle has no positive finite duration.');
-  }
 }
 
 export function queryBundleResolution(): QuestionResult['resolution'] {

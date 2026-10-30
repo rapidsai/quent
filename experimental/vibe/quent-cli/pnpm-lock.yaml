@@ -15,21 +15,12 @@ catalogs:
     '@types/react':
       specifier: 19.2.18
       version: 19.2.18
-    clsx:
-      specifier: 2.1.1
-      version: 2.1.1
     react:
       specifier: 19.2.8
       version: 19.2.8
     react-dom:
       specifier: 19.2.8
       version: 19.2.8
-    tailwind-merge:
-      specifier: 3.6.0
-      version: 3.6.0
-    tsdown:
-      specifier: 0.22.14
-      version: 0.22.14
     typescript:
       specifier: 6.0.3
       version: 6.0.3
@@ -41,6 +32,9 @@ importers:
       '@quent/client':
         specifier: workspace:*
         version: link:../../../ui/packages/@quent/client
+      '@quent/query-analysis':
+        specifier: workspace:*
+        version: link:../../../ui/packages/@quent/query-analysis
       '@quent/utils':
         specifier: workspace:*
         version: link:../../../ui/packages/@quent/utils
@@ -103,6 +97,8 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+
+  ../../../ui/packages/@quent/query-analysis: {}
 
   ../../../ui/packages/@quent/utils:
     dependencies:
