@@ -3,12 +3,17 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { DataFlowTimelineBinned, TimelineConfig } from '@quent/utils';
-import { fetchDataFlow, fetchListEngines, fetchListQueries } from './api';
+import {
+  createHttpApiClient,
+  fetchDataFlow,
+  fetchListEngines,
+  fetchListQueries,
+} from './api';
 
 const CONFIG: TimelineConfig = { start: 0, end: 8, num_bins: 4 };
 
 const BINNED: DataFlowTimelineBinned = {
-  config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: 4 },
+  config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: 4 as unknown as bigint },
   decl: {
     entity_type_name: 'Task',
     dimension_name: 'Data location',
@@ -53,6 +58,19 @@ describe('catalog fetchers', () => {
       expect.any(Object)
     );
   });
+
+  it('does not treat a TanStack Query callback context as the API base URL', async () => {
+    const response = { items: [], initial_group_by_attribute: null };
+    const fetchMock = stubFetch(new Response(JSON.stringify(response), { status: 200 }));
+    const queryFunction = fetchListEngines as unknown as (
+      context: object
+    ) => ReturnType<typeof fetchListEngines>;
+
+    await queryFunction({ queryKey: ['list_engines'] });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toMatch(/\/api\/engines\?with_metadata=true$/u);
+    expect(fetchMock.mock.calls[0]?.[0]).not.toContain('[object Object]');
+  });
 });
 
 describe('fetchDataFlow', () => {
@@ -91,5 +109,30 @@ describe('fetchDataFlow', () => {
         }),
       })
     );
+  });
+});
+
+describe('createHttpApiClient', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps concurrent clients pinned to independent API bases', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      return new Response(
+        JSON.stringify({ items: [], initial_group_by_attribute: null }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const first = createHttpApiClient('http://first.test/api/');
+    const second = createHttpApiClient('http://second.test/api');
+
+    await Promise.all([first.fetchListEngines(), second.fetchListEngines()]);
+
+    expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
+      'http://first.test/api/engines?with_metadata=true',
+      'http://second.test/api/engines?with_metadata=true',
+    ]);
   });
 });

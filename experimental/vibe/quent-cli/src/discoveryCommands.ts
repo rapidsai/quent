@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseArgs } from 'node:util';
-import { fetchListEngines, fetchListQueries, setApiBaseUrl } from '@quent/client';
+import { fetchListEngines, fetchListQueries, fetchQueryBundle, setApiBaseUrl } from '@quent/client';
 import type { AskCommand } from './askCommand.types';
 import {
   createNonInteractiveSelector,
@@ -17,6 +17,7 @@ type NamedEntity = { id: string; instance_name: string | null };
 const api: DiscoveryApi = {
   fetchListEngines,
   fetchListQueries,
+  fetchQueryBundle,
 };
 
 function configureApi(apiBase: string | undefined): void {
