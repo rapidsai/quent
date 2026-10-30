@@ -3,12 +3,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { DataFlowTimelineBinned, TimelineConfig } from '@quent/utils';
-import {
-  createHttpApiClient,
-  fetchDataFlow,
-  fetchListEngines,
-  fetchListQueries,
-} from './api';
+import { createHttpApiClient, fetchDataFlow, fetchListEngines, fetchListQueries } from './api';
 
 const CONFIG: TimelineConfig = { start: 0, end: 8, num_bins: 4 };
 
@@ -120,10 +115,9 @@ describe('createHttpApiClient', () => {
 
   it('keeps concurrent clients pinned to independent API bases', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => {
-      return new Response(
-        JSON.stringify({ items: [], initial_group_by_attribute: null }),
-        { status: 200 }
-      );
+      return new Response(JSON.stringify({ items: [], initial_group_by_attribute: null }), {
+        status: 200,
+      });
     });
     vi.stubGlobal('fetch', fetchMock);
     const first = createHttpApiClient('http://first.test/api/');

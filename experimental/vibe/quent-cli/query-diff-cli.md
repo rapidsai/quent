@@ -35,10 +35,10 @@ After fetching the bundles, the CLI offers a metric multiselect containing only
 numeric metrics present in every selected query. Choose individual metrics or
 the **All metrics** option.
 
-The comparison algorithm is the pure TypeScript `@quent-experimental/query-diff` workspace
-package. It has no terminal, React, transport, or Node.js dependency, so the
-browser app can consume the same result model. The CLI owns API orchestration,
-Ink interaction, and terminal formatting.
+The comparison algorithm is part of the pure TypeScript `@quent/query-analysis`
+workspace package. It has no terminal, React, transport, or Node.js dependency,
+so the browser app can consume the same result model. The CLI owns API
+orchestration, Ink interaction, and terminal formatting.
 
 ## Database sources
 

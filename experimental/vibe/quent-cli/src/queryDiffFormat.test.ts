@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import type { QueryDiffResult } from '@quent-experimental/query-diff';
+import type { QueryDiffResult } from '@quent/query-analysis';
 import { formatQueryDiff } from './queryDiffFormat';
 
 describe('query diff terminal formatter', () => {
