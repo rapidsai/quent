@@ -36,6 +36,15 @@ const RESOURCE_A_ID = '01a025ff-ea8b-7881-9d31-72a275872c9d';
 const RESOURCE_B_ID = '01a025ff-ea8b-7881-9d31-72a275872c9e';
 const NVTX_SECTION_ID = '__nvtx__';
 
+function encodeRawState(version: string, value: unknown): string {
+  const compressed = gzipSync(strToU8(JSON.stringify(value)), { level: 9, mtime: 0 });
+  let binary = '';
+  for (const byte of compressed) {
+    binary += String.fromCharCode(byte);
+  }
+  return `${version}.${btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')}`;
+}
+
 const state: DeepLinkStateV3 = {
   route: {
     engineId: 'engine-a',
@@ -172,15 +181,7 @@ describe('deep-link codec', () => {
       timeline: { zoomRange: { start: 12.5, end: 48.75 } },
       selection: { operatorNodeIds: ['operator-a'] },
     });
-    const compressed = gzipSync(strToU8(JSON.stringify(legacyState)), { level: 9, mtime: 0 });
-    let binary = '';
-    for (const byte of compressed) {
-      binary += String.fromCharCode(byte);
-    }
-    const encoded = `v2.${btoa(binary)
-      .replace(/\+/gu, '-')
-      .replace(/\//gu, '_')
-      .replace(/=+$/u, '')}`;
+    const encoded = encodeRawState('v2', legacyState);
 
     expect(decodeDeepLinkState(encoded)).toEqual({
       ok: true,
@@ -234,6 +235,7 @@ describe('deep-link codec', () => {
       ok: false,
       code: 'invalid-state',
       message: `Shared links support at most ${MAX_SELECTED_NODE_IDS} selected operators.`,
+      messages: [`Shared links support at most ${MAX_SELECTED_NODE_IDS} selected operators.`],
     });
   });
 
@@ -252,6 +254,59 @@ describe('deep-link codec', () => {
       ok: false,
       code: 'invalid-state',
       message: `Shared links support at most ${MAX_EXPANDED_RESOURCE_IDS} expanded resources.`,
+      messages: [`Shared links support at most ${MAX_EXPANDED_RESOURCE_IDS} expanded resources.`],
+    });
+  });
+
+  it('reports every limit violation when encoding and decoding', () => {
+    const selectedMessage = `Shared links support at most ${MAX_SELECTED_NODE_IDS} selected operators.`;
+    const expandedMessage = `Shared links support at most ${MAX_EXPANDED_RESOURCE_IDS} expanded resources.`;
+    const invalidState = {
+      route: state.route,
+      selection: {
+        operatorNodeIds: Array.from(
+          { length: MAX_SELECTED_NODE_IDS + 1 },
+          (_, index) => `operator-${index}`
+        ),
+      },
+      resources: {
+        expandedRowIds: Array.from(
+          { length: MAX_EXPANDED_RESOURCE_IDS + 1 },
+          (_, index) => `resource-${index}`
+        ),
+      },
+    };
+    const expected = {
+      ok: false,
+      code: 'invalid-state',
+      message: `${selectedMessage} ${expandedMessage}`,
+      messages: [selectedMessage, expandedMessage],
+    };
+
+    expect(encodeDeepLinkState(invalidState)).toEqual(expected);
+    expect(decodeDeepLinkState(encodeRawState('v3', invalidState))).toEqual(expected);
+  });
+
+  it('includes nested fields and array indexes in validation errors', () => {
+    const invalidState = {
+      ...state,
+      timeline: { zoomRange: { start: -1, end: 0 } },
+      resources: {
+        ...state.resources,
+        resourceTypeSelections: [{ rowId: 'resource-a', resourceType: '' }],
+      },
+      entities: { ...state.entities, window: { start: 20, end: 10 } },
+    };
+
+    expect(encodeDeepLinkState(invalidState)).toMatchObject({
+      ok: false,
+      code: 'invalid-state',
+      messages: [
+        'Too small: expected number to be >=0 (timeline.zoomRange.start)',
+        'Too small: expected number to be >0 (timeline.zoomRange.end)',
+        'Too small: expected string to have >=1 characters (resources.resourceTypeSelections[0].resourceType)',
+        'Entity window end must not precede its start',
+      ],
     });
   });
 });
@@ -440,6 +495,7 @@ describe('deep-link pinned rows', () => {
       ok: false,
       code: 'invalid-state',
       message: `Shared links support at most ${MAX_PINNED_ROWS} pinned rows.`,
+      messages: [`Shared links support at most ${MAX_PINNED_ROWS} pinned rows.`],
     });
   });
 

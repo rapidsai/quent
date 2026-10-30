@@ -59,6 +59,7 @@ import {
 } from './deepLink.context';
 import { readDeepLinkFields, type DeepLinkFields } from './deepLink.fields';
 import { normalizeZoomRange, resolveCapturedZoomRange } from './deepLink.normalize';
+import { showDeepLinkErrorToasts } from './deepLink.toasts';
 import {
   OperatorGroupSchema,
   type DeepLinkEntitiesState,
@@ -89,6 +90,10 @@ type IntakeState = {
 
 function hasKeys(value: object): boolean {
   return Object.keys(value).length > 0;
+}
+
+function copyFailure(message: string): CopyLinkResult {
+  return { ok: false, message, messages: [message] };
 }
 
 function isOperatorGroup(value: string): value is (typeof OperatorGroupSchema.options)[number] {
@@ -213,7 +218,11 @@ export function DeepLinkBoundary({
         initialZoomRange: null,
         fields: null,
         isResolved: true,
-        status: { kind: 'error', message: decoded.message } satisfies DeepLinkIntakeStatus,
+        status: {
+          kind: 'error',
+          message: decoded.message,
+          messages: decoded.messages,
+        } satisfies DeepLinkIntakeStatus,
       };
     }
 
@@ -228,6 +237,7 @@ export function DeepLinkBoundary({
         fields.route.tab !== intakeRoute.activeTab)
     ) {
       /* eslint-enable react-hooks/refs */
+      const message = 'The shared state does not match the engine, query, and tab in this URL.';
       return {
         initialExpandedResourceIds: null,
         initialZoomRange: null,
@@ -235,7 +245,8 @@ export function DeepLinkBoundary({
         isResolved: true,
         status: {
           kind: 'error',
-          message: 'The shared state does not match the engine, query, and tab in this URL.',
+          message,
+          messages: [message],
         },
       };
     }
@@ -245,6 +256,7 @@ export function DeepLinkBoundary({
       ? normalizeZoomRange(fields.zoomRange, durationSeconds)
       : null;
     if (fields.zoomRange && !normalized) {
+      const message = 'The query duration cannot support the shared timeline viewport.';
       return {
         initialExpandedResourceIds: expandedResourceIds,
         initialZoomRange: null,
@@ -252,7 +264,8 @@ export function DeepLinkBoundary({
         isResolved: true,
         status: {
           kind: 'error',
-          message: 'The query duration cannot support the shared timeline viewport.',
+          message,
+          messages: [message],
         } satisfies DeepLinkIntakeStatus,
       };
     }
@@ -282,12 +295,10 @@ export function DeepLinkBoundary({
         return;
       }
       if (intake.status.kind === 'error') {
-        toast.add({
+        showDeepLinkErrorToasts({
           id: 'deep-link-intake',
-          type: 'error',
           title: 'Could not restore shared view',
-          description: 'Some shared view settings were invalid and could not be restored.',
-          priority: 'high',
+          messages: intake.status.messages,
         });
       } else if (intake.status.kind === 'warning') {
         toast.add({
@@ -397,12 +408,12 @@ export function DeepLinkBoundary({
 
   const copyLink = useCallback(async (): Promise<CopyLinkResult> => {
     if (!queryId || !activeTab) {
-      return { ok: false, message: 'Select a query tab before copying a shared link.' };
+      return copyFailure('Select a query tab before copying a shared link.');
     }
     const capturedRange =
       activeTab === 'entities' ? null : resolveCapturedZoomRange(readZoomRange(), durationSeconds);
     if (!capturedRange && activeTab !== 'entities') {
-      return { ok: false, message: 'The timeline viewport is not available yet.' };
+      return copyFailure('The timeline viewport is not available yet.');
     }
     const sharedView = readSerializableViewState();
     const entitiesState =
@@ -410,7 +421,7 @@ export function DeepLinkBoundary({
         ? captureEntitiesState(store.get(entitiesTableStateAtom), durationSeconds)
         : undefined;
     if (activeTab === 'entities' && entitiesState === null) {
-      return { ok: false, message: 'Fix the entity filters before copying a shared link.' };
+      return copyFailure('Fix the entity filters before copying a shared link.');
     }
 
     const state: DeepLinkStateV3 = {
@@ -564,17 +575,17 @@ export function DeepLinkBoundary({
     const canonicalPageUrl = `${window.location.origin}${window.location.pathname}`;
     const result = buildDeepLinkUrl(canonicalPageUrl, state);
     if (!result.ok) {
-      return { ok: false, message: result.message };
+      return { ok: false, message: result.message, messages: result.messages };
     }
     if (!navigator.clipboard?.writeText) {
-      return { ok: false, message: 'Clipboard access is unavailable.' };
+      return copyFailure('Clipboard access is unavailable.');
     }
 
     try {
       await navigator.clipboard.writeText(result.value);
       return { ok: true, url: result.value };
     } catch {
-      return { ok: false, message: 'Could not copy the link to the clipboard.' };
+      return copyFailure('Could not copy the link to the clipboard.');
     }
   }, [
     activeTab,

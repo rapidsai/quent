@@ -29,15 +29,40 @@ export type DeepLinkErrorCode =
   | 'invalid-url';
 
 export type DeepLinkResult<T> =
-  { ok: true; value: T } | { ok: false; code: DeepLinkErrorCode; message: string };
+  | { ok: true; value: T }
+  | {
+      ok: false;
+      code: DeepLinkErrorCode;
+      message: string;
+      messages: readonly string[];
+    };
 
-function failure(code: DeepLinkErrorCode, message: string): DeepLinkResult<never> {
-  return { ok: false, code, message };
+function failure(
+  code: DeepLinkErrorCode,
+  messageOrMessages: string | readonly string[]
+): DeepLinkResult<never> {
+  const messages =
+    typeof messageOrMessages === 'string' ? [messageOrMessages] : [...messageOrMessages];
+  return { ok: false, code, message: messages.join(' '), messages };
+}
+
+function formatIssuePath(path: PropertyKey[]): string {
+  return path.reduce<string>((result, segment) => {
+    if (typeof segment === 'number') {
+      return `${result}[${segment}]`;
+    }
+    const key = String(segment);
+    return result ? `${result}.${key}` : key;
+  }, '');
 }
 
 function invalidState(error: ZodError, fallback: string): DeepLinkResult<never> {
-  const limitIssue = error.issues.find(issue => issue.code === 'too_big');
-  return failure('invalid-state', limitIssue?.message ?? fallback);
+  const messages = error.issues.map(issue => {
+    const path =
+      issue.code === 'too_big' || issue.code === 'custom' ? '' : formatIssuePath(issue.path);
+    return path ? `${issue.message} (${path})` : issue.message;
+  });
+  return failure('invalid-state', messages.length > 0 ? messages : fallback);
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
