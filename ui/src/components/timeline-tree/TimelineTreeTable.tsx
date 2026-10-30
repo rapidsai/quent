@@ -53,7 +53,6 @@ export interface PinningControls {
   // Pinned rows that a filter currently hides.
   hiddenCount: number;
   ids: ReadonlySet<string>;
-  isAtLimit: boolean;
   onToggle: (itemId: string) => void;
   // Whether the pinned section shows only its header.
   isCollapsed: boolean;
@@ -167,7 +166,6 @@ export function TimelineTreeTable({
                 name={rowPinning?.getName(item) ?? item.id}
                 isPinnable={pinning != null && (rowPinning?.isPinnable(item) ?? false)}
                 isPinned={pinning?.ids.has(item.id) ?? false}
-                isAtPinLimit={pinning?.isAtLimit ?? false}
                 onTogglePin={() => pinning?.onToggle(item.id)}
               />
             );

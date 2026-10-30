@@ -135,4 +135,83 @@ describe('ResourceFilterSearch', () => {
     expect(onFsmTypesChange).toHaveBeenLastCalledWith([]);
     expect(onShowOthersChange).toHaveBeenLastCalledWith(false);
   });
+
+  describe('pin all matches', () => {
+    function renderWithPins(overrides: Partial<Parameters<typeof ResourceFilterSearch>[0]> = {}) {
+      const onPinMany = vi.fn();
+      const onUnpinMany = vi.fn();
+      render(
+        <ResourceFilterSearch
+          fsmTypes={['task']}
+          matchCount={3}
+          matchIds={['a', 'b', 'c']}
+          onFsmTypesChange={vi.fn()}
+          onPinMany={onPinMany}
+          onResourceTypesChange={vi.fn()}
+          onSearchChange={vi.fn()}
+          onShowOthersChange={vi.fn()}
+          onUnpinMany={onUnpinMany}
+          pinnedIds={new Set()}
+          resourceTypes={['gpu']}
+          search="gpu"
+          selectedFsmTypes={[]}
+          selectedResourceTypes={[]}
+          showOthers={false}
+          {...overrides}
+        />
+      );
+      return { onPinMany, onUnpinMany };
+    }
+    const open = (user: ReturnType<typeof userEvent.setup>) =>
+      user.click(screen.getByRole('button', { name: /Resource filters/ }));
+
+    it('pins every match', async () => {
+      const user = userEvent.setup();
+      const { onPinMany } = renderWithPins();
+
+      await open(user);
+      await user.click(screen.getByRole('button', { name: 'Pin all 3' }));
+
+      expect(onPinMany).toHaveBeenCalledWith(['a', 'b', 'c']);
+    });
+
+    it('is hidden when no filter is active', async () => {
+      const user = userEvent.setup();
+      renderWithPins({ search: '', matchIds: [] });
+
+      await open(user);
+
+      expect(screen.queryByRole('button', { name: /Pin/ })).not.toBeInTheDocument();
+    });
+
+    it('is hidden when the filter has no matches', async () => {
+      const user = userEvent.setup();
+      renderWithPins({ matchCount: 0, matchIds: [] });
+
+      await open(user);
+
+      expect(screen.queryByRole('button', { name: /Pin/ })).not.toBeInTheDocument();
+    });
+
+    it('offers to pin the rest when some matches are pinned', async () => {
+      const user = userEvent.setup();
+      const { onPinMany } = renderWithPins({ pinnedIds: new Set(['a']) });
+
+      await open(user);
+      await user.click(screen.getByRole('button', { name: 'Pin remaining 2' }));
+
+      expect(onPinMany).toHaveBeenCalledWith(['b', 'c']);
+    });
+
+    it('unpins every match once all are pinned', async () => {
+      const user = userEvent.setup();
+      const { onUnpinMany, onPinMany } = renderWithPins({ pinnedIds: new Set(['a', 'b', 'c']) });
+
+      await open(user);
+      await user.click(screen.getByRole('button', { name: 'Unpin all 3' }));
+
+      expect(onUnpinMany).toHaveBeenCalledWith(['a', 'b', 'c']);
+      expect(onPinMany).not.toHaveBeenCalled();
+    });
+  });
 });

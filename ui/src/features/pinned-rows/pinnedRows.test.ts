@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import { findAncestorNames, reorderPinnedIds, resolvePinnedRows } from './pinnedRows';
+import {
+  computePinAllPlan,
+  findAncestorNames,
+  reorderPinnedIds,
+  resolvePinnedRows,
+} from './pinnedRows';
 
 interface Node {
   id: string;
@@ -168,5 +173,42 @@ describe('findAncestorNames', () => {
 
   it('returns null for a row that is not in the tree', () => {
     expect(findAncestorNames(fullTree(), 'missing', name)).toBeNull();
+  });
+});
+
+describe('computePinAllPlan', () => {
+  it('plans to pin every match when nothing is pinned', () => {
+    const plan = computePinAllPlan(['a', 'b', 'c'], new Set());
+
+    expect(plan).toEqual({ toPin: ['a', 'b', 'c'], allPinned: false });
+  });
+
+  it('skips matches that are already pinned', () => {
+    const plan = computePinAllPlan(['a', 'b', 'c'], new Set(['b']));
+
+    expect(plan.toPin).toEqual(['a', 'c']);
+    expect(plan.allPinned).toBe(false);
+  });
+
+  it('reports allPinned when every match is already pinned', () => {
+    const plan = computePinAllPlan(['a', 'b'], new Set(['a', 'b', 'x']));
+
+    expect(plan).toEqual({ toPin: [], allPinned: true });
+  });
+
+  it('is not allPinned when there are no matches', () => {
+    expect(computePinAllPlan([], new Set(['a'])).allPinned).toBe(false);
+  });
+
+  it('keeps match order and ignores duplicate ids', () => {
+    const plan = computePinAllPlan(['c', 'a', 'c', 'b'], new Set());
+
+    expect(plan.toPin).toEqual(['c', 'a', 'b']);
+  });
+
+  it('does not cap how many rows are pinned', () => {
+    const many = Array.from({ length: 500 }, (_, i) => `row-${i}`);
+
+    expect(computePinAllPlan(many, new Set(['x'])).toPin).toEqual(many);
   });
 });

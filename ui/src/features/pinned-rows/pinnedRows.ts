@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Most rows a user can pin. Keeps shared links and the pinned section a sane size.
-export const MAX_PINNED_ROWS = 20;
-
 interface TreeNode<T> {
   id: string;
   children?: readonly T[];
@@ -88,6 +85,26 @@ export function reorderPinnedIds(
   order.splice(from, 1);
   order.splice(to, 0, activeId);
   return new Set(order);
+}
+
+export interface PinAllPlan {
+  // Matches to pin now, in match order. Already pinned rows are left out.
+  toPin: string[];
+  // True when there is at least one match and every match is pinned.
+  allPinned: boolean;
+}
+
+/**
+ * Work out what "pin all matches" should do. Matches keep their order, and duplicates and rows
+ * that are already pinned are skipped.
+ */
+export function computePinAllPlan(
+  matchIds: readonly string[],
+  pinnedIds: ReadonlySet<string>
+): PinAllPlan {
+  const toPin = [...new Set(matchIds)].filter(id => !pinnedIds.has(id));
+
+  return { toPin, allPinned: matchIds.length > 0 && toPin.length === 0 };
 }
 
 /**

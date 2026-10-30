@@ -184,7 +184,7 @@ export function useResourceTimelinesTreeModel({
     rootItem,
   ]);
 
-  const { pinnedIds, togglePin, movePin, isAtPinLimit } = usePinnedIds();
+  const { pinnedIds, togglePin, pinMany, unpinMany, movePin } = usePinnedIds();
   const { isPinnedCollapsed, togglePinnedCollapsed } = usePinnedCollapsed();
   // A pin whose row a filter has removed is hidden, not forgotten; clearing the filter restores it.
   const { shownItems: pinnedItems, hiddenCount: hiddenPinnedCount } = useMemo(
@@ -223,6 +223,11 @@ export function useResourceTimelinesTreeModel({
     (item: TimelineTreeItem) => item.id !== rootItem.id,
     [rootItem.id]
   );
+  // Matches the user can pin with "pin all". Set order follows the tree, and the root is left out.
+  const pinnableMatchIds = useMemo(
+    () => [...resourceFilterResult.directMatchIds].filter(id => id !== rootItem.id),
+    [resourceFilterResult.directMatchIds, rootItem.id]
+  );
   const getRowName = useCallback(
     (item: TimelineTreeItem) =>
       subRows.find(subRow => subRow.matches(item))?.label ??
@@ -239,7 +244,6 @@ export function useResourceTimelinesTreeModel({
       items: pinnedItems as TimelineTreeItem[],
       hiddenCount: hiddenPinnedCount,
       ids: pinnedIds,
-      isAtLimit: isAtPinLimit,
       onToggle: togglePin,
       isCollapsed: isPinnedCollapsed,
       onToggleCollapsed: togglePinnedCollapsed,
@@ -247,7 +251,6 @@ export function useResourceTimelinesTreeModel({
     }),
     [
       hiddenPinnedCount,
-      isAtPinLimit,
       isPinnedCollapsed,
       movePin,
       pinnedIds,
@@ -440,6 +443,10 @@ export function useResourceTimelinesTreeModel({
       <ResourceFilterSearch
         fsmTypes={fsmTypeOptions}
         matchCount={resourceFilterResult.matchCount}
+        matchIds={pinnableMatchIds}
+        onPinMany={pinMany}
+        onUnpinMany={unpinMany}
+        pinnedIds={pinnedIds}
         onFsmTypesChange={fsmTypes => setResourceFilter(current => ({ ...current, fsmTypes }))}
         onResourceTypesChange={resourceTypes =>
           setResourceFilter(current => ({ ...current, resourceTypes }))

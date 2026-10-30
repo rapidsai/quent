@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { describe, expect, it } from 'vitest';
-import { MAX_PINNED_ROWS } from '@/features/pinned-rows/pinnedRows';
 import { usePinnedCollapsed, usePinnedIds } from './usePinnedIds';
 
 function renderPinnedHook() {
@@ -21,7 +20,6 @@ describe('usePinnedIds', () => {
     const { result } = renderPinnedHook();
 
     expect(result.current.pinnedIds.size).toBe(0);
-    expect(result.current.isAtPinLimit).toBe(false);
   });
 
   it('pins a row and unpins it when toggled again', () => {
@@ -44,31 +42,62 @@ describe('usePinnedIds', () => {
     expect(before.size).toBe(0);
   });
 
-  it('ignores new pins once the limit is reached', () => {
+  it('does not cap how many rows can be pinned', () => {
     const { result } = renderPinnedHook();
 
-    for (let i = 0; i < MAX_PINNED_ROWS; i += 1) {
+    for (let i = 0; i < 150; i += 1) {
       act(() => result.current.togglePin(`row-${i}`));
     }
-    expect(result.current.pinnedIds.size).toBe(MAX_PINNED_ROWS);
-    expect(result.current.isAtPinLimit).toBe(true);
 
-    act(() => result.current.togglePin('one-too-many'));
+    expect(result.current.pinnedIds.size).toBe(150);
+  });
+});
 
-    expect(result.current.pinnedIds.size).toBe(MAX_PINNED_ROWS);
-    expect(result.current.pinnedIds.has('one-too-many')).toBe(false);
+describe('usePinnedIds bulk changes', () => {
+  it('pins many rows at once, after the existing pins', () => {
+    const { result } = renderPinnedHook();
+    act(() => result.current.togglePin('x'));
+
+    act(() => result.current.pinMany(['a', 'b']));
+
+    expect([...result.current.pinnedIds]).toEqual(['x', 'a', 'b']);
   });
 
-  it('still allows unpinning when at the limit', () => {
+  it('does not duplicate rows that are already pinned', () => {
     const { result } = renderPinnedHook();
-    for (let i = 0; i < MAX_PINNED_ROWS; i += 1) {
-      act(() => result.current.togglePin(`row-${i}`));
-    }
+    act(() => result.current.togglePin('a'));
 
-    act(() => result.current.togglePin('row-0'));
+    act(() => result.current.pinMany(['a', 'b']));
 
-    expect(result.current.pinnedIds.has('row-0')).toBe(false);
-    expect(result.current.isAtPinLimit).toBe(false);
+    expect([...result.current.pinnedIds]).toEqual(['a', 'b']);
+  });
+
+  it('pins every row it is given, however many', () => {
+    const { result } = renderPinnedHook();
+    const many = Array.from({ length: 150 }, (_, i) => `row-${i}`);
+
+    act(() => result.current.pinMany(many));
+
+    expect([...result.current.pinnedIds]).toEqual(many);
+  });
+
+  it('returns a new set after pinning many instead of mutating the old one', () => {
+    const { result } = renderPinnedHook();
+    const before = result.current.pinnedIds;
+
+    act(() => result.current.pinMany(['a']));
+
+    expect(result.current.pinnedIds).not.toBe(before);
+    expect(before.size).toBe(0);
+  });
+
+  it('unpins many rows and leaves the others in order', () => {
+    const { result } = renderPinnedHook();
+    act(() => result.current.pinMany(['a', 'b', 'c', 'd']));
+
+    act(() => result.current.unpinMany(['b', 'd', 'not-pinned']));
+
+    expect([...result.current.pinnedIds]).toEqual(['a', 'c']);
   });
 });
 

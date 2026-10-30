@@ -11,12 +11,12 @@ import {
 } from '@quent/utils';
 import { MAX_PAGE_SIZE } from '@/components/entities-table/utils';
 import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
-import { MAX_PINNED_ROWS } from '@/features/pinned-rows/pinnedRows';
 import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/resourceFilter';
 
 export const MAX_ENCODED_STATE_LENGTH = 4096;
 export const MAX_EXPANDED_RESOURCE_IDS = 50;
 export const MAX_SELECTED_NODE_IDS = 100;
+export const MAX_PINNED_ROW_IDS = 100;
 export const MAX_RESOURCE_OVERRIDES = 50;
 export const MAX_VISIBLE_STATS = 100;
 export const MAX_TABLE_SORTS = 5;
@@ -169,7 +169,7 @@ const ResourceTreeSchema = z
       .optional(),
     pinnedRowIds: z
       .array(IdSchema)
-      .max(MAX_PINNED_ROWS, limitMessage('pinned rows', MAX_PINNED_ROWS))
+      .max(MAX_PINNED_ROW_IDS, limitMessage('pinned rows', MAX_PINNED_ROW_IDS))
       .transform(uniqueInOrder)
       .optional(),
     rootResourceType: NameSchema.optional(),
