@@ -225,7 +225,14 @@ async function httpFetchDataFlow(
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
   }
-  return parseJsonWithBigInt<DataFlowTimelineBinned>(await response.text());
+  const timeline = parseJsonWithBigInt<DataFlowTimelineBinned>(await response.text());
+  return {
+    ...timeline,
+    config: {
+      ...timeline.config,
+      num_bins: asBigInt(timeline.config.num_bins),
+    },
+  };
 }
 
 const httpClient: ApiClient = {

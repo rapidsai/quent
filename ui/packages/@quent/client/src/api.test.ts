@@ -8,7 +8,7 @@ import { fetchDataFlow, fetchListEngines, fetchListQueries } from './api';
 const CONFIG: TimelineConfig = { start: 0, end: 8, num_bins: 4 };
 
 const BINNED: DataFlowTimelineBinned = {
-  config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: 4 },
+  config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: 4n },
   decl: {
     entity_type_name: 'Task',
     dimension_name: 'Data location',
@@ -19,6 +19,11 @@ const BINNED: DataFlowTimelineBinned = {
   operators: {
     'op-1': { values: { tasks: { queueing: { memory: [1, 2, 0, 0] } } } },
   },
+};
+
+const BINNED_RESPONSE = {
+  ...BINNED,
+  config: { ...BINNED.config, num_bins: 4 },
 };
 
 function stubFetch(response: Response) {
@@ -61,7 +66,7 @@ describe('fetchDataFlow', () => {
   });
 
   it('resolves the binned timeline on a 200 response', async () => {
-    stubFetch(new Response(JSON.stringify(BINNED), { status: 200 }));
+    stubFetch(new Response(JSON.stringify(BINNED_RESPONSE), { status: 200 }));
     await expect(fetchDataFlow('e-1', 'q-1', CONFIG)).resolves.toEqual(BINNED);
   });
 
@@ -78,7 +83,7 @@ describe('fetchDataFlow', () => {
   });
 
   it('POSTs a CategoricalTimelineRequest to the data-flow endpoint', async () => {
-    const fetchMock = stubFetch(new Response(JSON.stringify(BINNED), { status: 200 }));
+    const fetchMock = stubFetch(new Response(JSON.stringify(BINNED_RESPONSE), { status: 200 }));
     await fetchDataFlow('e-1', 'q-1', CONFIG, ['tasks']);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/engines/e-1/timeline/data-flow'),
