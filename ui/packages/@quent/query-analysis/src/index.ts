@@ -16,6 +16,17 @@ export type {
   StatisticPath,
   StatisticScope,
 } from './operatorStatisticsSummary';
+export { ACTIVE_SPAN_METRIC, commonQueryMetrics, diffQueryBundles } from './queryDiff';
+export type {
+  QueryDiffBundle,
+  QueryDiffComparison,
+  QueryDiffOptions,
+  QueryDiffResult,
+  QueryDiffRow,
+  QueryDiffScope,
+  QueryDiffSummary,
+  SerializedQueryDiffValue,
+} from './queryDiff';
 export { analyzeQueryLifecycle } from './queryLifecycle';
 export type { LifecycleOffset, QueryLifecycleAnalysis } from './queryLifecycle';
 export { analyzeQueryStructure } from './queryStructure';

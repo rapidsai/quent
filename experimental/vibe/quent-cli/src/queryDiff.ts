@@ -9,7 +9,7 @@ import {
   fetchQueryBundle,
   setApiBaseUrl,
 } from '@quent/client';
-import { commonQueryMetrics, diffQueryBundles } from '@quent-experimental/query-diff';
+import { commonQueryMetrics, diffQueryBundles } from '@quent/query-analysis';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import {
   createNonInteractiveSelector,

@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
 import type { EntityRef, Operator, QueryBundle } from '@quent/utils';
-import { commonQueryMetrics, diffQueryBundles } from './index';
+import { describe, expect, it } from 'vitest';
+import { commonQueryMetrics, diffQueryBundles } from './queryDiff';
 
 function operator(
   id: string,
