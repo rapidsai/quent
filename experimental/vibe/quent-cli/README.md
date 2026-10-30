@@ -3,7 +3,8 @@
 
 # Question CLI
 
-Experimental Quent CLI for discovering engines and queries from the Quent API.
+Experimental Quent CLI for discovering query-engine captures and answering
+deterministic questions from one query bundle.
 
 This project has the unstable, agent-authored status described by the parent
 [`vibe`](../README.md) directory.
@@ -31,6 +32,18 @@ pixi run pnpm --silent --dir experimental/vibe/quent-cli ask engines --json
 pixi run pnpm --silent --dir experimental/vibe/quent-cli ask queries \
   --engine ENGINE_ID --json
 ```
+
+Question commands use the same interactive query selector when engine or query
+IDs are omitted:
+
+```sh
+pixi run pnpm --dir experimental/vibe/quent-cli ask query-lifecycle
+pixi run pnpm --dir experimental/vibe/quent-cli ask query-structure
+pixi run pnpm --dir experimental/vibe/quent-cli ask operator-facts
+pixi run pnpm --dir experimental/vibe/quent-cli ask operator-statistics-summary
+```
+
+`--json` changes the output format without disabling interactive selection.
 
 ## Validation
 
