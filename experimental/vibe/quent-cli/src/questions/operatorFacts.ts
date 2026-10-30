@@ -13,6 +13,7 @@ import {
   buildQueryBundleDeepLink,
   formatSeconds,
   queryBundleResolution,
+  renderTable,
   validateQueryBundleContext,
 } from './queryBundleQuestion.utils';
 
@@ -125,27 +126,42 @@ async function run(
 }
 
 function formatHuman(result: OperatorFactsResult): string {
+  const table =
+    result.finding.operators.length === 0
+      ? 'No operators found.'
+      : renderTable(
+          [
+            'Operator',
+            'Type',
+            'Plan',
+            'Scope',
+            'Worker',
+            'Active span',
+            'Parents / children',
+            'A / S / P',
+          ],
+          result.finding.operators.map(operator => [
+            `${operator.instanceName ?? '(unnamed)'} (${operator.id})`,
+            operator.typeName ?? '—',
+            operator.plan?.instanceName ?? operator.plan?.id ?? '—',
+            operator.plan?.scope ?? '—',
+            operator.plan?.worker?.instanceName ?? operator.plan?.worker?.id ?? '—',
+            operator.activeSpan?.durationSeconds == null
+              ? '—'
+              : formatSeconds(operator.activeSpan.durationSeconds),
+            `${operator.parentOperatorIds.length} / ${operator.childOperatorIds.length}`,
+            `${operator.customAttributes.length} / ${operator.statistics.length} / ${operator.ports.length}`,
+          ]),
+          new Set([5, 6, 7])
+        );
   const lines = [
     `${result.question.title} (v${result.question.version})`,
     `Query: ${result.scope.queryId}`,
     `Operators: ${result.finding.operatorCount}`,
     `Integrity issues: ${result.finding.integrityIssues.length}`,
     '',
+    table,
   ];
-  for (const operator of result.finding.operators) {
-    lines.push(
-      `${operator.instanceName ?? '(unnamed)'} (${operator.typeName ?? '(unknown)'}, ${operator.id})`,
-      `  Plan: ${operator.plan?.instanceName ?? operator.plan?.id ?? 'unavailable'} [${
-        operator.plan?.scope ?? 'unknown'
-      }]`,
-      `  Active span: ${
-        operator.activeSpan?.durationSeconds === null || operator.activeSpan === null
-          ? 'unavailable'
-          : formatSeconds(operator.activeSpan.durationSeconds)
-      }`,
-      `  Attributes / statistics / ports: ${operator.customAttributes.length} / ${operator.statistics.length} / ${operator.ports.length}`
-    );
-  }
   lines.push(
     '',
     `Evidence: ${result.evidence.class} — ${result.evidence.explanation}`,

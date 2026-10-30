@@ -15,6 +15,7 @@ import type {
 import {
   buildQueryBundleDeepLink,
   queryBundleResolution,
+  renderTable,
   validateQueryBundleContext,
 } from './queryBundleQuestion.utils';
 
@@ -105,25 +106,49 @@ function formatNumber(value: number | string): string {
 }
 
 function formatHuman(result: OperatorStatisticsSummaryResult): string {
+  const table =
+    result.finding.aggregates.length === 0
+      ? 'No numeric operator statistics found.'
+      : renderTable(
+          [
+            'Plan',
+            'Operator',
+            'Statistic',
+            'Quantity',
+            'n',
+            'Missing',
+            'Other',
+            'Sum',
+            'Min',
+            'Max',
+            'Mean',
+            'Median',
+            'Stddev',
+          ],
+          result.finding.aggregates.map(aggregate => [
+            aggregate.scope === 'logical' ? 'Logical' : 'Physical',
+            aggregate.operatorType,
+            pathLabel(aggregate.statisticPath),
+            aggregate.quantity ?? '—',
+            `${aggregate.numericValueCount}/${aggregate.operatorCount}`,
+            String(aggregate.missingValueCount),
+            String(aggregate.nonNumericValueCount),
+            formatNumber(aggregate.sum),
+            formatNumber(aggregate.minimum),
+            formatNumber(aggregate.maximum),
+            formatNumber(aggregate.mean),
+            formatNumber(aggregate.median),
+            formatNumber(aggregate.populationStandardDeviation),
+          ]),
+          new Set([4, 5, 6, 7, 8, 9, 10, 11, 12])
+        );
   const lines = [
     `${result.question.title} (v${result.question.version})`,
     `Query: ${result.scope.queryId}`,
     `Aggregates: ${result.finding.aggregates.length}`,
     '',
+    table,
   ];
-  for (const aggregate of result.finding.aggregates) {
-    lines.push(
-      `${aggregate.scope} · ${aggregate.operatorType} · ${pathLabel(
-        aggregate.statisticPath
-      )} [${aggregate.quantity ?? 'unitless'}]`,
-      `  n=${aggregate.numericValueCount}/${aggregate.operatorCount}, missing=${aggregate.missingValueCount}, non-numeric=${aggregate.nonNumericValueCount}`,
-      `  min=${formatNumber(aggregate.minimum)}, max=${formatNumber(
-        aggregate.maximum
-      )}, mean=${formatNumber(aggregate.mean)}, median=${formatNumber(
-        aggregate.median
-      )}, stddev=${formatNumber(aggregate.populationStandardDeviation)}`
-    );
-  }
   lines.push(
     '',
     `Skipped values: ${result.finding.skippedValues.length}`,

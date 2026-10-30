@@ -60,3 +60,28 @@ export function buildQueryBundleDeepLink(
 export function formatSeconds(value: number): string {
   return `${value.toFixed(9).replace(/\.?0+$/u, '')}s`;
 }
+
+export function renderTable(
+  headers: readonly string[],
+  rows: readonly (readonly string[])[],
+  numericColumns: ReadonlySet<number> = new Set()
+): string {
+  const widths = headers.map((header, index) =>
+    Math.max(header.length, ...rows.map(row => row[index]!.length))
+  );
+  const border = (left: string, middle: string, right: string) =>
+    `${left}${widths.map(width => '─'.repeat(width + 2)).join(middle)}${right}`;
+  const row = (values: readonly string[]) =>
+    `│ ${values
+      .map((value, index) =>
+        numericColumns.has(index) ? value.padStart(widths[index]!) : value.padEnd(widths[index]!)
+      )
+      .join(' │ ')} │`;
+  return [
+    border('┌', '┬', '┐'),
+    row(headers),
+    border('├', '┼', '┤'),
+    ...rows.map(row),
+    border('└', '┴', '┘'),
+  ].join('\n');
+}

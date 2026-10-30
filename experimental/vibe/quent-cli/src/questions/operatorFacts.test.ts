@@ -160,6 +160,8 @@ describe('operator-facts', () => {
       ],
     });
     expect(result.finding.integrityIssues).toEqual([]);
+    expect(question.formatHuman(result)).toContain('│ Operator');
+    expect(question.formatHuman(result)).toContain('Physical scan (physical-scan)');
   });
 
   it('filters and links explicitly requested operators', async () => {

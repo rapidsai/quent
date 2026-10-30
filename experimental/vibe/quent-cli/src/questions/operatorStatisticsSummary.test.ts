@@ -194,6 +194,8 @@ describe('operator-statistics-summary', () => {
       percentile25: 5,
       percentile75: 5,
     });
+    expect(question.formatHuman(result)).toContain('│ Plan');
+    expect(question.formatHuman(result)).toContain('│ Physical');
   });
 
   it('preserves nested paths, separates quantities, and reports unsupported values', async () => {
