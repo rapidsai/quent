@@ -101,11 +101,7 @@ async function httpFetchQueryBundle(
 }
 
 async function httpFetchListEngines(baseUrl?: string): Promise<EngineListResponse> {
-  return apiFetch<EngineListResponse>(
-    '/engines',
-    { params: { with_metadata: true } },
-    baseUrl
-  );
+  return apiFetch<EngineListResponse>('/engines', { params: { with_metadata: true } }, baseUrl);
 }
 
 async function httpFetchEngineContexts(

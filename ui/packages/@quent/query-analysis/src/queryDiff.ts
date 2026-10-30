@@ -5,7 +5,7 @@ import { isNumericValue, unwrapTaggedValue } from '@quent/utils';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 
 type NumericValue = number | bigint;
-export type SerializedNumericValue = number | string;
+export type SerializedQueryDiffValue = number | string;
 
 export type QueryDiffScope = 'logical' | 'physical';
 
@@ -14,9 +14,9 @@ export interface QueryDiffRow {
   operatorType: string;
   metric: string;
   quantity: string | null;
-  baseline: SerializedNumericValue | null;
-  candidate: SerializedNumericValue | null;
-  delta: SerializedNumericValue | null;
+  baseline: SerializedQueryDiffValue | null;
+  candidate: SerializedQueryDiffValue | null;
+  delta: SerializedQueryDiffValue | null;
   deltaPercent: number | null;
 }
 
@@ -84,7 +84,7 @@ function subtractNumeric(left: NumericValue, right: NumericValue): NumericValue 
   return Number(left) - Number(right);
 }
 
-function serializeNumeric(value: NumericValue): SerializedNumericValue {
+function serializeNumeric(value: NumericValue): SerializedQueryDiffValue {
   return typeof value === 'bigint' ? value.toString() : value;
 }
 

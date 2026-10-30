@@ -7,8 +7,8 @@ import {
   type QueryDiffResult,
   type QueryDiffRow,
   type QueryDiffSummary,
-  type SerializedNumericValue,
-} from '@quent-experimental/query-diff';
+  type SerializedQueryDiffValue,
+} from '@quent/query-analysis';
 
 interface QueryDiffFormatOptions {
   color?: boolean;
@@ -17,7 +17,7 @@ interface QueryDiffFormatOptions {
 
 type DeltaSign = -1 | 0 | 1;
 
-function formatNumeric(value: SerializedNumericValue | null, metric: string): string {
+function formatNumeric(value: SerializedQueryDiffValue | null, metric: string): string {
   if (value === null) {
     return '—';
   }
@@ -30,7 +30,7 @@ function formatNumeric(value: SerializedNumericValue | null, metric: string): st
   return value.toLocaleString('en-US', { maximumSignificantDigits: 10 });
 }
 
-function deltaSign(value: SerializedNumericValue | null): DeltaSign {
+function deltaSign(value: SerializedQueryDiffValue | null): DeltaSign {
   if (value === null) {
     return 0;
   }
