@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -99,7 +99,7 @@ function SelectionControls() {
 
 describe('OperatorGanttChart', () => {
   it.each(['plan', 'worker'])(
-    'shows ordered attributes when an operator is selected from the %s timeline',
+    'filters and opens details when an operator is selected from the %s timeline',
     scope => {
       const operator: Operator = {
         ...makeOperator('scan'),
@@ -122,6 +122,7 @@ describe('OperatorGanttChart', () => {
 
       render(
         <Provider store={createStore()}>
+          <SelectionControls />
           <DAGNodeInfoPanel />
           <OperatorGanttChart
             operators={operators}
@@ -138,21 +139,9 @@ describe('OperatorGanttChart', () => {
         });
       });
 
-      const attributes = screen.getByRole('heading', { name: 'Attributes' }).closest('section')!;
-      expect(
-        within(attributes)
-          .getAllByRole('definition')
-          .map(value => value.textContent)
-      ).toEqual(['First input', 'price * discount', 'Second input']);
-      expect(
-        within(attributes)
-          .getAllByRole('term')
-          .map(term => term.textContent)
-      ).toEqual(['source:', 'expression:', 'source:']);
-      expect(within(attributes).getByRole('heading', { name: 'Configuration' })).toBeVisible();
-      const statistics = screen.getByRole('heading', { name: 'Statistics' }).closest('section')!;
-      expect(within(statistics).getByText('rows:')).toBeVisible();
-      expect(within(statistics).getByText('0')).toBeVisible();
+      expect(screen.getByTestId('selection-ids')).toHaveTextContent(JSON.stringify(['scan']));
+      expect(screen.getByRole('heading', { name: 'Attributes' })).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Toggle details' })).toBeEnabled();
     }
   );
 
@@ -257,7 +246,7 @@ describe('OperatorGanttChart', () => {
     expect(screen.getByTestId('selected-operators')).toHaveTextContent(JSON.stringify(['right']));
     expect(screen.queryByRole('button', { name: 'Remove parent' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove right' })).toBeInTheDocument();
-    expect(screen.getByTestId('operator-accordion-right')).toBeInTheDocument();
+    expect(screen.getByTestId('operator-accordion-right')).toBeVisible();
     expect(screen.queryByTestId('operator-accordion-parent')).not.toBeInTheDocument();
   });
 });

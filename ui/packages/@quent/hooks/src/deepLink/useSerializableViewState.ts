@@ -15,9 +15,11 @@ import {
 } from '@quent/utils';
 import {
   operatorSelectionActionAtom,
+  operatorSelectionAtom,
   selectedOperatorIdsAtom,
   selectedPlanIdAtom,
 } from '../atoms/dag';
+import { operatorDetailsActionAtom, pinnedOperatorDetailsAtom } from '../atoms/operatorDetails';
 import {
   dataFlowEnabledAtom,
   dataFlowIsPlayingAtom,
@@ -79,6 +81,7 @@ export interface SerializableViewState {
   selection: {
     planId: string;
     operatorNodeIds: string[];
+    operatorDetailsNodeIds?: string[];
     pipes?: readonly PipeRef[];
   };
   dag: SerializableDagControls;
@@ -90,6 +93,7 @@ export interface HydratableViewState {
   selection?: {
     planId?: string;
     operatorNodeIds?: readonly string[];
+    operatorDetailsNodeIds?: readonly string[];
     pipes?: readonly PipeRef[];
   };
   dag?: Partial<SerializableDagControls>;
@@ -120,6 +124,9 @@ export function useSerializableViewState({
       selection: {
         planId: store.get(selectedPlanIdAtom),
         operatorNodeIds: [...store.get(selectedOperatorIdsAtom)].sort(),
+        ...(store.get(pinnedOperatorDetailsAtom).size > 0
+          ? { operatorDetailsNodeIds: [...store.get(pinnedOperatorDetailsAtom).keys()].sort() }
+          : {}),
         ...(store.get(inspectedPipeRefsAtom).length > 0
           ? { pipes: store.get(inspectedPipeRefsAtom) }
           : {}),
@@ -173,6 +180,17 @@ export function useSerializableViewState({
         store.set(operatorSelectionActionAtom, {
           type: 'replace',
           selections: resolveSelectedOperatorSelections(operators, state.selection.operatorNodeIds),
+        });
+      }
+      if (state.selection?.operatorDetailsNodeIds !== undefined) {
+        store.set(operatorDetailsActionAtom, {
+          type: 'replaceIds',
+          selectionIds: [
+            ...new Set([
+              ...state.selection.operatorDetailsNodeIds,
+              ...store.get(operatorSelectionAtom).selections.keys(),
+            ]),
+          ],
         });
       }
 

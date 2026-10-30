@@ -430,6 +430,9 @@ export function DeepLinkBoundary({
     if (sharedView.selection.operatorNodeIds.length > 0) {
       selection.operatorNodeIds = sharedView.selection.operatorNodeIds;
     }
+    if (sharedView.selection.operatorDetailsNodeIds?.length) {
+      selection.operatorDetailsNodeIds = sharedView.selection.operatorDetailsNodeIds;
+    }
     if (hasKeys(selection)) {
       state.selection = selection;
     }

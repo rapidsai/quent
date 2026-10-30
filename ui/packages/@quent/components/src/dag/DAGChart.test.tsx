@@ -1,15 +1,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { type ComponentType, type ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  isValidElement,
+  type ComponentType,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { describe, expect, it, vi } from 'vitest';
-import type { Edge, EdgeProps } from '@xyflow/react';
+import type { Edge, EdgeProps, Node } from '@xyflow/react';
 import {
   useDagEdgeColoring,
   useDagEdgeWidthConfig,
   useEdgeColorPalette,
+  useInspectedPipes,
+  usePinnedOperatorDetailIds,
+  useSelectedOperatorIds,
   useSelectedEdgeColorField,
   useSelectedScaleType,
   useSelectedEdgeWidthField,
@@ -37,17 +45,67 @@ vi.mock('@xyflow/react', async importOriginal => {
     useReactFlow: () => ({ fitView: mocks.fitView }),
     Background: () => null,
     MiniMap: () => null,
+    EdgeLabelRenderer: ({ children }: { children: ReactNode }) =>
+      isValidElement<{ className?: string }>(children) &&
+      children.props.className?.includes('nodrag')
+        ? children
+        : null,
     Panel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     ReactFlow: ({
+      nodes = [],
       edges,
       edgeTypes,
       children,
+      onNodeClick,
+      onSelectionStart,
+      onSelectionChange,
+      onSelectionEnd,
+      onPaneClick,
+      onMoveStart,
+      selectionKeyCode,
+      multiSelectionKeyCode,
     }: {
+      nodes?: Node[];
       edges: Edge[];
       edgeTypes: Record<string, ComponentType<EdgeProps>>;
       children: ReactNode;
+      onNodeClick?: (event: ReactMouseEvent, node: Node) => void;
+      onSelectionStart?: () => void;
+      onSelectionChange?: (selection: { nodes: Node[]; edges: Edge[] }) => void;
+      onSelectionEnd?: () => void;
+      onPaneClick?: () => void;
+      onMoveStart?: () => void;
+      selectionKeyCode?: string | null;
+      multiSelectionKeyCode?: string | null;
     }) => (
-      <div>
+      <div
+        data-testid="flow"
+        data-selection-key={selectionKeyCode}
+        data-multi-selection-key={multiSelectionKeyCode}
+      >
+        {nodes.map(node => (
+          <button
+            key={node.id}
+            type="button"
+            onClick={event => onNodeClick?.(event, node)}
+          >{`Select ${node.id}`}</button>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            onSelectionStart?.();
+            onSelectionChange?.({ nodes, edges });
+            onSelectionEnd?.();
+          }}
+        >
+          Box select all
+        </button>
+        <button type="button" onClick={onPaneClick}>
+          Click DAG background
+        </button>
+        <button type="button" onClick={onMoveStart}>
+          Drag DAG background
+        </button>
         <svg>
           {edges.map(edge => {
             const EdgeComponent = edgeTypes[edge.type ?? 'default'];
@@ -89,6 +147,70 @@ const data: DAGData = {
   queryData: [],
 };
 
+const selectionData: DAGData = {
+  nodes: [
+    { id: 'first', label: 'First', type: 'scan' },
+    { id: 'second', label: 'Second', type: 'filter' },
+  ],
+  edges: [],
+  queryData: [],
+};
+
+const pipeData: DAGData = {
+  nodes: [
+    { id: 'source', label: 'Source', type: 'scan' },
+    { id: 'middle', label: 'Middle', type: 'filter' },
+    { id: 'target', label: 'Target', type: 'output' },
+  ],
+  edges: [
+    {
+      id: 'first-pipe',
+      source: 'source',
+      target: 'middle',
+      sourcePortId: 'source-out',
+      targetPortId: 'middle-in',
+    },
+    {
+      id: 'second-pipe',
+      source: 'middle',
+      target: 'target',
+      sourcePortId: 'middle-out',
+      targetPortId: 'target-in',
+    },
+  ],
+  queryData: [],
+};
+
+const metricPipeData: DAGData = {
+  ...pipeData,
+  edges: pipeData.edges.map((edge, index) => {
+    const portStats = [{ key: 'bytes', value: index + 1 }];
+    return {
+      ...edge,
+      portStats,
+      statisticFields: flattenStatistics(portStats),
+    };
+  }),
+};
+
+function SelectionProbe() {
+  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
+  const filteredOperatorIds = useSelectedOperatorIds();
+  const inspectedPipes = useInspectedPipes();
+  return (
+    <>
+      <span data-testid="selected-operators">{[...pinnedOperatorDetailIds].sort().join(',')}</span>
+      <span data-testid="filtered-operators">{[...filteredOperatorIds].sort().join(',')}</span>
+      <span data-testid="selected-pipes">
+        {inspectedPipes
+          .map(pipe => pipe.id)
+          .sort()
+          .join(',')}
+      </span>
+    </>
+  );
+}
+
 function EdgeConfiguration() {
   const [, setColorField] = useSelectedEdgeColorField();
   const [, setWidthField] = useSelectedEdgeWidthField();
@@ -112,7 +234,241 @@ function EdgeConfiguration() {
   );
 }
 
+function PipeWidthConfiguration() {
+  const [, setWidthField] = useSelectedEdgeWidthField();
+  useDagEdgeWidthConfig(metricPipeData.edges, computeEdgeWidthConfig);
+  return <button onClick={() => setWidthField('bytes')}>Select pipe width</button>;
+}
+
+function PipeColorConfiguration() {
+  const [, setColorField] = useSelectedEdgeColorField();
+  const [, setPalette] = useEdgeColorPalette();
+  useDagEdgeColoring(metricPipeData.edges, computeEdgeColoring);
+  return (
+    <button
+      onClick={() => {
+        setColorField('bytes');
+        setPalette('blue');
+      }}
+    >
+      Select pipe color
+    </button>
+  );
+}
+
+function translation(element: HTMLElement): [number, number] {
+  const match = element.style.transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)$/);
+  if (!match) {
+    throw new Error(`Missing pixel translation in "${element.style.transform}"`);
+  }
+  return [Number(match[1]), Number(match[2])];
+}
+
+const translateX = (element: HTMLElement) => translation(element)[0];
+const translateY = (element: HTMLElement) => translation(element)[1];
+
+describe('DAGChart selection', () => {
+  it('adds and removes node filters and details together on click', async () => {
+    render(
+      <Provider store={createStore()}>
+        <SelectionProbe />
+        <DAGChart data={selectionData} isDark={false} />
+      </Provider>
+    );
+
+    const first = await screen.findByRole('button', { name: 'Select first' });
+    const second = screen.getByRole('button', { name: 'Select second' });
+
+    fireEvent.click(first);
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first');
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
+    fireEvent.click(first);
+    expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+
+    fireEvent.click(second);
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('second');
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('second');
+
+    fireEvent.click(first);
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first,second');
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
+    fireEvent.click(second);
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first');
+    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
+    fireEvent.click(first);
+    expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+  });
+
+  it('disables modifier-based box selection', async () => {
+    render(
+      <Provider store={createStore()}>
+        <SelectionProbe />
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    const flow = screen.getByTestId('flow');
+    expect(flow).not.toHaveAttribute('data-selection-key');
+    expect(flow).not.toHaveAttribute('data-multi-selection-key');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Box select all' }));
+    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
+  });
+
+  it('adds and removes pipe pins on click', async () => {
+    render(
+      <Provider store={createStore()}>
+        <SelectionProbe />
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Select source' }));
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('source');
+    const pipes = await screen.findAllByRole('button', { name: /^Inspect pipe / });
+    fireEvent.click(pipes[0]);
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('source');
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
+    expect(screen.getByRole('status', { name: 'source-out to middle-in: pinned' })).toBeVisible();
+    fireEvent.click(pipes[0]);
+    expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
+    expect(
+      screen.queryByRole('status', { name: 'source-out to middle-in: pinned' })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(pipes[1]);
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('second-pipe');
+
+    fireEvent.click(pipes[0]);
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe,second-pipe');
+    fireEvent.click(pipes[1]);
+    expect(screen.getByTestId('selected-pipes')).toHaveTextContent('first-pipe');
+    fireEvent.click(pipes[0]);
+    expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('filtered-operators')).toHaveTextContent('source');
+  });
+
+  it('reveals pipe actions when the pipe receives keyboard focus', async () => {
+    render(
+      <Provider store={createStore()}>
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    const pipe = (await screen.findAllByRole('button', { name: /^Inspect pipe / }))[0];
+    const actions = screen.getByRole('toolbar', { name: 'Actions for source-out to middle-in' });
+    expect(actions).toHaveClass('opacity-0', 'overflow-hidden', 'rounded-md');
+    for (const button of within(actions).getAllByRole('button')) {
+      expect(button).not.toHaveClass('rounded-md');
+    }
+    const [preview] = within(actions).getAllByRole('button');
+    expect(within(actions).getAllByRole('button')).toHaveLength(1);
+    expect(preview).toHaveAccessibleName('Preview details for source-out to middle-in');
+
+    fireEvent.focus(pipe);
+
+    expect(actions).toHaveClass('opacity-100');
+
+    fireEvent.focus(preview);
+    fireEvent.mouseLeave(actions);
+
+    expect(actions).toHaveClass('opacity-0');
+  });
+
+  it('hides pipe actions after a pointer selection leaves the pipe', async () => {
+    render(
+      <Provider store={createStore()}>
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    const pipe = (await screen.findAllByRole('button', { name: /^Inspect pipe / }))[0];
+    const actions = screen.getByRole('toolbar', { name: 'Actions for source-out to middle-in' });
+    fireEvent.focus(pipe);
+    fireEvent.mouseEnter(pipe);
+    fireEvent.click(pipe);
+    fireEvent.mouseLeave(pipe);
+
+    expect(actions).toHaveClass('opacity-0');
+  });
+
+  it('moves pipe actions and status clear of a metric label', async () => {
+    render(
+      <Provider store={createStore()}>
+        <PipeWidthConfiguration />
+        <DAGChart data={metricPipeData} isDark={false} />
+      </Provider>
+    );
+
+    const actions = await screen.findByRole('toolbar', {
+      name: 'Actions for source-out to middle-in',
+    });
+    const actionsContainer = actions.parentElement as HTMLElement;
+    const defaultActionsY = translateY(actionsContainer);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select pipe width' }));
+    await waitFor(() => expect(translateY(actionsContainer)).toBeLessThan(defaultActionsY - 7));
+    const metricActionsY = translateY(actionsContainer);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect pipe source-out to middle-in' }));
+    const status = screen.getByRole('status', { name: 'source-out to middle-in: pinned' });
+    expect(translateY(status.parentElement as HTMLElement)).toBeCloseTo(metricActionsY + 48);
+    expect(translateX(status.parentElement as HTMLElement)).toBe(14);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect pipe middle-out to target-in' }));
+    const wideStatus = screen.getByRole('status', { name: 'middle-out to target-in: pinned' });
+    expect(translateX(wideStatus.parentElement as HTMLElement)).toBeCloseTo(23.5);
+  });
+
+  it.each([
+    ['clicked', 'Click DAG background'],
+    ['dragged', 'Drag DAG background'],
+  ])('closes an edge preview when the DAG background is %s', async (_action, buttonName) => {
+    render(
+      <Provider store={createStore()}>
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Preview details for source-out to middle-in',
+      })
+    );
+    expect(await screen.findByTestId('pipe-details-first-pipe')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: buttonName }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('pipe-details-first-pipe')).not.toBeInTheDocument()
+    );
+  });
+});
+
 describe('DAGChart edge scaling', () => {
+  it('preserves metric color when a pipe is pinned', async () => {
+    const { container } = render(
+      <Provider store={createStore()}>
+        <PipeColorConfiguration />
+        <DAGChart data={metricPipeData} isDark={false} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select pipe color' }));
+    const metricColor = continuousColor(0, 'blue');
+    await waitFor(() =>
+      expect(container.querySelector('#first-pipe')).toHaveStyle({ stroke: metricColor })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect pipe source-out to middle-in' }));
+
+    expect(container.querySelector('#first-pipe')).toHaveStyle({ stroke: metricColor });
+    expect(container.querySelector('#arrow-first-pipe path')).toHaveAttribute('fill', metricColor);
+  });
+
   it('renders width and color at the same logarithmic positions and identifies the legend scale', async () => {
     const { container } = render(
       <Provider store={createStore()}>

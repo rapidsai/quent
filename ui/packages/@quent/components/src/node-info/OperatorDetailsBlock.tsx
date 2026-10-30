@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { ReactNode } from 'react';
 import type { SelectedOperatorGroupData } from '@quent/hooks';
 import type { QuantitySpec } from '@quent/utils';
 import { OperatorAccordion, type OperatorDisclosureState } from './OperatorAccordion';
@@ -11,14 +12,17 @@ export const OperatorDetailsBlock = ({
   quantitySpecs,
   isOpen,
   onOpenChange,
+  actions,
 }: {
   operator: SelectedOperatorGroupData;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
+  actions?: ReactNode;
 } & OperatorDisclosureState) => (
   <OperatorAccordion
     operator={operator}
     open={isOpen(operator.nodeId)}
     onOpenChange={open => onOpenChange(operator.nodeId, open)}
+    actions={actions}
   >
     <OperatorStatFields operator={operator} quantitySpecs={quantitySpecs} />
     {operator.relatedOperators?.map(related => (

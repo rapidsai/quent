@@ -37,4 +37,56 @@ describe('calculateLayout', () => {
     const result = await calculateLayout(nodes, edges);
     expect(result.edges).toEqual(edges);
   });
+
+  it('preserves layer spacing when rendered nodes grow taller', async () => {
+    const tallNodes: Node<Record<string, unknown>>[] = [
+      {
+        ...nodes[0],
+        measured: { width: 200, height: 120 },
+      },
+      {
+        ...nodes[2],
+        measured: { width: 200, height: 180 },
+      },
+    ];
+    const result = await calculateLayout(tallNodes, [
+      { id: 'tall-edge', source: 'scan', target: 'root' },
+    ]);
+    const byId = new Map(result.nodes.map(node => [node.id, node]));
+    const root = byId.get('root')!;
+    const scan = byId.get('scan')!;
+
+    expect(scan.position.y - (root.position.y + root.measured!.height!)).toBeGreaterThanOrEqual(
+      100
+    );
+  });
+
+  it('preserves sibling spacing when rendered nodes grow wider', async () => {
+    const wideNodes: Node<Record<string, unknown>>[] = [
+      {
+        id: 'left',
+        position: { x: 0, y: 0 },
+        data: {},
+        measured: { width: 300, height: 72 },
+      },
+      {
+        id: 'right',
+        position: { x: 0, y: 0 },
+        data: {},
+        measured: { width: 240, height: 72 },
+      },
+      nodes[2],
+    ];
+    const result = await calculateLayout(wideNodes, [
+      { id: 'left-root', source: 'left', target: 'root' },
+      { id: 'right-root', source: 'right', target: 'root' },
+    ]);
+    const siblings = result.nodes
+      .filter(node => node.id !== 'root')
+      .sort((left, right) => left.position.x - right.position.x);
+
+    expect(
+      siblings[1].position.x - (siblings[0].position.x + siblings[0].measured!.width!)
+    ).toBeGreaterThanOrEqual(50);
+  });
 });

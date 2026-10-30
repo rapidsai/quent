@@ -58,37 +58,36 @@ export function QueryToolbar({ children }: QueryToolbarProps) {
           />
         </span>
         {hasSelection ? (
-          <TruncatedBadgeList
-            items={selectedOperators}
-            maxVisible={MAX_VISIBLE_OPERATOR_BADGES}
-            fitToWidth
-            getItemKey={operator => operator.id}
-            getItemLabel={operator => operator.label}
-            className="h-8 min-w-0 flex-1 gap-2"
-            overflowBadgeClassName="h-6 rounded-md px-2 py-0 text-sm"
-            renderOverflowLabel={hiddenCount => `and ${hiddenCount} more`}
-            trailing={
-              <div className="flex items-center gap-1.5">
-                <div className="h-4 w-px shrink-0 bg-border" />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  onClick={clearOperators}
-                  aria-label="Clear all filters"
-                >
-                  Clear
-                </Button>
-              </div>
-            }
-            renderBadge={operator => (
-              <OperatorBadge
-                label={operator.label}
-                operationType={operator.operationType}
-                onRemove={() => removeOperator(operator.id)}
-              />
-            )}
-          />
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={clearOperators}
+              aria-label="Clear all filters"
+              className="mt-1 shrink-0"
+            >
+              Clear
+            </Button>
+            <div className="mt-2 h-4 w-px shrink-0 bg-border" />
+            <TruncatedBadgeList
+              items={selectedOperators}
+              maxVisible={MAX_VISIBLE_OPERATOR_BADGES}
+              fitToWidth
+              getItemKey={operator => operator.id}
+              getItemLabel={operator => operator.label}
+              className="h-8 min-w-0 flex-1 gap-2"
+              overflowBadgeClassName="h-6 rounded-md px-2 py-0 text-sm"
+              renderOverflowLabel={hiddenCount => `and ${hiddenCount} more`}
+              renderBadge={operator => (
+                <OperatorBadge
+                  label={operator.label}
+                  operationType={operator.operationType}
+                  onRemove={() => removeOperator(operator.id)}
+                />
+              )}
+            />
+          </>
         ) : (
           <span className="flex h-8 items-center">No active filters</span>
         )}

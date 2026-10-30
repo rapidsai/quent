@@ -367,12 +367,13 @@ describe('deep-link state validation', () => {
   });
 });
 
-it('round trips structural pipe inspection independently of operator selection and nested metric paths', () => {
+it('round trips pinned details independently of filters and nested metric paths', () => {
   const shared: DeepLinkStateV3 = {
     ...state,
     selection: {
       planId: 'p',
       operatorNodeIds: ['old'],
+      operatorDetailsNodeIds: ['details-a', 'details-b'],
       pipes: [
         { sourcePortId: 'out-1', targetPortId: 'in-1' },
         { sourcePortId: 'out-2', targetPortId: 'in-2' },

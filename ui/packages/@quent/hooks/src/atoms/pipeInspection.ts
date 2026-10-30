@@ -36,6 +36,13 @@ export const toggleInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
       : [...refs, ref]
   );
 });
+/** Replaces every pinned pipe as one selection transaction. */
+export const replaceInspectedPipesAtom = atom(null, (_get, set, refs: readonly PipeRef[]) => {
+  const unique = refs.filter(
+    (ref, index) => refs.findIndex(candidate => isSamePipe(candidate, ref)) === index
+  );
+  set(inspectedPipeRefsAtom, unique);
+});
 /** Removes the pipe from the inspected pipes. Does nothing when it is not inspected. */
 export const removeInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
   set(
@@ -61,6 +68,12 @@ export const inspectedPipesAtom = atom(get => {
     return edge ? [edge] : [];
   });
 });
+export interface DisplayedPipeDetail {
+  pipe: DAGEdge;
+}
+export const displayedPipeDetailsAtom = atom<DisplayedPipeDetail[]>(get =>
+  get(inspectedPipesAtom).map(pipe => ({ pipe }))
+);
 /** Operators by id for labelling inspected pipes, including those on other plans. */
 export const inspectedPipeNodesAtom = atom(get => {
   const nodes = new Map<string, DAGNode>();

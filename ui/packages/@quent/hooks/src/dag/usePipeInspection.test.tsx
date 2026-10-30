@@ -8,10 +8,12 @@ import {
   hoveredPipeIdAtom,
   addInspectedPipeAtom,
   clearInspectedPipesAtom,
+  displayedPipeDetailsAtom,
   inspectedPipeNodesAtom,
   inspectedPipesAtom,
   inspectedPipeRefsAtom,
   removeInspectedPipeAtom,
+  replaceInspectedPipesAtom,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
@@ -225,5 +227,21 @@ describe('inspected pipe actions', () => {
     store.set(toggleInspectedPipeAtom, first);
     store.set(toggleInspectedPipeAtom, { ...first, targetPortId: 'in-2' });
     expect(store.get(inspectedPipeRefsAtom)).toEqual([first, { ...first, targetPortId: 'in-2' }]);
+  });
+
+  it('replaces pinned pipes and de-duplicates refs', () => {
+    const store = createStore();
+    const view = render(
+      <Provider store={store}>
+        <Sync edges={[one, two]} />
+      </Provider>
+    );
+
+    act(() => {
+      store.set(replaceInspectedPipesAtom, [first, first]);
+    });
+    expect(store.get(inspectedPipeRefsAtom)).toEqual([first]);
+    expect(store.get(displayedPipeDetailsAtom)).toEqual([{ pipe: one }]);
+    view.unmount();
   });
 });

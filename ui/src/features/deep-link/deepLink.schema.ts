@@ -118,6 +118,11 @@ const SelectionSchema = z
       .max(MAX_SELECTED_NODE_IDS, limitMessage('selected operators', MAX_SELECTED_NODE_IDS))
       .transform(uniqueSorted)
       .optional(),
+    operatorDetailsNodeIds: z
+      .array(IdSchema)
+      .max(MAX_SELECTED_NODE_IDS, limitMessage('pinned operator details', MAX_SELECTED_NODE_IDS))
+      .transform(uniqueSorted)
+      .optional(),
   })
   .strip();
 

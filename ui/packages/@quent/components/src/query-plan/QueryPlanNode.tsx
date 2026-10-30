@@ -17,6 +17,7 @@ import {
   NODE_LABEL_FIELD,
   DAG_LAYOUT_DIRECTION,
   type Operator,
+  type SelectedOperatorGroupData,
   type DagLayoutDirection,
   type QuantitySpec,
   type DAGStatisticSet,
@@ -31,10 +32,15 @@ import {
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
+import { useAtom } from 'jotai';
 import { resolveStatisticFields } from '../lib/queryBundle.utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 import { getNodeOpacityClass } from './nodeOpacity';
+import { DAGItemActions } from '../dag/DAGItemActions';
+import { DAGItemStatus } from '../dag/DAGItemStatus';
+import { activeDAGPreviewIdAtom } from '../dag/dagPreviewState';
+import { OperatorDetailsBlock } from '../node-info/OperatorDetailsBlock';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
@@ -70,6 +76,10 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   hoveredStatValue?: number;
   heatmapRange?: ScaleRange;
   highlightedNodeIds?: ReadonlySet<string> | null;
+  actions?: {
+    filtered: boolean;
+    details: SelectedOperatorGroupData;
+  };
 }
 
 const nodeVariants = cva(
@@ -99,12 +109,17 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const isHighlighted = highlightedNodeIds?.has(operatorId) === true;
   const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
-  const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(
+  const { fieldColor, isDimmed, isSelected, isFiltered, colorField } = useNodeColoring(
     operatorId,
     isDark,
     data.metadata?.relatedOperatorIds
   );
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
+  const [closedPreviewOperatorIds, setClosedPreviewOperatorIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [activePreviewId, setActivePreviewId] = useAtom(activeDAGPreviewIdAtom);
+  const previewId = `node:${data.nodeId}`;
 
   const resolvedLabel = useMemo(() => {
     if (nodeLabelField === NODE_LABEL_FIELD.ID) {
@@ -160,6 +175,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     operatorId,
     isDimmed,
     isSelected,
+    isFiltered,
   });
 
   const isActiveHighlight = isHighlighted && !isSelected;
@@ -192,7 +208,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const nodeContent = (
     <div
-      className={cn(nodeVariants({ selected: isSelected }), {
+      className={cn('group relative', nodeVariants({ selected: isSelected }), {
         'shadow-glow': isSelected || isActiveHighlight,
         'shadow-node': !isSelected && !isActiveHighlight,
       })}
@@ -207,6 +223,13 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         } as React.CSSProperties
       }
     >
+      {data.actions && (
+        <DAGItemStatus
+          label={data.label}
+          filtered={data.actions.filtered}
+          className="absolute right-1 top-1 z-20"
+        />
+      )}
       {data.hasIncoming && (
         <Handle type="target" position={incomingHandlePosition} className="w-2 h-2 opacity-0" />
       )}
@@ -215,6 +238,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         as="div"
         className={cn('text-sm break-words text-center font-normal', {
           'font-bold': data.operationType === 'stage' || isSelected,
+          'px-5': data.actions?.filtered,
         })}
       >
         {resolvedLabel}
@@ -235,6 +259,35 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
 
       {data.flowBarVisible && operatorId && <NodeFlowBar operatorId={operatorId} />}
+
+      {data.actions && (
+        <DAGItemActions
+          label={data.label}
+          divided={false}
+          backgroundColor={heatmapColor ?? activeColor}
+          previewOpen={activePreviewId === previewId}
+          onOpenChange={open => setActivePreviewId(open ? previewId : null)}
+          className="-mx-4 -mb-2 mt-2 w-[calc(100%+2rem)] overflow-hidden rounded-b-md"
+          previewContent={
+            <OperatorDetailsBlock
+              operator={data.actions.details}
+              quantitySpecs={data.quantitySpecs}
+              isOpen={id => !closedPreviewOperatorIds.has(id)}
+              onOpenChange={(id, open) =>
+                setClosedPreviewOperatorIds(current => {
+                  const next = new Set(current);
+                  if (open) {
+                    next.delete(id);
+                  } else {
+                    next.add(id);
+                  }
+                  return next;
+                })
+              }
+            />
+          }
+        />
+      )}
 
       {data.hasOutgoing && (
         <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />

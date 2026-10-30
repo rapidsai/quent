@@ -283,10 +283,11 @@ describe('EntitiesTable', () => {
     expect(params.request.entry.application.operator_ids).toEqual([]);
   });
 
-  it('populates global operator details without DAG plan hydration', () => {
+  it('shows operator filters in global details without DAG hydration', () => {
     renderTable(
       <>
         <DAGNodeInfoPanel />
+        <OperatorSelectionProbe />
         <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />
       </>
     );
@@ -294,7 +295,11 @@ describe('EntitiesTable', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'Operator' }));
     fireEvent.click(screen.getByRole('option', { name: 'Operator One' }));
 
+    expect(screen.getByTestId('selected-operator-ids')).toHaveTextContent(
+      JSON.stringify(['operator-1'])
+    );
     expect(screen.getByTestId('operator-accordion-operator-1')).toHaveTextContent('Operator One');
+    expect(screen.getByRole('button', { name: 'Toggle details' })).toBeEnabled();
   });
 
   it('supports selecting multiple operators from the dropdown', () => {
