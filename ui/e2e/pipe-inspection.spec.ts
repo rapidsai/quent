@@ -33,6 +33,7 @@ test('operator and pipe clicks add and remove independent detail pins', async ({
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
   await node.click();
   await expect(selectedLook).toHaveCount(1);
+  await pipeDetailsTab(page).click();
   await expect(page.getByRole('region', { name: 'Sending port' })).toBeVisible();
 });
 
@@ -241,7 +242,6 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
   const targetPortId = edgeId.slice(sourcePortId.length + 1);
   const source = page.locator(`.react-flow__node[data-id="${ports[sourcePortId].operator_id}"]`);
   const target = page.locator(`.react-flow__node[data-id="${ports[targetPortId].operator_id}"]`);
-  const sourceLabel = (await source.innerText()).trim();
   await source.click();
   const output = page
     .getByRole('button', {
@@ -263,7 +263,7 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
   await expect(pipeDetailsTab(page)).toBeVisible();
   await expect(clearSelection).toBeVisible();
   const sending = page.getByRole('region', { name: 'Sending port' });
-  await expect(sending.getByText(sourceLabel, { exact: true })).toBeVisible();
+  await expect(sending.getByRole('button', { name: /^Filter by .* operator$/ })).toBeVisible();
   // The source is still selected and always glows, so only the target shows the hover highlight.
   await sending.hover();
   await expect(target.locator('.shadow-glow')).toHaveCount(0);
@@ -275,6 +275,7 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
   await expect(pipeDetailsTab(page)).toBeVisible();
   await expect(target.locator('.shadow-glow')).toBeVisible();
   await expect(source.locator('.shadow-glow')).toBeVisible();
+  await operatorTab(page).click();
   const input = page
     .getByRole('button', {
       name: `Inspect inputs ${ports[targetPortId].instance_name} pipe`,
@@ -288,8 +289,6 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
       edge.locator('.react-flow__edge-path').evaluate(path => (path as SVGElement).style.filter)
     )
     .toContain('drop-shadow');
-  await input.press('Space');
-  await expect(pipeDetailsTab(page)).toBeVisible();
 
   const details = page.locator('#operator-details');
   const group = details.locator('..');
@@ -303,14 +302,14 @@ test('detail ports link to DAG edges and operators, and the panel resizes beyond
   await expect
     .poll(async () => (await details.boundingBox())!.height)
     .toBeGreaterThan(box.height * 0.7);
-  // Selecting the endpoint operator earlier moved the panel to the operator tab.
   await pipeDetailsTab(page).click();
   const sendingOperator = page
     .getByRole('region', { name: 'Sending port' })
-    .getByRole('button', { name: /^Show .* operator details$/ });
+    .getByRole('button', { name: /^Filter by .* operator$/ });
+  await expect(sendingOperator).toHaveAttribute('aria-pressed', 'true');
   await sendingOperator.focus();
   await expect(source.locator('.shadow-glow')).toBeVisible();
   await sendingOperator.press('Enter');
-  await expect(source.locator('.shadow-glow')).toBeVisible();
+  await expect(sendingOperator).toHaveAttribute('aria-pressed', 'false');
   await expect(target.locator('.shadow-glow')).toBeVisible();
 });
