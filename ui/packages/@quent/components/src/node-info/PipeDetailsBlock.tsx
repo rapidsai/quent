@@ -2,19 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Fragment, useEffect, type ReactNode } from 'react';
+import { Filter } from 'lucide-react';
 import {
   useInspectedPipeNodes,
-  useOperatorDetailsActions,
   useOperatorSelection,
   useOperatorSelectionActions,
-  usePinnedOperatorDetailIds,
   useSelectedOperatorIds,
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
 import type { DAGEdge, DAGNode } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
 import { OperatorBadge } from '../timeline/OperatorBadge';
-import { DetailItemActions } from './DetailItemActions';
 import { DetailsEntry } from './DetailsEntry';
 import { OperatorColorBar } from './OperatorColorBar';
 import { StatisticFields } from './StatisticFields';
@@ -25,15 +23,20 @@ export interface PipeDetailsBlockProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   actions?: ReactNode;
+  onOperatorFilterAdded?: () => void;
 }
 
-export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDetailsBlockProps) {
+export function PipeDetailsBlock({
+  pipe,
+  open,
+  onOpenChange,
+  actions,
+  onOperatorFilterAdded,
+}: PipeDetailsBlockProps) {
   const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
-  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
-  const updateOperatorDetails = useOperatorDetailsActions();
   const selectedOperatorIds = useSelectedOperatorIds();
   const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
@@ -52,6 +55,7 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
           updateOperatorSelection({ type: 'remove', selectionId });
         }
       } else {
+        onOperatorFilterAdded?.();
         updateOperatorSelection({
           type: 'add',
           selectionId: selection.selectionId,
@@ -125,7 +129,6 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
           const filtered =
             selection !== null &&
             [...selection.operatorIds].every(id => selectedOperatorIds.has(id));
-          const pinned = selection !== null && pinnedOperatorDetailIds.has(selection.selectionId);
           return (
             <Fragment key={endpoint.heading}>
               {index > 0 && <hr className="border-dashed border-muted-foreground/25" />}
@@ -136,29 +139,22 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
                 onMouseLeave={() => leave(endpoint.operator)}
                 onFocus={() => enter(endpoint.operator)}
                 onBlur={() => leave(endpoint.operator)}
-                className="cursor-pointer rounded-sm hover:bg-muted/30 focus-within:bg-muted/30"
+                className="cursor-pointer p-2 rounded-sm hover:bg-muted/30 focus-within:bg-muted/30"
               >
-                <div className="mb-1 flex items-center justify-between gap-2">
+                <div className="relative mb-1 flex items-center gap-2 pr-6">
                   <h4 className="text-xs font-semibold">
                     {endpoint.heading}
                     {endpoint.name ? ` · ${endpoint.name}` : ''}
                   </h4>
-                  {selection && (
-                    <DetailItemActions
-                      label={`operator ${selection.label}`}
-                      filtered={filtered}
-                      pinned={pinned}
-                      onToggleFilter={() => selectOperator(endpoint.node)}
-                      onTogglePin={() =>
-                        updateOperatorDetails({
-                          type: 'toggle',
-                          entry: {
-                            selectionId: selection.selectionId,
-                            data: selection.selectedData,
-                          },
-                        })
-                      }
-                    />
+                  {selection && filtered && (
+                    <span
+                      role="status"
+                      aria-label={`${selection.label}: filtered`}
+                      title="Filtered"
+                      className="pointer-events-none absolute right-0 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center text-primary"
+                    >
+                      <Filter aria-hidden className="size-3 opacity-40" />
+                    </span>
                   )}
                 </div>
                 <dl className="mb-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-xs text-muted-foreground">

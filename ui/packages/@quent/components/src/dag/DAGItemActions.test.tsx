@@ -7,58 +7,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { DAGItemActions } from './DAGItemActions';
 
 describe('DAGItemActions', () => {
-  it('offers preview and operator pinning without activating the item', async () => {
+  it('offers preview without activating the item', async () => {
     const user = userEvent.setup();
     const activateItem = vi.fn();
-    const togglePin = vi.fn();
     render(
       <div onClick={activateItem}>
-        <DAGItemActions
-          label="Scan"
-          pinned
-          visible
-          previewContent={<div>Scan preview</div>}
-          onTogglePin={togglePin}
-        />
+        <DAGItemActions label="Scan" visible previewContent={<div>Scan preview</div>} />
       </div>
     );
 
     const preview = screen.getByRole('button', { name: 'Preview details for Scan' });
-    const pin = screen.getByRole('button', { name: 'Pin details for Scan' });
-
-    expect(pin).toHaveAttribute('aria-pressed', 'true');
-    expect(pin.getAttribute('style')).toContain('42%');
-    expect(pin.getAttribute('style')).toContain('54%');
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /pin/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /filter/i })).not.toBeInTheDocument();
 
     await user.click(preview);
     expect(activateItem).not.toHaveBeenCalled();
     expect(screen.getByText('Scan preview')).toBeVisible();
-
-    await user.click(pin);
-    expect(togglePin).toHaveBeenCalledOnce();
-  });
-
-  it('replaces pin with filter when the operator is filtered', async () => {
-    const user = userEvent.setup();
-    const toggleFilter = vi.fn();
-    render(
-      <DAGItemActions
-        label="Scan"
-        pinned
-        filtered
-        visible
-        previewContent={<div>Scan preview</div>}
-        onTogglePin={() => undefined}
-        onToggleFilter={toggleFilter}
-      />
-    );
-
-    const filter = screen.getByRole('button', { name: 'Filter operator Scan' });
-    expect(filter).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.queryByRole('button', { name: 'Pin details for Scan' })).not.toBeInTheDocument();
-    await user.click(filter);
-    expect(toggleFilter).toHaveBeenCalledOnce();
   });
 
   it('offers only preview for edges', async () => {
@@ -84,13 +49,7 @@ describe('DAGItemActions', () => {
 
   it('stays hidden until hover or focus and stretches each action equally', () => {
     render(
-      <DAGItemActions
-        label="Scan"
-        pinned={false}
-        divided={false}
-        previewContent={<div>Scan preview</div>}
-        onTogglePin={() => undefined}
-      />
+      <DAGItemActions label="Scan" divided={false} previewContent={<div>Scan preview</div>} />
     );
 
     const toolbar = screen.getByRole('toolbar', { name: 'Actions for Scan' });

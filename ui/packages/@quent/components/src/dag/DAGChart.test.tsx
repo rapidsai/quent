@@ -240,6 +240,22 @@ function PipeWidthConfiguration() {
   return <button onClick={() => setWidthField('bytes')}>Select pipe width</button>;
 }
 
+function PipeColorConfiguration() {
+  const [, setColorField] = useSelectedEdgeColorField();
+  const [, setPalette] = useEdgeColorPalette();
+  useDagEdgeColoring(metricPipeData.edges, computeEdgeColoring);
+  return (
+    <button
+      onClick={() => {
+        setColorField('bytes');
+        setPalette('blue');
+      }}
+    >
+      Select pipe color
+    </button>
+  );
+}
+
 function translation(element: HTMLElement): [number, number] {
   const match = element.style.transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)$/);
   if (!match) {
@@ -252,7 +268,7 @@ const translateX = (element: HTMLElement) => translation(element)[0];
 const translateY = (element: HTMLElement) => translation(element)[1];
 
 describe('DAGChart selection', () => {
-  it('adds and removes node filters and pins together on click', async () => {
+  it('adds and removes node filters and details together on click', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -348,14 +364,14 @@ describe('DAGChart selection', () => {
     for (const button of within(actions).getAllByRole('button')) {
       expect(button).not.toHaveClass('rounded-md');
     }
+    const [preview] = within(actions).getAllByRole('button');
+    expect(within(actions).getAllByRole('button')).toHaveLength(1);
+    expect(preview).toHaveAccessibleName('Preview details for source-out to middle-in');
 
     fireEvent.focus(pipe);
 
     expect(actions).toHaveClass('opacity-100');
 
-    const preview = within(actions).getByRole('button', {
-      name: 'Preview details for source-out to middle-in',
-    });
     fireEvent.focus(preview);
     fireEvent.mouseLeave(actions);
 
@@ -433,6 +449,26 @@ describe('DAGChart selection', () => {
 });
 
 describe('DAGChart edge scaling', () => {
+  it('preserves metric color when a pipe is pinned', async () => {
+    const { container } = render(
+      <Provider store={createStore()}>
+        <PipeColorConfiguration />
+        <DAGChart data={metricPipeData} isDark={false} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select pipe color' }));
+    const metricColor = continuousColor(0, 'blue');
+    await waitFor(() =>
+      expect(container.querySelector('#first-pipe')).toHaveStyle({ stroke: metricColor })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect pipe source-out to middle-in' }));
+
+    expect(container.querySelector('#first-pipe')).toHaveStyle({ stroke: metricColor });
+    expect(container.querySelector('#arrow-first-pipe path')).toHaveAttribute('fill', metricColor);
+  });
+
   it('renders width and color at the same logarithmic positions and identifies the legend scale', async () => {
     const { container } = render(
       <Provider store={createStore()}>

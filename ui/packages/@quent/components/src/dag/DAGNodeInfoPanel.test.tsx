@@ -249,32 +249,19 @@ describe('DAGNodeInfoPanel', () => {
     });
   });
 
-  it('shows only the filter action while filtered and removes both together', async () => {
+  it('removes an operator detail and its filter with one X action', async () => {
     render(
       <Provider>
-        <SelectedNode />
+        <FilterOnly />
       </Provider>
     );
 
-    const filter = await screen.findByRole('button', { name: 'Filter operator Logical join' });
-    const pin = screen.getByRole('button', { name: 'Pin operator Logical join' });
-    expect(filter).toHaveAttribute('aria-pressed', 'false');
-    expect(pin).toHaveAttribute('aria-pressed', 'true');
-    expect(filter.compareDocumentPosition(pin)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    const removeDetail = await screen.findByRole('button', {
+      name: 'Remove operator Table scan from details',
+    });
 
-    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
-    scrollIntoView.mockClear();
-    fireEvent.click(filter);
-    expect(filter).toHaveAttribute('aria-pressed', 'true');
-    expect(scrollIntoView.mock.contexts.at(-1)).toBe(
-      screen.getByTestId('operator-detail-entry-logical')
-    );
-    expect(
-      screen.queryByRole('button', { name: 'Pin operator Logical join' })
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(filter);
-    expect(screen.queryByTestId('operator-accordion-logical')).not.toBeInTheDocument();
+    fireEvent.click(removeDetail);
+    expect(screen.queryByTestId('operator-accordion-scan')).not.toBeInTheDocument();
   });
 
   it('shows statistics for every selected operator', async () => {
@@ -509,6 +496,30 @@ describe('pipes alongside operators', () => {
     await waitFor(() => expect(scrollIntoView.mock.contexts.at(-1)).toBe(operatorEntry));
   });
 
+  it('keeps the Pipes tab active when filtering an endpoint from pipe details', () => {
+    const probe = createPipeInspectionRecorder();
+    const nodes = [
+      { id: 'scan', label: 'Table scan', type: 'scan' },
+      { id: 'join', label: 'Hash join', type: 'join' },
+    ];
+    render(
+      <Provider store={createStore()}>
+        <PipeInspectionProbe edges={edges} nodes={nodes} recorder={probe}>
+          <DAGNodeInfoPanel />
+        </PipeInspectionProbe>
+      </Provider>
+    );
+    act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
+
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by Table scan operator' }));
+
+    expect(screen.getByRole('tab', { name: 'Pipes' })).toHaveAttribute('aria-selected', 'true');
+    expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
   it('stacks each further pipe below the first', () => {
     const probe = renderPanel();
     act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
@@ -518,12 +529,14 @@ describe('pipes alongside operators', () => {
     expect(screen.getAllByRole('region', { name: 'Receiving port' })).toHaveLength(2);
   });
 
-  it('unpins a pipe from its detail entry without offering a pipe filter', () => {
+  it('removes a pipe from its detail entry without offering a pipe filter', () => {
     const probe = renderPanel();
     act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
 
     expect(screen.queryByRole('button', { name: /filter pipe/i })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Unpin pipe from scan to join' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove pipe from scan to join from details' })
+    );
 
     expect(probe.latest().inspectedPipes).toHaveLength(0);
     expect(screen.queryByRole('tab', { name: 'Pipes' })).not.toBeInTheDocument();

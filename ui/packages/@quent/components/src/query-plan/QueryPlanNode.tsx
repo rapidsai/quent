@@ -77,11 +77,8 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   heatmapRange?: ScaleRange;
   highlightedNodeIds?: ReadonlySet<string> | null;
   actions?: {
-    pinned: boolean;
     filtered: boolean;
     details: SelectedOperatorGroupData;
-    onTogglePin: () => void;
-    onToggleFilter: () => void;
   };
 }
 
@@ -229,7 +226,6 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       {data.actions && (
         <DAGItemStatus
           label={data.label}
-          pinned={data.actions.pinned}
           filtered={data.actions.filtered}
           className="absolute right-1 top-1 z-20"
         />
@@ -242,8 +238,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         as="div"
         className={cn('text-sm break-words text-center font-normal', {
           'font-bold': data.operationType === 'stage' || isSelected,
-          'px-8': data.actions?.pinned && data.actions.filtered,
-          'px-5': data.actions && data.actions.pinned !== data.actions.filtered,
+          'px-5': data.actions?.filtered,
         })}
       >
         {resolvedLabel}
@@ -268,8 +263,6 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       {data.actions && (
         <DAGItemActions
           label={data.label}
-          pinned={data.actions.pinned}
-          filtered={data.actions.filtered}
           divided={false}
           backgroundColor={heatmapColor ?? activeColor}
           previewOpen={activePreviewId === previewId}
@@ -293,8 +286,6 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
               }
             />
           }
-          onTogglePin={data.actions.onTogglePin}
-          onToggleFilter={data.actions.onToggleFilter}
         />
       )}
 

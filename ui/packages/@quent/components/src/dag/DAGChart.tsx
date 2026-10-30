@@ -148,11 +148,6 @@ const VariableWidthEdge = ({
   const edgeColoring = useEdgeColoring();
   const edgePalette = useEdgeColorPalette()[0];
   const selectedOperatorIds = useSelectedOperatorIds();
-  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
-  const activeOperatorIds = useMemo(
-    () => new Set([...selectedOperatorIds, ...pinnedOperatorDetailIds]),
-    [pinnedOperatorDetailIds, selectedOperatorIds]
-  );
   const interactionData = data as
     | {
         isDark?: boolean;
@@ -193,12 +188,14 @@ const VariableWidthEdge = ({
       }
     }
   }
+  const emphasizedEdgeColor = edgeColor ?? 'hsl(var(--primary))';
+  const renderedEdgeColor = edgeColor ?? (isEmphasized ? emphasizedEdgeColor : 'currentColor');
 
   const dimFromInteraction = shouldDimEdgeFromInteraction({
     hoveredEdgeId: hoveredPipeId ?? undefined,
     inspectedEdgeIds: inspectedPipeIds,
     edgeId: id,
-    selectedNodeIds: activeOperatorIds,
+    selectedNodeIds: selectedOperatorIds,
     highlightedNodeIds,
   });
   const isEdgeDimmed = (edgeDimmed && !isEmphasized) || dimFromInteraction;
@@ -260,7 +257,7 @@ const VariableWidthEdge = ({
         >
           <path
             d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
-            fill={isEmphasized ? 'hsl(var(--primary))' : (edgeColor ?? 'currentColor')}
+            fill={renderedEdgeColor}
           />
         </marker>
       </defs>
@@ -303,8 +300,8 @@ const VariableWidthEdge = ({
         markerEnd={`url(#${markerId})`}
         style={{
           pointerEvents: 'none',
-          stroke: isEmphasized ? 'hsl(var(--primary))' : (edgeColor ?? 'currentColor'),
-          filter: isEmphasized ? 'drop-shadow(0 0 3px hsl(var(--primary)))' : undefined,
+          stroke: renderedEdgeColor,
+          filter: isEmphasized ? `drop-shadow(0 0 3px ${emphasizedEdgeColor})` : undefined,
           strokeWidth,
           fill: 'none',
           opacity: isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1,
@@ -445,7 +442,6 @@ const FlowLayout = ({
   isDark,
   operators,
   selectedNodeIds: controlledSelectedNodeIds,
-  onSelectionChange,
   onBackgroundClick,
 }: {
   data: DAGData;
@@ -647,20 +643,6 @@ const FlowLayout = ({
     return { flowNodes, flowEdges };
   }, [data, isDark, layoutDirection, flowBarVisible]);
 
-  const togglePinnedOperator = useCallback(
-    (node: Node<QueryPlanNodeData>) => {
-      const nextSelectedIds = updateOperatorDetails({
-        type: 'toggle',
-        entry: {
-          selectionId: node.id,
-          data: selectedOperatorDataFromFlowNode(node),
-        },
-      });
-      onSelectionChange?.([...nextSelectedIds]);
-    },
-    [onSelectionChange, updateOperatorDetails]
-  );
-
   const toggleOperatorFilter = useCallback(
     (node: Node<QueryPlanNodeData>) => {
       if (selectedOperatorIds.has(node.id)) {
@@ -828,24 +810,12 @@ const FlowLayout = ({
           heatmapRange: dagHeatmap?.range,
           highlightedNodeIds,
           actions: {
-            pinned: pinnedOperatorDetailIds.has(node.id),
             filtered: getSelectionIds(node).every(id => selectedOperatorIds.has(id)),
             details: selectedOperatorDataFromFlowNode(node),
-            onTogglePin: () => togglePinnedOperator(node),
-            onToggleFilter: () => toggleOperatorFilter(node),
           },
         },
       })),
-    [
-      dagHeatmap,
-      highlightedNodeIds,
-      getSelectionIds,
-      nodes,
-      pinnedOperatorDetailIds,
-      selectedOperatorIds,
-      toggleOperatorFilter,
-      togglePinnedOperator,
-    ]
+    [dagHeatmap, highlightedNodeIds, getSelectionIds, nodes, selectedOperatorIds]
   );
   const renderedEdges = useMemo(
     () =>

@@ -15,7 +15,6 @@ import {
   useOperatorSelection,
   useOperatorSelectionActions,
   usePinnedOperatorDetailIds,
-  useSelectedOperatorIds,
   useToggleInspectedPipe,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
@@ -68,7 +67,6 @@ export const DAGNodeInfoPanel = ({
   const inspectedPipeNodes = useInspectedPipeNodes();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
-  const selectedOperatorIds = useSelectedOperatorIds();
   const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
   const updateOperatorDetails = useOperatorDetailsActions();
   const toggleInspectedPipe = useToggleInspectedPipe();
@@ -93,6 +91,7 @@ export const DAGNodeInfoPanel = ({
   const previousPinnedOperatorIds = useRef(new Set(pinnedOperatorDetailIds));
   const previousFilterIds = useRef(new Set(operatorSelection.selections.keys()));
   const previousPipeIds = useRef(new Set(inspectedPipes.map(pipe => pipe.id)));
+  const [suppressNextOperatorAttention, setSuppressNextOperatorAttention] = useState(false);
   const [detailAttention, setDetailAttention] = useState<DetailAttention | null>(null);
   const hasSelection = inspectedPipes.length > 0 || selectedOperators.length > 0;
   const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
@@ -150,7 +149,7 @@ export const DAGNodeInfoPanel = ({
     setPrevSelectedOperatorIdsKey(selectedOperatorIdsKey);
     setPrevOperatorCount(selectedOperators.length);
     setClosedOperatorIds(new Set());
-    if (selectedOperators.length > prevOperatorCount) {
+    if (selectedOperators.length > prevOperatorCount && !suppressNextOperatorAttention) {
       setActiveTab('stats');
       setIsExpanded(true);
     }
@@ -192,21 +191,34 @@ export const DAGNodeInfoPanel = ({
     previousPinnedOperatorIds.current = currentPinnedOperatorIds;
     previousFilterIds.current = currentFilterIds;
     previousPipeIds.current = currentPipeIds;
+    const suppressOperatorAttention =
+      suppressNextOperatorAttention &&
+      (filteredOperatorId !== undefined || pinnedOperatorId !== undefined);
+    if (suppressOperatorAttention) {
+      setSuppressNextOperatorAttention(false);
+    }
 
     const attention = pinnedPipeId
       ? { kind: 'pipe' as const, id: pinnedPipeId }
-      : filteredOperatorId
-        ? { kind: 'operator' as const, id: filteredOperatorId }
-        : pinnedOperatorId
-          ? { kind: 'operator' as const, id: pinnedOperatorId }
-          : null;
+      : suppressOperatorAttention
+        ? null
+        : filteredOperatorId
+          ? { kind: 'operator' as const, id: filteredOperatorId }
+          : pinnedOperatorId
+            ? { kind: 'operator' as const, id: pinnedOperatorId }
+            : null;
     if (!attention) {
       return;
     }
     setIsExpanded(true);
     setActiveTab(attention.kind === 'pipe' ? 'pipes' : 'stats');
     setDetailAttention(attention);
-  }, [inspectedPipes, operatorSelection.selections, pinnedOperatorDetailIds]);
+  }, [
+    inspectedPipes,
+    operatorSelection.selections,
+    pinnedOperatorDetailIds,
+    suppressNextOperatorAttention,
+  ]);
 
   useLayoutEffect(() => {
     if (!detailAttention || !isExpanded) {
@@ -250,7 +262,6 @@ export const DAGNodeInfoPanel = ({
           detail.data.nodeId,
           ...(detail.data.relatedOperators?.map(operator => operator.nodeId) ?? []),
         ]);
-        const filtered = [...operatorIds].every(id => selectedOperatorIds.has(id));
         const matchingFilterIds = [...operatorSelection.selections]
           .filter(
             ([selectionId, selection]) =>
@@ -259,21 +270,11 @@ export const DAGNodeInfoPanel = ({
                 [...selection.operatorIds].every(id => operatorIds.has(id)))
           )
           .map(([selectionId]) => selectionId);
-        const pinned = pinnedOperatorDetailIds.has(detail.selectionId);
-        const toggleFilter = () => {
-          if (filtered) {
-            for (const selectionId of matchingFilterIds) {
-              updateOperatorSelection({ type: 'remove', selectionId });
-            }
-          } else {
-            updateOperatorSelection({
-              type: 'add',
-              selectionId: detail.selectionId,
-              label: detail.data.label,
-              operatorIds,
-              selectedData: detail.data,
-            });
+        const removeDetail = () => {
+          for (const selectionId of matchingFilterIds) {
+            updateOperatorSelection({ type: 'remove', selectionId });
           }
+          updateOperatorDetails({ type: 'unpin', selectionId: detail.selectionId });
         };
 
         return (
@@ -297,19 +298,8 @@ export const DAGNodeInfoPanel = ({
               actions={
                 <DetailItemActions
                   label={`operator ${detail.data.label}`}
-                  filtered={filtered}
-                  pinned={pinned}
-                  onToggleFilter={toggleFilter}
-                  onTogglePin={() =>
-                    updateOperatorDetails(
-                      pinned
-                        ? { type: 'unpin', selectionId: detail.selectionId }
-                        : {
-                            type: 'pin',
-                            entry: { selectionId: detail.selectionId, data: detail.data },
-                          }
-                    )
-                  }
+                  onRemove={removeDetail}
+                  title={'Remove filter'}
                 />
               }
             />
@@ -338,11 +328,13 @@ export const DAGNodeInfoPanel = ({
             pipe={detail.pipe}
             open={isOperatorOpen(detail.pipe.id)}
             onOpenChange={open => setOperatorOpen(detail.pipe.id, open)}
+            onOperatorFilterAdded={() => {
+              setSuppressNextOperatorAttention(true);
+            }}
             actions={
               <DetailItemActions
                 label={`pipe from ${inspectedPipeNodes.get(detail.pipe.source)?.label ?? detail.pipe.source} to ${inspectedPipeNodes.get(detail.pipe.target)?.label ?? detail.pipe.target}`}
-                pinned
-                onUnpin={() => {
+                onRemove={() => {
                   if (detail.pipe.sourcePortId && detail.pipe.targetPortId) {
                     toggleInspectedPipe({
                       sourcePortId: detail.pipe.sourcePortId,

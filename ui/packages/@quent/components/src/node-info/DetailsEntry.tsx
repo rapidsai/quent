@@ -40,7 +40,7 @@ export const DetailsEntry = ({
     <div className="min-w-0 flex-1">
       <div className="my-1 flex min-w-0 items-center gap-1">
         <CollapsibleTrigger
-          className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm px-0 py-1 text-left hover:bg-muted/50"
+          className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-left hover:bg-muted/50"
           aria-label={triggerLabel}
         >
           {header}

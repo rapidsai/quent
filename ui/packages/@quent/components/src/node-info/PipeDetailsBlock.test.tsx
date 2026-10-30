@@ -56,7 +56,7 @@ it('presents operator labels and highlights the matching endpoint on hover and f
   expect(probe.latest().highlight.ids).toBeNull();
 });
 
-it('toggles endpoint filters and pins together without changing pipe inspection', () => {
+it('shows filtered endpoints in details without changing pipe inspection', () => {
   const probe = createPipeInspectionRecorder();
   const store = createStore();
   const nodes = [
@@ -107,7 +107,7 @@ it('toggles endpoint filters and pins together without changing pipe inspection'
   expect(probe.latest().displayedOperatorDetails[0]?.data.label).toBe('Partitioned join [42]');
 });
 
-it('shows independent filter and pin actions for each endpoint operator', () => {
+it('shows a filter indicator only for filtered endpoint operators', () => {
   const probe = createPipeInspectionRecorder();
   const nodes = [
     { id: 'scan', label: 'Parquet scan [6]', type: 'scan' },
@@ -130,40 +130,34 @@ it('shows independent filter and pin actions for each endpoint operator', () => 
   act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out', targetPortId: 'in' }));
 
   const sending = screen.getByRole('region', { name: 'Sending port' });
-  const filter = within(sending).getByRole('button', {
-    name: 'Filter operator Parquet scan [6]',
-  });
-  const pin = within(sending).getByRole('button', {
-    name: 'Pin operator Parquet scan [6]',
-  });
   const receiving = screen.getByRole('region', { name: 'Receiving port' });
   expect(
-    within(receiving).getByRole('button', {
-      name: 'Filter operator Partitioned join [42]',
-    })
-  ).toBeVisible();
+    within(sending).queryByRole('status', { name: 'Parquet scan [6]: filtered' })
+  ).not.toBeInTheDocument();
   expect(
-    within(receiving).getByRole('button', {
-      name: 'Pin operator Partitioned join [42]',
-    })
-  ).toBeVisible();
-  fireEvent.click(pin);
-  expect(probe.latest().selectedOperatorIds).toEqual(new Set());
-  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['scan']));
-
-  fireEvent.click(pin);
-  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set());
-
-  fireEvent.click(filter);
-  expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
-  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['scan']));
-  expect(
-    within(sending).queryByRole('button', { name: 'Pin operator Parquet scan [6]' })
+    within(receiving).queryByRole('status', { name: 'Partitioned join [42]: filtered' })
   ).not.toBeInTheDocument();
 
-  fireEvent.click(filter);
+  fireEvent.click(sending);
+  expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
+  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['scan']));
+  expect(probe.latest().displayedOperatorDetails[0]?.data.label).toBe('Parquet scan [6]');
+  const filterStatus = within(sending).getByRole('status', {
+    name: 'Parquet scan [6]: filtered',
+  });
+  expect(filterStatus).toBeVisible();
+  expect(filterStatus).toHaveClass('absolute');
+  expect(filterStatus.querySelector('svg')).toHaveClass('opacity-40');
+  expect(
+    within(receiving).queryByRole('status', { name: 'Partitioned join [42]: filtered' })
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(sending);
   expect(probe.latest().selectedOperatorIds).toEqual(new Set());
   expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set());
+  expect(
+    within(sending).queryByRole('status', { name: 'Parquet scan [6]: filtered' })
+  ).not.toBeInTheDocument();
 });
 
 it('collapses and expands its ports from the header', () => {
