@@ -20,7 +20,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@quent/utils';
-import { ThinScroll } from './thin-scroll';
 
 // Presses on these start the control, not a drag. Dropdown lists render in a portal but their
 // events still bubble through React, so match them too.
@@ -106,7 +105,6 @@ function PinnedRow({ id, isSortable, minHeight, paddingLeft, children }: PinnedR
 
 interface PinnedRowListProps<T extends { id: string }> {
   items: T[];
-  maxHeight: number;
   rowMinHeight: number;
   rowPaddingLeft: number;
   renderRow: (item: T, dragArea: PinnedRowDragArea | undefined) => ReactNode;
@@ -115,12 +113,11 @@ interface PinnedRowListProps<T extends { id: string }> {
 }
 
 /**
- * The pinned rows as a scrolling list the user can rearrange by dragging the info cell (name and
+ * The pinned rows as a list, which the user can rearrange by dragging the info cell (name and
  * type), or with the keyboard: focus that cell, press Space, use the arrow keys, then press Space again.
  */
 export function PinnedRowList<T extends { id: string }>({
   items,
-  maxHeight,
   rowMinHeight,
   rowPaddingLeft,
   renderRow,
@@ -145,12 +142,7 @@ export function PinnedRowList<T extends { id: string }>({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={items.map(item => item.id)} strategy={verticalListSortingStrategy}>
-        <ThinScroll
-          role="list"
-          aria-label="Pinned rows list"
-          className="overscroll-none"
-          style={{ maxHeight: `${maxHeight}px` }}
-        >
+        <div role="list" aria-label="Pinned rows list">
           {items.map(item => (
             <PinnedRow
               key={item.id}
@@ -162,7 +154,7 @@ export function PinnedRowList<T extends { id: string }>({
               {dragArea => renderRow(item, dragArea)}
             </PinnedRow>
           ))}
-        </ThinScroll>
+        </div>
       </SortableContext>
     </DndContext>
   );

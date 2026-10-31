@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useMemo, useState } from 'react';
+import { usePinnedIds } from '@/hooks/usePinnedIds';
 import type { EntityRef, FiniteStateMachine, QueryBundle, ZoomRange } from '@quent/utils';
 import { EntityDetailDrawer } from '@/components/EntityDetailDrawer';
 import { useNvtxTreeModel } from './NvtxTree';
@@ -106,6 +107,27 @@ export function QueryResourceTree({
     ...(resourceTree.indicatorItemIds ?? []),
     ...(nvtxTree.indicatorItemIds ?? []),
   ]);
+  // Each tree finds the pinned rows it owns; the table shows them in one list in pin order.
+  const { pinnedIds } = usePinnedIds();
+  const resourcePinning = resourceTree.pinning;
+  const nvtxPinning = nvtxTree.pinning;
+  const pinning = useMemo(() => {
+    if (!resourcePinning || !nvtxPinning) {
+      return resourcePinning;
+    }
+    const itemsById = new Map(
+      [...resourcePinning.items, ...nvtxPinning.items].map(item => [item.id, item])
+    );
+    const items = [...pinnedIds].flatMap(id => {
+      const item = itemsById.get(id);
+      return item ? [item] : [];
+    });
+    return {
+      ...resourcePinning,
+      items,
+      hiddenCount: resourcePinning.hiddenCount + nvtxPinning.hiddenCount,
+    };
+  }, [nvtxPinning, pinnedIds, resourcePinning]);
   const hasFilterMatches = resourceTree.filterMatchCount + nvtxTree.filterMatchCount > 0;
   const trees =
     resourceTree.isFilterActive && resourceTree.showOthers && !hasFilterMatches
@@ -117,7 +139,7 @@ export function QueryResourceTree({
       durationSeconds={durationSeconds}
       isDark={isDark}
       trees={trees}
-      controls={{ ...resourceTree, highlightedItemIds, indicatorItemIds }}
+      controls={{ ...resourceTree, highlightedItemIds, indicatorItemIds, pinning }}
     >
       <EntityDetailDrawer
         fsm={drawerFsm}

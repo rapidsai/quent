@@ -8,7 +8,11 @@ import { ChevronRight } from 'lucide-react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@quent/utils';
 import { Button } from './button';
+import { ThinScroll } from './thin-scroll';
 import { PinnedRowList, type PinnedRowDragArea } from './pinned-row-list';
+
+// Finds the element that scrolls a table, for callers that sync or measure it from outside.
+export const TREE_TABLE_SCROLLER_SELECTOR = '[data-tree-table-scroller]';
 
 // Tree-table specific styling variants
 const treeVariants = cva(
@@ -498,8 +502,6 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
 // Timeline rows render at ~75px; keep virtualization estimate aligned with actual row height.
 const DEFAULT_TREE_ROW_HEIGHT = 75;
 const DEFAULT_TREE_OVERSCAN_ROWS = 4;
-// Pinned rows beyond this many scroll inside their own section instead of growing it.
-const MAX_VISIBLE_PINNED_ROWS = 6;
 
 function normalizeTreeData(data: TreeTableDataItem[] | TreeTableDataItem): TreeTableDataItem[] {
   return data instanceof Array ? data : [data];
@@ -828,6 +830,37 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
 type ColumnWidth = number | 'auto';
 const DEFAULT_COLUMN_WIDTHS: ColumnWidth[] = [280, 500];
 
+export interface PinnedSectionToggleProps {
+  pinnedCount: number;
+  hiddenCount?: number;
+  isCollapsed: boolean;
+  onToggle?: () => void;
+}
+
+export function PinnedSectionToggle({
+  pinnedCount,
+  hiddenCount = 0,
+  isCollapsed,
+  onToggle,
+}: PinnedSectionToggleProps) {
+  return (
+    <Button
+      variant="ghost"
+      size="xs"
+      className="h-7 w-full justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
+      aria-expanded={!isCollapsed}
+      onClick={onToggle}
+    >
+      <ChevronRight
+        aria-hidden="true"
+        className={cn('transition-transform', !isCollapsed && 'rotate-90')}
+      />
+      <span>Pinned ({pinnedCount})</span>
+      {hiddenCount > 0 && <span className="font-normal">{hiddenCount} hidden by filter</span>}
+    </Button>
+  );
+}
+
 /** Resizable tree table with sticky headers, column drag-to-resize, and custom row rendering. */
 export function TreeTable<I extends TreeTableDataItem>({
   data,
@@ -837,23 +870,50 @@ export function TreeTable<I extends TreeTableDataItem>({
   hiddenPinnedCount = 0,
   isPinnedCollapsed = false,
   onTogglePinnedCollapsed,
+  hidePinnedToggle = false,
   onReorderPinned,
+  onColumnWidthsChange,
   ...treeViewProps
 }: {
   data: I[];
   columns: Column<I>[];
+  /**
+   * Column widths. Read as the starting widths, and again whenever the array changes, so
+   * several tables can share one set of widths.
+   */
   columnWidths?: ColumnWidth[];
+  /** Called when the user drags a column edge, so the widths can be shared with other tables. */
+  onColumnWidthsChange?: (widths: ColumnWidth[]) => void;
   /** Rows to show in a sticky section above the tree, in the order given. */
   pinnedItems?: I[];
   /** Pinned rows a filter has hidden; only used to explain why they are missing. */
   hiddenPinnedCount?: number;
   isPinnedCollapsed?: boolean;
   onTogglePinnedCollapsed?: () => void;
+  hidePinnedToggle?: boolean;
   /** Called when a pinned row is dragged onto another, with the dragged id then the target id. */
   onReorderPinned?: (activeId: string, overId: string) => void;
 } & TreeViewProps) {
-  const [currentColumnWidths, setCurrentColumnWidths] = useState<ColumnWidth[]>(columnWidths);
+  const [currentColumnWidths, setCurrentColumnWidthsState] = useState<ColumnWidth[]>(columnWidths);
   const [hasUserResized, setHasUserResized] = useState(false);
+
+  // Follow width changes made elsewhere (e.g. a sibling table sharing these widths).
+  // Compared by value, since callers often pass a fresh array literal each render.
+  const columnWidthsKey = columnWidths.join(',');
+  const isFirstWidthSync = useRef(true);
+  useEffect(() => {
+    if (isFirstWidthSync.current) {
+      isFirstWidthSync.current = false;
+      return;
+    }
+    setCurrentColumnWidthsState(columnWidths);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columnWidthsKey]);
+
+  const setCurrentColumnWidths = (next: ColumnWidth[]) => {
+    setCurrentColumnWidthsState(next);
+    onColumnWidthsChange?.(next);
+  };
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -1071,9 +1131,11 @@ export function TreeTable<I extends TreeTableDataItem>({
           isLayoutReady ? 'opacity-100' : 'opacity-0'
         )}
       >
-        <div
+        <ThinScroll
           ref={scrollContainerRef}
-          className="w-full min-w-0 max-h-full overflow-x-auto overflow-y-auto overscroll-none"
+          data-tree-table-scroller
+          orientation="both"
+          className="w-full min-w-0 max-h-full overscroll-none"
         >
           <div style={{ minWidth: `${effectiveWidth}px` }}>
             {/* Sticky header container */}
@@ -1146,27 +1208,18 @@ export function TreeTable<I extends TreeTableDataItem>({
                 </div>
               )}
               {showPinnedSection && (
-                <section aria-label="Pinned rows" className="border-b border-border pb-4">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="h-7 w-full justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
-                    aria-expanded={!isPinnedCollapsed}
-                    onClick={onTogglePinnedCollapsed}
-                  >
-                    <ChevronRight
-                      aria-hidden="true"
-                      className={cn('transition-transform', !isPinnedCollapsed && 'rotate-90')}
+                <section aria-label="Pinned rows" className="pb-4">
+                  {!hidePinnedToggle && (
+                    <PinnedSectionToggle
+                      pinnedCount={pinnedCount}
+                      hiddenCount={hiddenPinnedCount}
+                      isCollapsed={isPinnedCollapsed}
+                      onToggle={onTogglePinnedCollapsed}
                     />
-                    <span>Pinned ({pinnedCount})</span>
-                    {hiddenPinnedCount > 0 && (
-                      <span className="font-normal">{hiddenPinnedCount} hidden by filter</span>
-                    )}
-                  </Button>
+                  )}
                   {!isPinnedCollapsed && pinnedCount > 0 && (
                     <PinnedRowList
                       items={pinnedItems ?? []}
-                      maxHeight={MAX_VISIBLE_PINNED_ROWS * pinnedRowHeight}
                       rowMinHeight={pinnedRowHeight}
                       rowPaddingLeft={totalLeftSpacing}
                       renderRow={(item, dragArea) => renderRow(item, 0, false, true, dragArea)}
@@ -1175,7 +1228,6 @@ export function TreeTable<I extends TreeTableDataItem>({
                   )}
                 </section>
               )}
-              {showPinnedSection && <div aria-hidden="true" className="h-4" />}
             </div>
             <div style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
               <TreeView
@@ -1186,7 +1238,7 @@ export function TreeTable<I extends TreeTableDataItem>({
               />
             </div>
           </div>
-        </div>
+        </ThinScroll>
       </div>
     </div>
   );
