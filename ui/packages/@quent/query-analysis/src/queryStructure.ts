@@ -80,12 +80,20 @@ function structureTree(node: PlanTree): StructurePlanTree {
 
 function structuralSignature(bundle: QueryBundle<EntityRef>): string {
   const { plans, operators, ports } = bundle.entities;
+  const operatorTypesByPlan = new Map<string, string[]>();
+  for (const operator of Object.values(operators)) {
+    if (operator.plan_id) {
+      const types = operatorTypesByPlan.get(operator.plan_id) ?? [];
+      types.push(operator.operator_type_name ?? '(unknown)');
+      operatorTypesByPlan.set(operator.plan_id, types);
+    }
+  }
+  for (const types of operatorTypesByPlan.values()) {
+    types.sort();
+  }
   const signature = (node: PlanTree): unknown => {
     const plan = plans[node.id];
-    const planOperators = Object.values(operators)
-      .filter(operator => operator.plan_id === node.id)
-      .map(operator => operator.operator_type_name ?? '(unknown)')
-      .sort();
+    const planOperators = operatorTypesByPlan.get(node.id) ?? [];
     const edgeTypes = (plan?.edges ?? [])
       .map(edge => {
         const sourceOperatorId = ports[edge.source]?.operator_id;
