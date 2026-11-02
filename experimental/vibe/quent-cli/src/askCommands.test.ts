@@ -39,6 +39,15 @@ describe('ask command dispatcher', () => {
     expect(usage).not.toContain('never open interactive prompts');
   });
 
+  it('only advertises options used by current questions', () => {
+    const usage = getAskCommand('operator-facts').usage;
+
+    expect(usage).toContain('--operator');
+    for (const option of ['--resource', '--entity-type', '--start', '--end', '--limit']) {
+      expect(usage).not.toContain(option);
+    }
+  });
+
   it('rejects unknown commands with the supported command list', () => {
     expect(() => getAskCommand('unknown')).toThrow(
       'Supported commands: engines, queries, query-lifecycle, query-structure, operator-facts, operator-statistics-summary'

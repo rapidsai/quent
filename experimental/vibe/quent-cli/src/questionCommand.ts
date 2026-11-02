@@ -17,17 +17,12 @@ import { machineResult, serializeMachineOutput } from './machineOutput';
 
 function usage(question: RegisteredQuestion): string {
   return `Usage:
-  pnpm ask ${question.metadata.id} [--engine ID] [--query ID] [--resource ID] [options]
+  pnpm ask ${question.metadata.id} [--engine ID] [--query ID] [options]
 
 Options:
   --engine ID            Engine ID (select from API results when omitted)
   --query ID             Query ID (select from API results when omitted)
-  --resource ID          Resource ID (select from the query bundle when omitted)
-  --entity-type NAME     Restrict to one declared FSM entity type
   --operator IDS         Comma-separated operator IDs
-  --start SECONDS        Query-relative window start (default: 0)
-  --end SECONDS          Query-relative window end (default: query duration)
-  --limit COUNT          Maximum results, 1-500 (default: 10)
   --api-base URL         API base (default: QUENT_API_BASE_URL or http://localhost:8080/api)
   --base URL             Quent UI base for an absolute deep link
   --json                 Emit versioned JSON output (selection may still be interactive)`;
@@ -45,15 +40,10 @@ export function createQuestionCommand(question: RegisteredQuestion): AskCommand 
         options: {
           'api-base': { type: 'string' },
           base: { type: 'string' },
-          end: { type: 'string' },
           engine: { type: 'string' },
-          'entity-type': { type: 'string' },
           json: { type: 'boolean' },
-          limit: { type: 'string' },
           operator: { type: 'string' },
           query: { type: 'string' },
-          resource: { type: 'string' },
-          start: { type: 'string' },
         },
       });
       const apiBase =
