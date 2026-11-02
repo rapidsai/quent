@@ -133,7 +133,7 @@ prettyplease = "0.3.0"
 proc-macro2 = "1"
 prost = "0.14.1"
 protox = "0.10.0"
-pyo3 = "0.29"
+pyo3 = "0.30"
 quanta = "0.13.0"
 rmcp = { version = "3.5.0", default-features = false }
 quent-collector = { path = "crates/collector/server" }
