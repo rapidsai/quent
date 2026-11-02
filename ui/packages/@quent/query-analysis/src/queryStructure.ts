@@ -66,6 +66,10 @@ function compareId<T extends { id: string }>(left: T, right: T): number {
   return left.id.localeCompare(right.id);
 }
 
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function structureTree(node: PlanTree): StructurePlanTree {
   return {
     id: node.id,
@@ -93,14 +97,15 @@ function structuralSignature(bundle: QueryBundle<EntityRef>): string {
           targetOperatorId
             ? (operators[targetOperatorId]?.operator_type_name ?? '(unknown)')
             : '(missing)',
-        ];
+        ] as [string, string];
       })
-      .sort(([leftSource, leftTarget], [rightSource, rightTarget]) =>
-        `${leftSource}\0${leftTarget}`.localeCompare(`${rightSource}\0${rightTarget}`)
+      .sort(
+        ([leftSource, leftTarget], [rightSource, rightTarget]) =>
+          compareText(leftSource, rightSource) || compareText(leftTarget, rightTarget)
       );
     const children = node.children
       .map(child => signature(child))
-      .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+      .sort((left, right) => compareText(JSON.stringify(left), JSON.stringify(right)));
     return {
       scope: node.worker === null ? 'logical' : 'physical',
       operators: planOperators,

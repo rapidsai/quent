@@ -117,6 +117,52 @@ function bundle(): QueryBundle<EntityRef> {
   } as unknown as QueryBundle<EntityRef>;
 }
 
+function bundleWithAmbiguousEdgeTypes(reverseEdges: boolean): QueryBundle<EntityRef> {
+  const queryBundle = bundle();
+  const operatorTemplate = queryBundle.entities.operators['physical-join']!;
+  const portTemplate = queryBundle.entities.ports.input!;
+  const pairs = [
+    ['source-ab', 'ab', 'target-c', 'c'],
+    ['source-a', 'a', 'target-bc', 'bc'],
+  ] as const;
+
+  for (const [sourceId, sourceType, targetId, targetType] of pairs) {
+    queryBundle.entities.operators[sourceId] = {
+      ...operatorTemplate,
+      id: sourceId,
+      instance_name: sourceId,
+      operator_type_name: sourceType,
+      parent_operator_ids: [],
+      statistics: null,
+    };
+    queryBundle.entities.operators[targetId] = {
+      ...operatorTemplate,
+      id: targetId,
+      instance_name: targetId,
+      operator_type_name: targetType,
+      parent_operator_ids: [],
+      statistics: null,
+    };
+    queryBundle.entities.ports[`${sourceId}-port`] = {
+      ...portTemplate,
+      id: `${sourceId}-port`,
+      operator_id: sourceId,
+    };
+    queryBundle.entities.ports[`${targetId}-port`] = {
+      ...portTemplate,
+      id: `${targetId}-port`,
+      operator_id: targetId,
+    };
+  }
+
+  const edges = pairs.map(([sourceId, , targetId]) => ({
+    source: `${sourceId}-port`,
+    target: `${targetId}-port`,
+  }));
+  queryBundle.entities.plans.physical!.edges = reverseEdges ? edges.reverse() : edges;
+  return queryBundle;
+}
+
 describe('@quent/query-analysis', () => {
   it('calculates lifecycle intervals from a query bundle', () => {
     expect(analyzeQueryLifecycle(bundle())).toMatchObject({
@@ -160,6 +206,13 @@ describe('@quent/query-analysis', () => {
     });
     expect(analysis.fingerprint.value).toMatch(/^[a-f0-9]{64}$/u);
     expect(analysis.integrityIssues).toEqual([]);
+  });
+
+  it('fingerprints ambiguous edge types independently of edge order', async () => {
+    const first = await analyzeQueryStructure(bundleWithAmbiguousEdgeTypes(false));
+    const reordered = await analyzeQueryStructure(bundleWithAmbiguousEdgeTypes(true));
+
+    expect(first.fingerprint).toEqual(reordered.fingerprint);
   });
 
   it('keeps repeated root statistics in separate path occurrences', () => {
