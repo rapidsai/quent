@@ -70,7 +70,7 @@ export function renderTable(
   numericColumns: ReadonlySet<number> = new Set()
 ): string {
   const widths = headers.map((header, index) =>
-    Math.max(header.length, ...rows.map(row => row[index]!.length))
+    rows.reduce((width, row) => Math.max(width, row[index]!.length), header.length)
   );
   const border = (left: string, middle: string, right: string) =>
     `${left}${widths.map(width => '─'.repeat(width + 2)).join(middle)}${right}`;
