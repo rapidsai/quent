@@ -30,57 +30,42 @@ function DeepLinkErrorDetails({ messages }: { messages: readonly string[] }) {
   );
 }
 
+function getErrorDetailsToggleProps(
+  summaryId: string,
+  messages: readonly string[],
+  expanded: boolean
+) {
+  return {
+    description: expanded ? <DeepLinkErrorDetails messages={messages} /> : null,
+    actionProps: {
+      'aria-expanded': expanded,
+      children: expanded ? (
+        <>
+          Hide details
+          <ChevronDown className="size-3 transition-transform" />
+        </>
+      ) : (
+        <>
+          {messages.length} errors, click to expand
+          <ChevronDown className="size-3 -rotate-90 transition-transform" />
+        </>
+      ),
+      onClick: () => {
+        toast.update(summaryId, getErrorDetailsToggleProps(summaryId, messages, !expanded));
+      },
+    },
+  };
+}
+
 export function showDeepLinkErrorToasts({ id, title, messages }: ShowDeepLinkErrorToastsOptions) {
   if (messages.length > MAX_INDIVIDUAL_DEEP_LINK_ERROR_TOASTS) {
     const summaryId = `${id}-summary`;
-
-    function showSummary() {
-      toast.update(summaryId, {
-        description: null,
-        actionProps: {
-          'aria-expanded': false,
-          children: (
-            <>
-              {messages.length} errors, click to expand
-              <ChevronDown className="size-3 -rotate-90 transition-transform" />
-            </>
-          ),
-          onClick: showDetails,
-        },
-      });
-    }
-
-    function showDetails() {
-      toast.update(summaryId, {
-        description: <DeepLinkErrorDetails messages={messages} />,
-        actionProps: {
-          'aria-expanded': true,
-          children: (
-            <>
-              Hide details
-              <ChevronDown className="size-3 transition-transform" />
-            </>
-          ),
-          onClick: showSummary,
-        },
-      });
-    }
 
     toast.add({
       id: summaryId,
       type: 'error',
       title,
-      description: null,
-      actionProps: {
-        'aria-expanded': false,
-        children: (
-          <>
-            {messages.length} errors, click to expand
-            <ChevronDown className="size-3 -rotate-90 transition-transform" />
-          </>
-        ),
-        onClick: showDetails,
-      },
+      ...getErrorDetailsToggleProps(summaryId, messages, false),
       priority: 'high',
       timeout: 0,
     });
