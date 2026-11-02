@@ -77,6 +77,7 @@ export function showDeepLinkErrorToasts({ id, title, messages }: ShowDeepLinkErr
         onClick: showDetails,
       },
       priority: 'high',
+      timeout: 0,
     });
     return;
   }
