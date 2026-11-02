@@ -125,4 +125,17 @@ describe('query-lifecycle', () => {
       'does not match requested query'
     );
   });
+
+  it.each([0, -1, Number.POSITIVE_INFINITY])(
+    'rejects invalid query bundle duration %s',
+    async duration => {
+      const queryBundle = bundle();
+      queryBundle.duration_s = duration;
+      const question = getQuestion('query-lifecycle');
+
+      await expect(question.run(context(queryBundle), {})).rejects.toThrow(
+        'duration must be positive and finite'
+      );
+    }
+  );
 });
