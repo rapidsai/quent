@@ -14,6 +14,7 @@ import {
   type SelectFromList,
   type SelectFromQueryTree,
 } from './askSelection';
+import { selectFromQueryTreeWithInk } from './inkSelectorRunner';
 
 const queryBundle = {
   query_id: 'query-2',
@@ -231,6 +232,23 @@ describe('ask CLI selections', () => {
     await expect(
       select('Select an engine', [{ value: 'engine-1', label: 'Engine 1' }])
     ).rejects.toThrow('requires an interactive terminal');
+  });
+
+  it('fails clearly when query-tree selection is unavailable', async () => {
+    const input = Object.assign(new PassThrough(), { isTTY: false });
+    const output = Object.assign(new PassThrough(), { isTTY: false });
+
+    await expect(
+      selectFromQueryTreeWithInk(
+        'Select a query',
+        [],
+        false,
+        input as unknown as NodeJS.ReadStream,
+        output as unknown as NodeJS.WriteStream
+      )
+    ).rejects.toThrow(
+      'Select a query requires an interactive terminal; pass --engine and --query.'
+    );
   });
 
   it('never opens a prompt in JSON mode', async () => {

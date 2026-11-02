@@ -40,6 +40,9 @@ export async function selectFromQueryTreeWithInk(
   input: NodeJS.ReadStream = process.stdin,
   output: NodeJS.WriteStream = process.stderr
 ): Promise<string[]> {
+  if (!input.isTTY || !output.isTTY) {
+    throw new Error(`${prompt} requires an interactive terminal; pass --engine and --query.`);
+  }
   const instance = render(createElement(QueryTreePrompt, { prompt, choices, multiple }), {
     stdin: input,
     stdout: output,
