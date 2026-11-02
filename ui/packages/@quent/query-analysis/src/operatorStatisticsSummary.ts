@@ -105,7 +105,13 @@ function groupOperators(bundle: QueryBundle<EntityRef>): {
   for (const operator of orderedOperators) {
     const plan = operator.plan_id ? plans[operator.plan_id] : undefined;
     if (!plan) {
-      throw new Error(`Operator "${operator.id}" does not reference an available plan.`);
+      issues.push(
+        operator.plan_id
+          ? `Operator "${operator.id}" references missing plan "${operator.plan_id}".`
+          : `Operator "${operator.id}" has no plan.`
+      );
+      memberships.set(operator.id, []);
+      continue;
     }
     const operatorType = operator.operator_type_name ?? '(unknown)';
     const groups: OperatorGroup[] = [];

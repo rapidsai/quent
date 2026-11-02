@@ -175,4 +175,16 @@ describe('@quent/query-analysis', () => {
         .map(aggregate => aggregate.sum)
     ).toEqual(['10', '20']);
   });
+
+  it('reports missing plans without discarding valid operator statistics', () => {
+    const queryBundle = bundle();
+    queryBundle.entities.operators['logical-join']!.plan_id = 'missing-plan';
+
+    const analysis = summarizeOperatorStatistics(queryBundle);
+
+    expect(analysis.groupingIssues).toEqual([
+      'Operator "logical-join" references missing plan "missing-plan".',
+    ]);
+    expect(analysis.aggregates.map(aggregate => aggregate.sum)).toEqual(['10', '20']);
+  });
 });
