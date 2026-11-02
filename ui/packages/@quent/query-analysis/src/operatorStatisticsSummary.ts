@@ -211,7 +211,7 @@ function flattenStatistic(
       return;
     }
     if (Array.isArray(current)) {
-      if (current.every(isDynamicAttribute)) {
+      if (current.length > 0 && current.every(isDynamicAttribute)) {
         appendStruct(current, path, visit);
       } else {
         observe(path, undefined, 'list');

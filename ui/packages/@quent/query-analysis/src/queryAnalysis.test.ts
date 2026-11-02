@@ -240,4 +240,17 @@ describe('@quent/query-analysis', () => {
     ]);
     expect(analysis.aggregates.map(aggregate => aggregate.sum)).toEqual(['10', '20']);
   });
+
+  it('reports empty statistic arrays as skipped lists', () => {
+    const queryBundle = bundle();
+    queryBundle.entities.operators['physical-join']!.statistics = {
+      custom_statistics: [{ value: { key: 'samples', value: [] }, quantity: null }],
+    };
+
+    const analysis = summarizeOperatorStatistics(queryBundle);
+
+    expect(analysis.aggregates).toEqual([]);
+    expect(analysis.skippedValues).toHaveLength(2);
+    expect(analysis.skippedValues.every(value => value.reason === 'list')).toBe(true);
+  });
 });
