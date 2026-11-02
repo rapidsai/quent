@@ -3,7 +3,6 @@
 
 import { memo, useState, useMemo, useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { cva } from 'class-variance-authority';
 import {
   cn,
   scaleColor,
@@ -82,20 +81,8 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   };
 }
 
-const nodeVariants = cva(
-  'w-full px-4 py-2 rounded-md border-1 transition cursor-pointer text-foreground z-10 nodrag nopan',
-  {
-    variants: {
-      selected: {
-        true: 'border-2 scale-110',
-        false: '',
-      },
-    },
-    defaultVariants: {
-      selected: false,
-    },
-  }
-);
+const NODE_CLASS =
+  'w-full px-4 py-2 rounded-md border-1 transition cursor-pointer text-foreground z-10 nodrag nopan';
 
 /** Memoized DAG node rendered inside ReactFlow. */
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
@@ -208,10 +195,11 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
 
   const nodeContent = (
     <div
-      className={cn('group relative', nodeVariants({ selected: isSelected }), {
+      className={cn('group relative', NODE_CLASS, {
         'shadow-glow': isSelected || isActiveHighlight,
         'shadow-node': !isSelected && !isActiveHighlight,
       })}
+      data-selected={isSelected}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={
@@ -294,10 +282,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       )}
       <span
         aria-hidden
-        className={cn(
-          'pointer-events-none absolute -inset-px z-30 rounded-[inherit] border',
-          isSelected && '-inset-0.5 border-2'
-        )}
+        className="pointer-events-none absolute -inset-px z-30 rounded-[inherit] border"
         style={{ borderColor: 'inherit' }}
       />
     </div>

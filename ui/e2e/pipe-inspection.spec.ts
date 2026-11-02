@@ -14,8 +14,7 @@ test('operator and pipe clicks add and remove independent detail pins', async ({
   const node = page.locator('.react-flow__node').first();
   await expect(node).toBeVisible();
   const clearSelection = page.getByRole('button', { name: 'Clear all selections' });
-  // Only selected nodes get `scale-110`; the hover glow does not.
-  const selectedLook = node.locator('.scale-110');
+  const selectedLook = node.locator('[data-selected="true"]');
 
   await node.click();
   await expect(clearSelection).toBeVisible();
@@ -51,7 +50,7 @@ test('selecting a pipe de-emphasizes everything else without selecting any opera
   await pipe.press('Enter');
   await expect(page.getByRole('region', { name: 'Sending port' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
-  await expect(page.locator('.react-flow__node .scale-110')).toHaveCount(0);
+  await expect(page.locator('.react-flow__node [data-selected="true"]')).toHaveCount(0);
   // Every node is dimmed, the pipe's endpoints included.
   await expect(dimmed).toHaveCount(await nodes.count());
 
@@ -64,14 +63,14 @@ test('node and pipe clicks preserve pins of the other type', async ({ page }) =>
   const node = page.locator('.react-flow__node').first();
   await expect(node).toBeVisible();
   await node.click();
-  await expect(node.locator('.scale-110')).toHaveCount(1);
+  await expect(node.locator('[data-selected="true"]')).toHaveCount(1);
 
   const pipe = page.getByRole('button', { name: /^Inspect pipe / }).first();
   await pipe.focus();
   await pipe.press('Enter');
   await expect(pipeDetailsTab(page)).toBeVisible();
   await expect(pipe).toHaveAttribute('aria-pressed', 'true');
-  await expect(node.locator('.scale-110')).toHaveCount(1);
+  await expect(node.locator('[data-selected="true"]')).toHaveCount(1);
 
   await pipe.press('Enter');
   await expect(pipeDetailsTab(page)).toHaveCount(0);
@@ -95,7 +94,7 @@ test('pipes are deselected one at a time or all at once from the details panel',
   await first.focus();
   await first.press('Enter');
   await expect(first).toHaveAttribute('aria-pressed', 'true');
-  await expect(node.locator('.scale-110')).toHaveCount(1);
+  await expect(node.locator('[data-selected="true"]')).toHaveCount(1);
   await second.focus();
   await second.press('Enter');
   await expect(second).toHaveAttribute('aria-pressed', 'true');
@@ -111,7 +110,7 @@ test('pipes are deselected one at a time or all at once from the details panel',
   await expect(second).toHaveAttribute('aria-pressed', 'false');
   await expect(pipeDetailsTab(page)).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Sending port' })).toHaveCount(0);
-  await expect(node.locator('.scale-110')).toHaveCount(0);
+  await expect(node.locator('[data-selected="true"]')).toHaveCount(0);
 });
 
 test('keyboard pipe inspection supports mixed pins and renders nested endpoint data', async ({
