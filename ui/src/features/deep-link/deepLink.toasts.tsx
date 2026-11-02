@@ -14,7 +14,12 @@ interface ShowDeepLinkErrorToastsOptions {
 
 function DeepLinkErrorDetails({ messages }: { messages: readonly string[] }) {
   return (
-    <span className="block max-h-48 space-y-1 overflow-y-auto pr-2">
+    <span
+      role="region"
+      aria-label="Deep link validation errors"
+      tabIndex={0}
+      className="block max-h-48 space-y-1 overflow-y-auto pr-2"
+    >
       {messages.map((message, index) => (
         <span key={`${index}-${message}`} className="block">
           <span aria-hidden="true">• </span>
