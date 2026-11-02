@@ -196,6 +196,26 @@ describe('ask CLI selections', () => {
     );
   });
 
+  it.each([
+    [{ engine: 'missing-engine' }, 'No query found for engine "missing-engine".'],
+    [{ query: 'missing-query' }, 'No query found with ID "missing-query".'],
+  ])('reports requested IDs that match no query', async (values, message) => {
+    const api = discoveryApi();
+    const select = vi.fn<SelectFromList>();
+    const selectTree = vi.fn<SelectFromQueryTree>();
+
+    await expect(
+      resolveAskSelections({
+        values,
+        api,
+        select,
+        selectTree,
+        requireResource: false,
+      })
+    ).rejects.toThrow(message);
+    expect(selectTree).not.toHaveBeenCalled();
+  });
+
   it('builds an all-engine query tree and returns multiple selections', async () => {
     const api = discoveryApi();
     const selectTree = vi

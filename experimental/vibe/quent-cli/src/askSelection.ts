@@ -184,6 +184,14 @@ export async function resolveAskSelections({
     const choices = (
       await discoverQueryTreeChoices(api, engineId ? new Set([engineId]) : undefined)
     ).filter(choice => !queryId || choice.queryId === queryId);
+    if (choices.length === 0) {
+      if (engineId) {
+        throw new Error(`No query found for engine "${engineId}".`);
+      }
+      if (queryId) {
+        throw new Error(`No query found with ID "${queryId}".`);
+      }
+    }
     const [selection] = await selectQueriesFromTree(
       api,
       selectTree,
