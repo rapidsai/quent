@@ -28,10 +28,13 @@ export function DAGItemStatus({
       role="status"
       aria-label={`${label}: ${state}`}
       title={state}
-      className={cn('pointer-events-none inline-flex items-center gap-0.5 text-primary', className)}
+      className={cn(
+        'pointer-events-none inline-flex items-center gap-0.5 text-foreground',
+        className
+      )}
     >
       {filtered && <Filter aria-hidden className="size-3.5 opacity-40" />}
-      {pinned && <Pin aria-hidden className="size-3.5" />}
+      {pinned && <Pin aria-hidden className="size-3.5 opacity-40" />}
     </span>
   );
 }

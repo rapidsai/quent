@@ -188,7 +188,7 @@ const VariableWidthEdge = ({
       }
     }
   }
-  const emphasizedEdgeColor = edgeColor ?? 'hsl(var(--primary))';
+  const emphasizedEdgeColor = edgeColor ?? 'hsl(var(--foreground))';
   const renderedEdgeColor = edgeColor ?? (isEmphasized ? emphasizedEdgeColor : 'currentColor');
 
   const dimFromInteraction = shouldDimEdgeFromInteraction({

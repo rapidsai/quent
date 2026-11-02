@@ -534,9 +534,11 @@ describe('pipes alongside operators', () => {
     act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out-1', targetPortId: 'in-1' }));
 
     expect(screen.queryByRole('button', { name: /filter pipe/i })).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove pipe from scan to join from details' })
-    );
+    const removePipe = screen.getByRole('button', {
+      name: 'Remove pipe from scan to join from details',
+    });
+    expect(removePipe).toHaveClass('text-foreground');
+    fireEvent.click(removePipe);
 
     expect(probe.latest().inspectedPipes).toHaveLength(0);
     expect(screen.queryByRole('tab', { name: 'Pipes' })).not.toBeInTheDocument();

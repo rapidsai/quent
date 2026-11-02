@@ -449,6 +449,26 @@ describe('DAGChart selection', () => {
 });
 
 describe('DAGChart edge scaling', () => {
+  it('uses the foreground color when a pipe is emphasized without metric coloring', async () => {
+    const { container } = render(
+      <Provider store={createStore()}>
+        <DAGChart data={pipeData} isDark={false} />
+      </Provider>
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Inspect pipe source-out to middle-in' })
+    );
+
+    expect(container.querySelector('#first-pipe')).toHaveStyle({
+      stroke: 'hsl(var(--foreground))',
+    });
+    expect(container.querySelector('#arrow-first-pipe path')).toHaveAttribute(
+      'fill',
+      'hsl(var(--foreground))'
+    );
+  });
+
   it('preserves metric color when a pipe is pinned', async () => {
     const { container } = render(
       <Provider store={createStore()}>

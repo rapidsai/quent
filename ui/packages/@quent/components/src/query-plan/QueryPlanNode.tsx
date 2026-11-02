@@ -292,6 +292,14 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       {data.hasOutgoing && (
         <Handle type="source" position={outgoingHandlePosition} className="w-2 h-2 opacity-0" />
       )}
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute -inset-px z-30 rounded-[inherit] border',
+          isSelected && '-inset-0.5 border-2'
+        )}
+        style={{ borderColor: 'inherit' }}
+      />
     </div>
   );
 

@@ -10,7 +10,7 @@ interface DetailItemActionsProps {
 }
 
 const actionClass =
-  'inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground';
+  'inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent';
 
 export function DetailItemActions({ label, title, onRemove }: DetailItemActionsProps) {
   return (

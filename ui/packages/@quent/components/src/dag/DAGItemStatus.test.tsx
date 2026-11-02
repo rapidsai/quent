@@ -10,12 +10,13 @@ describe('DAGItemStatus', () => {
     const { rerender } = render(<DAGItemStatus label="Scan" filtered />);
     const filtered = screen.getByRole('status', { name: 'Scan: filtered' });
     expect(filtered).toBeVisible();
+    expect(filtered).toHaveClass('text-foreground');
     expect(filtered).not.toHaveClass('border', 'bg-card/90', 'shadow-sm');
     expect(filtered.querySelector('svg')).toHaveClass('lucide-filter', 'opacity-40');
 
     rerender(<DAGItemStatus label="Pipe" pinned />);
     const pinned = screen.getByRole('status', { name: 'Pipe: pinned' });
-    expect(pinned.querySelector('svg')).toHaveClass('lucide-pin');
+    expect(pinned.querySelector('svg')).toHaveClass('lucide-pin', 'opacity-40');
 
     rerender(<DAGItemStatus label="Scan" pinned filtered />);
     const combined = screen.getByRole('status', {

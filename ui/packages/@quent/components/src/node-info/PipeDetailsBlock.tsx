@@ -150,8 +150,8 @@ export function PipeDetailsBlock({
                     <span
                       role="status"
                       aria-label={`${selection.label}: filtered`}
-                      title="Filtered"
-                      className="pointer-events-none absolute right-0 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center text-primary"
+                      title="Filtered by operator"
+                      className="absolute right-0 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center text-foreground"
                     >
                       <Filter aria-hidden className="size-3 opacity-40" />
                     </span>

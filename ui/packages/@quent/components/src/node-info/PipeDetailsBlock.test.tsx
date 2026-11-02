@@ -146,7 +146,8 @@ it('shows a filter indicator only for filtered endpoint operators', () => {
     name: 'Parquet scan [6]: filtered',
   });
   expect(filterStatus).toBeVisible();
-  expect(filterStatus).toHaveClass('absolute');
+  expect(filterStatus).toHaveClass('absolute', 'text-foreground');
+  expect(filterStatus).toHaveAttribute('title', 'Filtered by operator');
   expect(filterStatus.querySelector('svg')).toHaveClass('opacity-40');
   expect(
     within(receiving).queryByRole('status', { name: 'Partitioned join [42]: filtered' })
