@@ -6,13 +6,14 @@
 Quent UI code follows a one-way dependency graph:
 
 ```text
-applications → Quent widgets → Quent views → generic UI
-                    ↓               ↓
-             client / hooks → types / utilities
+applications → query-engine-aware widgets → QueryBundle-unaware views → generic UI
+       │                    │                         │
+       └────────────────────┴─────────────────────────┴──→ utilities
+                            └──→ client / hooks / query-engine contracts
 ```
 
-Dependencies may only point to the right or down. Lower layers never import
-applications or higher-level presentation layers.
+Dependencies point toward lower layers. Query-engine-aware code may import
+unaware views, but unaware views and generic UI cannot import upward.
 
 ## Generic UI
 
@@ -30,14 +31,37 @@ the generic zone becomes a physical package.
 `SegmentedBar`, Timeline, Gantt, and grouped-table primitives are extraction
 candidates, but remain outside this zone until any Quent adapters are separated.
 
-## Quent views and widgets
+## QueryBundle-unaware Quent views
 
-Quent views may use Quent model types, but reusable views should receive data,
-state, and actions through props. Widgets may bind those views to
-`@quent/client` and `@quent/hooks`.
+The enforced unaware zone is:
 
-The current `@quent/components` package contains both roles. Keep imports
-flowing through the existing package stack:
+```text
+packages/@quent/components/src/quent-views/**
+```
+
+These views receive feature-scoped data, controlled state, and actions through
+props. They may use stable Quent concepts, but cannot import QueryBundle,
+generated wire bindings, `@quent/utils/query-engine`, `@quent/client`,
+`@quent/hooks`, or the aware source zone. `quent-views/fsm-chart/**` is the
+first migrated slice.
+
+## Query-engine-aware widgets and transforms
+
+The enforced aware zone is:
+
+```text
+packages/@quent/components/src/query-engine/**
+```
+
+Aware code owns QueryBundle interpretation, API and hook integration, and
+conversion into feature-scoped view models. It may import `quent-views/**` and
+generic UI. `query-engine/query-plan/**` is the first migrated slice.
+
+Generated QueryBundle and wire contracts have the explicit import surface
+`@quent/utils/query-engine`. Existing `@quent/utils` root exports remain for
+compatibility, but new aware code should use the dedicated surface.
+
+The package dependency direction remains:
 
 ```text
 @quent/utils → @quent/client → @quent/hooks → @quent/components
@@ -54,6 +78,14 @@ import application code or use the `@/` alias.
 Application code imports package roots only. It must not import generated
 bindings or `@quent/*/src/**` paths directly.
 
+## Transitional mixed directories
+
+New code belongs in `ui/**`, `quent-views/**`, or `query-engine/**` according to
+its contract. The legacy `dag/**`, `query-plan/**`, `timeline/**`,
+`resource-tree/**`, `pivot-table/**`, `operator-timeline/**`,
+`long-entities/**`, `gantt-chart/**`, and `nvtx-timeline/**` directories remain
+mixed while later phases split their rendering and integration responsibilities.
+
 ## Enforcement
 
 - `pnpm boundaries:check` validates source and package-to-package dependency
@@ -61,6 +93,8 @@ bindings or `@quent/*/src/**` paths directly.
 - ESLint provides immediate errors for forbidden imports.
 - Package typechecks compile each package independently.
 - CI runs all three checks before the aggregate build.
+- Dependency Cruiser and ESLint reject aware, client, hook, generated-binding,
+  and query-engine-contract imports from `quent-views/**`.
 
 When adding a dependency exception, update this document and the graph rule in
 the same change. Exceptions must name a concrete migration boundary; broad

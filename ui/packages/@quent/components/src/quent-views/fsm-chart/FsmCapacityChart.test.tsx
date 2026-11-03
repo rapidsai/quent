@@ -4,17 +4,22 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { FsmTransition, QuantitySpec } from '@quent/utils';
-import { FsmCapacityChart } from './FsmCapacityChart';
+import {
+  FsmCapacityChart,
+  type FsmCapacityQuantitySpec,
+  type FsmCapacityTransition,
+} from './FsmCapacityChart';
 
 // ECharts renders to canvas and is not testable in jsdom; stub it out.
 vi.mock('echarts-for-react/lib/core', () => ({
   default: () => <div data-testid="echarts" />,
 }));
 
-vi.mock('../lib/echarts', () => ({ echarts: {} }));
-vi.mock('../lib/useChartResize', () => ({ useChartResize: () => ({ handleChartReady: vi.fn() }) }));
-vi.mock('../timeline/timelineEchartsTheme', () => ({
+vi.mock('../../lib/echarts', () => ({ echarts: {} }));
+vi.mock('../../lib/useChartResize', () => ({
+  useChartResize: () => ({ handleChartReady: vi.fn() }),
+}));
+vi.mock('../../timeline/timelineEchartsTheme', () => ({
   useTimelineEchartsTheme: () => ({ themeName: 'light' }),
 }));
 
@@ -24,13 +29,16 @@ vi.mock('../timeline/timelineEchartsTheme', () => ({
 
 function transition(
   name: string,
-  timestamp: number,
-  usages: FsmTransition['usages'] = []
-): FsmTransition {
-  return { name, timestamp, usages, attributes: [], derived_attributes: [] };
+  _timestamp: number,
+  usages: FsmCapacityTransition['usages'] = []
+): FsmCapacityTransition {
+  return { name, usages };
 }
 
-function usage(resource: string, caps: Record<string, bigint | null>): FsmTransition['usages'][0] {
+function usage(
+  resource: string,
+  caps: Record<string, bigint | null>
+): FsmCapacityTransition['usages'][0] {
   return { resource, capacities: Object.entries(caps) };
 }
 
@@ -40,7 +48,7 @@ const BYTES_SPEC = {
   plural: 'bytes',
   occupancy_prefix: 'Iec',
   rate_prefix: 'Si',
-} satisfies QuantitySpec;
+} satisfies FsmCapacityQuantitySpec;
 
 const UNIT_SPEC = {
   symbol: '',
@@ -48,7 +56,7 @@ const UNIT_SPEC = {
   plural: 'units',
   occupancy_prefix: 'None',
   rate_prefix: 'None',
-} satisfies QuantitySpec;
+} satisfies FsmCapacityQuantitySpec;
 
 const RATE_SPEC = {
   symbol: 'B/s',
@@ -56,7 +64,7 @@ const RATE_SPEC = {
   plural: 'bytes per second',
   occupancy_prefix: 'Iec',
   rate_prefix: 'Si',
-} satisfies QuantitySpec;
+} satisfies FsmCapacityQuantitySpec;
 
 const defaultProps = {
   isDark: false,
