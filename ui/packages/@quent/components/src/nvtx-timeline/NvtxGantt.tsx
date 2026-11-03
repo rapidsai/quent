@@ -9,12 +9,12 @@ import {
   MARK_AREA_BORDER_OPACITY,
   MARK_AREA_FILL_OPACITY,
   useTimelineEchartsTheme,
-} from '../timeline/timelineEchartsTheme';
+} from '../ui/charts/timelineTheme';
 import { TIMELINE_SPACING } from '../timeline/types';
 import { EntityTooltipContent } from '../timeline/TimelineTooltip';
 import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
-import type { GanttHover } from '../gantt-chart/hover';
-import { GANTT_RESIZE_CONTROL_HEIGHT, layoutGanttBar } from '../gantt-chart/utils';
+import type { GanttHover } from '../ui/charts/ganttHover';
+import { GANTT_RESIZE_CONTROL_HEIGHT, layoutGanttBar } from '../ui/charts/ganttLayout';
 import { PointerTooltipPortal } from '../ui/pointer-tooltip-portal';
 import { EmptyState } from '../ui/empty-state';
 import {

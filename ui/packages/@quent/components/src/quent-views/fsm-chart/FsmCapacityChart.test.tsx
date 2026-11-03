@@ -19,7 +19,7 @@ vi.mock('../../ui/charts/echarts', () => ({ echarts: {} }));
 vi.mock('../../ui/charts/useChartResize', () => ({
   useChartResize: () => ({ handleChartReady: vi.fn() }),
 }));
-vi.mock('../../timeline/timelineEchartsTheme', () => ({
+vi.mock('../../ui/charts/timelineTheme', () => ({
   useTimelineEchartsTheme: () => ({ themeName: 'light' }),
 }));
 

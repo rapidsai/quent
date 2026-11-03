@@ -1,0 +1,453 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { useEffect, useMemo, useRef } from 'react';
+import { EChartsReactCore } from './echartsReactCore';
+import { echarts } from './echarts';
+import type { EChartsOption } from './echarts';
+import type { LineSeriesOption } from 'echarts/charts';
+import type { EChartsInstance } from 'echarts-for-react';
+import { withOpacity } from '../colors';
+import type { TimelineSeriesEntry } from './timelineTypes';
+import {
+  TimelineSeries,
+  TimelineMark,
+  TIMELINE_SPACING,
+  TIMELINE_X_AXIS_ANIMATION,
+} from './timelineTypes';
+import {
+  DIMMED_OPACITY,
+  MARK_AREA_BORDER_OPACITY,
+  MARK_AREA_FILL_OPACITY,
+  MARK_LABEL_TEXT_COLOR,
+  ROLLUP_TIMELINE_COLOR_DARK,
+  ROLLUP_TIMELINE_COLOR_LIGHT,
+  TIMELINE_MONO_FONT,
+  useTimelineEchartsTheme,
+} from './timelineTheme';
+import { computeVisibleMaxValue } from './timelineVisibleMax';
+import { useMinZoomSpanPct } from './useMinZoomSpanPct';
+import { useChartWheelNavigation } from './useChartWheelNavigation';
+import { Opts } from 'echarts-for-react/lib/types';
+import { ChartPointerArea } from './ChartPointerArea';
+
+/** Pointer coordinates for controlled tooltip rendering outside the chart. */
+export interface TimelineHoverPosition {
+  dataIndex: number;
+  timestampMs: number;
+  clientX: number;
+  clientY: number;
+}
+
+export interface TimelineChartProps {
+  durationSeconds: number;
+  series: TimelineSeries;
+  timestamps: number[];
+  showTooltip?: boolean;
+  marks?: TimelineMark[];
+  isDark: boolean;
+  yAxisLabel?: string | null;
+  onHoverChange?: (position: TimelineHoverPosition | null) => void;
+  onChartReady?: (instance: EChartsInstance) => void;
+  onReady?: (instance: EChartsInstance) => void;
+  visibleStartMs: number;
+  visibleEndMs: number;
+  minZoomWindowSeconds: number;
+  pointerRatio: number | null;
+  onPointerRatioChange: (ratio: number | null) => void;
+}
+
+/** Stacked-area timeline chart backed by ECharts, with zoom sync and optional tooltip. */
+export function TimelineChart({
+  durationSeconds,
+  series,
+  timestamps,
+  showTooltip = true,
+  marks,
+  isDark,
+  yAxisLabel,
+  onHoverChange,
+  onChartReady,
+  onReady,
+  visibleStartMs,
+  visibleEndMs,
+  minZoomWindowSeconds,
+  pointerRatio,
+  onPointerRatioChange,
+}: TimelineChartProps) {
+  const { themeName, textColor, labelBackgroundColor } = useTimelineEchartsTheme(isDark);
+  const maxMarkCountRef = useRef(0);
+
+  const seriesOptions = useMemo(() => {
+    const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
+    const rollupTimelineColor = isDark ? ROLLUP_TIMELINE_COLOR_DARK : ROLLUP_TIMELINE_COLOR_LIGHT;
+
+    const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
+      const isOverlay = seriesData.isOverlay ?? false;
+      const isDimmed = seriesData.isDimmed ?? false;
+      // Dimmed base series recede behind overlays.
+      const renderColor = isDimmed ? rollupTimelineColor : seriesData.color;
+
+      return {
+        name,
+        type: 'line',
+        stack: isOverlay ? `overlay-total` : 'total',
+        step: 'middle',
+        symbol: 'none',
+        hoverAnimation: false,
+        showSymbol: false,
+        ...TIMELINE_X_AXIS_ANIMATION,
+        cursor: 'default',
+        data: seriesData.values.map((value, index) => [timestamps[index], value]),
+        lineStyle: { width: 0 },
+        itemStyle: { color: renderColor },
+        areaStyle: {
+          color: renderColor,
+          opacity: isDimmed ? DIMMED_OPACITY : 1,
+        },
+        z: isOverlay ? 5 : 2,
+        sampling: 'lttb',
+        emphasis: {
+          disabled: true,
+          focus: 'none',
+        },
+      };
+    });
+
+    const markCount = marks?.length ?? 0;
+    // Keep the highest mark count we've seen, so the chart always renders the
+    // same number of series and doesn't flicker when marks are added/removed.
+    /* eslint-disable react-hooks/refs */
+    maxMarkCountRef.current = Math.max(maxMarkCountRef.current, markCount);
+
+    for (let i = 0; i < maxMarkCountRef.current; i++) {
+      /* eslint-enable react-hooks/refs */
+      const m = marks?.[i];
+      if (m) {
+        const stateColor = m.color;
+        const dimmed = m.isDimmed ?? false;
+        allSeries.push({
+          name: `__mark_${i}`,
+          type: 'line',
+          step: 'middle',
+          data: [
+            [m.xStart, 0],
+            {
+              value: [m.xStart, 1],
+              label: {
+                show: !dimmed,
+                formatter: () => m.labelLines.join('\n'),
+                position: [0, -2.5],
+                fontSize: 9,
+                fontWeight: 500,
+                color: MARK_LABEL_TEXT_COLOR,
+                backgroundColor: withOpacity(stateColor, 0.85),
+                borderRadius: 1,
+                padding: [1, 2],
+              },
+            },
+            [m.xEnd, 1],
+            [m.xEnd, 0],
+          ],
+          zlevel: 1,
+          label: { show: false },
+          symbolSize: 0,
+          lineStyle: {
+            width: 1,
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : MARK_AREA_BORDER_OPACITY),
+          },
+          areaStyle: {
+            color: withOpacity(stateColor, dimmed ? DIMMED_OPACITY : MARK_AREA_FILL_OPACITY),
+            opacity: 1,
+          },
+          tooltip: { show: false },
+          silent: true,
+          animation: false,
+          yAxisIndex: 1,
+        });
+      } else {
+        allSeries.push({
+          name: `__mark_${i}`,
+          type: 'line',
+          data: [],
+          zlevel: 1,
+          symbolSize: 0,
+          lineStyle: { width: 0 },
+          areaStyle: { opacity: 0 },
+          tooltip: { show: false },
+          silent: true,
+          animation: false,
+          yAxisIndex: 1,
+        });
+      }
+    }
+
+    return allSeries;
+  }, [series, timestamps, marks, isDark]);
+
+  const formatAxisValue = useMemo(() => {
+    const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
+    return (v: number) => firstEntry?.formatter(Math.ceil(v), 0) ?? String(Math.ceil(v));
+  }, [series]);
+
+  const maxValue = useMemo(
+    () => computeVisibleMaxValue(series, timestamps, visibleStartMs, visibleEndMs),
+    [series, timestamps, visibleStartMs, visibleEndMs]
+  );
+
+  const yAxisOptions = useMemo(
+    () => [
+      {
+        type: 'value',
+        min: 0,
+        max: (value: { max: number }) => value.max * 1.1 || 1,
+        splitNumber: 1,
+        show: true,
+        axisLabel: { show: false },
+      },
+      {
+        type: 'value',
+        show: false,
+        min: 0,
+        max: 1,
+        gridIndex: 0,
+      },
+    ],
+    []
+  );
+
+  const xAxisOptions = useMemo(
+    () => ({
+      boundaryGap: [0, 0] as [number, number],
+      type: 'value',
+      animation: false,
+      show: true,
+      min: 0,
+      max: durationSeconds * 1_000,
+      axisLine: { onZero: true },
+      axisLabel: { show: false },
+      axisPointer: { show: false },
+    }),
+    [durationSeconds]
+  );
+
+  const gridOptions = useMemo(() => ({ ...TIMELINE_SPACING }), []);
+
+  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds, minZoomWindowSeconds);
+  const attachWheelNavigation = useChartWheelNavigation(minZoomSpanPct, TIMELINE_SPACING);
+  const wheelTargetRef = useRef<HTMLDivElement | null>(null);
+
+  const eChartOptions: EChartsOption = useMemo(() => {
+    return {
+      animation: false,
+      tooltip: { show: false },
+      grid: gridOptions,
+      xAxis: xAxisOptions,
+      yAxis: yAxisOptions,
+      series: seriesOptions,
+      dataZoom: [
+        {
+          type: 'slider',
+          show: false,
+          realtime: true,
+          filterMode: 'none',
+          minSpan: minZoomSpanPct,
+        },
+        {
+          type: 'inside',
+          zoomLock: true,
+          zoomOnMouseWheel: false,
+          moveOnMouseWheel: false,
+          throttle: 30,
+          filterMode: 'none',
+        },
+        {
+          type: 'inside',
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          throttle: 30,
+          filterMode: 'none',
+          minSpan: minZoomSpanPct,
+        },
+      ],
+    } as EChartsOption;
+  }, [gridOptions, minZoomSpanPct, xAxisOptions, yAxisOptions, seriesOptions]);
+
+  const isDraggingRef = useRef(false);
+
+  // ECharts binds listeners once; mirrors keep their controlled inputs current.
+  const showTooltipRef = useRef(showTooltip);
+  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
+  showTooltipRef.current = showTooltip;
+  const onHoverChangeRef = useRef(onHoverChange);
+  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
+  onHoverChangeRef.current = onHoverChange;
+  // Zoom changes can replace timestamps without rebinding chart listeners.
+  const timestampsRef = useRef(timestamps);
+  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
+  timestampsRef.current = timestamps;
+
+  const handleChartReady = (instance: EChartsInstance) => {
+    onChartReady?.(instance);
+    const dom = instance.getDom();
+    const outsideTimelineViz = (e: PointerEvent) => {
+      const rect = dom.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+      return (
+        offsetX < TIMELINE_SPACING.left ||
+        offsetX > rect.width - TIMELINE_SPACING.right ||
+        offsetY < TIMELINE_SPACING.top ||
+        offsetY > rect.height - TIMELINE_SPACING.bottom
+      );
+    };
+
+    // Report snapped bins; the parent owns tooltip rendering and shared state.
+    const reportHover = (e: PointerEvent) => {
+      if (!showTooltipRef.current) {
+        return;
+      }
+      if (isDraggingRef.current) {
+        return;
+      }
+      if (instance.isDisposed?.()) {
+        return;
+      }
+      const rect = dom.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      if (outsideTimelineViz(e)) {
+        onHoverChangeRef.current?.(null);
+        return;
+      }
+      let tsMs: number;
+      try {
+        const v = instance.convertFromPixel({ xAxisIndex: 0 }, offsetX);
+        if (v == null || !isFinite(v as number)) {
+          return;
+        }
+        tsMs = v as number;
+      } catch {
+        return;
+      }
+      const idx = snapToBinIndex(timestampsRef.current, tsMs);
+      if (idx < 0) {
+        return;
+      }
+      onHoverChangeRef.current?.({
+        dataIndex: idx,
+        timestampMs: tsMs,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      });
+    };
+
+    const reportLeave = () => onHoverChangeRef.current?.(null);
+
+    dom.addEventListener('pointermove', reportHover);
+    dom.addEventListener('pointerleave', reportLeave);
+    dom.addEventListener('pointercancel', reportLeave);
+    dom.addEventListener('pointerdown', () => {
+      isDraggingRef.current = true;
+      reportLeave();
+    });
+    dom.addEventListener('pointerup', () => {
+      isDraggingRef.current = false;
+    });
+
+    attachWheelNavigation(instance, wheelTargetRef.current ?? undefined);
+    onReady?.(instance);
+  };
+
+  // Unmounting mid-hover cannot emit `pointerleave`; clear controlled tooltip state.
+  useEffect(() => {
+    return () => {
+      onHoverChangeRef.current?.(null);
+    };
+  }, []);
+
+  const style = useMemo(() => ({ width: '100%', height: '100%' }), []);
+  const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
+
+  return (
+    <ChartPointerArea
+      ref={wheelTargetRef}
+      className="h-full w-full"
+      pointerRatio={pointerRatio}
+      onPointerRatioChange={onPointerRatioChange}
+      left={TIMELINE_SPACING.left}
+      right={TIMELINE_SPACING.right}
+    >
+      {(yAxisLabel != null || maxValue != null) && (
+        <div
+          className="absolute z-[8] pointer-events-none flex flex-col items-start gap-px text-[10px] leading-none"
+          style={{
+            top: TIMELINE_SPACING.top + 1,
+            left: TIMELINE_SPACING.left + 1,
+            fontFamily: TIMELINE_MONO_FONT,
+            color: textColor,
+          }}
+        >
+          <span
+            className="w-fit rounded-sm px-1 py-0.5"
+            style={{ background: labelBackgroundColor }}
+          >
+            {maxValue !== null ? formatAxisValue(maxValue) : '-'}
+          </span>
+          {yAxisLabel != null && (
+            <span
+              className="w-fit rounded-sm px-1 py-0.5"
+              style={{ background: labelBackgroundColor }}
+            >
+              {yAxisLabel}
+            </span>
+          )}
+        </div>
+      )}
+      <EChartsReactCore
+        echarts={echarts}
+        theme={themeName}
+        opts={opts}
+        option={eChartOptions}
+        style={style}
+        onChartReady={handleChartReady}
+        notMerge={false}
+        lazyUpdate={false}
+        replaceMerge={['series']}
+        autoResize={false}
+      />
+    </ChartPointerArea>
+  );
+}
+
+/**
+ * Snap a continuous x-axis time (ms) to the nearest bin index by binary
+ * search. dataIndex from echarts cannot be trusted at tiny bin sizes.
+ */
+function snapToBinIndex(timestamps: number[], ts: number): number {
+  const n = timestamps.length;
+  if (n === 0) {
+    return -1;
+  }
+  if (n === 1) {
+    return 0;
+  }
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((timestamps[mid] ?? 0) < ts) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  if (lo > 0) {
+    const a = timestamps[lo - 1] ?? 0;
+    const b = timestamps[lo] ?? 0;
+    if (Math.abs(a - ts) < Math.abs(b - ts)) {
+      return lo - 1;
+    }
+  }
+  return lo;
+}

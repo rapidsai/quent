@@ -9,7 +9,7 @@ import { useChartResize } from '../../ui/charts/useChartResize';
 import type { PointerPosition } from '../../ui/pointer-tooltip-portal';
 import { PositionedTooltip } from '../../ui/positioned-tooltip';
 import { SelectField } from '../../ui/select-field';
-import { useTimelineEchartsTheme } from '../../timeline/timelineEchartsTheme';
+import { useTimelineEchartsTheme } from '../../ui/charts/timelineTheme';
 import { FsmCapacityTooltip } from './FsmCapacityTooltip';
 
 const CHART_HEIGHT = 90;

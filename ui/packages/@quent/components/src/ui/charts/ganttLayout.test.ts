@@ -8,8 +8,8 @@ import {
   ganttExpansionLayout,
   stackIntervalsIntoRows,
   type GanttRect,
-} from './utils';
-import { TIMELINE_SPACING } from '../timeline/types';
+} from './ganttLayout';
+import { TIMELINE_SPACING } from './timelineTypes';
 
 function rect(x: number, y: number, width: number, height: number): GanttRect {
   return { x, y, width, height };

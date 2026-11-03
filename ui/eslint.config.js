@@ -168,7 +168,7 @@ export default tseslint.config(
             },
             {
               regex:
-                '^\\.\\./(?!(?:lib/sliderField[.]utils|badge|colors|data-text|pointer-tooltip-portal)$)',
+                '^\\.\\./(?!(?:lib/sliderField[.]utils|badge|button|colors|data-text|pointer-tooltip-portal|thin-scroll)$)',
               message: 'Generic UI may only import its own directory.',
             },
           ],

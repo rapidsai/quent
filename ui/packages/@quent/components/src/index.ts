@@ -237,7 +237,7 @@ export {
   MARK_LABEL_TEXT_COLOR,
   ROLLUP_TIMELINE_COLOR_LIGHT,
   ROLLUP_TIMELINE_COLOR_DARK,
-} from './timeline/timelineEchartsTheme';
+} from './ui/charts/timelineTheme';
 export {
   CHART_GROUP,
   DEFAULT_TIMELINE_HEIGHT,
@@ -368,7 +368,7 @@ export {
   stackIntervalsIntoRows as stackOperatorsIntoRows,
   layoutGanttBar,
   ganttExpansionLayout,
-} from './gantt-chart/utils';
+} from './ui/charts/ganttLayout';
 
 // ─── NVTX timeline ────────────────────────────────────────────────────────────
 export { NvtxGantt, NVTX_GANTT_HEIGHT } from './nvtx-timeline/NvtxGantt';

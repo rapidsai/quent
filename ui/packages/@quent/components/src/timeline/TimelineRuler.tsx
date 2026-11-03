@@ -13,7 +13,7 @@ import {
   useTimelineEchartsTheme,
   TIMELINE_MONO_FONT,
   TIMELINE_LABEL_FONT_SIZE,
-} from './timelineEchartsTheme';
+} from '../ui/charts/timelineTheme';
 import { TIMELINE_SPACING } from './types';
 import { TimelinePointerArea } from './TimelinePointerArea';
 

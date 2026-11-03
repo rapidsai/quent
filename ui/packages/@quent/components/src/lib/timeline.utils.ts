@@ -600,33 +600,4 @@ export function collectVisibleEntries(
   return result;
 }
 
-/** Max stacked value across the active base or overlay bins in the visible window. */
-export function computeVisibleMaxValue(
-  series: TimelineSeries,
-  timestamps: number[],
-  zoomStartMs: number,
-  zoomEndMs: number
-): number | null {
-  const allEntries = Object.values(series);
-  const overlayEntries = allEntries.filter(e => e.isOverlay && !e.isDimmed);
-  const entries =
-    overlayEntries.length > 0
-      ? overlayEntries
-      : allEntries.filter(e => !e.isDimmed && !e.isOverlay);
-  if (!entries.length || !entries[0]?.values.length) {
-    return null;
-  }
-  let max = 0;
-  const binDurationMs = (entries[0]?.binDuration ?? 0) * 1_000;
-  for (let i = 0; i < entries[0].values.length; i++) {
-    const t = timestamps[i];
-    if (t === undefined || t + binDurationMs <= zoomStartMs || t >= zoomEndMs) {
-      continue;
-    }
-    const sum = entries.reduce((acc, e) => acc + (e.values[i] ?? 0), 0);
-    if (sum > max) {
-      max = sum;
-    }
-  }
-  return max > 0 ? max : null;
-}
+export { computeVisibleMaxValue } from '../ui/charts/timelineVisibleMax';

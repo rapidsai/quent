@@ -29,7 +29,7 @@ import { useChartConnect } from '../lib/useChartConnect';
 import { useMinZoomSpanPct } from '../ui/charts/useMinZoomSpanPct';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '@quent/utils';
-import { useTimelineEchartsTheme } from './timelineEchartsTheme';
+import { useTimelineEchartsTheme } from '../ui/charts/timelineTheme';
 import { Opts } from 'echarts-for-react/lib/types';
 import { PlayheadLine } from './PlayheadLine';
 import { TimelinePointerArea } from './TimelinePointerArea';

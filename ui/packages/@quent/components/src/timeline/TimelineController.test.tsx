@@ -38,7 +38,7 @@ vi.mock('../ui/charts/useMinZoomSpanPct', () => ({
   useMinZoomSpanPct: () => 1,
 }));
 
-vi.mock('./timelineEchartsTheme', () => ({
+vi.mock('../ui/charts/timelineTheme', () => ({
   useTimelineEchartsTheme: () => ({
     themeName: 'light',
     controllerGridBackgroundColor: 'transparent',
