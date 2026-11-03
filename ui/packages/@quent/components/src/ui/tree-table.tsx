@@ -837,6 +837,7 @@ export function TreeTable<I extends TreeTableDataItem>({
   hiddenPinnedCount = 0,
   isPinnedCollapsed = false,
   onTogglePinnedCollapsed,
+  onClearPinned,
   onReorderPinned,
   ...treeViewProps
 }: {
@@ -849,6 +850,8 @@ export function TreeTable<I extends TreeTableDataItem>({
   hiddenPinnedCount?: number;
   isPinnedCollapsed?: boolean;
   onTogglePinnedCollapsed?: () => void;
+  /** Shows a Clear button in the pinned header; leave out to hide it. */
+  onClearPinned?: () => void;
   /** Called when a pinned row is dragged onto another, with the dragged id then the target id. */
   onReorderPinned?: (activeId: string, overId: string) => void;
 } & TreeViewProps) {
@@ -1147,22 +1150,35 @@ export function TreeTable<I extends TreeTableDataItem>({
               )}
               {showPinnedSection && (
                 <section aria-label="Pinned rows" className="border-b border-border pb-4">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="h-7 w-full justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
-                    aria-expanded={!isPinnedCollapsed}
-                    onClick={onTogglePinnedCollapsed}
-                  >
-                    <ChevronRight
-                      aria-hidden="true"
-                      className={cn('transition-transform', !isPinnedCollapsed && 'rotate-90')}
-                    />
-                    <span>Pinned ({pinnedCount})</span>
-                    {hiddenPinnedCount > 0 && (
-                      <span className="font-normal">{hiddenPinnedCount} hidden by filter</span>
+                  <div className="flex items-center justify-between pr-2">
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="h-7 min-w-0 flex-1 justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
+                      aria-expanded={!isPinnedCollapsed}
+                      onClick={onTogglePinnedCollapsed}
+                    >
+                      <ChevronRight
+                        aria-hidden="true"
+                        className={cn('transition-transform', !isPinnedCollapsed && 'rotate-90')}
+                      />
+                      <span>Pinned ({pinnedCount})</span>
+                      {hiddenPinnedCount > 0 && (
+                        <span className="font-normal">{hiddenPinnedCount} hidden by filter</span>
+                      )}
+                    </Button>
+                    {onClearPinned && (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="shrink-0 text-muted-foreground"
+                        aria-label="Clear all pins"
+                        onClick={onClearPinned}
+                      >
+                        Clear
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                   {!isPinnedCollapsed && pinnedCount > 0 && (
                     <PinnedRowList
                       items={pinnedItems ?? []}

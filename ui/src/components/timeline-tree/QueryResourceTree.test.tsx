@@ -64,6 +64,7 @@ let capturedPinnedItems: TreeTableItem[] = [];
 let capturedHiddenPinnedCount = 0;
 let capturedPinnedCollapse: { isCollapsed: boolean; toggle?: () => void } = { isCollapsed: false };
 let capturedReorderPinned: ((activeId: string, overId: string) => void) | undefined;
+let capturedClearPinned: (() => void) | undefined;
 let capturedBulkExtraItems: TreeTableItem[] | undefined;
 let capturedOnExpandChange: ((itemId: string, isExpanded: boolean) => void) | undefined;
 let capturedInlineSelectors: Array<{
@@ -107,6 +108,7 @@ vi.mock('@quent/components', async importOriginal => {
       isPinnedCollapsed?: boolean;
       onTogglePinnedCollapsed?: () => void;
       onReorderPinned?: (activeId: string, overId: string) => void;
+      onClearPinned?: () => void;
     }) => {
       capturedTreeData = props.data;
       capturedPinnedItems = props.pinnedItems ?? [];
@@ -116,6 +118,7 @@ vi.mock('@quent/components', async importOriginal => {
         toggle: props.onTogglePinnedCollapsed,
       };
       capturedReorderPinned = props.onReorderPinned;
+      capturedClearPinned = props.onClearPinned;
       capturedHighlightedIds = props.highlightedItemIds ?? new Set();
       capturedExpandedIds = props.controlledExpandedIds ?? new Set();
       capturedOnExpandChange = props.onExpandChange;
@@ -296,6 +299,7 @@ beforeEach(() => {
   capturedHiddenPinnedCount = 0;
   capturedPinnedCollapse = { isCollapsed: false };
   capturedReorderPinned = undefined;
+  capturedClearPinned = undefined;
   capturedBulkExtraItems = undefined;
   capturedOnExpandChange = undefined;
   capturedLongEntityProps = undefined;
@@ -1008,6 +1012,26 @@ describe('QueryResourceTree — pinned rows', () => {
 
     act(() => capturedPinnedCollapse.toggle?.());
     await waitFor(() => expect(capturedPinnedCollapse.isCollapsed).toBe(false));
+  });
+
+  it('clears every pin, including ones a filter hides', async () => {
+    const store = renderWithPins([SECOND_RESOURCE_ID, RESOURCE_ID]);
+    await waitFor(() => expect(pinnedIds()).toHaveLength(2));
+    act(() =>
+      store.set(resourceFilterAtom, {
+        search: 'GPU 0',
+        resourceTypes: [],
+        fsmTypes: [],
+        showOthers: false,
+      })
+    );
+    await waitFor(() => expect(capturedHiddenPinnedCount).toBe(1));
+
+    act(() => capturedClearPinned?.());
+
+    await waitFor(() => expect(pinnedIds()).toEqual([]));
+    expect(capturedHiddenPinnedCount).toBe(0);
+    expect(store.get(pinnedIdsAtom).size).toBe(0);
   });
 
   it('asks for bulk timeline data for pinned resources but not for pinned sub-rows', async () => {

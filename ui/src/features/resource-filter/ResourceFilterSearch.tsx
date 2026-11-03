@@ -21,33 +21,30 @@ const EMPTY_PINNED_IDS: ReadonlySet<string> = new Set();
 interface PinMatchesButtonProps {
   matchIds: readonly string[];
   onPinMany: (ids: string[]) => void;
-  onUnpinMany: (ids: string[]) => void;
   pinnedIds: ReadonlySet<string>;
 }
 
-function PinMatchesButton({ matchIds, onPinMany, onUnpinMany, pinnedIds }: PinMatchesButtonProps) {
+function PinMatchesButton({ matchIds, onPinMany, pinnedIds }: PinMatchesButtonProps) {
   const uniqueIds = [...new Set(matchIds)];
   const plan = computePinAllPlan(uniqueIds, pinnedIds);
   const hasPinnedMatches = plan.toPin.length < uniqueIds.length;
 
-  let label: string;
-  if (plan.allPinned) {
-    label = `Unpin all ${uniqueIds.length}`;
-  } else if (hasPinnedMatches) {
-    label = `Pin remaining ${plan.toPin.length}`;
-  } else {
-    label = `Pin all ${plan.toPin.length}`;
-  }
+  // With nothing left to pin, the button stays as "Pin all" but is grayed out.
+  const label =
+    hasPinnedMatches && plan.toPin.length > 0
+      ? `Pin remaining ${plan.toPin.length}`
+      : `Pin all ${uniqueIds.length}`;
 
   return (
     <Button
       className="h-6 cursor-pointer gap-1 px-2 text-xs"
-      onClick={() => (plan.allPinned ? onUnpinMany(uniqueIds) : onPinMany(plan.toPin))}
+      disabled={plan.toPin.length === 0}
+      onClick={() => onPinMany(plan.toPin)}
       size="xs"
       type="button"
       variant="outline"
     >
-      <Pin aria-hidden className={cn('h-3 w-3', plan.allPinned && 'fill-current')} />
+      <Pin aria-hidden className="h-3 w-3" />
       {label}
     </Button>
   );
@@ -56,12 +53,11 @@ function PinMatchesButton({ matchIds, onPinMany, onUnpinMany, pinnedIds }: PinMa
 interface ResourceFilterSearchProps {
   fsmTypes: string[];
   matchCount: number;
-  // Ids of the rows that match, and the ids already pinned. With the two pin callbacks, they
+  // Ids of the rows that match, and the ids already pinned. With the pin callback, they
   // turn on the "pin all matches" button. Leave them out to hide it.
   matchIds?: readonly string[];
   pinnedIds?: ReadonlySet<string>;
   onPinMany?: (ids: string[]) => void;
-  onUnpinMany?: (ids: string[]) => void;
   onFsmTypesChange: (fsmTypes: string[]) => void;
   onResourceTypesChange: (resourceTypes: string[]) => void;
   onSearchChange: (search: string) => void;
@@ -82,7 +78,6 @@ export function ResourceFilterSearch({
   onResourceTypesChange,
   onSearchChange,
   onShowOthersChange,
-  onUnpinMany,
   pinnedIds,
   resourceTypes,
   search,
@@ -103,11 +98,10 @@ export function ResourceFilterSearch({
     values.includes(value) ? values.filter(current => current !== value) : [...values, value];
 
   const pinAction =
-    isActive && matchIds && matchIds.length > 0 && onPinMany && onUnpinMany ? (
+    isActive && matchIds && matchIds.length > 0 && onPinMany ? (
       <PinMatchesButton
         matchIds={matchIds}
         onPinMany={onPinMany}
-        onUnpinMany={onUnpinMany}
         pinnedIds={pinnedIds ?? EMPTY_PINNED_IDS}
       />
     ) : null;

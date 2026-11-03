@@ -90,14 +90,35 @@ describe('usePinnedIds bulk changes', () => {
     expect(result.current.pinnedIds).not.toBe(before);
     expect(before.size).toBe(0);
   });
+});
 
-  it('unpins many rows and leaves the others in order', () => {
+describe('usePinnedIds clearing', () => {
+  it('unpins every row', () => {
     const { result } = renderPinnedHook();
-    act(() => result.current.pinMany(['a', 'b', 'c', 'd']));
+    act(() => result.current.pinMany(['a', 'b', 'c']));
 
-    act(() => result.current.unpinMany(['b', 'd', 'not-pinned']));
+    act(() => result.current.clearPins());
 
-    expect([...result.current.pinnedIds]).toEqual(['a', 'c']);
+    expect(result.current.pinnedIds.size).toBe(0);
+  });
+
+  it('keeps the same set when nothing is pinned, so nothing re-renders', () => {
+    const { result } = renderPinnedHook();
+    const before = result.current.pinnedIds;
+
+    act(() => result.current.clearPins());
+
+    expect(result.current.pinnedIds).toBe(before);
+  });
+
+  it('leaves the old set untouched instead of mutating it', () => {
+    const { result } = renderPinnedHook();
+    act(() => result.current.pinMany(['a', 'b']));
+    const before = result.current.pinnedIds;
+
+    act(() => result.current.clearPins());
+
+    expect([...before]).toEqual(['a', 'b']);
   });
 });
 

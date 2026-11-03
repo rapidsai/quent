@@ -184,7 +184,7 @@ export function useResourceTimelinesTreeModel({
     rootItem,
   ]);
 
-  const { pinnedIds, togglePin, pinMany, unpinMany, movePin } = usePinnedIds();
+  const { pinnedIds, togglePin, pinMany, clearPins, movePin } = usePinnedIds();
   const { isPinnedCollapsed, togglePinnedCollapsed } = usePinnedCollapsed();
   // A pin whose row a filter has removed is hidden, not forgotten; clearing the filter restores it.
   const { shownItems: pinnedItems, hiddenCount: hiddenPinnedCount } = useMemo(
@@ -247,9 +247,11 @@ export function useResourceTimelinesTreeModel({
       onToggle: togglePin,
       isCollapsed: isPinnedCollapsed,
       onToggleCollapsed: togglePinnedCollapsed,
+      onClear: clearPins,
       onReorder: movePin,
     }),
     [
+      clearPins,
       hiddenPinnedCount,
       isPinnedCollapsed,
       movePin,
@@ -445,7 +447,6 @@ export function useResourceTimelinesTreeModel({
         matchCount={resourceFilterResult.matchCount}
         matchIds={pinnableMatchIds}
         onPinMany={pinMany}
-        onUnpinMany={unpinMany}
         pinnedIds={pinnedIds}
         onFsmTypesChange={fsmTypes => setResourceFilter(current => ({ ...current, fsmTypes }))}
         onResourceTypesChange={resourceTypes =>

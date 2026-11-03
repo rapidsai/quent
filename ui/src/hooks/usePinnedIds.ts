@@ -36,16 +36,8 @@ export function usePinnedIds() {
     [setPinnedIds]
   );
 
-  const unpinMany = useCallback(
-    (ids: readonly string[]) => {
-      setPinnedIds(prev => {
-        const removing = new Set(ids);
-        if (![...prev].some(id => removing.has(id))) {
-          return prev;
-        }
-        return new Set([...prev].filter(id => !removing.has(id)));
-      });
-    },
+  const clearPins = useCallback(
+    () => setPinnedIds(prev => (prev.size === 0 ? prev : new Set<string>())),
     [setPinnedIds]
   );
 
@@ -60,7 +52,7 @@ export function usePinnedIds() {
     pinnedIds,
     togglePin,
     pinMany,
-    unpinMany,
+    clearPins,
     movePin,
   } as const;
 }

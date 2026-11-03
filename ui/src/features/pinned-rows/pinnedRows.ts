@@ -90,8 +90,6 @@ export function reorderPinnedIds(
 export interface PinAllPlan {
   // Matches to pin now, in match order. Already pinned rows are left out.
   toPin: string[];
-  // True when there is at least one match and every match is pinned.
-  allPinned: boolean;
 }
 
 /**
@@ -104,7 +102,7 @@ export function computePinAllPlan(
 ): PinAllPlan {
   const toPin = [...new Set(matchIds)].filter(id => !pinnedIds.has(id));
 
-  return { toPin, allPinned: matchIds.length > 0 && toPin.length === 0 };
+  return { toPin };
 }
 
 /**

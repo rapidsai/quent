@@ -57,6 +57,8 @@ export interface PinningControls {
   // Whether the pinned section shows only its header.
   isCollapsed: boolean;
   onToggleCollapsed: () => void;
+  // Unpins every row, including the ones a filter hides.
+  onClear: () => void;
   // Moves a pinned row to where another pinned row sits, when the user drags it there.
   onReorder: (activeId: string, overId: string) => void;
 }
@@ -216,6 +218,7 @@ export function TimelineTreeTable({
             hiddenPinnedCount={pinning?.hiddenCount}
             isPinnedCollapsed={pinning?.isCollapsed}
             onTogglePinnedCollapsed={pinning?.onToggleCollapsed}
+            onClearPinned={pinning?.onClear}
             onReorderPinned={pinning?.onReorder}
             highlightedItemIds={controls.highlightedItemIds}
             indicatorItemIds={controls.indicatorItemIds}

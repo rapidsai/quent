@@ -139,7 +139,6 @@ describe('ResourceFilterSearch', () => {
   describe('pin all matches', () => {
     function renderWithPins(overrides: Partial<Parameters<typeof ResourceFilterSearch>[0]> = {}) {
       const onPinMany = vi.fn();
-      const onUnpinMany = vi.fn();
       render(
         <ResourceFilterSearch
           fsmTypes={['task']}
@@ -150,7 +149,6 @@ describe('ResourceFilterSearch', () => {
           onResourceTypesChange={vi.fn()}
           onSearchChange={vi.fn()}
           onShowOthersChange={vi.fn()}
-          onUnpinMany={onUnpinMany}
           pinnedIds={new Set()}
           resourceTypes={['gpu']}
           search="gpu"
@@ -160,7 +158,7 @@ describe('ResourceFilterSearch', () => {
           {...overrides}
         />
       );
-      return { onPinMany, onUnpinMany };
+      return { onPinMany };
     }
     const open = (user: ReturnType<typeof userEvent.setup>) =>
       user.click(screen.getByRole('button', { name: /Resource filters/ }));
@@ -203,14 +201,15 @@ describe('ResourceFilterSearch', () => {
       expect(onPinMany).toHaveBeenCalledWith(['b', 'c']);
     });
 
-    it('unpins every match once all are pinned', async () => {
+    it('is grayed out once every match is pinned', async () => {
       const user = userEvent.setup();
-      const { onUnpinMany, onPinMany } = renderWithPins({ pinnedIds: new Set(['a', 'b', 'c']) });
+      const { onPinMany } = renderWithPins({ pinnedIds: new Set(['a', 'b', 'c']) });
 
       await open(user);
-      await user.click(screen.getByRole('button', { name: 'Unpin all 3' }));
+      const button = screen.getByRole('button', { name: 'Pin all 3' });
+      expect(button).toBeDisabled();
+      await user.click(button);
 
-      expect(onUnpinMany).toHaveBeenCalledWith(['a', 'b', 'c']);
       expect(onPinMany).not.toHaveBeenCalled();
     });
   });

@@ -180,24 +180,17 @@ describe('computePinAllPlan', () => {
   it('plans to pin every match when nothing is pinned', () => {
     const plan = computePinAllPlan(['a', 'b', 'c'], new Set());
 
-    expect(plan).toEqual({ toPin: ['a', 'b', 'c'], allPinned: false });
+    expect(plan).toEqual({ toPin: ['a', 'b', 'c'] });
   });
 
   it('skips matches that are already pinned', () => {
     const plan = computePinAllPlan(['a', 'b', 'c'], new Set(['b']));
 
     expect(plan.toPin).toEqual(['a', 'c']);
-    expect(plan.allPinned).toBe(false);
   });
 
-  it('reports allPinned when every match is already pinned', () => {
-    const plan = computePinAllPlan(['a', 'b'], new Set(['a', 'b', 'x']));
-
-    expect(plan).toEqual({ toPin: [], allPinned: true });
-  });
-
-  it('is not allPinned when there are no matches', () => {
-    expect(computePinAllPlan([], new Set(['a'])).allPinned).toBe(false);
+  it('plans nothing when every match is already pinned', () => {
+    expect(computePinAllPlan(['a', 'b'], new Set(['a', 'b', 'x']))).toEqual({ toPin: [] });
   });
 
   it('keeps match order and ignores duplicate ids', () => {
