@@ -595,6 +595,7 @@ describe('QueryResourceTree — NVTX filters', () => {
       resourceTypes: [],
       fsmTypes: [],
       showOthers: false,
+      showEntities: true,
     });
 
     renderWithQuery(
@@ -680,6 +681,7 @@ describe('QueryResourceTree — resource filtering', () => {
       resourceTypes: [],
       fsmTypes: [],
       showOthers: false,
+      showEntities: true,
     });
 
     const { getByRole } = renderWithQuery(
@@ -699,6 +701,49 @@ describe('QueryResourceTree — resource filtering', () => {
     expect(capturedHighlightedIds).not.toContain(RESOURCE_ID);
   });
 
+  it('leaves out Entities and Operators rows when Show operators/entities is off', async () => {
+    const store = createStore();
+    store.set(resourceFilterAtom, {
+      search: 'GPU 0',
+      resourceTypes: [],
+      fsmTypes: [],
+      showOthers: false,
+      showEntities: false,
+    });
+
+    renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await waitFor(() => expect(capturedTreeData[0]?.id).toBe(RESOURCE_ID));
+    expect(collectRowTypes(capturedTreeData)).not.toContain(LONG_ENTITIES_ROW_TYPE);
+  });
+
+  it.each([
+    [true, 'Pin all 2'],
+    [false, 'Pin all 1'],
+  ])('counts Entities rows in "pin all" only when shown (%s)', async (showEntities, label) => {
+    const store = createStore();
+    store.set(resourceFilterAtom, {
+      search: 'GPU 0',
+      resourceTypes: [],
+      fsmTypes: [],
+      showOthers: false,
+      showEntities,
+    });
+
+    const { getByRole } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await userEvent.click(getByRole('button', { name: 'Resource filters, 1 selected filter' }));
+    expect(getByRole('button', { name: label })).toBeInTheDocument();
+  });
+
   it('allows matching resource rows to be expanded while Show All is selected', async () => {
     const store = createStore();
     store.set(resourceFilterAtom, {
@@ -706,6 +751,7 @@ describe('QueryResourceTree — resource filtering', () => {
       resourceTypes: [],
       fsmTypes: [],
       showOthers: true,
+      showEntities: true,
     });
 
     renderWithQuery(
@@ -731,6 +777,7 @@ describe('QueryResourceTree — resource filtering', () => {
       resourceTypes: [],
       fsmTypes: [],
       showOthers: true,
+      showEntities: true,
     });
 
     const { getByRole } = renderWithQuery(
@@ -754,6 +801,7 @@ describe('QueryResourceTree — resource filtering', () => {
       resourceTypes: [],
       fsmTypes: [],
       showOthers: true,
+      showEntities: true,
     });
 
     renderWithQuery(
@@ -779,6 +827,7 @@ describe('QueryResourceTree — resource filtering', () => {
       resourceTypes: [RESOURCE_TYPE],
       fsmTypes: [],
       showOthers: true,
+      showEntities: true,
     });
 
     renderWithQuery(
@@ -804,6 +853,7 @@ describe('QueryResourceTree — resource filtering', () => {
       resourceTypes: [],
       fsmTypes: [],
       showOthers: false,
+      showEntities: true,
     });
 
     const { findByText } = renderWithQuery(
@@ -841,6 +891,7 @@ describe('QueryResourceTree — resource filtering', () => {
       resourceTypes: [],
       fsmTypes: [],
       showOthers: true,
+      showEntities: true,
     });
 
     const { findByText } = renderWithQuery(
@@ -971,6 +1022,7 @@ describe('QueryResourceTree — pinned rows', () => {
         resourceTypes: [],
         fsmTypes: [],
         showOthers: false,
+        showEntities: true,
       })
     );
 
@@ -994,6 +1046,7 @@ describe('QueryResourceTree — pinned rows', () => {
         resourceTypes: [],
         fsmTypes: [],
         showOthers: true,
+        showEntities: true,
       })
     );
 
@@ -1023,6 +1076,7 @@ describe('QueryResourceTree — pinned rows', () => {
         resourceTypes: [],
         fsmTypes: [],
         showOthers: false,
+        showEntities: true,
       })
     );
     await waitFor(() => expect(capturedHiddenPinnedCount).toBe(1));

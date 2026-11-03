@@ -136,6 +136,61 @@ describe('ResourceFilterSearch', () => {
     expect(onShowOthersChange).toHaveBeenLastCalledWith(false);
   });
 
+  it('toggles Show operators/entities, and Clear turns it back on', async () => {
+    const user = userEvent.setup();
+    const onShowEntitiesChange = vi.fn();
+    render(
+      <ResourceFilterSearch
+        fsmTypes={[]}
+        matchCount={1}
+        onFsmTypesChange={vi.fn()}
+        onResourceTypesChange={vi.fn()}
+        onSearchChange={vi.fn()}
+        onShowEntitiesChange={onShowEntitiesChange}
+        onShowOthersChange={vi.fn()}
+        resourceTypes={[]}
+        search="gpu"
+        selectedFsmTypes={[]}
+        selectedResourceTypes={[]}
+        showEntities
+        showOthers={false}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Resource filters, 1 selected filter' }));
+    const checkbox = screen.getByRole('checkbox', { name: 'Show operators/entities' });
+    expect(checkbox).toBeChecked();
+    await user.click(checkbox);
+    expect(onShowEntitiesChange).toHaveBeenLastCalledWith(false);
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(onShowEntitiesChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('hides the Show operators/entities checkbox when there is no handler', async () => {
+    const user = userEvent.setup();
+    render(
+      <ResourceFilterSearch
+        fsmTypes={[]}
+        matchCount={1}
+        onFsmTypesChange={vi.fn()}
+        onResourceTypesChange={vi.fn()}
+        onSearchChange={vi.fn()}
+        onShowOthersChange={vi.fn()}
+        resourceTypes={[]}
+        search="gpu"
+        selectedFsmTypes={[]}
+        selectedResourceTypes={[]}
+        showOthers={false}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Resource filters, 1 selected filter' }));
+    expect(
+      screen.queryByRole('checkbox', { name: 'Show operators/entities' })
+    ).not.toBeInTheDocument();
+  });
+
   describe('pin all matches', () => {
     function renderWithPins(overrides: Partial<Parameters<typeof ResourceFilterSearch>[0]> = {}) {
       const onPinMany = vi.fn();

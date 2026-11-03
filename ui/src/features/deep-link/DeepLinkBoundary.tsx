@@ -327,6 +327,7 @@ export function DeepLinkBoundary({
               resourceTypes: resourceFilter.resourceTypes ?? [],
               search: resourceFilter.search ?? '',
               showOthers: resourceFilter.showOthers ?? false,
+              showEntities: resourceFilter.showEntities ?? true,
             }
           : EMPTY_RESOURCE_FILTER
       );
@@ -455,6 +456,7 @@ export function DeepLinkBoundary({
           ? { fsmTypes: [...resourceFilter.fsmTypes].sort() }
           : {}),
         ...(resourceFilter.showOthers ? { showOthers: true } : {}),
+        ...(resourceFilter.showEntities ? {} : { showEntities: false }),
       };
     }
     const rootResourceType = store.get(rootResourceTypeAtom);

@@ -62,6 +62,9 @@ interface ResourceFilterSearchProps {
   onResourceTypesChange: (resourceTypes: string[]) => void;
   onSearchChange: (search: string) => void;
   onShowOthersChange: (showOthers: boolean) => void;
+  // With both of these, a "Show operators/entities" checkbox appears. Leave them out to hide it.
+  showEntities?: boolean;
+  onShowEntitiesChange?: (showEntities: boolean) => void;
   resourceTypes: string[];
   search: string;
   selectedFsmTypes: string[];
@@ -78,12 +81,14 @@ export function ResourceFilterSearch({
   onResourceTypesChange,
   onSearchChange,
   onShowOthersChange,
+  onShowEntitiesChange,
   pinnedIds,
   resourceTypes,
   search,
   selectedFsmTypes,
   selectedResourceTypes,
   showOthers,
+  showEntities = true,
 }: ResourceFilterSearchProps) {
   const isActive =
     search.trim().length > 0 || selectedResourceTypes.length > 0 || selectedFsmTypes.length > 0;
@@ -213,6 +218,23 @@ export function ResourceFilterSearch({
               />
               Show All
             </label>
+            {onShowEntitiesChange && (
+              <label
+                className={cn(
+                  'flex shrink-0 items-center gap-1 text-xs',
+                  isActive ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+                )}
+              >
+                <input
+                  checked={showEntities}
+                  className="h-3 w-3 accent-primary"
+                  disabled={!isActive}
+                  onChange={event => onShowEntitiesChange(event.target.checked)}
+                  type="checkbox"
+                />
+                Show operators/entities
+              </label>
+            )}
           </div>
           <div className="flex items-center justify-between gap-3">
             {isActive ? (
@@ -235,6 +257,7 @@ export function ResourceFilterSearch({
                   onResourceTypesChange([]);
                   onFsmTypesChange([]);
                   onShowOthersChange(false);
+                  onShowEntitiesChange?.(true);
                 }}
                 size="xs"
                 type="button"

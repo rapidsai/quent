@@ -11,6 +11,8 @@ export interface ResourceFilter {
   resourceTypes: string[];
   search: string;
   showOthers: boolean;
+  // Whether Entities and Operators rows show up (and get pinned) for matching rows.
+  showEntities: boolean;
 }
 
 export const EMPTY_RESOURCE_FILTER: ResourceFilter = {
@@ -18,6 +20,7 @@ export const EMPTY_RESOURCE_FILTER: ResourceFilter = {
   resourceTypes: [],
   search: '',
   showOthers: false,
+  showEntities: true,
 };
 
 export interface ResourceFilterResult {

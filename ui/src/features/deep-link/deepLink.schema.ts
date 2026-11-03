@@ -157,6 +157,7 @@ const ResourceFilterSchema = z
       .transform(uniqueSorted)
       .optional(),
     showOthers: z.boolean().optional(),
+    showEntities: z.boolean().optional(),
   })
   .strip();
 
