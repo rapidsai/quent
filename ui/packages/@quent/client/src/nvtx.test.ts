@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { NvtxCatalog, NvtxViewportRequest } from '@quent/utils';
+import type { NvtxCatalog, NvtxViewportRequest } from '@quent/utils/query-engine';
 import { fetchNvtxCatalog, fetchNvtxViewport } from './api';
 import {
   canonicalizeNvtxRequest,

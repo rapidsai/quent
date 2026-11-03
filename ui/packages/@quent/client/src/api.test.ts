@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { DataFlowTimelineBinned, TimelineConfig } from '@quent/utils';
+import type { DataFlowTimelineBinned, TimelineConfig } from '@quent/utils/query-engine';
 import { fetchDataFlow, fetchListEngines, fetchListQueries } from './api';
 
 const CONFIG: TimelineConfig = { start: 0, end: 8, num_bins: 4 };

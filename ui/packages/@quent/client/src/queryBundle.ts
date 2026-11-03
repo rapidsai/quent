@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { queryOptions, useQuery } from '@tanstack/react-query';
-import type { QueryBundle, EntityRef } from '@quent/utils';
+import type { QueryBundle, EntityRef } from '@quent/utils/query-engine';
 import { fetchQueryBundle } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 

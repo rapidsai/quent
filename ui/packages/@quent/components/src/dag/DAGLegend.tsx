@@ -22,7 +22,7 @@ import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/u
 import { Badge } from '../ui/badge';
 import { CategoricalLegend } from './CategoricalLegend';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
-import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
+import type { NodeColoring, EdgeColoring } from '../query-engine/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
 
 interface ContinuousLegendProps {

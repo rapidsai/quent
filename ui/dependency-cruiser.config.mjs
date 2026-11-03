@@ -51,7 +51,22 @@ export default {
           '^(src|simulator)/',
           '^generated/ts-bindings/',
           '^packages/@quent/(client|hooks)/',
+          '^packages/@quent/utils/src/query-engine[.]ts$',
           '^packages/@quent/components/src/(?!ui/|lib/sliderField[.]utils[.]ts$)',
+        ],
+      },
+    },
+    {
+      // Keep prop-driven Quent views below query-engine contracts and integration code.
+      name: 'quent-views-cannot-import-query-engine',
+      severity: 'error',
+      from: { path: '^packages/@quent/components/src/quent-views/' },
+      to: {
+        path: [
+          '^generated/ts-bindings/',
+          '^packages/@quent/(client|hooks)/',
+          '^packages/@quent/utils/src/query-engine[.]ts$',
+          '^packages/@quent/components/src/query-engine/',
         ],
       },
     },
