@@ -329,7 +329,7 @@ describe('getSchemaStatNames', () => {
   });
 
   it('returns unique stat names in first-appearance order', () => {
-    const rows = [
+    const rows: Array<{ id: string; stats: Record<string, number> }> = [
       { id: 'a', stats: { exec_ns: 1, rows: 2 } },
       { id: 'b', stats: { rows: 3, bytes: 4 } },
     ];

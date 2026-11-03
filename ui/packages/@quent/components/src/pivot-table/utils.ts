@@ -79,7 +79,7 @@ export function itemHasId(items: Iterable<string>, target: ReadonlySet<string>):
 }
 
 export function formatStatValue(
-  value: StatValue,
+  value: StatValue | undefined,
   statName: string,
   quantitySpecs?: Record<string, QuantitySpec | undefined>,
   quantity?: string
