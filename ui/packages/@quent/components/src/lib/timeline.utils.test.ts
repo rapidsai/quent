@@ -1,14 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect, vi } from 'vitest';
-
-// Prevent ECharts canvas initialization in jsdom
-vi.mock('../lib/echarts', () => ({
-  connect: vi.fn(),
-  disconnect: vi.fn(),
-  getInstanceByDom: vi.fn(),
-}));
+import { describe, it, expect } from 'vitest';
 
 import {
   nanosToMs,

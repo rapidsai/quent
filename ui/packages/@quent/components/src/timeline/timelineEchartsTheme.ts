@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import { echarts } from '../lib/echarts';
+import { echarts } from '../ui/charts/echarts';
 import { BLACK, WHITE, withOpacity } from '@quent/utils';
 
 /**

@@ -15,8 +15,8 @@ vi.mock('echarts-for-react/lib/core', () => ({
   default: () => <div data-testid="echarts" />,
 }));
 
-vi.mock('../../lib/echarts', () => ({ echarts: {} }));
-vi.mock('../../lib/useChartResize', () => ({
+vi.mock('../../ui/charts/echarts', () => ({ echarts: {} }));
+vi.mock('../../ui/charts/useChartResize', () => ({
   useChartResize: () => ({ handleChartReady: vi.fn() }),
 }));
 vi.mock('../../timeline/timelineEchartsTheme', () => ({

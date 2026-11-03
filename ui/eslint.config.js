@@ -167,7 +167,8 @@ export default tseslint.config(
               message: 'Generic UI cannot import Quent runtime or domain layers.',
             },
             {
-              regex: '^\\.\\./(?!lib/sliderField[.]utils$)',
+              regex:
+                '^\\.\\./(?!(?:lib/sliderField[.]utils|badge|colors|data-text|pointer-tooltip-portal)$)',
               message: 'Generic UI may only import its own directory.',
             },
           ],

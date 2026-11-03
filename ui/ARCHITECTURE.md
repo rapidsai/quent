@@ -28,8 +28,9 @@ packages/@quent/components/src/ui/**
 only those two names. `sliderField.utils.ts` is also temporarily allowed until
 the generic zone becomes a physical package.
 
-`SegmentedBar`, Timeline, Gantt, and grouped-table primitives are extraction
-candidates, but remain outside this zone until any Quent adapters are separated.
+`SegmentedBar`, generic legends, `GroupedDataTable`, and domain-free ECharts
+bootstrap, resize, wheel, minimum-zoom, and connect helpers now live in this zone.
+The controlled Timeline/Gantt rendering split remains the Phase 3 extraction.
 
 ## Reusable Quent views
 

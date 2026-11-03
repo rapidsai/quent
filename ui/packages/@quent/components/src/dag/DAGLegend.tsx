@@ -19,63 +19,16 @@ import {
 } from '@quent/hooks';
 import { getLegendGradientStops, SCALE_TYPE, type ScaleType } from '@quent/utils';
 import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/utils';
-import { Badge } from '../ui/badge';
+import { ContinuousLegend } from '../ui/legend/ContinuousLegend';
 import { CategoricalLegend } from './CategoricalLegend';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
 import type { NodeColoring, EdgeColoring } from '../query-engine/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
 
-interface ContinuousLegendProps {
-  label: string;
-  min: number;
-  max: number;
-  palette: ContinuousPaletteName;
-  isDark: boolean;
-  formatValue: (v: number) => string;
-  scale: ScaleType;
-}
-
 const SCALE_LABELS: Record<ScaleType, string> = {
   [SCALE_TYPE.LOG]: 'Log',
   [SCALE_TYPE.LINEAR]: 'Linear',
 };
-
-const ContinuousLegend = ({
-  label,
-  min,
-  max,
-  palette,
-  isDark,
-  formatValue,
-  scale,
-}: ContinuousLegendProps) => (
-  <div className="flex min-w-0 flex-col gap-1">
-    <div className="flex min-w-0 items-center justify-between gap-2">
-      <span
-        className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-        title={label}
-      >
-        {label}
-      </span>
-      <Badge
-        variant="outline"
-        className="pointer-events-none px-1.5 py-0 text-[10px] text-muted-foreground transition-none hover:bg-transparent hover:text-muted-foreground"
-      >
-        {SCALE_LABELS[scale]}
-      </Badge>
-    </div>
-    <div
-      className="h-2 w-full rounded-sm"
-      style={{
-        background: `linear-gradient(to right, ${getLegendGradientStops(palette, isDark).join(', ')})`,
-      }}
-    />
-    <div className="flex justify-between gap-2">
-      <span className="text-[10px] text-muted-foreground">{formatValue(min)}</span>
-      <span className="text-[10px] text-muted-foreground">{formatValue(max)}</span>
-    </div>
-  </div>
-);
 
 function resolveFormatter(
   field: string | StatisticField,
@@ -110,10 +63,9 @@ function NodeLegendContent({
         label={statisticFieldLabel(field)}
         min={coloring.min}
         max={coloring.max}
-        palette={palette}
-        isDark={isDark}
+        gradientStops={getLegendGradientStops(palette, isDark)}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
-        scale={scale}
+        scaleLabel={SCALE_LABELS[scale]}
       />
     );
   }
@@ -143,10 +95,9 @@ function EdgeLegendContent({
         label={statisticFieldLabel(field)}
         min={coloring.min}
         max={coloring.max}
-        palette={palette}
-        isDark={isDark}
+        gradientStops={getLegendGradientStops(palette, isDark)}
         formatValue={resolveFormatter(field, statQuantitySpecs)}
-        scale={scale}
+        scaleLabel={SCALE_LABELS[scale]}
       />
     );
   }

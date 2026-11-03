@@ -26,7 +26,7 @@ vi.mock('@quent/hooks', async importOriginal => ({
   useSetPlayheadLineTimeMs: () => mocks.setPlayheadLineTimeMs,
 }));
 
-vi.mock('../lib/echartsReactCore', () => ({
+vi.mock('../ui/charts/echartsReactCore', () => ({
   EChartsReactCore: () => null,
 }));
 
@@ -34,7 +34,7 @@ vi.mock('../lib/useChartConnect', () => ({
   useChartConnect: () => ({ handleChartReady: vi.fn() }),
 }));
 
-vi.mock('../lib/useMinZoomSpanPct', () => ({
+vi.mock('../ui/charts/useMinZoomSpanPct', () => ({
   useMinZoomSpanPct: () => 1,
 }));
 

@@ -3,9 +3,9 @@
 
 import { useMemo, useState } from 'react';
 import { bigintToChartNumber, formatBytes, formatQuantity } from '@quent/utils';
-import { echarts } from '../../lib/echarts';
-import { EChartsReactCore } from '../../lib/echartsReactCore';
-import { useChartResize } from '../../lib/useChartResize';
+import { echarts } from '../../ui/charts/echarts';
+import { EChartsReactCore } from '../../ui/charts/echartsReactCore';
+import { useChartResize } from '../../ui/charts/useChartResize';
 import type { PointerPosition } from '../../ui/pointer-tooltip-portal';
 import { PositionedTooltip } from '../../ui/positioned-tooltip';
 import { SelectField } from '../../ui/select-field';

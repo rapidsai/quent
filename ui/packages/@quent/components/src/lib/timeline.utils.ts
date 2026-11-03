@@ -27,10 +27,7 @@ import { QueryEntities, ResourceTree } from '@quent/utils';
 import { entityRefToEntitiesKey } from './queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from './resource.utils';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@quent/utils';
-import type { EChartsInstance } from 'echarts-for-react';
 import { LONG_ENTITY_DENSITIES, type LongEntityDensity } from '@quent/hooks';
-import { connect } from './echarts';
-import { CHART_GROUP } from '../timeline/types';
 import { MAX_TIMELINE_BINS } from '@quent/utils';
 
 const LONG_ENTITY_DENSITY_MULTIPLIERS = [100, 10, 1, 0.1, 0.01] as const;
@@ -428,35 +425,6 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
  * Pass `zoomPct = null` to skip seeding (e.g. when no zoom has been
  * established yet, like a 0-duration query).
  */
-export const connectChart = (
-  instance: EChartsInstance,
-  chartGroup: string = CHART_GROUP,
-  activateBrushSelect = true,
-  zoomPct: { start: number; end: number } | null = null
-) => {
-  // Apply current zoom to this chart without replacing its dataZoom components.
-  // setOption({ dataZoom: [zoomState] }) would replace the array and break slider/inside config.
-  if (zoomPct) {
-    instance.dispatchAction({
-      type: 'dataZoom',
-      dataZoomIndex: 0,
-      start: zoomPct.start,
-      end: zoomPct.end,
-    });
-  }
-
-  if (activateBrushSelect) {
-    instance.dispatchAction({
-      type: 'takeGlobalCursor',
-      key: 'dataZoomSelect',
-      dataZoomSelectActive: true,
-    });
-  }
-
-  instance.group = chartGroup;
-  connect(chartGroup);
-};
-
 // Helper function to lookup entity from QueryEntities
 const lookupEntity = (
   entities: QueryEntities,

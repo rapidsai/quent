@@ -3,7 +3,7 @@
 
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@quent/utils';
-import { PointerTooltipPortal, type PointerPosition } from '../ui/pointer-tooltip-portal';
+import { PointerTooltipPortal, type PointerPosition } from '../pointer-tooltip-portal';
 import { SegmentValueLabel } from './SegmentValueLabel';
 
 export interface SegmentedBarSegment {

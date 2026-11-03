@@ -14,7 +14,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { computeRowSpans } from './utils';
+import { computeRowSpans } from './rowSpans';
 import type {
   GroupedDataTableRowBase,
   GroupedDataTableSortInfo,

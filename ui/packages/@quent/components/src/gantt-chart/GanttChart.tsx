@@ -13,11 +13,12 @@ import {
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import type { EChartsInstance } from 'echarts-for-react';
-import { echarts } from '../lib/echarts';
-import { EChartsReactCore } from '../lib/echartsReactCore';
+import { echarts } from '../ui/charts/echarts';
+import { EChartsReactCore } from '../ui/charts/echartsReactCore';
 import { useChartConnect } from '../lib/useChartConnect';
-import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
-import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
+import { useMinZoomSpanPct } from '../ui/charts/useMinZoomSpanPct';
+import { useChartWheelNavigation } from '../ui/charts/useChartWheelNavigation';
+import { MIN_ZOOM_WINDOW_S } from '../lib/timeline.utils';
 import { PlayheadLine } from '../timeline/PlayheadLine';
 import { TimelinePointerArea } from '../timeline/TimelinePointerArea';
 import { CHART_GROUP, TIMELINE_SPACING } from '../timeline/types';
@@ -88,8 +89,8 @@ export function GanttChart<T extends GanttDatum>({
   const [hover, setHover] = useState<GanttHover | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [chartInstance, setChartInstance] = useState<EChartsInstance | null>(null);
-  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds);
-  const attachWheelNavigation = useTimelineWheelNavigation(minZoomSpanPct);
+  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds, MIN_ZOOM_WINDOW_S);
+  const attachWheelNavigation = useChartWheelNavigation(minZoomSpanPct, TIMELINE_SPACING);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const chartCleanupRef = useRef<(() => void) | null>(null);
 

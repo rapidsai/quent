@@ -3,7 +3,7 @@
 
 import type { CustomSeriesOption } from 'echarts/charts';
 import type { GridComponentOption } from 'echarts/components';
-import type { EChartsOption } from '../lib/echarts';
+import type { EChartsOption } from '../ui/charts/echarts';
 import { TIMELINE_SPACING, TIMELINE_X_AXIS_ANIMATION } from '../timeline/types';
 
 export interface GanttDatum {

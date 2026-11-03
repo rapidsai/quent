@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EChartsReactCore } from '../lib/echartsReactCore';
-import { echarts } from '../lib/echarts';
-import type { EChartsOption } from '../lib/echarts';
+import { EChartsReactCore } from '../ui/charts/echartsReactCore';
+import { echarts } from '../ui/charts/echarts';
+import type { EChartsOption } from '../ui/charts/echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import {
   COLOR_REGISTRY_KEYS,
@@ -23,9 +23,10 @@ import {
   buildBinnedTimelineSeries,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
+  MIN_ZOOM_WINDOW_S,
 } from '../lib/timeline.utils';
 import { useChartConnect } from '../lib/useChartConnect';
-import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
+import { useMinZoomSpanPct } from '../ui/charts/useMinZoomSpanPct';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '@quent/utils';
 import { useTimelineEchartsTheme } from './timelineEchartsTheme';
@@ -235,7 +236,7 @@ export function TimelineController({
     [controllerGridBackgroundColor]
   );
 
-  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds);
+  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds, MIN_ZOOM_WINDOW_S);
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {

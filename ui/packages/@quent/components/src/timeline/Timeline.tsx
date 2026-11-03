@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useMemo, useRef } from 'react';
-import { EChartsReactCore } from '../lib/echartsReactCore';
-import { echarts } from '../lib/echarts';
-import type { EChartsOption } from '../lib/echarts';
+import { EChartsReactCore } from '../ui/charts/echartsReactCore';
+import { echarts } from '../ui/charts/echarts';
+import type { EChartsOption } from '../ui/charts/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { withOpacity } from '@quent/utils';
@@ -28,8 +28,9 @@ import {
 } from './timelineEchartsTheme';
 import { useVisibleMaxValue } from './useVisibleMaxValue';
 import { useChartConnect } from '../lib/useChartConnect';
-import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
-import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
+import { useMinZoomSpanPct } from '../ui/charts/useMinZoomSpanPct';
+import { useChartWheelNavigation } from '../ui/charts/useChartWheelNavigation';
+import { MIN_ZOOM_WINDOW_S } from '../lib/timeline.utils';
 import { Opts } from 'echarts-for-react/lib/types';
 import { TimelinePointerArea } from './TimelinePointerArea';
 
@@ -231,8 +232,8 @@ export function Timeline({
 
   const gridOptions = useMemo(() => ({ ...TIMELINE_SPACING }), []);
 
-  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds);
-  const attachWheelNavigation = useTimelineWheelNavigation(minZoomSpanPct);
+  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds, MIN_ZOOM_WINDOW_S);
+  const attachWheelNavigation = useChartWheelNavigation(minZoomSpanPct, TIMELINE_SPACING);
   const wheelTargetRef = useRef<HTMLDivElement | null>(null);
 
   const eChartOptions: EChartsOption = useMemo(() => {

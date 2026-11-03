@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { cn, isLightColor } from '@quent/utils';
-import { DataText } from '../ui/data-text';
+import { cn } from '@quent/utils';
+import { isLightColor } from '../colors';
+import { DataText } from '../data-text';
 
 /** Width-gated value label centered inside an overflow-hidden segment. */
 export const SegmentValueLabel = ({

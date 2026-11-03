@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import { EChartsReactCore } from '../lib/echartsReactCore';
-import { echarts } from '../lib/echarts';
-import type { EChartsOption } from '../lib/echarts';
+import { EChartsReactCore } from '../ui/charts/echartsReactCore';
+import { echarts } from '../ui/charts/echarts';
+import type { EChartsOption } from '../ui/charts/echarts';
 import { useZoomRange } from '@quent/hooks';
 import { formatDurationForAxisInterval } from '@quent/utils';
 import { getTimelineXAxisIntervalMs, MIN_ZOOM_WINDOW_S } from '../lib/timeline.utils';
-import { useChartResize } from '../lib/useChartResize';
+import { useChartResize } from '../ui/charts/useChartResize';
 import {
   useTimelineEchartsTheme,
   TIMELINE_MONO_FONT,

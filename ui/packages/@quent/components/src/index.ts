@@ -162,8 +162,9 @@ export {
 } from './ui/toast';
 
 // ─── ECharts ──────────────────────────────────────────────────────────────────
-export { echarts } from './lib/echarts';
-export type { EChartsOption } from './lib/echarts';
+export { echarts } from './ui/charts/echarts';
+export type { EChartsOption } from './ui/charts/echarts';
+export { connectChart } from './lib/connectChart';
 
 // ─── Lib utilities ────────────────────────────────────────────────────────────
 export {
@@ -175,7 +176,6 @@ export {
 export { getIconForType, collectResourceTypesFromTree } from './lib/resource.utils';
 export {
   nanosToMs,
-  connectChart,
   buildBinnedTimelineSeries,
   buildBulkParamsForItem,
   buildTimelineMarks,
@@ -260,8 +260,12 @@ export { QueryPlanNode } from './query-plan/QueryPlanNode';
 export { NodeFlowBar } from './query-plan/NodeFlowBar';
 
 // ─── Segmented-bar components ─────────────────────────────────────────────────
-export { SegmentedBar } from './segmented-bar/SegmentedBar';
-export type { SegmentedBarProps, SegmentedBarSegment } from './segmented-bar/SegmentedBar';
+export { SegmentedBar } from './ui/segmented-bar/SegmentedBar';
+export type { SegmentedBarProps, SegmentedBarSegment } from './ui/segmented-bar/SegmentedBar';
+export { CategoricalLegend } from './ui/legend/CategoricalLegend';
+export type { CategoricalLegendProps } from './ui/legend/CategoricalLegend';
+export { ContinuousLegend } from './ui/legend/ContinuousLegend';
+export type { ContinuousLegendProps } from './ui/legend/ContinuousLegend';
 
 // ─── Resource-tree components ─────────────────────────────────────────────────
 export { InlineSelector } from './resource-tree/InlineSelector';
@@ -273,24 +277,20 @@ export type { TreeTableItem } from './resource-tree/types';
 export { UsageColumn } from './resource-tree/UsageColumn';
 
 // ─── Pivot-table components ──────────────────────────────────────────────────
-export { GroupedDataTable } from './pivot-table/GroupedDataTable';
+export { GroupedDataTable } from './ui/grouped-data-table/GroupedDataTable';
 export type {
   GroupedDataTableProps,
   GroupedDataTableVirtualizationOptions,
   GroupedDataTableGroupRenderMode,
-} from './pivot-table/GroupedDataTable';
+  GroupedDataTableColumnDef,
+  GroupedDataTableSortFn,
+} from './ui/grouped-data-table/GroupedDataTable';
 export { PivotedStatTable } from './pivot-table/PivotedStatTable';
 export { PivotTableToolbar } from './pivot-table/PivotTableToolbar';
 export type { IndexConfigEntry, PivotTableToolbarProps } from './pivot-table/PivotTableToolbar';
 export type {
   AggMode,
   HoveredStatInfo,
-  GroupedDataTableRowBase,
-  GroupedDataTableSortInfo,
-  GroupedDataTableGroupKeyEntry,
-  DataHeaderProps,
-  GroupCellProps,
-  DataCellProps,
   SortDir,
   StatGroupInputGroupValue,
   StatGroupExpandedRow,
@@ -306,7 +306,6 @@ export type {
 } from './pivot-table/types';
 export {
   buildPivotedRows,
-  computeRowSpans,
   expandRowsFromSchema,
   formatNumericStat,
   formatStatValue,
@@ -319,7 +318,17 @@ export {
   itemHasId,
   rowGroupKey,
 } from './pivot-table/utils';
-export type { GroupIndexDef, RowWithGroupKeys } from './pivot-table/utils';
+export type { GroupIndexDef } from './pivot-table/utils';
+export { computeRowSpans } from './ui/grouped-data-table/rowSpans';
+export type { RowWithGroupKeys } from './ui/grouped-data-table/rowSpans';
+export type {
+  GroupedDataTableRowBase,
+  GroupedDataTableSortInfo,
+  GroupedDataTableGroupKeyEntry,
+  DataHeaderProps,
+  GroupCellProps,
+  DataCellProps,
+} from './ui/grouped-data-table/types';
 
 // ─── FSM chart components ─────────────────────────────────────────────────────
 export { FsmCapacityChart } from './quent-views/fsm-chart/FsmCapacityChart';
