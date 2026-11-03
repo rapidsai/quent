@@ -4,7 +4,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, PinOff } from 'lucide-react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@quent/utils';
 import { Button } from './button';
@@ -850,7 +850,7 @@ export function TreeTable<I extends TreeTableDataItem>({
   hiddenPinnedCount?: number;
   isPinnedCollapsed?: boolean;
   onTogglePinnedCollapsed?: () => void;
-  /** Shows a Clear button in the pinned header; leave out to hide it. */
+  /** Shows a "Clear pins" button in the pinned header; leave out to hide it. */
   onClearPinned?: () => void;
   /** Called when a pinned row is dragged onto another, with the dragged id then the target id. */
   onReorderPinned?: (activeId: string, overId: string) => void;
@@ -1150,7 +1150,7 @@ export function TreeTable<I extends TreeTableDataItem>({
               )}
               {showPinnedSection && (
                 <section aria-label="Pinned rows" className="border-b border-border pb-4">
-                  <div className="flex items-center justify-between pr-2">
+                  <div className="flex items-center justify-between pr-2 pt-1">
                     <Button
                       variant="ghost"
                       size="xs"
@@ -1169,13 +1169,13 @@ export function TreeTable<I extends TreeTableDataItem>({
                     </Button>
                     {onClearPinned && (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="xs"
-                        className="shrink-0 text-muted-foreground"
-                        aria-label="Clear all pins"
+                        className="h-6 shrink-0 cursor-pointer gap-1 px-2 text-xs"
                         onClick={onClearPinned}
                       >
-                        Clear
+                        <PinOff aria-hidden="true" className="h-3 w-3" />
+                        Clear pins
                       </Button>
                     )}
                   </div>

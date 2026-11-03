@@ -103,7 +103,7 @@ describe('TreeTable pinned section', () => {
     const onTogglePinnedCollapsed = vi.fn();
     renderTable({ pinnedItems: [row('x')], onClearPinned, onTogglePinnedCollapsed });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Clear all pins' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear pins' }));
 
     expect(onClearPinned).toHaveBeenCalledTimes(1);
     expect(onTogglePinnedCollapsed).not.toHaveBeenCalled();
@@ -112,19 +112,19 @@ describe('TreeTable pinned section', () => {
   it('keeps the clear button when the section is collapsed', () => {
     renderTable({ pinnedItems: [row('x')], isPinnedCollapsed: true, onClearPinned: vi.fn() });
 
-    expect(screen.getByRole('button', { name: 'Clear all pins' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear pins' })).toBeInTheDocument();
   });
 
   it('offers to clear when every pin is hidden by a filter', () => {
     renderTable({ pinnedItems: [], hiddenPinnedCount: 2, onClearPinned: vi.fn() });
 
-    expect(screen.getByRole('button', { name: 'Clear all pins' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear pins' })).toBeInTheDocument();
   });
 
   it('has no clear button unless a handler is given', () => {
     renderTable({ pinnedItems: [row('x')] });
 
-    expect(screen.queryByRole('button', { name: 'Clear all pins' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear pins' })).not.toBeInTheDocument();
   });
 
   it('explains pins that a filter has hidden', () => {
