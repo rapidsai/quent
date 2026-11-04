@@ -3,7 +3,7 @@
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { ChartGantt } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useNvtxStream, type NvtxCategoryFilter } from '@quent/client';
 import {
   DEFAULT_TIMELINE_HEIGHT,
@@ -22,17 +22,22 @@ import {
   nvtxLaneLabel,
 } from '@quent/components';
 import { useDebouncedZoomRange, useSetDebouncedZoomRange, useSetZoomRange } from '@quent/hooks';
-import type { EntityRef, NvtxCatalog, QueryBundle } from '@quent/utils';
+import { cn, type EntityRef, type NvtxCatalog, type QueryBundle } from '@quent/utils';
 import {
   expandedIdsAtom,
   resourceFilterAtom,
   selectedNvtxCategoriesAtom,
   selectedNvtxDomainAtom,
 } from '@/atoms/resourceTree';
+import { resolvePinnedRows } from '@/features/pinned-rows/pinnedRows';
 import { useAutoExpandMatchingAncestors, useExpandedIds } from '@/hooks/useExpandedIds';
+import { usePinnedCollapsed, usePinnedIds } from '@/hooks/usePinnedIds';
+import { PinnedRowPath } from './PinnedRowPath';
 import {
   TimelineTreeTable,
   useTimelineTreeSetup,
+  type PinningControls,
+  type RowPinning,
   type TimelineTreeControls,
   type TimelineTreeItem,
   type TimelineTreeModel,
@@ -41,6 +46,7 @@ import {
 const NVTX_ALL_DOMAINS = '__all__';
 const NVTX_ALL_CATEGORIES = '__all__';
 const NVTX_UNCATEGORIZED = '__uncategorized__';
+const NVTX_PATH_ROOT_NAME = 'NVTX';
 
 function nvtxDomainDisplayName(
   domain: NvtxCatalog['domains'][number],
@@ -288,6 +294,46 @@ export function useNvtxTreeModel({
         : new Set<string>(),
     [filterResult, resourceFilter.showOthers]
   );
+  const { pinnedIds, togglePin, movePin, isAtPinLimit } = usePinnedIds();
+  const { isPinnedCollapsed, togglePinnedCollapsed } = usePinnedCollapsed();
+  const { shownItems: pinnedItems, hiddenCount: hiddenPinnedCount } = useMemo(
+    () => resolvePinnedRows(pinnedIds, unfilteredTree ? [unfilteredTree] : [], tree ? [tree] : []),
+    [pinnedIds, tree, unfilteredTree]
+  );
+  const rowPinning = useMemo<RowPinning>(
+    () => ({
+      isPinnable: item => item.type === NVTX_LANE_ROW_TYPE,
+      getName: item =>
+        isNvtxTreeEntity(item.entity) ? nvtxLaneLabel(item.entity, true) || item.id : item.id,
+      getDescription: item =>
+        isNvtxTreeEntity(item.entity) && item.entity.nvtxKind !== 'section' ? (
+          <PinnedRowPath names={[NVTX_PATH_ROOT_NAME, item.entity.domain.name]} />
+        ) : undefined,
+    }),
+    []
+  );
+  const pinning = useMemo<PinningControls>(
+    () => ({
+      items: pinnedItems as TimelineTreeItem[],
+      hiddenCount: hiddenPinnedCount,
+      ids: pinnedIds,
+      isAtLimit: isAtPinLimit,
+      onToggle: togglePin,
+      isCollapsed: isPinnedCollapsed,
+      onToggleCollapsed: togglePinnedCollapsed,
+      onReorder: movePin,
+    }),
+    [
+      hiddenPinnedCount,
+      isAtPinLimit,
+      isPinnedCollapsed,
+      movePin,
+      pinnedIds,
+      pinnedItems,
+      togglePin,
+      togglePinnedCollapsed,
+    ]
+  );
   const onZoomChange = useCallback(
     (range: { start: number; end: number }) => {
       setZoomRange(range);
@@ -297,7 +343,7 @@ export function useNvtxTreeModel({
   );
 
   const renderLabel = useCallback(
-    (item: TimelineTreeItem) => {
+    (item: TimelineTreeItem, description?: ReactNode, isPinned?: boolean) => {
       if (item.type === NVTX_SECTION_ROW_TYPE) {
         return catalog ? (
           <NvtxSectionLabel
@@ -340,7 +386,29 @@ export function useNvtxTreeModel({
       }
       if (item.type === NVTX_LANE_ROW_TYPE) {
         const label = isNvtxTreeEntity(item.entity) ? nvtxLaneLabel(item.entity) : '';
-        return <span className="truncate text-xs leading-none text-muted-foreground">{label}</span>;
+        return (
+          <span className="flex min-w-0 items-center">
+            {/* Pinned rows get an icon like resource rows, so the names line up. */}
+            {isPinned && (
+              <ChartGantt aria-hidden className="mr-4 h-4 w-4 shrink-0 text-foreground" />
+            )}
+            <span className="flex min-w-0 flex-col gap-1">
+              <span
+                className={cn(
+                  'truncate text-xs leading-none',
+                  isPinned ? 'font-bold text-foreground' : 'text-muted-foreground'
+                )}
+              >
+                {label}
+              </span>
+              {description != null && (
+                <span className="text-[11px] font-normal leading-none text-muted-foreground">
+                  {description}
+                </span>
+              )}
+            </span>
+          </span>
+        );
       }
       return null;
     },
@@ -384,6 +452,8 @@ export function useNvtxTreeModel({
     onZoomChange,
     renderLabel,
     renderTimeline,
+    pinning,
+    rowPinning,
   };
 }
 

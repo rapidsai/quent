@@ -4,7 +4,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TreeTable, type Column } from './tree-table';
+import { TREE_TABLE_SCROLLER_SELECTOR, TreeTable, type Column } from './tree-table';
 
 interface Row {
   id: string;
@@ -110,13 +110,12 @@ describe('TreeTable pinned section', () => {
     expect(screen.getByText('2 hidden by filter')).toBeInTheDocument();
   });
 
-  it('limits the visible height to six rows and scrolls beyond that', () => {
+  it('shows every pinned row, with no height cap', () => {
     const pinnedItems = Array.from({ length: 8 }, (_, i) => row(`p${i}`));
     renderTable({ pinnedItems });
 
     const list = screen.getByRole('list', { name: 'Pinned rows list' });
-    expect(list.style.maxHeight).toBe(`${6 * ROW_HEIGHT}px`);
-    expect(list).toHaveClass('overflow-y-auto');
+    expect(list.style.maxHeight).toBe('');
     expect(within(list).getAllByRole('listitem')).toHaveLength(8);
   });
 
@@ -124,15 +123,6 @@ describe('TreeTable pinned section', () => {
     renderTable({ pinnedItems: [row('x')] });
 
     expect(screen.getByRole('region', { name: 'Pinned rows' })).toHaveClass('pb-4');
-  });
-
-  it('leaves a gap between the pinned section and the tree rows below', () => {
-    renderTable({ pinnedItems: [row('x')] });
-
-    const region = screen.getByRole('region', { name: 'Pinned rows' });
-    const gap = region.nextElementSibling;
-    expect(gap).toHaveAttribute('aria-hidden', 'true');
-    expect(gap).toHaveClass('h-4');
   });
 
   it('sits inside the sticky header so it stays put while the tree scrolls', () => {
@@ -285,5 +275,13 @@ describe('TreeTable info cell', () => {
       .closest('.group\\/info');
 
     expect(cell).not.toBeNull();
+  });
+});
+
+describe('TreeTable scroller', () => {
+  it('marks its scroll container so callers can find it', () => {
+    const { container } = renderTable();
+
+    expect(container.querySelectorAll(TREE_TABLE_SCROLLER_SELECTOR)).toHaveLength(1);
   });
 });
