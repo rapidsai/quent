@@ -457,7 +457,6 @@ describe('DeepLinkBoundary', () => {
       resourceTypes: ['gpu'],
       fsmTypes: ['task'],
       showOthers: true,
-      showEntities: true,
     });
 
     render(
@@ -666,7 +665,6 @@ describe('DeepLinkBoundary', () => {
                 resourceTypes: ['channel'],
                 fsmTypes: [],
                 showOthers: false,
-                showEntities: true,
               }}
             />
             <ViewportProbe />
@@ -724,7 +722,6 @@ describe('DeepLinkBoundary', () => {
                 resourceTypes: [],
                 fsmTypes: [],
                 showOthers: true,
-                showEntities: true,
               }}
             />
             <CopyLinkButton />

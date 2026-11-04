@@ -169,23 +169,18 @@ export function useResourceTimelinesTreeModel({
     if (!resourceFilterResult.isActive) {
       return [fullTree];
     }
-    // With a filter on, the checkbox decides whether Entities and Operators rows are shown.
-    const baseTree = resourceFilter.showEntities ? fullTree : rootItem;
     if (resourceFilter.showOthers) {
-      return [baseTree];
+      return [fullTree];
     }
     if (resourceFilterResult.filteredItems.length === 0) {
       return [];
     }
 
     const filteredRoot = { ...rootItem, children: resourceFilterResult.filteredItems };
-    return (
-      (resourceFilter.showEntities ? injectSubRows(filteredRoot) : filteredRoot).children ?? []
-    );
+    return injectSubRows(filteredRoot).children ?? [];
   }, [
     fullTree,
     injectSubRows,
-    resourceFilter.showEntities,
     resourceFilter.showOthers,
     resourceFilterResult.filteredItems,
     resourceFilterResult.isActive,
