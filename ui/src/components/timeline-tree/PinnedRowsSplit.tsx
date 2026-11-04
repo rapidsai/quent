@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRef, type ReactNode } from 'react';
+import { useAtom } from 'jotai';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -9,6 +10,7 @@ import {
   useCollapsiblePanel,
 } from '@quent/components';
 import { cn } from '@quent/utils';
+import { pinnedPanelSizeAtom } from '@/atoms/resourceTree';
 import { measurePinnedPanelHeights } from './pinnedPanelHeights';
 
 // Used for the first paint, before the real height is measured.
@@ -40,10 +42,14 @@ export function PinnedRowsSplit({
   const hasPinned = pinned != null;
 
   // The panel grows with each pinned row, up to the limit, until the user sizes it themselves.
-  const { panelRef, handleProps } = useCollapsiblePanel({
+  // Kept outside the component so the user's height survives switching tabs.
+  const [savedSize, setSavedSize] = useAtom(pinnedPanelSizeAtom);
+  const { panelRef, onResize, handleProps } = useCollapsiblePanel({
     enabled: hasPinned,
     collapsed: isCollapsed,
     fitKey: pinnedCount,
+    savedSize,
+    onSizeChange: setSavedSize,
     measure: () => measurePinnedPanelHeights(contentRef.current, headerRef.current),
   });
 
@@ -54,6 +60,7 @@ export function PinnedRowsSplit({
           key="pinned"
           id="pinned-rows"
           panelRef={panelRef}
+          onResize={onResize}
           defaultSize={FALLBACK_PANEL_HEIGHT}
           minSize={isCollapsed ? 0 : FALLBACK_MIN_HEIGHT}
           groupResizeBehavior="preserve-pixel-size"

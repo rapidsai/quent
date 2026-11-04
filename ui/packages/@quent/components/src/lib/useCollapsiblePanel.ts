@@ -40,11 +40,17 @@ export interface UseCollapsiblePanelOptions {
   fitKey: unknown;
   /** Reads the heights from what is rendered. Return nothing if there is no layout yet. */
   measure: () => PanelHeights | undefined;
+  /** Height the user left the panel at, kept by the caller so it survives a remount. */
+  savedSize?: number;
+  /** Called with the height each time the user resizes the open panel. */
+  onSizeChange?: (size: number | undefined) => void;
 }
 
 export interface CollapsiblePanel {
   /** Pass to the `panelRef` of the `ResizablePanel`. */
   panelRef: RefObject<PanelImperativeHandle | null>;
+  /** Pass to the `onResize` of the `ResizablePanel`, so the user's height can be saved. */
+  onResize: (size: { inPixels: number }) => void;
   /** Spread onto the `ResizableHandle`, so a resize by the user stops the automatic fitting. */
   handleProps: { onPointerDown: () => void; onKeyDown: () => void };
 }
@@ -59,20 +65,40 @@ export function useCollapsiblePanel({
   collapsed,
   fitKey,
   measure,
+  savedSize,
+  onSizeChange,
 }: UseCollapsiblePanelOptions): CollapsiblePanel {
   const panelRef = useRef<PanelImperativeHandle | null>(null);
   const openSizeRef = useRef<number | undefined>(undefined);
   const userSizedRef = useRef(false);
   const measureHeights = useEffectEvent(measure);
   const isCollapsed = useEffectEvent(() => collapsed);
+  const getSavedSize = useEffectEvent(() => savedSize);
+  const reportSize = useEffectEvent((size: number | undefined) => onSizeChange?.(size));
 
   useLayoutEffect(() => {
     if (!enabled) {
       openSizeRef.current = undefined;
       userSizedRef.current = false;
+      reportSize(undefined);
       return;
     }
+    // Back from another tab: the user's height wins over the fitted one.
+    const saved = getSavedSize();
+    if (saved !== undefined && !userSizedRef.current) {
+      userSizedRef.current = true;
+      openSizeRef.current = saved;
+    }
     if (userSizedRef.current) {
+      if (!isCollapsed() && openSizeRef.current) {
+        const size = openSizeRef.current;
+        return whenPanelReady(() => panelRef.current?.resize(size));
+      }
+      if (isCollapsed()) {
+        const heights = measureHeights();
+        const content = heights?.content;
+        return content ? whenPanelReady(() => panelRef.current?.resize(content)) : undefined;
+      }
       return;
     }
     const heights = measureHeights();
@@ -106,5 +132,16 @@ export function useCollapsiblePanel({
     userSizedRef.current = true;
   };
 
-  return { panelRef, handleProps: { onPointerDown: markUserSized, onKeyDown: markUserSized } };
+  const onResize = ({ inPixels }: { inPixels: number }) => {
+    if (userSizedRef.current && !isCollapsed()) {
+      openSizeRef.current = inPixels;
+      reportSize(inPixels);
+    }
+  };
+
+  return {
+    panelRef,
+    onResize,
+    handleProps: { onPointerDown: markUserSized, onKeyDown: markUserSized },
+  };
 }
