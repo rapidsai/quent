@@ -176,14 +176,14 @@ export default tseslint.config(
     },
   },
   {
-    // Keep Quent views prop-driven and below query-engine integrations.
+    // Keep reusable Quent views below query-engine integration adapters.
     files: ['packages/@quent/components/src/quent-views/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           paths: [
-            // Keep compatibility-barrel wire types out of unaware views.
+            // Keep compatibility-barrel wire types out of reusable views.
             {
               name: '@quent/utils',
               allowImportNames: ['bigintToChartNumber', 'formatBytes', 'formatQuantity'],

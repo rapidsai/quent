@@ -57,7 +57,7 @@ export default {
       },
     },
     {
-      // Keep prop-driven Quent views below query-engine contracts and integration code.
+      // Keep reusable Quent views below query-engine integration adapters.
       name: 'quent-views-cannot-import-query-engine',
       severity: 'error',
       from: { path: '^packages/@quent/components/src/quent-views/' },
