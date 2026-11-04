@@ -14,6 +14,7 @@ import {
   TreeTable,
   nanosToMs,
   type Column,
+  type ColumnWidth,
   type NvtxTreeEntity,
   type TreeTableItem,
 } from '@quent/components';
@@ -31,8 +32,7 @@ import { PinnableRowLabel } from './PinnableRowLabel';
 import { PinnedRowsSplit } from './PinnedRowsSplit';
 import { useSyncedHorizontalScroll } from './useSyncedHorizontalScroll';
 
-type TimelineColumnWidths = (number | 'auto')[];
-const DEFAULT_COLUMN_WIDTHS: TimelineColumnWidths = [275, 'auto'];
+const DEFAULT_COLUMN_WIDTHS: ColumnWidth[] = [275, 'auto'];
 
 // Keeps the space for a scrollbar on every table, so their columns line up whether or not
 // any of them is currently scrolling.
@@ -220,7 +220,7 @@ export function TimelineTreeTable({
   );
 
   // The header table and the two body tables are separate, so they share one set of widths.
-  const [columnWidths, setColumnWidths] = useState<TimelineColumnWidths>(DEFAULT_COLUMN_WIDTHS);
+  const [columnWidths, setColumnWidths] = useState<ColumnWidth[]>(DEFAULT_COLUMN_WIDTHS);
 
   // Likewise, each table scrolls horizontally on its own, so keep them at the same offset.
   const tablesRef = useRef<HTMLDivElement>(null);

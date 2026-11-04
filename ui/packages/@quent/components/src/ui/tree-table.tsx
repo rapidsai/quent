@@ -827,7 +827,7 @@ export type Column<I> = {
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
-type ColumnWidth = number | 'auto';
+export type ColumnWidth = number | 'auto';
 const DEFAULT_COLUMN_WIDTHS: ColumnWidth[] = [280, 500];
 
 export interface PinnedSectionToggleProps {

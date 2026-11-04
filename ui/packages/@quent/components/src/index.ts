@@ -124,7 +124,7 @@ export type { TreeDataItem } from './ui/tree-view';
 export { TreeSelect } from './ui/tree-select';
 export type { TreeSelectProps } from './ui/tree-select';
 export { TreeTable, PinnedSectionToggle, TREE_TABLE_SCROLLER_SELECTOR } from './ui/tree-table';
-export type { Column, ColumnComponent, IconComponent } from './ui/tree-table';
+export type { Column, ColumnComponent, ColumnWidth, IconComponent } from './ui/tree-table';
 export { Badge, badgeVariants } from './ui/badge';
 export { TruncatedBadgeList } from './ui/truncated-badge-list';
 export type { TruncatedBadgeListProps } from './ui/truncated-badge-list';
