@@ -494,8 +494,8 @@ describe('deep-link pinned rows', () => {
     expect(encodeDeepLinkState(withPins(ids(MAX_PINNED_ROW_IDS + 1)))).toEqual({
       ok: false,
       code: 'invalid-state',
-      message: `Shared links support at most ${MAX_PINNED_ROWS} pinned rows.`,
-      messages: [`Shared links support at most ${MAX_PINNED_ROWS} pinned rows.`],
+      message: `Shared links support at most ${MAX_PINNED_ROW_IDS} pinned rows.`,
+      messages: [`Shared links support at most ${MAX_PINNED_ROW_IDS} pinned rows.`],
     });
   });
 
