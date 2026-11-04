@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@quent/client": "workspace:*",
+    "@quent/query-analysis": "workspace:*",
     "@quent/utils": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

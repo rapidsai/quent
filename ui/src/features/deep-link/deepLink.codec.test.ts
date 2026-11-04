@@ -31,6 +31,10 @@ import {
 import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
 import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/resourceFilter';
 import { MAX_PINNED_ROWS } from '@/features/pinned-rows/pinnedRows';
+import {
+  DEEP_LINK_COMPATIBILITY_PAYLOAD,
+  DEEP_LINK_COMPATIBILITY_STATE,
+} from '../../../../experimental/vibe/quent-cli/src/deepLink.compatibility';
 
 const RESOURCE_A_ID = '01a025ff-ea8b-7881-9d31-72a275872c9d';
 const RESOURCE_B_ID = '01a025ff-ea8b-7881-9d31-72a275872c9e';
@@ -203,6 +207,13 @@ describe('deep-link codec', () => {
     expect(new URL(result.value).searchParams.get('s')).toMatch(
       new RegExp(`^${CURRENT_DEEP_LINK_VERSION}\\.`)
     );
+  });
+
+  it('decodes links produced by the experimental CLI', () => {
+    expect(decodeDeepLinkState(DEEP_LINK_COMPATIBILITY_PAYLOAD)).toEqual({
+      ok: true,
+      value: { version: 'v3', data: DEEP_LINK_COMPATIBILITY_STATE },
+    });
   });
 
   it('rejects an absolute URL whose origin and path exhaust the budget', () => {
