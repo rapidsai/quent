@@ -29,7 +29,7 @@ describe('DAGControls statistic selection', () => {
     );
 
     await user.click(screen.getByRole('combobox', { name: 'Node color' }));
-    const nestedOption = screen.getByRole('option', { name: 'Volume › bytes', exact: true });
+    const nestedOption = screen.getByRole('option', { name: 'Volume › bytes' });
     expect(nestedOption).toHaveAttribute('title', 'Volume › bytes');
     await user.click(nestedOption);
     expect(screen.getByTestId('selected-field')).toHaveTextContent(
@@ -47,7 +47,7 @@ describe('DAGControls statistic selection', () => {
     );
 
     await user.click(screen.getByRole('combobox', { name: 'Node color' }));
-    const literalOption = screen.getByRole('option', { name: '"Volume › bytes"', exact: true });
+    const literalOption = screen.getByRole('option', { name: '"Volume › bytes"' });
     expect(literalOption).toHaveAttribute('title', '"Volume › bytes"');
     await user.click(literalOption);
     expect(screen.getByTestId('selected-field')).toHaveTextContent('Volume › bytes');

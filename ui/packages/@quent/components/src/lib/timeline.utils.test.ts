@@ -213,20 +213,20 @@ describe('transformResourceTree declaration order', () => {
   });
 
   it('uses the entity variant for group entities without a type_name field', () => {
-    const queryGroupEntities = {
+    const queryEntities = {
       ...entities,
-      query_group: { id: 'group', instance_name: 'queries', engine_id: null },
-      resource_group_types: { QueryGroup: entities.resource_group_types.worker },
+      query: { ...entities.query, id: 'group', instance_name: 'query' },
+      resource_group_types: { Query: entities.resource_group_types.worker },
     };
-    const root = transformResourceTree(queryGroupEntities, {
-      ResourceGroup: { ...tree.ResourceGroup, id: { QueryGroup: 'group' } },
+    const root = transformResourceTree(queryEntities, {
+      ResourceGroup: { ...tree.ResourceGroup, id: { Query: 'group' } },
     });
     expect(root.availableResourceTypes).toEqual(['GPU', 'CPU']);
     const request = buildBulkParamsForItem(
       root,
       new Map(),
       {
-        ...queryGroupEntities,
+        ...queryEntities,
         resource_types: {
           GPU: {
             name: 'GPU',

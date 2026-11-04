@@ -8,5 +8,6 @@
     "outDir": "./dist",
     "rootDir": "../../.."
   },
-  "include": ["src", "../../../generated/ts-bindings"]
+  "include": ["src", "../../../generated/ts-bindings"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

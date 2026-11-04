@@ -86,7 +86,7 @@ describe('statistic fields', () => {
       { key: name, value: 1 },
       { key: name, value: { kind: 'struct', fields: [{ key: name, value: 2 }] } },
     ]);
-    expect(fields.map(statisticFieldName)).toEqual([name, name]);
+    expect(fields.map(field => statisticFieldName(field))).toEqual([name, name]);
     expect(fields[1].path).toEqual([
       [name, 1],
       [name, 0],
