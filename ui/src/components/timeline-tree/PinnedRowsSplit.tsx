@@ -55,7 +55,7 @@ export function PinnedRowsSplit({
           id="pinned-rows"
           panelRef={panelRef}
           defaultSize={FALLBACK_PANEL_HEIGHT}
-          minSize={FALLBACK_MIN_HEIGHT}
+          minSize={isCollapsed ? 0 : FALLBACK_MIN_HEIGHT}
           groupResizeBehavior="preserve-pixel-size"
           className="min-h-0"
         >
