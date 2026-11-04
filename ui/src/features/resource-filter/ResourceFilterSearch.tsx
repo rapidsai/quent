@@ -62,9 +62,6 @@ interface ResourceFilterSearchProps {
   onResourceTypesChange: (resourceTypes: string[]) => void;
   onSearchChange: (search: string) => void;
   onShowOthersChange: (showOthers: boolean) => void;
-  // With both of these, a "Show operators/entities" checkbox appears. Leave them out to hide it.
-  showEntities?: boolean;
-  onShowEntitiesChange?: (showEntities: boolean) => void;
   resourceTypes: string[];
   search: string;
   selectedFsmTypes: string[];
@@ -81,14 +78,12 @@ export function ResourceFilterSearch({
   onResourceTypesChange,
   onSearchChange,
   onShowOthersChange,
-  onShowEntitiesChange,
   pinnedIds,
   resourceTypes,
   search,
   selectedFsmTypes,
   selectedResourceTypes,
   showOthers,
-  showEntities = true,
 }: ResourceFilterSearchProps) {
   const isActive =
     search.trim().length > 0 || selectedResourceTypes.length > 0 || selectedFsmTypes.length > 0;
@@ -203,22 +198,9 @@ export function ResourceFilterSearch({
               triggerClassName="h-6 w-32 min-w-0 cursor-pointer"
               triggerText="FSM type"
             />
-            <label
-              className={cn(
-                'flex shrink-0 items-center gap-1 text-xs',
-                isActive ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
-              )}
-            >
-              <input
-                checked={showOthers}
-                className="h-3 w-3 accent-primary"
-                disabled={!isActive}
-                onChange={event => onShowOthersChange(event.target.checked)}
-                type="checkbox"
-              />
-              Show All
-            </label>
-            {onShowEntitiesChange && (
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <label
                 className={cn(
                   'flex shrink-0 items-center gap-1 text-xs',
@@ -226,28 +208,24 @@ export function ResourceFilterSearch({
                 )}
               >
                 <input
-                  checked={showEntities}
+                  checked={showOthers}
                   className="h-3 w-3 accent-primary"
                   disabled={!isActive}
-                  onChange={event => onShowEntitiesChange(event.target.checked)}
+                  onChange={event => onShowOthersChange(event.target.checked)}
                   type="checkbox"
                 />
-                Show operators/entities
+                Show All
               </label>
-            )}
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            {isActive ? (
-              <span
-                aria-live="polite"
-                className="shrink-0 whitespace-nowrap text-xs text-muted-foreground tabular-nums"
-              >
-                {matchCount} {matchCount === 1 ? 'match' : 'matches'}
-              </span>
-            ) : (
-              <span />
-            )}
+            </div>
             <div className="flex items-center gap-1.5">
+              {isActive && (
+                <span
+                  aria-live="polite"
+                  className="shrink-0 whitespace-nowrap text-xs text-muted-foreground tabular-nums"
+                >
+                  {matchCount} {matchCount === 1 ? 'match' : 'matches'}
+                </span>
+              )}
               {pinAction}
               <Button
                 className="h-6 cursor-pointer px-2 text-xs"
@@ -257,7 +235,6 @@ export function ResourceFilterSearch({
                   onResourceTypesChange([]);
                   onFsmTypesChange([]);
                   onShowOthersChange(false);
-                  onShowEntitiesChange?.(true);
                 }}
                 size="xs"
                 type="button"

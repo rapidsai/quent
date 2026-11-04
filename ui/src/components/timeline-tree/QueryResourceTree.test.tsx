@@ -721,17 +721,14 @@ describe('QueryResourceTree — resource filtering', () => {
     expect(collectRowTypes(capturedTreeData)).not.toContain(LONG_ENTITIES_ROW_TYPE);
   });
 
-  it.each([
-    [true, 'Pin all 2'],
-    [false, 'Pin all 1'],
-  ])('counts Entities rows in "pin all" only when shown (%s)', async (showEntities, label) => {
+  it('leaves Entities rows out of "pin all"', async () => {
     const store = createStore();
     store.set(resourceFilterAtom, {
       search: 'GPU 0',
       resourceTypes: [],
       fsmTypes: [],
       showOthers: false,
-      showEntities,
+      showEntities: true,
     });
 
     const { getByRole } = renderWithQuery(
@@ -741,7 +738,7 @@ describe('QueryResourceTree — resource filtering', () => {
     );
 
     await userEvent.click(getByRole('button', { name: 'Resource filters, 1 selected filter' }));
-    expect(getByRole('button', { name: label })).toBeInTheDocument();
+    expect(getByRole('button', { name: 'Pin all 1' })).toBeInTheDocument();
   });
 
   it('allows matching resource rows to be expanded while Show All is selected', async () => {

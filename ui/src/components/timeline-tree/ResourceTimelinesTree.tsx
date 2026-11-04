@@ -231,30 +231,22 @@ export function useResourceTimelinesTreeModel({
     (item: TimelineTreeItem) => item.id !== rootItem.id,
     [rootItem.id]
   );
-  // Matches the user can pin with "pin all": the matching rows, plus the Entities and Operators
-  // rows of those matches when they are shown. The order follows the tree, and the root is left out.
+  // Matches the user can pin with "pin all": the matching resource rows, in tree order. Entities
+  // and Operators rows are left out for now, and so is the root.
   const pinnableMatchIds = useMemo(() => {
     const { directMatchIds } = resourceFilterResult;
     const ids: string[] = [];
     const visit = (item: TimelineTreeItem) => {
-      const ownerId =
-        item.type === LONG_ENTITIES_ROW_TYPE
-          ? resourceIdFromLongEntitiesRowId(item.id)
-          : item.type === OPERATOR_TIMELINE_ROW_TYPE
-            ? workerIdFromOperatorTimelineRowId(item.id)
-            : null;
-      const isMatch =
-        ownerId != null
-          ? resourceFilter.showEntities && directMatchIds.has(ownerId)
-          : directMatchIds.has(item.id);
-      if (isMatch && item.id !== rootItem.id) {
+      const isSubRow =
+        item.type === LONG_ENTITIES_ROW_TYPE || item.type === OPERATOR_TIMELINE_ROW_TYPE;
+      if (!isSubRow && directMatchIds.has(item.id) && item.id !== rootItem.id) {
         ids.push(item.id);
       }
       item.children?.forEach(visit);
     };
     (trees as TimelineTreeItem[]).forEach(visit);
     return ids;
-  }, [resourceFilter.showEntities, resourceFilterResult, rootItem.id, trees]);
+  }, [resourceFilterResult, rootItem.id, trees]);
   const getRowName = useCallback(
     (item: TimelineTreeItem) =>
       subRows.find(subRow => subRow.matches(item))?.label ??
@@ -483,15 +475,11 @@ export function useResourceTimelinesTreeModel({
         onShowOthersChange={showOthers =>
           setResourceFilter(current => ({ ...current, showOthers }))
         }
-        onShowEntitiesChange={showEntities =>
-          setResourceFilter(current => ({ ...current, showEntities }))
-        }
         resourceTypes={resourceTypeOptions}
         search={resourceFilter.search}
         selectedFsmTypes={resourceFilter.fsmTypes}
         selectedResourceTypes={resourceFilter.resourceTypes}
         showOthers={resourceFilter.showOthers}
-        showEntities={resourceFilter.showEntities}
       />
     ),
     initialSelectedItemId: rootItem.id,

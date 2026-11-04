@@ -4,7 +4,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
-import { ChevronRight, PinOff } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { cva } from 'class-variance-authority';
 import { cn } from '@quent/utils';
 import { Button } from './button';
@@ -1150,11 +1150,11 @@ export function TreeTable<I extends TreeTableDataItem>({
               )}
               {showPinnedSection && (
                 <section aria-label="Pinned rows" className="border-b border-border pb-4">
-                  <div className="flex items-center justify-between pr-2 pt-1">
+                  <div className="flex items-center pr-2 pt-1">
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-7 min-w-0 flex-1 justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
+                      className="h-7 min-w-0 justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
                       aria-expanded={!isPinnedCollapsed}
                       onClick={onTogglePinnedCollapsed}
                     >
@@ -1169,12 +1169,11 @@ export function TreeTable<I extends TreeTableDataItem>({
                     </Button>
                     {onClearPinned && (
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="xs"
-                        className="h-6 shrink-0 cursor-pointer gap-1 px-2 text-xs"
+                        className="ml-3 h-7 shrink-0 cursor-pointer rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
                         onClick={onClearPinned}
                       >
-                        <PinOff aria-hidden="true" className="h-3 w-3" />
                         Clear pins
                       </Button>
                     )}
