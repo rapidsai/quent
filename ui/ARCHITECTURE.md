@@ -56,7 +56,8 @@ bindings or `@quent/*/src/**` paths directly.
 
 ## Enforcement
 
-- `pnpm boundaries:check` validates source and package-to-package dependency edges.
+- `pnpm boundaries:check` validates source and package-to-package dependency
+  edges.
 - ESLint provides immediate errors for forbidden imports.
 - Package typechecks compile each package independently.
 - CI runs all three checks before the aggregate build.
