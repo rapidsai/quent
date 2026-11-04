@@ -9,6 +9,7 @@ import { createLongEntitiesTimelineSubRow, createOperatorGanttTimelineSubRow } f
 import {
   useResourceTimelinesTreeModel,
   type ResourceTimelineSubRow,
+  type SiblingPinning,
 } from './ResourceTimelinesTree';
 import { TimelineTreeTable, useTimelineTreeSetup } from './TimelineTreeTable';
 import { useFullDurationZeroUtilizationResourceIds } from './useFullDurationZeroUtilizationResourceIds';
@@ -90,14 +91,24 @@ export function QueryResourceTree({
     () => [operatorGanttSubRow, longEntitiesSubRow],
     [longEntitiesSubRow, operatorGanttSubRow]
   );
+  const nvtxTree = useNvtxTreeModel({ engineId, queryBundle, isDark });
+  // NVTX rows share the resource tree's pinned section and "pin all" button.
+  const nvtxPinning = useMemo<SiblingPinning>(
+    () => ({
+      fullRoots: nvtxTree.fullTree ? [nvtxTree.fullTree] : [],
+      displayedRoots: nvtxTree.trees,
+      matchIds: nvtxTree.pinnableMatchIds,
+    }),
+    [nvtxTree.fullTree, nvtxTree.pinnableMatchIds, nvtxTree.trees]
+  );
   const resourceTree = useResourceTimelinesTreeModel({
     engineId,
     queryBundle,
     isDark,
     subRows: resourceSubRows ?? defaultResourceSubRows,
     seedRootExpanded,
+    siblingPinning: nvtxPinning,
   });
-  const nvtxTree = useNvtxTreeModel({ engineId, queryBundle, isDark });
   const highlightedItemIds = new Set([
     ...(resourceTree.highlightedItemIds ?? []),
     ...(nvtxTree.highlightedItemIds ?? []),
