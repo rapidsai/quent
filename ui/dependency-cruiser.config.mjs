@@ -92,6 +92,9 @@ export default {
       '^generated/ts-bindings/',
     ],
     moduleSystems: ['es6', 'cjs'],
+    tsConfig: {
+      fileName: 'tsconfig.json',
+    },
     parser: 'tsc',
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {
