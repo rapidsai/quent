@@ -6,14 +6,14 @@
 Quent UI code follows a one-way dependency graph:
 
 ```text
-applications → query-engine-aware widgets → QueryBundle-unaware views → generic UI
-       │                    │                         │
-       └────────────────────┴─────────────────────────┴──→ utilities
-                            └──→ client / hooks / query-engine contracts
+applications → domain integrations → reusable Quent views → generic UI
+       │              │                    │                  │
+       └──────────────┴────────────────────┴──────────────────┴──→ utilities
+                      └──→ clients / hooks / domain contracts
 ```
 
-Dependencies point toward lower layers. Query-engine-aware code may import
-unaware views, but unaware views and generic UI cannot import upward.
+Dependencies point toward lower layers. Domain integrations may import reusable
+views, but reusable views and generic UI cannot import upward.
 
 ## Generic UI
 
@@ -31,35 +31,41 @@ the generic zone becomes a physical package.
 `SegmentedBar`, Timeline, Gantt, and grouped-table primitives are extraction
 candidates, but remain outside this zone until any Quent adapters are separated.
 
-## QueryBundle-unaware Quent views
+## Reusable Quent views
 
-The enforced unaware zone is:
+The enforced reusable-view zone is:
 
 ```text
 packages/@quent/components/src/quent-views/**
 ```
 
 These views receive feature-scoped data, controlled state, and actions through
-props. They may use stable Quent concepts, but cannot import QueryBundle,
-generated wire bindings, `@quent/utils/query-engine`, `@quent/client`,
-`@quent/hooks`, or the aware source zone. `quent-views/fsm-chart/**` is the
-first migrated slice.
+props. They may use stable Quent concepts, but cannot import domain contracts,
+generated wire bindings, clients, hooks, or domain integration source.
+`quent-views/fsm-chart/**` is the first migrated slice. The currently enforced
+restrictions name the query-engine contract and integration explicitly.
 
-## Query-engine-aware widgets and transforms
+## Query-engine integration adapters
 
-The enforced aware zone is:
+The currently enforced domain integration zone is:
 
 ```text
 packages/@quent/components/src/query-engine/**
 ```
 
-Aware code owns QueryBundle interpretation, API and hook integration, and
-conversion into feature-scoped view models. It may import `quent-views/**` and
-generic UI. `query-engine/query-plan/**` is the first migrated slice.
+These adapters own QueryBundle interpretation, query-engine API and hook
+integration, and conversion into feature-scoped view models. They may import
+`quent-views/**` and generic UI. `query-engine/query-plan/**` is the first
+migrated slice.
 
 Generated QueryBundle and wire contracts have the explicit import surface
 `@quent/utils/query-engine`. Existing `@quent/utils` root exports remain for
-compatibility, but new aware code should use the dedicated surface.
+compatibility, but new query-engine integration code should use the dedicated
+surface.
+
+Future domains may define different analyzer projections and UI APIs. Each
+should have a parallel integration adapter rather than extending
+`query-engine/**` with unrelated domain concepts.
 
 The package dependency direction remains:
 
@@ -93,8 +99,8 @@ mixed while later phases split their rendering and integration responsibilities.
 - ESLint provides immediate errors for forbidden imports.
 - Package typechecks compile each package independently.
 - CI runs all three checks before the aggregate build.
-- Dependency Cruiser and ESLint reject aware, client, hook, generated-binding,
-  and query-engine-contract imports from `quent-views/**`.
+- Dependency Cruiser and ESLint reject query-engine integration, client, hook,
+  generated-binding, and domain-contract imports from `quent-views/**`.
 
 When adding a dependency exception, update this document and the graph rule in
 the same change. Exceptions must name a concrete migration boundary; broad
