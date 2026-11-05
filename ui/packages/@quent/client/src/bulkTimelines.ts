@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { queryOptions } from '@tanstack/react-query';
-import type { BulkTimelineRequest, QueryFilter, OperatorFilter } from '@quent/utils';
+import type { BulkTimelineRequest, QueryFilter, OperatorFilter } from '@quent/utils/query-engine';
 import { fetchBulkTimelines } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 

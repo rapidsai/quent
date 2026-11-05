@@ -15,11 +15,11 @@ import {
   useSelectedEdgeWidthField,
 } from '@quent/hooks';
 import { continuousColor, flattenStatistics } from '@quent/utils';
-import type { DAGData } from '../services/query-plan/types';
+import type { DAGData } from '../query-engine/query-plan/types';
 import {
   computeEdgeColoring,
   computeEdgeWidthConfig,
-} from '../services/query-plan/dagFieldProcessing';
+} from '../query-engine/query-plan/dagFieldProcessing';
 import { DAGChart } from './DAGChart';
 
 const mocks = vi.hoisted(() => ({ fitView: vi.fn() }));

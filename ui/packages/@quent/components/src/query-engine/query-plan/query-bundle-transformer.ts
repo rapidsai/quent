@@ -3,7 +3,15 @@
 
 import { parseCustomStatistics, parsePortStatistics } from '../../lib/queryBundle.utils';
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
-import type { QueryBundle, EntityRef } from '@quent/utils';
+import type {
+  EntityRef,
+  Operator,
+  Plan,
+  PlanTree,
+  Port,
+  QueryBundle,
+  Worker,
+} from '@quent/utils/query-engine';
 import {
   aggregateNumericValues,
   buildRelatedOperatorIdsById,
@@ -12,11 +20,6 @@ import {
   operatorWorkerLabel,
   statisticFieldLabel,
   workerDisplayName,
-  Operator,
-  Port,
-  Plan,
-  PlanTree,
-  Worker,
   type DAGStatisticSet,
   type Statistic,
   type StatisticField,

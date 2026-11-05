@@ -137,6 +137,11 @@ export default tseslint.config(
         'error',
         {
           paths: [
+            // Keep query-engine wire contracts above generic primitives.
+            {
+              name: '@quent/utils/query-engine',
+              message: 'Generic UI cannot import query-engine contracts.',
+            },
             {
               name: '@quent/utils',
               allowImportNames: ['clamp', 'cn'],
@@ -164,6 +169,56 @@ export default tseslint.config(
             {
               regex: '^\\.\\./(?!lib/sliderField[.]utils$)',
               message: 'Generic UI may only import its own directory.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Keep reusable Quent views below query-engine integration adapters.
+    files: ['packages/@quent/components/src/quent-views/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            // Keep compatibility-barrel wire types out of reusable views.
+            {
+              name: '@quent/utils',
+              allowImportNames: ['bigintToChartNumber', 'formatBytes', 'formatQuantity'],
+              message: 'Quent views may import only explicitly view-safe utilities.',
+            },
+            {
+              name: '@quent/client',
+              message: 'Quent views cannot call query-engine APIs.',
+            },
+            {
+              name: '@quent/hooks',
+              message: 'Quent views cannot use query-engine state.',
+            },
+            {
+              name: '@quent/components',
+              message: 'Quent views must not import the mixed component facade.',
+            },
+            {
+              name: '@quent/utils/query-engine',
+              message: 'Quent views cannot import query-engine wire contracts.',
+            },
+          ],
+          patterns: [
+            ...packageAliasRestrictions,
+            {
+              group: ['@quent/client/**', '@quent/hooks/**'],
+              message: 'Quent views cannot import query-engine integrations.',
+            },
+            {
+              regex: '^(?:\\.\\./)+query-engine(?:/|$)',
+              message: 'Quent views cannot import the query-engine source zone.',
+            },
+            {
+              regex: '(^|/)generated/ts-bindings/',
+              message: 'Quent views cannot import generated bindings.',
             },
           ],
         },

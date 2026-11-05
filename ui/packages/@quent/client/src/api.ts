@@ -25,7 +25,7 @@ import type {
   NvtxCatalog,
   NvtxViewportRequest,
   NvtxViewportResponse,
-} from '@quent/utils';
+} from '@quent/utils/query-engine';
 
 interface ApiFetchOptions {
   params?: Record<string, string | number | bigint | boolean>;

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
-import type { TimelineConfig } from '@quent/utils';
+import type { TimelineConfig } from '@quent/utils/query-engine';
 import { fetchDataFlow } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 
