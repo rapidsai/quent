@@ -64,7 +64,7 @@ it('navigates from either endpoint to its operator, adding to the filters and ke
       id: 'scan',
       label: 'Parquet scan [6]',
       type: 'scan',
-      metadata: { relatedOperatorIds: ['scan-worker'] },
+      metadata: { relatedOperatorIds: new Set(['scan-worker']) },
     },
     { id: 'join', label: 'Partitioned join [42]', type: 'join' },
   ];
@@ -85,7 +85,7 @@ it('navigates from either endpoint to its operator, adding to the filters and ke
   act(() => {
     probe.latest().updateSelection({
       type: 'replace',
-      selections: [{ selectionId: 'other', label: 'Other', operatorIds: ['other'] }],
+      selections: [{ selectionId: 'other', label: 'Other', operatorIds: new Set(['other']) }],
     });
     probe.latest().addInspectedPipe({ sourcePortId: 'out', targetPortId: 'in' });
   });

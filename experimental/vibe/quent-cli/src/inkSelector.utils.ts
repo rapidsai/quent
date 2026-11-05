@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SelectionChoice } from './askSelection';
+import type { QueryTreeChoice, SelectionChoice } from './askSelection';
 
 export const MAX_VISIBLE_CHOICES = 10;
 
@@ -15,6 +15,22 @@ export function filterSelectionChoices(
   }
   return choices.filter(choice =>
     `${choice.label} ${choice.value}`.toLocaleLowerCase().includes(normalized)
+  );
+}
+
+export function filterQueryTreeChoices(
+  choices: readonly QueryTreeChoice[],
+  filter: string
+): readonly QueryTreeChoice[] {
+  const normalized = filter.trim().toLocaleLowerCase();
+  if (!normalized) {
+    return choices;
+  }
+  return choices.filter(choice =>
+    [choice.sourceId, choice.engineLabel, choice.engineId, choice.label, choice.queryId]
+      .join(' ')
+      .toLocaleLowerCase()
+      .includes(normalized)
   );
 }
 
