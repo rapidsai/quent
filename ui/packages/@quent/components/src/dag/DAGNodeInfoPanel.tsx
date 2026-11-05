@@ -13,7 +13,6 @@ import {
   useDisplayedOperatorDetails,
   useInspectedPipes,
   useInspectedPipeNodes,
-  useOperatorSelection,
   useOperatorSelectionActions,
   useToggleInspectedPipe,
 } from '@quent/hooks';
@@ -82,7 +81,6 @@ export const DAGNodeInfoPanel = ({
   const operatorDetails = useDisplayedOperatorDetails();
   const inspectedPipes = useInspectedPipes();
   const inspectedPipeNodes = useInspectedPipeNodes();
-  const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
   const toggleInspectedPipe = useToggleInspectedPipe();
   const selectedOperators = operatorDetails.map(detail => detail.data);
@@ -187,49 +185,34 @@ export const DAGNodeInfoPanel = ({
 
   const statsContent = showStatsTab ? (
     <div ref={statsContentRef} className="flex flex-col gap-1 pt-1.5">
-      {operatorDetails.map((detail, index) => {
-        const operatorIds = new Set([
-          detail.data.nodeId,
-          ...(detail.data.relatedOperators?.map(operator => operator.nodeId) ?? []),
-        ]);
-        const matchingFilterIds = [...operatorSelection.selections]
-          .filter(
-            ([selectionId, selection]) =>
-              selectionId === detail.selectionId ||
-              (selection.operatorIds.size === operatorIds.size &&
-                [...selection.operatorIds].every(id => operatorIds.has(id)))
-          )
-          .map(([selectionId]) => selectionId);
-        const removeDetail = () => {
-          for (const selectionId of matchingFilterIds) {
-            updateOperatorSelection({ type: 'remove', selectionId });
-          }
-        };
-
-        return (
-          <DetailAttentionEntry
-            key={detail.selectionId}
-            kind="operator"
-            id={detail.selectionId}
-            testId={`operator-detail-entry-${detail.selectionId}`}
-            className={cn(index > 0 && 'border-t pt-1.5 mt-1.5')}
-          >
-            <OperatorDetailsBlock
-              operator={detail.data}
-              quantitySpecs={quantitySpecs}
-              isOpen={isOperatorOpen}
-              onOpenChange={setOperatorOpen}
-              actions={
-                <DetailItemActions
-                  label={`operator ${detail.data.label}`}
-                  onRemove={removeDetail}
-                  title={'Remove filter'}
-                />
-              }
-            />
-          </DetailAttentionEntry>
-        );
-      })}
+      {operatorDetails.map((detail, index) => (
+        <DetailAttentionEntry
+          key={detail.selectionId}
+          kind="operator"
+          id={detail.selectionId}
+          testId={`operator-detail-entry-${detail.selectionId}`}
+          className={cn(index > 0 && 'border-t pt-1.5 mt-1.5')}
+        >
+          <OperatorDetailsBlock
+            operator={detail.data}
+            quantitySpecs={quantitySpecs}
+            isOpen={isOperatorOpen}
+            onOpenChange={setOperatorOpen}
+            actions={
+              <DetailItemActions
+                label={`operator ${detail.data.label}`}
+                onRemove={() =>
+                  updateOperatorSelection({
+                    type: 'remove',
+                    selectionId: detail.selectionId,
+                  })
+                }
+                title={'Remove filter'}
+              />
+            }
+          />
+        </DetailAttentionEntry>
+      ))}
     </div>
   ) : null;
 
