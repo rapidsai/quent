@@ -31,7 +31,6 @@ import {
 } from '@quent/utils';
 import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
 import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/resourceFilter';
-import { MAX_PINNED_ROWS } from '@/features/pinned-rows/pinnedRows';
 import {
   DEEP_LINK_COMPATIBILITY_PAYLOAD,
   DEEP_LINK_COMPATIBILITY_STATE,
