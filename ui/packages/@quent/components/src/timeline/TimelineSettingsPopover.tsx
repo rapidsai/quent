@@ -7,6 +7,8 @@ import {
   LONG_ENTITY_DENSITIES,
   useLongEntityDensity,
   useSetLongEntityDensity,
+  useSetShowNestedChartRows,
+  useShowNestedChartRows,
   type LongEntityDensity,
 } from '@quent/hooks';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -21,6 +23,8 @@ function isLongEntityDensity(value: number): value is LongEntityDensity {
 export function TimelineSettingsPopover() {
   const density = useLongEntityDensity();
   const setDensity = useSetLongEntityDensity();
+  const showNestedRows = useShowNestedChartRows();
+  const setShowNestedRows = useSetShowNestedChartRows();
   const sliderId = useId();
 
   return (
@@ -59,6 +63,15 @@ export function TimelineSettingsPopover() {
           <span>Less</span>
           <span>More</span>
         </div>
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-medium text-foreground">
+          <input
+            type="checkbox"
+            checked={showNestedRows}
+            onChange={event => setShowNestedRows(event.target.checked)}
+            className="h-3 w-3 cursor-pointer accent-primary"
+          />
+          Show entity/operator rows
+        </label>
       </PopoverContent>
     </Popover>
   );

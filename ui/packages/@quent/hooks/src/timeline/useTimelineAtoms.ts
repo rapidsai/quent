@@ -14,6 +14,7 @@ import {
   bulkInitializedAtom,
   visibleEntriesAtom,
   longEntityDensityAtom,
+  showNestedChartRowsAtom,
   timelineCacheKey,
 } from '../atoms/timeline';
 import { selectedOperatorIdsAtom } from '../atoms/dag';
@@ -120,6 +121,8 @@ export const useDebouncedZoomRange = () => useAtomValueRawSync(debouncedZoomRang
 export const useSetDebouncedZoomRange = () => useSetAtom(debouncedZoomRangeAtom);
 export const useLongEntityDensity = () => useAtomValue(longEntityDensityAtom);
 export const useSetLongEntityDensity = () => useSetAtom(longEntityDensityAtom);
+export const useShowNestedChartRows = () => useAtomValue(showNestedChartRowsAtom);
+export const useSetShowNestedChartRows = () => useSetAtom(showNestedChartRowsAtom);
 export const useTimelineHover = () => useAtomValue(timelineHoverAtom);
 export const useSetTimelineHover = () => useSetAtom(timelineHoverAtom);
 export const useTimelinePointerRatio = () => useAtomValue(timelinePointerAtom)?.ratio ?? null;

@@ -9,7 +9,7 @@ import { renderWithQuery } from '@/test/test-utils';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { QueryResourceTree } from './QueryResourceTree';
 import { applyBulkTimelineResponse, timelineCacheKey, useZoomRange } from '@quent/hooks';
-import { timelineDataMapAtom } from '@quent/hooks/testing';
+import { showNestedChartRowsAtom, timelineDataMapAtom } from '@quent/hooks/testing';
 import type {
   SingleTimelineResponse,
   QueryBundle,
@@ -652,9 +652,23 @@ describe('QueryResourceTree — configurable resource subrows', () => {
     expect(capturedGetRowHeight?.(disclosure!)).toBe(TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT);
   });
 
-  it('shows chart disclosures by default and lets each one collapse independently', async () => {
+  it('keeps entity and operator chart disclosures collapsed by default', async () => {
     renderWithQuery(
       <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={withPlanWorker(makeWorkerBundle())} />
+      </JotaiProvider>
+    );
+
+    await waitFor(() => expect(capturedExpandedIds).toContain(ENGINE_ID));
+    expect(capturedExpandedIds).not.toContain('__long_entities_disclosure__res-1');
+    expect(capturedExpandedIds).not.toContain('__operator_timeline_disclosure__worker-id-1');
+  });
+
+  it('shows chart disclosures when the setting is on and lets each one collapse independently', async () => {
+    const store = createStore();
+    store.set(showNestedChartRowsAtom, true);
+    renderWithQuery(
+      <JotaiProvider store={store}>
         <QueryResourceTree engineId="engine-1" queryBundle={withPlanWorker(makeWorkerBundle())} />
       </JotaiProvider>
     );
@@ -673,55 +687,28 @@ describe('QueryResourceTree — configurable resource subrows', () => {
     expect(capturedExpandedIds).toContain(operatorsDisclosureId);
   });
 
-  it('globally shows and hides Entities and Operators independently', async () => {
-    const { getByRole } = renderWithQuery(
-      <JotaiProvider store={createStore()}>
+  it('shows and hides every entity and operator disclosure when the setting changes', async () => {
+    const store = createStore();
+    renderWithQuery(
+      <JotaiProvider store={store}>
         <QueryResourceTree engineId="engine-1" queryBundle={withPlanWorker(makeWorkerBundle())} />
       </JotaiProvider>
     );
 
     const entitiesDisclosureId = '__long_entities_disclosure__res-1';
     const operatorsDisclosureId = '__operator_timeline_disclosure__worker-id-1';
-    const entitiesToggle = getByRole('checkbox', { name: 'Entities charts' });
-    const operatorsToggle = getByRole('checkbox', { name: 'Operators charts' });
+    await waitFor(() => expect(capturedExpandedIds).toContain(ENGINE_ID));
 
+    act(() => store.set(showNestedChartRowsAtom, true));
     await waitFor(() => {
-      expect(entitiesToggle).toBeChecked();
-      expect(operatorsToggle).toBeChecked();
+      expect(capturedExpandedIds).toContain(entitiesDisclosureId);
+      expect(capturedExpandedIds).toContain(operatorsDisclosureId);
     });
-    await userEvent.click(entitiesToggle);
 
-    await waitFor(() => expect(capturedExpandedIds).not.toContain(entitiesDisclosureId));
-    expect(capturedExpandedIds).toContain(operatorsDisclosureId);
-
-    await userEvent.click(entitiesToggle);
-    await waitFor(() => expect(capturedExpandedIds).toContain(entitiesDisclosureId));
-
-    await userEvent.click(operatorsToggle);
-    await waitFor(() => expect(capturedExpandedIds).not.toContain(operatorsDisclosureId));
-    expect(capturedExpandedIds).toContain(entitiesDisclosureId);
-  });
-
-  it('shows a mixed global state and expands all partially visible charts on click', async () => {
-    const { getByRole } = renderWithQuery(
-      <JotaiProvider store={createStore()}>
-        <QueryResourceTree engineId="engine-1" queryBundle={makeTwoResourceBundle()} />
-      </JotaiProvider>
-    );
-    const firstDisclosureId = '__long_entities_disclosure__res-1';
-    const secondDisclosureId = '__long_entities_disclosure__res-2';
-    const entitiesToggle = getByRole('checkbox', { name: 'Entities charts' });
-
-    await waitFor(() => expect(entitiesToggle).toBeChecked());
-    act(() => capturedOnExpandChange?.(firstDisclosureId, false));
-
-    await waitFor(() => expect(entitiesToggle).toHaveAttribute('aria-checked', 'mixed'));
-    expect((entitiesToggle as HTMLInputElement).indeterminate).toBe(true);
-
-    await userEvent.click(entitiesToggle);
+    act(() => store.set(showNestedChartRowsAtom, false));
     await waitFor(() => {
-      expect(capturedExpandedIds).toContain(firstDisclosureId);
-      expect(capturedExpandedIds).toContain(secondDisclosureId);
+      expect(capturedExpandedIds).not.toContain(entitiesDisclosureId);
+      expect(capturedExpandedIds).not.toContain(operatorsDisclosureId);
     });
   });
 
@@ -815,6 +802,7 @@ describe('QueryResourceTree — resource filtering', () => {
 
   it('allows matching resource rows to be expanded while Show All is selected', async () => {
     const store = createStore();
+    store.set(showNestedChartRowsAtom, true);
     store.set(resourceFilterAtom, {
       search: 'GPU 0',
       resourceTypes: [],

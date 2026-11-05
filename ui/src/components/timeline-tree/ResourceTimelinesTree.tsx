@@ -21,7 +21,7 @@ import {
   transformResourceTree,
   type TreeTableItem,
 } from '@quent/components';
-import { useBulkTimelines, useHighlightedItemIds } from '@quent/hooks';
+import { useBulkTimelines, useHighlightedItemIds, useShowNestedChartRows } from '@quent/hooks';
 import {
   ALL_FSMS,
   type EntityRef,
@@ -51,7 +51,6 @@ import {
 } from '@/hooks/useExpandedIds';
 import { usePinnedCollapsed, usePinnedIds } from '@/hooks/usePinnedIds';
 import { PinnedRowPath } from './PinnedRowPath';
-import { SubRowVisibilityControls, type SubRowVisibilityControl } from './SubRowVisibilityControls';
 import { TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT, type ResourceTimelineSubRow } from './sub-rows';
 import {
   TimelineTreeTable,
@@ -182,41 +181,28 @@ export function useResourceTimelinesTreeModel({
   );
   // The whole tree with sub-rows, before any filter. Pinned rows are looked up here.
   const fullTree = useMemo(() => injectSubRows(rootItem), [injectSubRows, rootItem]);
-  const { disclosureControls, initialDisclosureExpansion } = useMemo(() => {
-    const controlsByType = new Map(
-      subRows.map(subRow => [
-        subRow.disclosureRowType,
-        { label: subRow.label, ids: [] as string[], subRow },
-      ])
+  const showNestedChartRows = useShowNestedChartRows();
+  const disclosureExpansion = useMemo(() => {
+    const subRowsByDisclosureType = new Map(
+      subRows.map(subRow => [subRow.disclosureRowType, subRow])
     );
-    const initialExpansion: { id: string; ownerId?: string }[] = [];
+    const expansion: { id: string; ownerId?: string }[] = [];
     const visit = (item: TimelineTreeItem) => {
       for (const child of item.children ?? []) {
-        const control = controlsByType.get(child.type);
-        if (control) {
-          control.ids.push(child.id);
-          initialExpansion.push({
+        const subRow = subRowsByDisclosureType.get(child.type);
+        if (subRow) {
+          expansion.push({
             id: child.id,
-            ...(control.subRow.expandOwnerByDefault ? { ownerId: item.id } : {}),
+            ...(subRow.expandOwnerByDefault ? { ownerId: item.id } : {}),
           });
         }
         visit(child);
       }
     };
     visit(fullTree as TimelineTreeItem);
-    const controls = [...controlsByType.values()].map(
-      ({ label, ids, subRow }): SubRowVisibilityControl => ({
-        id: subRow.id,
-        label,
-        ids: [...ids],
-      })
-    );
-    return {
-      disclosureControls: controls,
-      initialDisclosureExpansion: initialExpansion,
-    };
+    return expansion;
   }, [fullTree, subRows]);
-  useInitializeDisclosureExpansion(initialDisclosureExpansion);
+  useInitializeDisclosureExpansion(disclosureExpansion, showNestedChartRows);
 
   const trees = useMemo(() => {
     if (!resourceFilterResult.isActive) {
@@ -344,7 +330,7 @@ export function useResourceTimelinesTreeModel({
   );
   const firstResourceTimelineId = trees[0]?.id ?? null;
 
-  const { expandedIds, handleExpandChange, handleManyExpandChange } = useExpandedIds(
+  const { expandedIds, handleExpandChange } = useExpandedIds(
     seedRootExpanded ? rootItem.id : undefined
   );
   const bulkRootItem = useMemo(
@@ -542,11 +528,6 @@ export function useResourceTimelinesTreeModel({
           selectedFsmTypes={resourceFilter.fsmTypes}
           selectedResourceTypes={resourceFilter.resourceTypes}
           showOthers={resourceFilter.showOthers}
-        />
-        <SubRowVisibilityControls
-          controls={disclosureControls}
-          expandedIds={expandedIds}
-          onChange={handleManyExpandChange}
         />
       </>
     ),

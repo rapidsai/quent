@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAtomValueRawSync, useSetAtom } from 'jotai';
 import { expandedIdsAtom, initializedDisclosureIdsAtom } from '@/atoms/resourceTree';
 
@@ -73,44 +73,73 @@ export function useExpandedIds(initialId?: string) {
     [setExpandedIds]
   );
 
-  const handleManyExpandChange = useCallback(
-    (itemIds: readonly string[], isExpanded: boolean) => {
-      setExpandedIds(prev => {
-        const next = new Set(prev);
-        for (const itemId of itemIds) {
-          if (isExpanded) {
-            next.add(itemId);
-          } else {
-            next.delete(itemId);
-          }
-        }
-        return next;
-      });
-    },
-    [setExpandedIds]
-  );
-
-  return { expandedIds, handleExpandChange, handleManyExpandChange } as const;
+  return { expandedIds, handleExpandChange } as const;
 }
 
-/** Expands newly discovered disclosures once, while preserving later user choices. */
+interface DisclosureExpansion {
+  id: string;
+  ownerId?: string;
+}
+
+function withDisclosuresShown(
+  expandedIds: ReadonlySet<string>,
+  disclosures: readonly DisclosureExpansion[]
+) {
+  const next = new Set(expandedIds);
+  for (const { id, ownerId } of disclosures) {
+    next.add(id);
+    if (ownerId) {
+      next.add(ownerId);
+    }
+  }
+  return next;
+}
+
+function withDisclosuresHidden(
+  expandedIds: ReadonlySet<string>,
+  disclosures: readonly DisclosureExpansion[]
+) {
+  const next = new Set(expandedIds);
+  for (const { id } of disclosures) {
+    next.delete(id);
+  }
+  return next;
+}
+
+/**
+ * Expands newly discovered disclosures once when `showDisclosures` is on, and leaves them
+ * collapsed otherwise. Flipping `showDisclosures` later applies to every disclosure; the user can
+ * still open or close individual rows afterwards.
+ */
 export function useInitializeDisclosureExpansion(
-  disclosures: readonly { id: string; ownerId?: string }[]
+  disclosures: readonly DisclosureExpansion[],
+  showDisclosures: boolean
 ) {
   const initializedIds = useAtomValueRawSync(initializedDisclosureIdsAtom);
   const setInitializedIds = useSetAtom(initializedDisclosureIdsAtom);
   const setExpandedIds = useSetAtom(expandedIdsAtom);
+  const previousShowRef = useRef(showDisclosures);
 
   useEffect(() => {
     const newDisclosures = disclosures.filter(disclosure => !initializedIds.has(disclosure.id));
     if (newDisclosures.length === 0) {
       return;
     }
-    const newDisclosureIds = newDisclosures.map(disclosure => disclosure.id);
-    const newOwnerIds = newDisclosures.flatMap(disclosure =>
-      disclosure.ownerId ? [disclosure.ownerId] : []
+    if (showDisclosures) {
+      setExpandedIds(previous => withDisclosuresShown(previous, newDisclosures));
+    }
+    setInitializedIds(previous => new Set([...previous, ...newDisclosures.map(({ id }) => id)]));
+  }, [disclosures, initializedIds, setExpandedIds, setInitializedIds, showDisclosures]);
+
+  useEffect(() => {
+    if (previousShowRef.current === showDisclosures) {
+      return;
+    }
+    previousShowRef.current = showDisclosures;
+    setExpandedIds(previous =>
+      showDisclosures
+        ? withDisclosuresShown(previous, disclosures)
+        : withDisclosuresHidden(previous, disclosures)
     );
-    setExpandedIds(previous => new Set([...previous, ...newOwnerIds, ...newDisclosureIds]));
-    setInitializedIds(previous => new Set([...previous, ...newDisclosureIds]));
-  }, [disclosures, initializedIds, setExpandedIds, setInitializedIds]);
+  }, [disclosures, setExpandedIds, showDisclosures]);
 }

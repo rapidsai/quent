@@ -37,6 +37,8 @@ export {
   useSetDebouncedZoomRange,
   useLongEntityDensity,
   useSetLongEntityDensity,
+  useShowNestedChartRows,
+  useSetShowNestedChartRows,
   useTimelineHover,
   useSetTimelineHover,
   useTimelinePointerRatio,
