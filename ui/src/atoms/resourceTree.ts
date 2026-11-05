@@ -15,6 +15,7 @@ import {
  */
 
 export const expandedIdsAtom = atom<Set<string>>(new Set<string>());
+export const initializedDisclosureIdsAtom = atom<Set<string>>(new Set<string>());
 export const pinnedIdsAtom = atom<Set<string>>(new Set<string>());
 export const pinnedCollapsedAtom = atom(false);
 export const selectedTypesAtom = atom<Map<string, string>>(new Map<string, string>());

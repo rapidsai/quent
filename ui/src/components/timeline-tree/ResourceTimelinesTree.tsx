@@ -43,9 +43,14 @@ import {
 import { findAncestorNames, resolvePinnedRows } from '@/features/pinned-rows/pinnedRows';
 import { ResourceFilterSearch } from '@/features/resource-filter/ResourceFilterSearch';
 import { filterResourceTree } from '@/features/resource-filter/resourceFilter';
-import { useAutoExpandMatchingAncestors, useExpandedIds } from '@/hooks/useExpandedIds';
+import {
+  useAutoExpandMatchingAncestors,
+  useExpandedIds,
+  useInitializeDisclosureExpansion,
+} from '@/hooks/useExpandedIds';
 import { usePinnedCollapsed, usePinnedIds } from '@/hooks/usePinnedIds';
 import { PinnedRowPath } from './PinnedRowPath';
+import { SubRowVisibilityControls, type SubRowVisibilityControl } from './SubRowVisibilityControls';
 import type { ResourceTimelineSubRow } from './sub-rows';
 import {
   TimelineTreeTable,
@@ -176,6 +181,41 @@ export function useResourceTimelinesTreeModel({
   );
   // The whole tree with sub-rows, before any filter. Pinned rows are looked up here.
   const fullTree = useMemo(() => injectSubRows(rootItem), [injectSubRows, rootItem]);
+  const { disclosureControls, initialDisclosureExpansion } = useMemo(() => {
+    const controlsByType = new Map(
+      subRows.map(subRow => [
+        subRow.disclosureRowType,
+        { label: subRow.label, ids: [] as string[], subRow },
+      ])
+    );
+    const initialExpansion: { id: string; ownerId?: string }[] = [];
+    const visit = (item: TimelineTreeItem) => {
+      for (const child of item.children ?? []) {
+        const control = controlsByType.get(child.type);
+        if (control) {
+          control.ids.push(child.id);
+          initialExpansion.push({
+            id: child.id,
+            ...(control.subRow.expandOwnerByDefault ? { ownerId: item.id } : {}),
+          });
+        }
+        visit(child);
+      }
+    };
+    visit(fullTree as TimelineTreeItem);
+    const controls = [...controlsByType.values()].map(
+      ({ label, ids, subRow }): SubRowVisibilityControl => ({
+        id: subRow.id,
+        label,
+        ids: [...ids],
+      })
+    );
+    return {
+      disclosureControls: controls,
+      initialDisclosureExpansion: initialExpansion,
+    };
+  }, [fullTree, subRows]);
+  useInitializeDisclosureExpansion(initialDisclosureExpansion);
 
   const trees = useMemo(() => {
     if (!resourceFilterResult.isActive) {
@@ -241,8 +281,7 @@ export function useResourceTimelinesTreeModel({
   // The root group is already summarized by the overview bar, so it has no pin button.
   const isPinnable = useCallback(
     (item: TimelineTreeItem) =>
-      item.id !== rootItem.id &&
-      !subRows.some(subRow => subRow.disclosureRowType === item.type),
+      item.id !== rootItem.id && !subRows.some(subRow => subRow.disclosureRowType === item.type),
     [rootItem.id, subRows]
   );
   // Matches the user can pin with "pin all": the matching resource rows, in tree order, then the
@@ -304,7 +343,7 @@ export function useResourceTimelinesTreeModel({
   );
   const firstResourceTimelineId = trees[0]?.id ?? null;
 
-  const { expandedIds, handleExpandChange } = useExpandedIds(
+  const { expandedIds, handleExpandChange, handleManyExpandChange } = useExpandedIds(
     seedRootExpanded ? rootItem.id : undefined
   );
   const bulkRootItem = useMemo(
@@ -474,26 +513,33 @@ export function useResourceTimelinesTreeModel({
     rowPinning,
     emptyMessage: 'No resources match this filter.',
     filters: (
-      <ResourceFilterSearch
-        fsmTypes={fsmTypeOptions}
-        matchCount={resourceFilterResult.matchCount}
-        matchIds={pinnableMatchIds}
-        onPinMany={pinMany}
-        pinnedIds={pinnedIds}
-        onFsmTypesChange={fsmTypes => setResourceFilter(current => ({ ...current, fsmTypes }))}
-        onResourceTypesChange={resourceTypes =>
-          setResourceFilter(current => ({ ...current, resourceTypes }))
-        }
-        onSearchChange={search => setResourceFilter(current => ({ ...current, search }))}
-        onShowOthersChange={showOthers =>
-          setResourceFilter(current => ({ ...current, showOthers }))
-        }
-        resourceTypes={resourceTypeOptions}
-        search={resourceFilter.search}
-        selectedFsmTypes={resourceFilter.fsmTypes}
-        selectedResourceTypes={resourceFilter.resourceTypes}
-        showOthers={resourceFilter.showOthers}
-      />
+      <>
+        <ResourceFilterSearch
+          fsmTypes={fsmTypeOptions}
+          matchCount={resourceFilterResult.matchCount}
+          matchIds={pinnableMatchIds}
+          onPinMany={pinMany}
+          pinnedIds={pinnedIds}
+          onFsmTypesChange={fsmTypes => setResourceFilter(current => ({ ...current, fsmTypes }))}
+          onResourceTypesChange={resourceTypes =>
+            setResourceFilter(current => ({ ...current, resourceTypes }))
+          }
+          onSearchChange={search => setResourceFilter(current => ({ ...current, search }))}
+          onShowOthersChange={showOthers =>
+            setResourceFilter(current => ({ ...current, showOthers }))
+          }
+          resourceTypes={resourceTypeOptions}
+          search={resourceFilter.search}
+          selectedFsmTypes={resourceFilter.fsmTypes}
+          selectedResourceTypes={resourceFilter.resourceTypes}
+          showOthers={resourceFilter.showOthers}
+        />
+        <SubRowVisibilityControls
+          controls={disclosureControls}
+          expandedIds={expandedIds}
+          onChange={handleManyExpandChange}
+        />
+      </>
     ),
     initialSelectedItemId: rootItem.id,
     expandedIds,

@@ -11,6 +11,8 @@ export interface ResourceTimelineSubRow {
   label: string;
   /** Row type for the always-visible disclosure that owns the chart row. */
   disclosureRowType: string;
+  /** Whether adding this disclosure turns a former leaf into an initially expanded owner. */
+  expandOwnerByDefault: boolean;
   injectRows: (rootItem: TreeTableItem) => TreeTableItem;
   matches: (item: TimelineTreeItem) => boolean;
   renderLabel: (item: TimelineTreeItem, description?: ReactNode) => ReactNode;
@@ -71,18 +73,21 @@ export function createTimelineSubRow({
   injectRows,
   label,
   renderTimeline,
+  expandOwnerByDefault = false,
 }: {
   id: string;
   rowType: string;
   injectRows: ResourceTimelineSubRow['injectRows'];
   label: string;
   renderTimeline: ResourceTimelineSubRow['renderTimeline'];
+  expandOwnerByDefault?: boolean;
 }): ResourceTimelineSubRow {
   const disclosureRowType = `${rowType}-disclosure`;
   return {
     id,
     label,
     disclosureRowType,
+    expandOwnerByDefault,
     injectRows,
     matches: item => item.type === rowType || item.type === disclosureRowType,
     renderLabel: (_item, description) => (

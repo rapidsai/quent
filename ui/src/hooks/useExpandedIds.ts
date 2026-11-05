@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo } from 'react';
 import { useAtomValueRawSync, useSetAtom } from 'jotai';
-import { expandedIdsAtom } from '@/atoms/resourceTree';
+import { expandedIdsAtom, initializedDisclosureIdsAtom } from '@/atoms/resourceTree';
 
 interface ExpandableTreeItem {
   id: string;
@@ -50,13 +50,12 @@ export function useExpandedIds(initialId?: string) {
   const expandedIds = useAtomValueRawSync(expandedIdsAtom);
   const setExpandedIds = useSetAtom(expandedIdsAtom);
 
-  // Seed with the initial id only when the atom is empty so that
-  // navigating away and back keeps the user's expansion intact.
+  // Seed the initial id once without discarding expansion restored by other tree features.
   useEffect(() => {
     if (!initialId) {
       return;
     }
-    setExpandedIds(prev => (prev.size === 0 ? new Set([initialId]) : prev));
+    setExpandedIds(prev => (prev.has(initialId) ? prev : new Set([...prev, initialId])));
   }, [initialId, setExpandedIds]);
 
   const handleExpandChange = useCallback(
@@ -74,5 +73,44 @@ export function useExpandedIds(initialId?: string) {
     [setExpandedIds]
   );
 
-  return { expandedIds, handleExpandChange } as const;
+  const handleManyExpandChange = useCallback(
+    (itemIds: readonly string[], isExpanded: boolean) => {
+      setExpandedIds(prev => {
+        const next = new Set(prev);
+        for (const itemId of itemIds) {
+          if (isExpanded) {
+            next.add(itemId);
+          } else {
+            next.delete(itemId);
+          }
+        }
+        return next;
+      });
+    },
+    [setExpandedIds]
+  );
+
+  return { expandedIds, handleExpandChange, handleManyExpandChange } as const;
+}
+
+/** Expands newly discovered disclosures once, while preserving later user choices. */
+export function useInitializeDisclosureExpansion(
+  disclosures: readonly { id: string; ownerId?: string }[]
+) {
+  const initializedIds = useAtomValueRawSync(initializedDisclosureIdsAtom);
+  const setInitializedIds = useSetAtom(initializedDisclosureIdsAtom);
+  const setExpandedIds = useSetAtom(expandedIdsAtom);
+
+  useEffect(() => {
+    const newDisclosures = disclosures.filter(disclosure => !initializedIds.has(disclosure.id));
+    if (newDisclosures.length === 0) {
+      return;
+    }
+    const newDisclosureIds = newDisclosures.map(disclosure => disclosure.id);
+    const newOwnerIds = newDisclosures.flatMap(disclosure =>
+      disclosure.ownerId ? [disclosure.ownerId] : []
+    );
+    setExpandedIds(previous => new Set([...previous, ...newOwnerIds, ...newDisclosureIds]));
+    setInitializedIds(previous => new Set([...previous, ...newDisclosureIds]));
+  }, [disclosures, initializedIds, setExpandedIds, setInitializedIds]);
 }

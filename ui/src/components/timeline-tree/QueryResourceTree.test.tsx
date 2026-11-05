@@ -274,6 +274,7 @@ const customSubRow: ResourceTimelineSubRow = {
   id: 'custom',
   label: 'Custom',
   disclosureRowType: 'custom-sub-row-disclosure',
+  expandOwnerByDefault: false,
   injectRows: rootItem => ({
     ...rootItem,
     children: [
@@ -631,6 +632,79 @@ describe('QueryResourceTree — configurable resource subrows', () => {
     expect(rowTypes).toContain(LONG_ENTITIES_ROW_TYPE);
   });
 
+  it('shows chart disclosures by default and lets each one collapse independently', async () => {
+    renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={withPlanWorker(makeWorkerBundle())} />
+      </JotaiProvider>
+    );
+
+    const entitiesDisclosureId = '__long_entities_disclosure__res-1';
+    const operatorsDisclosureId = '__operator_timeline_disclosure__worker-id-1';
+    await waitFor(() => {
+      expect(capturedExpandedIds).toContain(ENGINE_ID);
+      expect(capturedExpandedIds).toContain(entitiesDisclosureId);
+      expect(capturedExpandedIds).toContain(operatorsDisclosureId);
+    });
+
+    act(() => capturedOnExpandChange?.(entitiesDisclosureId, false));
+
+    await waitFor(() => expect(capturedExpandedIds).not.toContain(entitiesDisclosureId));
+    expect(capturedExpandedIds).toContain(operatorsDisclosureId);
+  });
+
+  it('globally shows and hides Entities and Operators independently', async () => {
+    const { getByRole } = renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={withPlanWorker(makeWorkerBundle())} />
+      </JotaiProvider>
+    );
+
+    const entitiesDisclosureId = '__long_entities_disclosure__res-1';
+    const operatorsDisclosureId = '__operator_timeline_disclosure__worker-id-1';
+    const entitiesToggle = getByRole('checkbox', { name: 'Entities charts' });
+    const operatorsToggle = getByRole('checkbox', { name: 'Operators charts' });
+
+    await waitFor(() => {
+      expect(entitiesToggle).toBeChecked();
+      expect(operatorsToggle).toBeChecked();
+    });
+    await userEvent.click(entitiesToggle);
+
+    await waitFor(() => expect(capturedExpandedIds).not.toContain(entitiesDisclosureId));
+    expect(capturedExpandedIds).toContain(operatorsDisclosureId);
+
+    await userEvent.click(entitiesToggle);
+    await waitFor(() => expect(capturedExpandedIds).toContain(entitiesDisclosureId));
+
+    await userEvent.click(operatorsToggle);
+    await waitFor(() => expect(capturedExpandedIds).not.toContain(operatorsDisclosureId));
+    expect(capturedExpandedIds).toContain(entitiesDisclosureId);
+  });
+
+  it('shows a mixed global state and expands all partially visible charts on click', async () => {
+    const { getByRole } = renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeTwoResourceBundle()} />
+      </JotaiProvider>
+    );
+    const firstDisclosureId = '__long_entities_disclosure__res-1';
+    const secondDisclosureId = '__long_entities_disclosure__res-2';
+    const entitiesToggle = getByRole('checkbox', { name: 'Entities charts' });
+
+    await waitFor(() => expect(entitiesToggle).toBeChecked());
+    act(() => capturedOnExpandChange?.(firstDisclosureId, false));
+
+    await waitFor(() => expect(entitiesToggle).toHaveAttribute('aria-checked', 'mixed'));
+    expect((entitiesToggle as HTMLInputElement).indeterminate).toBe(true);
+
+    await userEvent.click(entitiesToggle);
+    await waitFor(() => {
+      expect(capturedExpandedIds).toContain(firstDisclosureId);
+      expect(capturedExpandedIds).toContain(secondDisclosureId);
+    });
+  });
+
   it('can render without any subrows', () => {
     renderWithQuery(
       <JotaiProvider store={createStore()}>
@@ -735,13 +809,13 @@ describe('QueryResourceTree — resource filtering', () => {
     );
 
     await waitFor(() => expect(capturedTreeData[0]?.id).toBe(ENGINE_ID));
-    expect(capturedExpandedIds).not.toContain(RESOURCE_ID);
-
-    act(() => capturedOnExpandChange?.(RESOURCE_ID, true));
-    await waitFor(() => expect(capturedExpandedIds).toContain(RESOURCE_ID));
+    expect(capturedExpandedIds).toContain(RESOURCE_ID);
 
     act(() => capturedOnExpandChange?.(RESOURCE_ID, false));
     await waitFor(() => expect(capturedExpandedIds).not.toContain(RESOURCE_ID));
+
+    act(() => capturedOnExpandChange?.(RESOURCE_ID, true));
+    await waitFor(() => expect(capturedExpandedIds).toContain(RESOURCE_ID));
   });
 
   it('shows the whole tree and highlights matches when Show All is selected', async () => {
