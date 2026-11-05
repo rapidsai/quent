@@ -9,6 +9,8 @@ export interface ResourceTimelineSubRow {
   id: string;
   /** Short name of the row, as plain text. */
   label: string;
+  /** Row type for the always-visible disclosure that owns the chart row. */
+  disclosureRowType: string;
   injectRows: (rootItem: TreeTableItem) => TreeTableItem;
   matches: (item: TimelineTreeItem) => boolean;
   renderLabel: (item: TimelineTreeItem, description?: ReactNode) => ReactNode;
@@ -41,6 +43,18 @@ export function createSyntheticSubRow(id: string, type: string): TreeTableItem {
   return { id, type, entity: {} as TreeTableItem['entity'] };
 }
 
+export function createTimelineSubRowDisclosure(
+  ownerId: string,
+  rowType: string,
+  chartRow: TreeTableItem
+): TreeTableItem {
+  const idType = rowType.replace(/-/g, '_');
+  return {
+    ...createSyntheticSubRow(`__${idType}_disclosure__${ownerId}`, `${rowType}-disclosure`),
+    children: [chartRow],
+  };
+}
+
 /** Recursively rewrite each node's children; used to splice synthetic subrows into the tree. */
 export function mapTreeItems(
   item: TreeTableItem,
@@ -64,14 +78,16 @@ export function createTimelineSubRow({
   label: string;
   renderTimeline: ResourceTimelineSubRow['renderTimeline'];
 }): ResourceTimelineSubRow {
+  const disclosureRowType = `${rowType}-disclosure`;
   return {
     id,
     label,
+    disclosureRowType,
     injectRows,
-    matches: item => item.type === rowType,
+    matches: item => item.type === rowType || item.type === disclosureRowType,
     renderLabel: (_item, description) => (
       <TimelineSubRowLabel description={description}>{label}</TimelineSubRowLabel>
     ),
-    renderTimeline,
+    renderTimeline: item => (item.type === disclosureRowType ? null : renderTimeline(item)),
   };
 }

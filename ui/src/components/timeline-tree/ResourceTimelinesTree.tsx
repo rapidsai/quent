@@ -240,8 +240,10 @@ export function useResourceTimelinesTreeModel({
   );
   // The root group is already summarized by the overview bar, so it has no pin button.
   const isPinnable = useCallback(
-    (item: TimelineTreeItem) => item.id !== rootItem.id,
-    [rootItem.id]
+    (item: TimelineTreeItem) =>
+      item.id !== rootItem.id &&
+      !subRows.some(subRow => subRow.disclosureRowType === item.type),
+    [rootItem.id, subRows]
   );
   // Matches the user can pin with "pin all": the matching resource rows, in tree order, then the
   // sibling tree's matches. Entities and Operators rows are left out for now, and so is the root.
@@ -249,8 +251,7 @@ export function useResourceTimelinesTreeModel({
     const { directMatchIds } = resourceFilterResult;
     const ids: string[] = [];
     const visit = (item: TimelineTreeItem) => {
-      const isSubRow =
-        item.type === LONG_ENTITIES_ROW_TYPE || item.type === OPERATOR_TIMELINE_ROW_TYPE;
+      const isSubRow = subRows.some(subRow => subRow.matches(item));
       if (!isSubRow && directMatchIds.has(item.id) && item.id !== rootItem.id) {
         ids.push(item.id);
       }
@@ -258,7 +259,7 @@ export function useResourceTimelinesTreeModel({
     };
     (trees as TimelineTreeItem[]).forEach(visit);
     return [...ids, ...(siblingPinning?.matchIds ?? [])];
-  }, [resourceFilterResult, rootItem.id, siblingPinning?.matchIds, trees]);
+  }, [resourceFilterResult, rootItem.id, siblingPinning?.matchIds, subRows, trees]);
   const getRowName = useCallback(
     (item: TimelineTreeItem) =>
       subRows.find(subRow => subRow.matches(item))?.label ??

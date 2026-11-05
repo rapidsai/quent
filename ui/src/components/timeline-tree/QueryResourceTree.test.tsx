@@ -273,6 +273,7 @@ const CUSTOM_SUB_ROW_TYPE = 'custom-sub-row';
 const customSubRow: ResourceTimelineSubRow = {
   id: 'custom',
   label: 'Custom',
+  disclosureRowType: 'custom-sub-row-disclosure',
   injectRows: rootItem => ({
     ...rootItem,
     children: [
@@ -694,7 +695,7 @@ describe('QueryResourceTree — resource filtering', () => {
     );
     await waitFor(() => expect(capturedTreeData[0]?.id).toBe(RESOURCE_ID));
     expect(capturedTreeData[0]?.id).toBe(RESOURCE_ID);
-    expect(capturedTreeData[0]?.children).toEqual([]);
+    expect(capturedTreeData[0]?.children?.[0]?.type).toBe('long-entities-disclosure');
     expect(collectRowTypes(capturedTreeData)).toContain(LONG_ENTITIES_ROW_TYPE);
     expect(capturedHighlightedIds).not.toContain(RESOURCE_ID);
   });
