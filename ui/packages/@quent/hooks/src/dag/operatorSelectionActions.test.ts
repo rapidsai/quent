@@ -5,6 +5,7 @@ import { createStore } from 'jotai';
 import { describe, expect, it } from 'vitest';
 import { operatorSelectionActionAtom, operatorSelectionAtom } from '../atoms/dag';
 import { selectedOperatorsDataAtom } from '../atoms/dagControls';
+import { dagDetailAttentionAtom } from '../atoms/dagDetailAttention';
 
 const scanData = {
   nodeId: 'scan',
@@ -26,6 +27,43 @@ const groupedJoinData = {
 };
 
 describe('operator selection actions', () => {
+  it('emits the requested attention behavior for operator additions', () => {
+    const store = createStore();
+    store.set(operatorSelectionActionAtom, {
+      type: 'add',
+      selectionId: 'scan',
+      label: 'Scan',
+      operatorIds: ['scan'],
+      selectedData: scanData,
+    });
+    expect(store.get(dagDetailAttentionAtom)).toMatchObject({
+      kind: 'operator',
+      id: 'scan',
+      activateTab: true,
+    });
+
+    store.set(operatorSelectionActionAtom, {
+      type: 'add',
+      selectionId: 'join',
+      label: 'Join',
+      operatorIds: ['join'],
+      selectedData: joinData,
+      detailAttention: 'preserve',
+    });
+    expect(store.get(dagDetailAttentionAtom)).toMatchObject({
+      kind: 'operator',
+      id: 'join',
+      activateTab: false,
+    });
+
+    store.set(operatorSelectionActionAtom, {
+      type: 'replace',
+      selections: [{ selectionId: 'scan', label: 'Scan', operatorIds: ['scan'] }],
+      detailAttention: 'none',
+    });
+    expect(store.get(dagDetailAttentionAtom)).toMatchObject({ id: 'join' });
+  });
+
   it('updates filter and selected operator data together', () => {
     const store = createStore();
     const logicalScanData = {

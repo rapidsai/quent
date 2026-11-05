@@ -23,16 +23,9 @@ export interface PipeDetailsBlockProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   actions?: ReactNode;
-  onOperatorFilterAdded?: () => void;
 }
 
-export function PipeDetailsBlock({
-  pipe,
-  open,
-  onOpenChange,
-  actions,
-  onOperatorFilterAdded,
-}: PipeDetailsBlockProps) {
+export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDetailsBlockProps) {
   const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
   const operatorSelection = useOperatorSelection();
@@ -55,13 +48,13 @@ export function PipeDetailsBlock({
           updateOperatorSelection({ type: 'remove', selectionId });
         }
       } else {
-        onOperatorFilterAdded?.();
         updateOperatorSelection({
           type: 'add',
           selectionId: selection.selectionId,
           label: selection.label,
           operatorIds: selection.operatorIds,
           selectedData: selection.selectedData,
+          detailAttention: 'preserve',
         });
       }
     }

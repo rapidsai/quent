@@ -15,6 +15,7 @@ import {
   upsertSelectedOperatorData,
 } from '../dag/selectedOperatorData';
 import { selectedOperatorsDataAtom } from './dagControls';
+import { requestDagDetailAttentionAtom } from './dagDetailAttention';
 
 export type OperatorSelectionAction =
   | {
@@ -23,6 +24,7 @@ export type OperatorSelectionAction =
       label: string;
       operatorIds: Iterable<string>;
       selectedData: SelectedOperatorGroupData;
+      detailAttention?: 'show' | 'preserve' | 'none';
     }
   | { type: 'remove'; selectionId: string }
   | {
@@ -33,6 +35,7 @@ export type OperatorSelectionAction =
         operatorIds: Iterable<string>;
         selectedData?: SelectedOperatorGroupData;
       }>;
+      detailAttention?: 'show' | 'preserve' | 'none';
     }
   | {
       type: 'hydrate';
@@ -123,6 +126,21 @@ export const operatorSelectionActionAtom = atom(
 
     set(operatorSelectionAtom, nextSelection);
     set(selectedOperatorsDataAtom, nextData);
+    if ((action.type === 'add' || action.type === 'replace') && action.detailAttention !== 'none') {
+      let addedSelectionId: string | undefined;
+      for (const selectionId of nextSelection.selections.keys()) {
+        if (!currentSelection.selections.has(selectionId)) {
+          addedSelectionId = selectionId;
+        }
+      }
+      if (addedSelectionId) {
+        set(requestDagDetailAttentionAtom, {
+          kind: 'operator',
+          id: addedSelectionId,
+          activateTab: action.detailAttention !== 'preserve',
+        });
+      }
+    }
     return getSelectedOperatorIds(nextSelection);
   }
 );

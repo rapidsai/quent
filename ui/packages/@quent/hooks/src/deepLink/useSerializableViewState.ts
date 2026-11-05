@@ -182,6 +182,7 @@ export function useSerializableViewState({
         store.set(operatorSelectionActionAtom, {
           type: 'replace',
           selections: resolveSelectedOperatorSelections(operators, operatorIds),
+          detailAttention: 'none',
         });
       }
 

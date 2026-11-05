@@ -16,6 +16,7 @@ import {
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
+import { dagDetailAttentionAtom } from '../atoms/dagDetailAttention';
 import { useSyncDisplayedPipes } from './usePipeInspection';
 import type { DAGEdge, DAGNode } from '@quent/utils';
 
@@ -181,6 +182,24 @@ describe('inspected pipe actions', () => {
   const first = { sourcePortId: 'out-1', targetPortId: 'in-1' };
   const second = { sourcePortId: 'out-2', targetPortId: 'in-2' };
 
+  it('requests attention for the selected displayed pipe', () => {
+    const store = createStore();
+    const view = render(
+      <Provider store={store}>
+        <Sync edges={[one]} />
+      </Provider>
+    );
+
+    act(() => store.set(addInspectedPipeAtom, first));
+
+    expect(store.get(dagDetailAttentionAtom)).toMatchObject({
+      kind: 'pipe',
+      id: 'one',
+      activateTab: true,
+    });
+    view.unmount();
+  });
+
   it('toggling adds pipes in selection order and removes only the toggled pipe', () => {
     const store = createStore();
     store.set(toggleInspectedPipeAtom, first);
@@ -228,7 +247,7 @@ describe('inspected pipe actions', () => {
     expect(store.get(inspectedPipeRefsAtom)).toEqual([first, { ...first, targetPortId: 'in-2' }]);
   });
 
-  it('replaces pinned pipes and de-duplicates refs', () => {
+  it('replaces selected pipes and de-duplicates refs', () => {
     const store = createStore();
     const view = render(
       <Provider store={store}>

@@ -3,6 +3,7 @@
 
 import { atom } from 'jotai';
 import { isSamePipe, type DAGEdge, type DAGNode, type PipeRef } from '@quent/utils';
+import { requestDagDetailAttentionAtom } from './dagDetailAttention';
 
 /** Inspected pipes in selection order. Independent of the canonical operator filter. */
 export const inspectedPipeRefsAtom = atom<readonly PipeRef[]>([]);
@@ -24,24 +25,54 @@ export const addInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
   const refs = get(inspectedPipeRefsAtom);
   if (!refs.some(existing => isSamePipe(existing, ref))) {
     set(inspectedPipeRefsAtom, [...refs, ref]);
+    const pipe = get(displayedPipesAtom).find(edge => isSamePipe(edge, ref));
+    if (pipe) {
+      set(requestDagDetailAttentionAtom, {
+        kind: 'pipe',
+        id: pipe.id,
+        activateTab: true,
+      });
+    }
   }
 });
 /** Adds the pipe, or removes it when it is already inspected. */
 export const toggleInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
   const refs = get(inspectedPipeRefsAtom);
+  const selected = refs.some(existing => isSamePipe(existing, ref));
   set(
     inspectedPipeRefsAtom,
-    refs.some(existing => isSamePipe(existing, ref))
-      ? refs.filter(existing => !isSamePipe(existing, ref))
-      : [...refs, ref]
+    selected ? refs.filter(existing => !isSamePipe(existing, ref)) : [...refs, ref]
   );
+  const pipe = !selected && get(displayedPipesAtom).find(edge => isSamePipe(edge, ref));
+  if (pipe) {
+    set(requestDagDetailAttentionAtom, {
+      kind: 'pipe',
+      id: pipe.id,
+      activateTab: true,
+    });
+  }
 });
-/** Replaces every pinned pipe as one selection transaction. */
-export const replaceInspectedPipesAtom = atom(null, (_get, set, refs: readonly PipeRef[]) => {
+/** Replaces every selected pipe as one transaction. */
+export const replaceInspectedPipesAtom = atom(null, (get, set, refs: readonly PipeRef[]) => {
+  const current = get(inspectedPipeRefsAtom);
   const unique = refs.filter(
     (ref, index) => refs.findIndex(candidate => isSamePipe(candidate, ref)) === index
   );
   set(inspectedPipeRefsAtom, unique);
+  let addedRef: PipeRef | undefined;
+  for (const ref of unique) {
+    if (!current.some(existing => isSamePipe(existing, ref))) {
+      addedRef = ref;
+    }
+  }
+  const pipe = addedRef && get(displayedPipesAtom).find(edge => isSamePipe(edge, addedRef));
+  if (pipe) {
+    set(requestDagDetailAttentionAtom, {
+      kind: 'pipe',
+      id: pipe.id,
+      activateTab: true,
+    });
+  }
 });
 /** Removes the pipe from the inspected pipes. Does nothing when it is not inspected. */
 export const removeInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {

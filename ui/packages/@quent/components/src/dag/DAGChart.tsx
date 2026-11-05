@@ -533,6 +533,7 @@ const FlowLayout = ({
             operatorIds: new Set([operatorId]),
           })),
         ],
+        detailAttention: 'none',
       });
       return;
     }

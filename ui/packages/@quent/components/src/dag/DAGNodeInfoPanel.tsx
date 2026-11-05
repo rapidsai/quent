@@ -1,13 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
   useDataFlowEnabled,
   useDataFlowFrame,
   useDataFlowIsPlaying,
   useDataFlowMeta,
+  useClearDagDetailAttention,
+  useDagDetailAttention,
   useDisplayedOperatorDetails,
   useInspectedPipes,
   useInspectedPipeNodes,
@@ -26,10 +28,6 @@ import { thinScrollbarClass } from '../ui/thin-scroll';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 type DetailsTab = 'stats' | 'pipes' | 'data-flow';
-type DetailAttention = {
-  kind: 'operator' | 'pipe';
-  id: string;
-};
 
 function scrollToDetailEntry(entry: HTMLElement) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -39,14 +37,35 @@ function scrollToDetailEntry(entry: HTMLElement) {
   });
 }
 
-function latestAddedId(current: ReadonlySet<string>, previous: ReadonlySet<string>) {
-  let latest: string | undefined;
-  for (const id of current) {
-    if (!previous.has(id)) {
-      latest = id;
+function DetailAttentionEntry({
+  kind,
+  id,
+  testId,
+  className,
+  children,
+}: {
+  kind: 'operator' | 'pipe';
+  id: string;
+  testId: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const attention = useDagDetailAttention();
+  const clearAttention = useClearDagDetailAttention();
+
+  useLayoutEffect(() => {
+    if (attention?.activateTab && attention.kind === kind && attention.id === id && ref.current) {
+      scrollToDetailEntry(ref.current);
+      clearAttention(attention);
     }
-  }
-  return latest;
+  }, [attention, clearAttention, id, kind]);
+
+  return (
+    <div ref={ref} data-testid={testId} className={className}>
+      {children}
+    </div>
+  );
 }
 
 export const DAGNodeInfoPanel = ({
@@ -71,6 +90,8 @@ export const DAGNodeInfoPanel = ({
   const isPlaying = useDataFlowIsPlaying();
   const dataFlowMeta = useDataFlowMeta();
   const dataFlowFrame = useDataFlowFrame();
+  const detailAttention = useDagDetailAttention();
+  const clearDetailAttention = useClearDagDetailAttention();
   const [isExpanded, setIsExpanded] = useState(
     inspectedPipes.length > 0 || selectedOperators.length > 0
   );
@@ -81,12 +102,6 @@ export const DAGNodeInfoPanel = ({
   const statsContentRef = useRef<HTMLDivElement>(null);
   const pipesContentRef = useRef<HTMLDivElement>(null);
   const dataFlowContentRef = useRef<HTMLDivElement>(null);
-  const operatorEntryRefs = useRef(new Map<string, HTMLDivElement>());
-  const pipeEntryRefs = useRef(new Map<string, HTMLDivElement>());
-  const previousFilterIds = useRef(new Set(operatorSelection.selections.keys()));
-  const previousPipeIds = useRef(new Set(inspectedPipes.map(pipe => pipe.id)));
-  const [suppressNextOperatorAttention, setSuppressNextOperatorAttention] = useState(false);
-  const [detailAttention, setDetailAttention] = useState<DetailAttention | null>(null);
   const hasSelection = inspectedPipes.length > 0 || selectedOperators.length > 0;
   const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
   const inspectedPipeIdsKey = inspectedPipes.map(pipe => pipe.id).join('\0');
@@ -135,30 +150,11 @@ export const DAGNodeInfoPanel = ({
   }
 
   // Collapse per-operator sections as soon as the selected operators change.
-  // Selecting one more operator reveals the Operators tab.
   const [prevSelectedOperatorIdsKey, setPrevSelectedOperatorIdsKey] =
     useState(selectedOperatorIdsKey);
-  const [prevOperatorCount, setPrevOperatorCount] = useState(selectedOperators.length);
   if (selectedOperatorIdsKey !== prevSelectedOperatorIdsKey) {
     setPrevSelectedOperatorIdsKey(selectedOperatorIdsKey);
-    setPrevOperatorCount(selectedOperators.length);
     setClosedOperatorIds(new Set());
-    if (selectedOperators.length > prevOperatorCount && !suppressNextOperatorAttention) {
-      setActiveTab('stats');
-      setIsExpanded(true);
-    }
-  }
-
-  // Selecting one more pipe reveals the Pipes tab and expands the panel.
-  const [prevInspectedPipeIdsKey, setPrevInspectedPipeIdsKey] = useState(inspectedPipeIdsKey);
-  const [prevPipeCount, setPrevPipeCount] = useState(inspectedPipes.length);
-  if (inspectedPipeIdsKey !== prevInspectedPipeIdsKey) {
-    setPrevInspectedPipeIdsKey(inspectedPipeIdsKey);
-    setPrevPipeCount(inspectedPipes.length);
-    if (inspectedPipes.length > prevPipeCount) {
-      setActiveTab('pipes');
-      setIsExpanded(true);
-    }
   }
 
   // Jump to the data-flow tab as soon as it becomes available during playback
@@ -172,62 +168,16 @@ export const DAGNodeInfoPanel = ({
   }
 
   useLayoutEffect(() => {
-    const currentFilterIds = new Set(operatorSelection.selections.keys());
-    const currentPipeIds = new Set(inspectedPipes.map(pipe => pipe.id));
-    const filteredOperatorId = latestAddedId(currentFilterIds, previousFilterIds.current);
-    const pinnedPipeId = latestAddedId(currentPipeIds, previousPipeIds.current);
-
-    previousFilterIds.current = currentFilterIds;
-    previousPipeIds.current = currentPipeIds;
-    const suppressOperatorAttention =
-      suppressNextOperatorAttention && filteredOperatorId !== undefined;
-    if (suppressOperatorAttention) {
-      setSuppressNextOperatorAttention(false);
+    if (!detailAttention) {
+      return;
     }
-
-    const attention = pinnedPipeId
-      ? { kind: 'pipe' as const, id: pinnedPipeId }
-      : suppressOperatorAttention
-        ? null
-        : filteredOperatorId
-          ? { kind: 'operator' as const, id: filteredOperatorId }
-          : null;
-    if (!attention) {
+    if (!detailAttention.activateTab) {
+      clearDetailAttention(detailAttention);
       return;
     }
     setIsExpanded(true);
-    setActiveTab(attention.kind === 'pipe' ? 'pipes' : 'stats');
-    setDetailAttention(attention);
-  }, [inspectedPipes, operatorSelection.selections, suppressNextOperatorAttention]);
-
-  useLayoutEffect(() => {
-    if (!detailAttention || !isExpanded) {
-      return;
-    }
-    const tab = detailAttention.kind === 'pipe' ? 'pipes' : 'stats';
-    if (activeTab !== tab) {
-      return;
-    }
-    const element =
-      detailAttention.kind === 'pipe'
-        ? pipeEntryRefs.current.get(detailAttention.id)
-        : operatorEntryRefs.current.get(detailAttention.id);
-    if (!element) {
-      const frame = requestAnimationFrame(() => {
-        const mountedElement =
-          detailAttention.kind === 'pipe'
-            ? pipeEntryRefs.current.get(detailAttention.id)
-            : operatorEntryRefs.current.get(detailAttention.id);
-        if (mountedElement) {
-          scrollToDetailEntry(mountedElement);
-          setDetailAttention(null);
-        }
-      });
-      return () => cancelAnimationFrame(frame);
-    }
-    scrollToDetailEntry(element);
-    setDetailAttention(null);
-  }, [activeTab, detailAttention, inspectedPipeIdsKey, isExpanded, selectedOperatorIdsKey]);
+    setActiveTab(detailAttention.kind === 'pipe' ? 'pipes' : 'stats');
+  }, [clearDetailAttention, detailAttention]);
 
   const scrollClass = cn(
     'px-4 pb-2 overflow-auto',
@@ -257,16 +207,11 @@ export const DAGNodeInfoPanel = ({
         };
 
         return (
-          <div
+          <DetailAttentionEntry
             key={detail.selectionId}
-            ref={element => {
-              if (element) {
-                operatorEntryRefs.current.set(detail.selectionId, element);
-              } else {
-                operatorEntryRefs.current.delete(detail.selectionId);
-              }
-            }}
-            data-testid={`operator-detail-entry-${detail.selectionId}`}
+            kind="operator"
+            id={detail.selectionId}
+            testId={`operator-detail-entry-${detail.selectionId}`}
             className={cn(index > 0 && 'border-t pt-1.5 mt-1.5')}
           >
             <OperatorDetailsBlock
@@ -282,7 +227,7 @@ export const DAGNodeInfoPanel = ({
                 />
               }
             />
-          </div>
+          </DetailAttentionEntry>
         );
       })}
     </div>
@@ -291,25 +236,17 @@ export const DAGNodeInfoPanel = ({
   const pipesContent = showPipesTab ? (
     <div ref={pipesContentRef} className="flex flex-col gap-1 pt-1.5">
       {inspectedPipes.map((pipe, index) => (
-        <div
+        <DetailAttentionEntry
           key={pipe.id}
-          ref={element => {
-            if (element) {
-              pipeEntryRefs.current.set(pipe.id, element);
-            } else {
-              pipeEntryRefs.current.delete(pipe.id);
-            }
-          }}
-          data-testid={`pipe-detail-entry-${pipe.id}`}
+          kind="pipe"
+          id={pipe.id}
+          testId={`pipe-detail-entry-${pipe.id}`}
           className={cn(index > 0 && 'border-t pt-3 mt-3')}
         >
           <PipeDetailsBlock
             pipe={pipe}
             open={isOperatorOpen(pipe.id)}
             onOpenChange={open => setOperatorOpen(pipe.id, open)}
-            onOperatorFilterAdded={() => {
-              setSuppressNextOperatorAttention(true);
-            }}
             actions={
               <DetailItemActions
                 label={`pipe from ${inspectedPipeNodes.get(pipe.source)?.label ?? pipe.source} to ${inspectedPipeNodes.get(pipe.target)?.label ?? pipe.target}`}
@@ -324,7 +261,7 @@ export const DAGNodeInfoPanel = ({
               />
             }
           />
-        </div>
+        </DetailAttentionEntry>
       ))}
     </div>
   ) : null;
