@@ -4,28 +4,23 @@
 import { atom } from 'jotai';
 
 export interface DAGDetailAttentionRequest {
-  token: number;
   kind: 'operator' | 'pipe';
   id: string;
-  activateTab: boolean;
 }
 
 export const dagDetailAttentionAtom = atom<DAGDetailAttentionRequest | null>(null);
-const dagDetailAttentionTokenAtom = atom(0);
 
 export const requestDagDetailAttentionAtom = atom(
   null,
-  (get, set, request: Omit<DAGDetailAttentionRequest, 'token'>) => {
-    const token = get(dagDetailAttentionTokenAtom) + 1;
-    set(dagDetailAttentionTokenAtom, token);
-    set(dagDetailAttentionAtom, { ...request, token });
+  (_get, set, request: DAGDetailAttentionRequest) => {
+    set(dagDetailAttentionAtom, request);
   }
 );
 
 export const clearDagDetailAttentionAtom = atom(
   null,
   (get, set, request: DAGDetailAttentionRequest) => {
-    if (get(dagDetailAttentionAtom)?.token === request.token) {
+    if (get(dagDetailAttentionAtom) === request) {
       set(dagDetailAttentionAtom, null);
     }
   }

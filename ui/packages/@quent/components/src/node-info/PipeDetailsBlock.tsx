@@ -54,7 +54,7 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
           label: selection.label,
           operatorIds: selection.operatorIds,
           selectedData: selection.selectedData,
-          detailAttention: 'preserve',
+          detailAttention: 'none',
         });
       }
     }

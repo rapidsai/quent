@@ -30,7 +30,6 @@ export const addInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
       set(requestDagDetailAttentionAtom, {
         kind: 'pipe',
         id: pipe.id,
-        activateTab: true,
       });
     }
   }
@@ -48,38 +47,8 @@ export const toggleInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
     set(requestDagDetailAttentionAtom, {
       kind: 'pipe',
       id: pipe.id,
-      activateTab: true,
     });
   }
-});
-/** Replaces every selected pipe as one transaction. */
-export const replaceInspectedPipesAtom = atom(null, (get, set, refs: readonly PipeRef[]) => {
-  const current = get(inspectedPipeRefsAtom);
-  const unique = refs.filter(
-    (ref, index) => refs.findIndex(candidate => isSamePipe(candidate, ref)) === index
-  );
-  set(inspectedPipeRefsAtom, unique);
-  let addedRef: PipeRef | undefined;
-  for (const ref of unique) {
-    if (!current.some(existing => isSamePipe(existing, ref))) {
-      addedRef = ref;
-    }
-  }
-  const pipe = addedRef && get(displayedPipesAtom).find(edge => isSamePipe(edge, addedRef));
-  if (pipe) {
-    set(requestDagDetailAttentionAtom, {
-      kind: 'pipe',
-      id: pipe.id,
-      activateTab: true,
-    });
-  }
-});
-/** Removes the pipe from the inspected pipes. Does nothing when it is not inspected. */
-export const removeInspectedPipeAtom = atom(null, (get, set, ref: PipeRef) => {
-  set(
-    inspectedPipeRefsAtom,
-    get(inspectedPipeRefsAtom).filter(existing => !isSamePipe(existing, ref))
-  );
 });
 /** Deselects every inspected pipe. Operator selection is unaffected. */
 export const clearInspectedPipesAtom = atom(null, (_get, set) => {

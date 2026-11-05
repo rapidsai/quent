@@ -79,7 +79,6 @@ export interface SerializableViewState {
   selection: {
     planId: string;
     operatorNodeIds: string[];
-    operatorDetailsNodeIds?: string[];
     pipes?: readonly PipeRef[];
   };
   dag: SerializableDagControls;
@@ -91,7 +90,6 @@ export interface HydratableViewState {
   selection?: {
     planId?: string;
     operatorNodeIds?: readonly string[];
-    operatorDetailsNodeIds?: readonly string[];
     pipes?: readonly PipeRef[];
   };
   dag?: Partial<SerializableDagControls>;
@@ -171,17 +169,13 @@ export function useSerializableViewState({
       if (state.selection?.planId !== undefined) {
         store.set(selectedPlanIdAtom, state.selection.planId);
       }
-      if (
-        state.selection?.operatorNodeIds !== undefined ||
-        state.selection?.operatorDetailsNodeIds !== undefined
-      ) {
-        const operatorIds = new Set([
-          ...(state.selection.operatorNodeIds ?? []),
-          ...(state.selection.operatorDetailsNodeIds ?? []),
-        ]);
+      if (state.selection?.operatorNodeIds !== undefined) {
         store.set(operatorSelectionActionAtom, {
           type: 'replace',
-          selections: resolveSelectedOperatorSelections(operators, operatorIds),
+          selections: resolveSelectedOperatorSelections(
+            operators,
+            new Set(state.selection.operatorNodeIds)
+          ),
           detailAttention: 'none',
         });
       }

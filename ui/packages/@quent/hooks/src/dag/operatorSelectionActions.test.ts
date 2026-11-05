@@ -39,8 +39,8 @@ describe('operator selection actions', () => {
     expect(store.get(dagDetailAttentionAtom)).toMatchObject({
       kind: 'operator',
       id: 'scan',
-      activateTab: true,
     });
+    const attention = store.get(dagDetailAttentionAtom);
 
     store.set(operatorSelectionActionAtom, {
       type: 'add',
@@ -48,20 +48,16 @@ describe('operator selection actions', () => {
       label: 'Join',
       operatorIds: ['join'],
       selectedData: joinData,
-      detailAttention: 'preserve',
+      detailAttention: 'none',
     });
-    expect(store.get(dagDetailAttentionAtom)).toMatchObject({
-      kind: 'operator',
-      id: 'join',
-      activateTab: false,
-    });
+    expect(store.get(dagDetailAttentionAtom)).toBe(attention);
 
     store.set(operatorSelectionActionAtom, {
       type: 'replace',
       selections: [{ selectionId: 'scan', label: 'Scan', operatorIds: ['scan'] }],
       detailAttention: 'none',
     });
-    expect(store.get(dagDetailAttentionAtom)).toMatchObject({ id: 'join' });
+    expect(store.get(dagDetailAttentionAtom)).toBe(attention);
   });
 
   it('updates filter and selected operator data together', () => {

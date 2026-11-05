@@ -9,7 +9,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 interface DAGItemActionsProps {
   label: string;
   visible?: boolean;
-  divided?: boolean;
   className?: string;
   backgroundColor?: string;
   previewOpen?: boolean;
@@ -26,7 +25,6 @@ type ActionStyle = CSSProperties & {
 export function DAGItemActions({
   label,
   visible = false,
-  divided = true,
   className,
   backgroundColor = 'hsl(var(--primary))',
   previewOpen,
@@ -47,7 +45,6 @@ export function DAGItemActions({
       className={cn(
         'nodrag nopan flex w-full bg-card/95 opacity-0 shadow-sm backdrop-blur-sm transition-opacity pointer-events-none',
         'group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto',
-        divided && 'divide-x divide-border',
         visible && 'opacity-100 pointer-events-auto',
         className
       )}

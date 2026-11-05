@@ -443,7 +443,7 @@ describe('DeepLinkBoundary', () => {
   });
 
   it('migrates legacy operator detail IDs into operator filters', () => {
-    const encoded = encodeDeepLinkState({
+    const encoded = encodeRawState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
       timeline: { zoomRange: { start: 10, end: 40 } },
       selection: {
@@ -452,17 +452,13 @@ describe('DeepLinkBoundary', () => {
         operatorDetailsNodeIds: ['operator-a', 'operator-child'],
       },
     });
-    expect(encoded.ok).toBe(true);
-    if (!encoded.ok) {
-      return;
-    }
 
     render(
       <JotaiProvider>
         <DeepLinkBoundary
           {...BOUNDARY_PROPS}
           operators={DEEP_LINK_OPERATORS}
-          encodedState={encoded.value}
+          encodedState={encoded}
         >
           <SerializableStateProbe />
         </DeepLinkBoundary>

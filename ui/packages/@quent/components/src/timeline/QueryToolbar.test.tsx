@@ -173,7 +173,7 @@ describe('QueryToolbar', () => {
     expect(clear.compareDocumentPosition(operator) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
-  it('clears the full operator selection and pinned details', async () => {
+  it('clears the full operator selection and details', async () => {
     const user = userEvent.setup();
     render(
       <Provider>

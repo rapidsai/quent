@@ -7,27 +7,15 @@ import { DAGItemStatus } from './DAGItemStatus';
 
 describe('DAGItemStatus', () => {
   it('shows filter and pin statuses', () => {
-    const { rerender } = render(<DAGItemStatus label="Scan" filtered />);
+    const { rerender } = render(<DAGItemStatus label="Scan" status="filtered" />);
     const filtered = screen.getByRole('status', { name: 'Scan: filtered' });
     expect(filtered).toBeVisible();
     expect(filtered).toHaveClass('text-foreground');
     expect(filtered).not.toHaveClass('border', 'bg-card/90', 'shadow-sm');
     expect(filtered.querySelector('svg')).toHaveClass('lucide-filter', 'opacity-40');
 
-    rerender(<DAGItemStatus label="Pipe" pinned />);
+    rerender(<DAGItemStatus label="Pipe" status="pinned" />);
     const pinned = screen.getByRole('status', { name: 'Pipe: pinned' });
     expect(pinned.querySelector('svg')).toHaveClass('lucide-pin', 'opacity-40');
-
-    rerender(<DAGItemStatus label="Scan" pinned filtered />);
-    const combined = screen.getByRole('status', {
-      name: 'Scan: pinned and filtered',
-    });
-    expect(combined).toBeVisible();
-    expect(combined.querySelectorAll('svg')).toHaveLength(2);
-  });
-
-  it('renders nothing without an active state', () => {
-    const { container } = render(<DAGItemStatus label="Scan" />);
-    expect(container).toBeEmptyDOMElement();
   });
 });

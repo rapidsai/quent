@@ -61,10 +61,13 @@ import { DAGItemActions } from './DAGItemActions';
 import { DAGItemStatus } from './DAGItemStatus';
 import { activeDAGPreviewIdAtom } from './dagPreviewState';
 import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
-import { resolveSelectedOperatorsFromNodes } from './dagSelection';
+import {
+  getOperatorIds,
+  operatorSelectionFromNode,
+  resolveSelectedOperatorsFromNodes,
+} from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
 import { resolveDagHeatmap, resolveDagHighlightedNodeIds } from './dagInteraction';
-import { parseOperatorAttributes } from '../lib/queryBundle.utils';
 import {
   scaleColor,
   inferFieldFormatter,
@@ -72,10 +75,10 @@ import {
   toggleOperatorSelection,
   isSamePipe,
   type DAGEdge,
+  type DAGNode,
   type Operator,
   type StatisticField,
   type QuantitySpec,
-  type SelectedOperatorGroupData,
   normalizeScaleValue,
 } from '@quent/utils';
 
@@ -197,7 +200,7 @@ const VariableWidthEdge = ({
     hoveredEdgeId: hoveredPipeId ?? undefined,
     inspectedEdgeIds: inspectedPipeIds,
     edgeId: id,
-    selectedNodeIds: selectedOperatorIds,
+    selectedOperatorIds,
     highlightedNodeIds,
   });
   const isEdgeDimmed = (edgeDimmed && !isEmphasized) || dimFromInteraction;
@@ -373,7 +376,7 @@ const VariableWidthEdge = ({
               pointerEvents: 'none',
             }}
           >
-            <DAGItemStatus label={pipeLabel} pinned />
+            <DAGItemStatus label={pipeLabel} status="pinned" />
           </div>
         </EdgeLabelRenderer>
       )}
@@ -383,28 +386,9 @@ const VariableWidthEdge = ({
 
 const edgeTypes = {
   smoothstep: VariableWidthEdge,
-  default: VariableWidthEdge,
 };
 
-// Custom node types for different operations
 const nodeTypes = {
-  source: QueryPlanNode,
-  scan: QueryPlanNode,
-  join: QueryPlanNode,
-  joinlocal: QueryPlanNode,
-  joinpartition: QueryPlanNode,
-  filesystemscan: QueryPlanNode,
-  aggregate: QueryPlanNode,
-  exchange: QueryPlanNode,
-  output: QueryPlanNode,
-  stage: QueryPlanNode,
-  local: QueryPlanNode,
-  project: QueryPlanNode,
-  filter: QueryPlanNode,
-  sort: QueryPlanNode,
-  limit: QueryPlanNode,
-  union: QueryPlanNode,
-  other: QueryPlanNode,
   default: QueryPlanNode,
 };
 
@@ -413,34 +397,18 @@ interface DAGProps {
   height?: string;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
-  /** Controlled filtered operator IDs. */
-  selectedNodeIds?: string[];
-  /** Called when filtered operator IDs change. */
-  onSelectionChange?: (nodeIds: string[]) => void;
   /** Called when the empty chart background is clicked. */
   onBackgroundClick?: () => void;
   /** Complete operator hierarchy used to split grouped selections. */
   operators?: readonly Operator[];
 }
 
-function selectedOperatorDataFromFlowNode(
-  node: Node<QueryPlanNodeData>
-): SelectedOperatorGroupData {
+function dagNodeFromFlowNode(node: Node<QueryPlanNodeData>): DAGNode {
   return {
-    nodeId: node.id,
+    id: node.id,
     label: node.data.label,
-    operationType: node.data.operationType,
-    attributes: parseOperatorAttributes(node.data.metadata?.rawNode),
-    statistics: node.data.metadata?.aggregatedStatistics?.length
-      ? node.data.metadata.aggregatedStatistics
-      : (node.data.metadata?.operatorStatistics?.statistics ?? []),
-    relatedOperators: node.data.metadata?.relatedOperators?.map((operator, index) => ({
-      nodeId: operator.id,
-      label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
-      operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
-      attributes: parseOperatorAttributes(operator),
-      statistics: node.data.metadata?.relatedOperatorStatistics?.[index]?.statistics ?? [],
-    })),
+    type: node.data.operationType,
+    metadata: node.data.metadata,
   };
 }
 
@@ -449,16 +417,12 @@ const FlowLayout = ({
   containerRef,
   isDark,
   operators,
-  selectedNodeIds: controlledSelectedNodeIds,
-  onSelectionChange,
   onBackgroundClick,
 }: {
   data: DAGData;
   containerRef: RefObject<HTMLDivElement | null>;
   isDark: boolean;
   operators?: readonly Operator[];
-  selectedNodeIds?: string[];
-  onSelectionChange?: (nodeIds: string[]) => void;
   onBackgroundClick?: () => void;
 }) => {
   useSyncDisplayedPipes(data.edges, data.nodes);
@@ -515,33 +479,18 @@ const FlowLayout = ({
     return [...byId.values()];
   }, [data.nodes, operators]);
   const hydratedNodeIdsKey = useMemo(
-    () => [...(controlledSelectedNodeIds ?? selectedOperatorIds)].sort().join('\0'),
-    [controlledSelectedNodeIds, selectedOperatorIds]
+    () => [...selectedOperatorIds].sort().join('\0'),
+    [selectedOperatorIds]
   );
 
   useEffect(() => {
     const operatorIds = new Set(hydratedNodeIdsKey === '' ? [] : hydratedNodeIdsKey.split('\0'));
     const resolved = resolveSelectedOperatorsFromNodes(data.nodes, operatorIds);
-    if (controlledSelectedNodeIds !== undefined) {
-      updateOperatorSelection({
-        type: 'replace',
-        selections: [
-          ...resolved.selections,
-          ...[...resolved.unresolvedOperatorIds].map(operatorId => ({
-            selectionId: operatorId,
-            label: operatorId,
-            operatorIds: new Set([operatorId]),
-          })),
-        ],
-        detailAttention: 'none',
-      });
-      return;
-    }
     updateOperatorSelection({
       type: 'hydrate',
       selections: resolved.selections,
     });
-  }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
+  }, [data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
 
   const handleMoveStart = useCallback<OnMoveStart>(
     event => {
@@ -553,25 +502,28 @@ const FlowLayout = ({
     [setActivePreviewId]
   );
 
-  const getSelectionIds = useCallback((node: Node<QueryPlanNodeData>): string[] => {
-    const relatedOperatorIds = node.data.metadata?.relatedOperatorIds ?? [];
-    return relatedOperatorIds.length > 0 ? [...relatedOperatorIds, node.id] : [node.id];
-  }, []);
+  const getSelectionIds = useCallback(
+    (node: Node<QueryPlanNodeData>): string[] => [...getOperatorIds(dagNodeFromFlowNode(node))],
+    []
+  );
 
+  const nodeStatisticFields = useMemo(
+    () =>
+      data.nodes.flatMap(node => [
+        ...(node.metadata?.operatorStatistics?.fields ?? []),
+        ...(node.metadata?.relatedOperatorStatistics?.flatMap(statistics => statistics.fields) ??
+          []),
+      ]),
+    [data.nodes]
+  );
   const statisticFields = useMemo(
     () =>
       new Map(
-        [
-          ...data.nodes.flatMap(node => node.metadata?.operatorStatistics?.fields ?? []),
-          ...data.nodes.flatMap(
-            node =>
-              node.metadata?.relatedOperatorStatistics?.flatMap(statistics => statistics.fields) ??
-              []
-          ),
-          ...data.edges.flatMap(edge => edge.statisticFields ?? []),
-        ].map(field => [field.key, field] as const)
+        [...nodeStatisticFields, ...data.edges.flatMap(edge => edge.statisticFields ?? [])].map(
+          field => [field.key, field] as const
+        )
       ),
-    [data.nodes, data.edges]
+    [data.edges, nodeStatisticFields]
   );
 
   const statQuantitySpecs = useMemo((): Record<string, QuantitySpec> => {
@@ -579,23 +531,16 @@ const FlowLayout = ({
       return {};
     }
     const result: Record<string, QuantitySpec> = {};
-    for (const node of data.nodes) {
-      const fields = [
-        ...(node.metadata?.operatorStatistics?.fields ?? []),
-        ...(node.metadata?.relatedOperatorStatistics?.flatMap(statistics => statistics.fields) ??
-          []),
-      ];
-      for (const stat of fields) {
-        if (stat.quantity && !(stat.key in result)) {
-          const spec = data.quantitySpecs[stat.quantity];
-          if (spec) {
-            result[stat.key] = spec;
-          }
+    for (const stat of nodeStatisticFields) {
+      if (stat.quantity && !(stat.key in result)) {
+        const spec = data.quantitySpecs[stat.quantity];
+        if (spec) {
+          result[stat.key] = spec;
         }
       }
     }
     return result;
-  }, [data.nodes, data.quantitySpecs]);
+  }, [data.quantitySpecs, nodeStatisticFields]);
 
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
@@ -606,7 +551,7 @@ const FlowLayout = ({
     const flowNodes: Node<QueryPlanNodeData>[] = data.nodes.map(node => {
       return {
         id: node.id,
-        type: node.type,
+        type: 'default',
         data: {
           nodeId: node.id,
           label: node.label,
@@ -651,9 +596,8 @@ const FlowLayout = ({
 
   const toggleOperatorFilter = useCallback(
     (node: Node<QueryPlanNodeData>) => {
-      let nextSelectedIds: ReadonlySet<string>;
       if (selectedOperatorIds.has(node.id)) {
-        nextSelectedIds = updateOperatorSelection({
+        updateOperatorSelection({
           type: 'replace',
           selections: toggleOperatorSelection(
             hierarchyOperators,
@@ -663,24 +607,14 @@ const FlowLayout = ({
           ),
         });
       } else {
-        nextSelectedIds = updateOperatorSelection({
+        const selection = operatorSelectionFromNode(dagNodeFromFlowNode(node));
+        updateOperatorSelection({
           type: 'add',
-          selectionId: node.id,
-          label: node.data.label,
-          operatorIds: getSelectionIds(node),
-          selectedData: selectedOperatorDataFromFlowNode(node),
+          ...selection,
         });
       }
-      onSelectionChange?.([...nextSelectedIds]);
     },
-    [
-      getSelectionIds,
-      hierarchyOperators,
-      onSelectionChange,
-      operatorSelection.selections,
-      selectedOperatorIds,
-      updateOperatorSelection,
-    ]
+    [hierarchyOperators, operatorSelection.selections, selectedOperatorIds, updateOperatorSelection]
   );
 
   const handleNodeClick = useCallback(
@@ -820,7 +754,7 @@ const FlowLayout = ({
           highlightedNodeIds,
           actions: {
             filtered: getSelectionIds(node).every(id => selectedOperatorIds.has(id)),
-            details: selectedOperatorDataFromFlowNode(node),
+            details: operatorSelectionFromNode(dagNodeFromFlowNode(node)).selectedData,
           },
         },
       })),
@@ -880,14 +814,12 @@ const FlowLayout = ({
   );
 };
 
-/** ReactFlow-based DAG visualization with ELK layout, edge styling, and node selection. */
+/** React Flow DAG visualization with automatic layout, edge styling, and operator filtering. */
 export const DAGChart = ({
   data,
   height = '100%',
   isDark,
   operators,
-  selectedNodeIds,
-  onSelectionChange,
   onBackgroundClick,
 }: DAGProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -899,8 +831,6 @@ export const DAGChart = ({
           containerRef={containerRef}
           isDark={isDark}
           operators={operators}
-          selectedNodeIds={selectedNodeIds}
-          onSelectionChange={onSelectionChange}
           onBackgroundClick={onBackgroundClick}
         />
       </ReactFlowProvider>

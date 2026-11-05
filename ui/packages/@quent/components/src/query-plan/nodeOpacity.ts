@@ -7,7 +7,6 @@ export function getNodeOpacityClass({
   highlightedNodeIds,
   operatorId,
   isDimmed,
-  isSelected,
   isFiltered,
 }: {
   /** Whether a stat column is currently being hovered in the pivot table (or DAG). */
@@ -21,15 +20,13 @@ export function getNodeOpacityClass({
   highlightedNodeIds: ReadonlySet<string> | null;
   operatorId: string;
   isDimmed: boolean;
-  isSelected: boolean;
   isFiltered: boolean;
 }): string {
-  const isActive = isSelected || isFiltered;
   if (isHoveredStatActive) {
-    return hasHoveredValue || isActive ? 'opacity-100' : 'opacity-20';
+    return hasHoveredValue || isFiltered ? 'opacity-100' : 'opacity-20';
   }
   if (highlightedNodeIds !== null && highlightedNodeIds.size > 0) {
-    return highlightedNodeIds.has(operatorId) || isActive ? 'opacity-100' : 'opacity-35';
+    return highlightedNodeIds.has(operatorId) || isFiltered ? 'opacity-100' : 'opacity-35';
   }
   if (isDimmed) {
     return 'opacity-35';

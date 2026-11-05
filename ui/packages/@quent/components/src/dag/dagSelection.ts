@@ -21,12 +21,16 @@ export interface ResolvedOperatorSelections {
   unresolvedOperatorIds: ReadonlySet<string>;
 }
 
-function getOperatorIds(node: DAGNode): Set<string> {
+export function getRelatedOperatorIds(node: DAGNode): readonly string[] {
   const metadata = node.metadata as QueryPlanNodeData['metadata'];
-  return new Set([node.id, ...(metadata?.relatedOperatorIds ?? [])]);
+  return metadata?.relatedOperatorIds ?? [];
 }
 
-function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
+export function getOperatorIds(node: DAGNode): Set<string> {
+  return new Set([node.id, ...getRelatedOperatorIds(node)]);
+}
+
+export function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
   const metadata = node.metadata as QueryPlanNodeData['metadata'];
   return {
     nodeId: node.id,

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
   useDataFlowEnabled,
@@ -54,7 +54,7 @@ function DetailAttentionEntry({
   const clearAttention = useClearDagDetailAttention();
 
   useLayoutEffect(() => {
-    if (attention?.activateTab && attention.kind === kind && attention.id === id && ref.current) {
+    if (attention?.kind === kind && attention.id === id && ref.current) {
       scrollToDetailEntry(ref.current);
       clearAttention(attention);
     }
@@ -71,12 +71,10 @@ export const DAGNodeInfoPanel = ({
   quantitySpecs,
   fillHeight = false,
   onExpandedChange,
-  onPreferredHeightChange,
 }: {
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
   fillHeight?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
-  onPreferredHeightChange?: (height: number) => void;
 }) => {
   const operatorDetails = useDisplayedOperatorDetails();
   const inspectedPipes = useInspectedPipes();
@@ -89,20 +87,15 @@ export const DAGNodeInfoPanel = ({
   const dataFlowMeta = useDataFlowMeta();
   const dataFlowFrame = useDataFlowFrame();
   const detailAttention = useDagDetailAttention();
-  const clearDetailAttention = useClearDagDetailAttention();
   const [isExpanded, setIsExpanded] = useState(
     inspectedPipes.length > 0 || selectedOperators.length > 0
   );
   const [requestedTab, setActiveTab] = useState<DetailsTab>('stats');
   const [closedOperatorIds, setClosedOperatorIds] = useState<Set<string>>(() => new Set());
-  const headerRef = useRef<HTMLDivElement>(null);
-  const tabsListRef = useRef<HTMLDivElement>(null);
-  const statsContentRef = useRef<HTMLDivElement>(null);
-  const pipesContentRef = useRef<HTMLDivElement>(null);
-  const dataFlowContentRef = useRef<HTMLDivElement>(null);
+  const [handledDetailAttention, setHandledDetailAttention] =
+    useState<typeof detailAttention>(null);
   const hasSelection = inspectedPipes.length > 0 || selectedOperators.length > 0;
   const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
-  const inspectedPipeIdsKey = inspectedPipes.map(pipe => pipe.id).join('\0');
   // Notify the containing resizable panel after committing local expansion state.
   useLayoutEffect(() => {
     onExpandedChange?.(isExpanded);
@@ -165,17 +158,11 @@ export const DAGNodeInfoPanel = ({
     }
   }
 
-  useLayoutEffect(() => {
-    if (!detailAttention) {
-      return;
-    }
-    if (!detailAttention.activateTab) {
-      clearDetailAttention(detailAttention);
-      return;
-    }
+  if (detailAttention && detailAttention !== handledDetailAttention) {
+    setHandledDetailAttention(detailAttention);
     setIsExpanded(true);
     setActiveTab(detailAttention.kind === 'pipe' ? 'pipes' : 'stats');
-  }, [clearDetailAttention, detailAttention]);
+  }
 
   const scrollClass = cn(
     'px-4 pb-2 overflow-auto',
@@ -184,7 +171,7 @@ export const DAGNodeInfoPanel = ({
   );
 
   const statsContent = showStatsTab ? (
-    <div ref={statsContentRef} className="flex flex-col gap-1 pt-1.5">
+    <div className="flex flex-col gap-1 pt-1.5">
       {operatorDetails.map((detail, index) => (
         <DetailAttentionEntry
           key={detail.selectionId}
@@ -217,7 +204,7 @@ export const DAGNodeInfoPanel = ({
   ) : null;
 
   const pipesContent = showPipesTab ? (
-    <div ref={pipesContentRef} className="flex flex-col gap-1 pt-1.5">
+    <div className="flex flex-col gap-1 pt-1.5">
       {inspectedPipes.map((pipe, index) => (
         <DetailAttentionEntry
           key={pipe.id}
@@ -251,7 +238,7 @@ export const DAGNodeInfoPanel = ({
 
   const dataFlowContent =
     dataFlowMeta && dataFlowFrame ? (
-      <div ref={dataFlowContentRef} className="flex flex-col">
+      <div className="flex flex-col">
         {selectedOperators.map((operator, index) => (
           <div key={operator.nodeId} className={index > 0 ? 'border-t pt-1.5 mt-1.5' : ''}>
             <OperatorDataFlowBlock
@@ -265,58 +252,10 @@ export const DAGNodeInfoPanel = ({
         ))}
       </div>
     ) : (
-      <div ref={dataFlowContentRef}>
+      <div>
         <p className="pt-6 text-xs text-muted-foreground text-center">No tasks at this bin</p>
       </div>
     );
-
-  const activeContentRef = useCallback(() => {
-    switch (activeTab) {
-      case 'pipes':
-        return pipesContentRef.current;
-      case 'data-flow':
-        return dataFlowContentRef.current;
-      default:
-        return statsContentRef.current;
-    }
-  }, [activeTab]);
-
-  const measurePreferredHeight = useCallback(() => {
-    if (!onPreferredHeightChange || !isExpanded) {
-      return;
-    }
-    const content = activeContentRef();
-    const headerHeight = headerRef.current?.offsetHeight ?? 0;
-    const tabsHeight = hasTabs ? (tabsListRef.current?.offsetHeight ?? 0) : 0;
-    const contentHeight = content?.scrollHeight ?? 0;
-    if (headerHeight === 0 || contentHeight === 0 || (hasTabs && tabsHeight === 0)) {
-      return;
-    }
-    const height = headerHeight + tabsHeight + contentHeight + 10;
-    onPreferredHeightChange(height);
-  }, [activeContentRef, hasTabs, isExpanded, onPreferredHeightChange]);
-
-  useLayoutEffect(() => {
-    if (!onPreferredHeightChange) {
-      return;
-    }
-    measurePreferredHeight();
-    const content = activeContentRef();
-    if (!content || typeof ResizeObserver === 'undefined') {
-      return;
-    }
-    const observer = new ResizeObserver(measurePreferredHeight);
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, [
-    activeContentRef,
-    closedOperatorIds,
-    dataFlowFrame,
-    inspectedPipeIdsKey,
-    measurePreferredHeight,
-    onPreferredHeightChange,
-    selectedOperatorIdsKey,
-  ]);
 
   return (
     <div
@@ -325,10 +264,7 @@ export const DAGNodeInfoPanel = ({
         fillHeight && 'flex h-full min-h-0 flex-col overflow-hidden'
       )}
     >
-      <div
-        ref={headerRef}
-        className="flex shrink-0 items-center justify-between px-4 py-1.5 min-w-0"
-      >
+      <div className="flex shrink-0 items-center justify-between px-4 py-1.5 min-w-0">
         <div className="flex items-center gap-2 min-w-0 overflow-hidden">
           <span className="text-xs text-muted-foreground font-medium flex-shrink-0">Details</span>
         </div>
@@ -359,7 +295,7 @@ export const DAGNodeInfoPanel = ({
               fillHeight ? 'min-h-0 flex-1 overflow-hidden' : 'overflow-visible'
             )}
           >
-            <TabsList ref={tabsListRef} className="h-7 py-0 px-1 rounded-none">
+            <TabsList className="h-7 py-0 px-1 rounded-none">
               {showStatsTab && (
                 <TabsTrigger value="stats" className="text-xs px-2 py-0.5">
                   Operators

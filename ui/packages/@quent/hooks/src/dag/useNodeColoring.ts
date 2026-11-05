@@ -20,8 +20,6 @@ interface NodeColoringResult {
   fieldDimmed: boolean;
   /** True when this node should be visually de-emphasized (no data or selection excludes it) */
   isDimmed: boolean;
-  /** True when this node is in the active selection set */
-  isSelected: boolean;
   /** True when this node is included by the canonical operator filter. */
   isFiltered: boolean;
   /** The currently active color field name, or null */
@@ -58,7 +56,6 @@ export function useNodeColoring(
   const hasHoveredPipe = useAtomValue(hoveredPipeIdAtom) !== null;
 
   const isFiltered = isOperatorGroupSelected(selectedOperatorIds, operatorId, relatedOperatorIds);
-  const isSelected = isFiltered;
 
   const { fieldColor, fieldDimmed } = useMemo(() => {
     if (!nodeColoring) {
@@ -82,7 +79,7 @@ export function useNodeColoring(
   // selecting an operator does. The pipe's endpoint operators get no special treatment.
   const hasFilter = selectedOperatorIds.size > 0;
   const hasSelection = hasFilter || hasInspectedPipes || hasHoveredPipe;
-  const isDimmed = (fieldDimmed || hasSelection) && !isSelected;
+  const isDimmed = (fieldDimmed || hasSelection) && !isFiltered;
 
-  return { fieldColor, fieldDimmed, isDimmed, isSelected, isFiltered, colorField };
+  return { fieldColor, fieldDimmed, isDimmed, isFiltered, colorField };
 }

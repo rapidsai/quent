@@ -75,7 +75,7 @@ describe('useNodeColoring with pipes', () => {
     expect(render('scan', store).result.current.isDimmed).toBe(false);
     store.set(inspectedPipeRefsAtom, [{ sourcePortId: 'out', targetPortId: 'in' }]);
     expect(render('scan', store).result.current.isDimmed).toBe(true);
-    expect(render('scan', store).result.current.isSelected).toBe(false);
+    expect(render('scan', store).result.current.isFiltered).toBe(false);
   });
 
   it('dims every unselected operator while a pipe is hovered', () => {
@@ -102,12 +102,10 @@ describe('useNodeColoring with pipes', () => {
     });
     expect(render('filtered', store).result.current).toMatchObject({
       isFiltered: true,
-      isSelected: true,
       isDimmed: false,
     });
     expect(render('other', store).result.current).toMatchObject({
       isFiltered: false,
-      isSelected: false,
       isDimmed: true,
     });
   });

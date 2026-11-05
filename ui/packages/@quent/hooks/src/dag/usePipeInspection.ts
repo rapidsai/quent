@@ -14,7 +14,6 @@ import {
   inspectedPipeRefsAtom,
   inspectedPipesAtom,
   inspectedPipeSnapshotsAtom,
-  replaceInspectedPipesAtom,
   type InspectedPipeSnapshot,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
@@ -22,12 +21,10 @@ import {
 export const useInspectedPipes = () => useAtomValue(inspectedPipesAtom);
 export const useAddInspectedPipe = () => useSetAtom(addInspectedPipeAtom);
 export const useToggleInspectedPipe = () => useSetAtom(toggleInspectedPipeAtom);
-export const useReplaceInspectedPipes = () => useSetAtom(replaceInspectedPipesAtom);
 export const useClearInspectedPipes = () => useSetAtom(clearInspectedPipesAtom);
 
 export const useInspectedPipeNodes = () => useAtomValue(inspectedPipeNodesAtom);
 export const useDisplayedPipes = () => useAtomValue(displayedPipesAtom);
-export const useDisplayedDagNodes = () => useAtomValue(displayedDagNodesAtom);
 export const useHoveredPipeId = () => useAtomValue(hoveredPipeIdAtom);
 export const useSetHoveredPipeId = () => useSetAtom(hoveredPipeIdAtom);
 const EMPTY_NODES: readonly DAGNode[] = [];

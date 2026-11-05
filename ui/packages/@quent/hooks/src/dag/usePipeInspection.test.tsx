@@ -11,8 +11,6 @@ import {
   inspectedPipeNodesAtom,
   inspectedPipesAtom,
   inspectedPipeRefsAtom,
-  removeInspectedPipeAtom,
-  replaceInspectedPipesAtom,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
@@ -152,7 +150,7 @@ describe('pipes across plans', () => {
       </Provider>
     );
     act(() => {
-      store.set(removeInspectedPipeAtom, { sourcePortId: 'out-1', targetPortId: 'in-1' });
+      store.set(toggleInspectedPipeAtom, { sourcePortId: 'out-1', targetPortId: 'in-1' });
     });
     expect(store.get(inspectedPipesAtom)).toEqual([]);
     expect(store.get(inspectedPipeNodesAtom).size).toBe(0);
@@ -195,7 +193,6 @@ describe('inspected pipe actions', () => {
     expect(store.get(dagDetailAttentionAtom)).toMatchObject({
       kind: 'pipe',
       id: 'one',
-      activateTab: true,
     });
     view.unmount();
   });
@@ -217,16 +214,6 @@ describe('inspected pipe actions', () => {
     expect(store.get(inspectedPipeRefsAtom)).toEqual([first, second]);
   });
 
-  it('removing drops only the matching pipe and ignores one that is not inspected', () => {
-    const store = createStore();
-    store.set(addInspectedPipeAtom, first);
-    store.set(addInspectedPipeAtom, second);
-    store.set(removeInspectedPipeAtom, { ...first });
-    expect(store.get(inspectedPipeRefsAtom)).toEqual([second]);
-    store.set(removeInspectedPipeAtom, { ...first });
-    expect(store.get(inspectedPipeRefsAtom)).toEqual([second]);
-  });
-
   it('clearing drops every pipe and leaves the operator selection alone', () => {
     const store = createStore();
     store.set(operatorSelectionActionAtom, {
@@ -245,21 +232,5 @@ describe('inspected pipe actions', () => {
     store.set(toggleInspectedPipeAtom, first);
     store.set(toggleInspectedPipeAtom, { ...first, targetPortId: 'in-2' });
     expect(store.get(inspectedPipeRefsAtom)).toEqual([first, { ...first, targetPortId: 'in-2' }]);
-  });
-
-  it('replaces selected pipes and de-duplicates refs', () => {
-    const store = createStore();
-    const view = render(
-      <Provider store={store}>
-        <Sync edges={[one, two]} />
-      </Provider>
-    );
-
-    act(() => {
-      store.set(replaceInspectedPipesAtom, [first, first]);
-    });
-    expect(store.get(inspectedPipeRefsAtom)).toEqual([first]);
-    expect(store.get(inspectedPipesAtom)).toEqual([one]);
-    view.unmount();
   });
 });

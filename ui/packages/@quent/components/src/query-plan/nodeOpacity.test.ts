@@ -5,20 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { getNodeOpacityClass } from './nodeOpacity';
 
 describe('getNodeOpacityClass', () => {
-  it('keeps every selected node highlighted during a DAG hover', () => {
-    expect(
-      getNodeOpacityClass({
-        isHoveredStatActive: false,
-        hasHoveredValue: false,
-        highlightedNodeIds: new Set(['hovered']),
-        operatorId: 'selected',
-        isDimmed: false,
-        isSelected: true,
-        isFiltered: false,
-      })
-    ).toBe('opacity-100');
-  });
-
   it('keeps every filtered node highlighted during a DAG hover', () => {
     expect(
       getNodeOpacityClass({
@@ -27,7 +13,6 @@ describe('getNodeOpacityClass', () => {
         highlightedNodeIds: new Set(['hovered']),
         operatorId: 'filtered',
         isDimmed: false,
-        isSelected: false,
         isFiltered: true,
       })
     ).toBe('opacity-100');
@@ -41,7 +26,6 @@ describe('getNodeOpacityClass', () => {
         highlightedNodeIds: new Set(['hovered']),
         operatorId: 'other',
         isDimmed: true,
-        isSelected: false,
         isFiltered: false,
       })
     ).toBe('opacity-35');
@@ -55,7 +39,6 @@ describe('getNodeOpacityClass', () => {
         highlightedNodeIds: null,
         operatorId: 'logical-node',
         isDimmed: false,
-        isSelected: false,
         isFiltered: false,
       })
     ).toBe('opacity-100');
@@ -69,7 +52,6 @@ describe('getNodeOpacityClass', () => {
         highlightedNodeIds: null,
         operatorId: 'unrelated-node',
         isDimmed: false,
-        isSelected: false,
         isFiltered: false,
       })
     ).toBe('opacity-20');

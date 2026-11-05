@@ -96,7 +96,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const isHighlighted = highlightedNodeIds?.has(operatorId) === true;
   const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
-  const { fieldColor, isDimmed, isSelected, isFiltered, colorField } = useNodeColoring(
+  const { fieldColor, isDimmed, isFiltered, colorField } = useNodeColoring(
     operatorId,
     isDark,
     data.metadata?.relatedOperatorIds
@@ -146,7 +146,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const baseColor = resolveOperatorTypeColor(data.operationType);
   const activeColor = fieldColor ?? baseColor;
   const bgColor =
-    fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
+    fieldColor ?? withOpacity(baseColor, isFiltered ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
 
   const heatmapColor = useMemo(() => {
     if (data.hoveredStatValue === undefined || !data.heatmapRange) {
@@ -161,11 +161,10 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     highlightedNodeIds,
     operatorId,
     isDimmed,
-    isSelected,
     isFiltered,
   });
 
-  const isActiveHighlight = isHighlighted && !isSelected;
+  const isActiveHighlight = isHighlighted && !isFiltered;
 
   const isBottomToTop =
     (data.layoutDirection ?? DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP) ===
@@ -196,10 +195,10 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const nodeContent = (
     <div
       className={cn('group relative', NODE_CLASS, {
-        'shadow-glow': isSelected || isActiveHighlight,
-        'shadow-node': !isSelected && !isActiveHighlight,
+        'shadow-glow': isFiltered || isActiveHighlight,
+        'shadow-node': !isFiltered && !isActiveHighlight,
       })}
-      data-selected={isSelected}
+      data-selected={isFiltered}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={
@@ -211,10 +210,10 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         } as React.CSSProperties
       }
     >
-      {data.actions && (
+      {data.actions?.filtered && (
         <DAGItemStatus
           label={data.label}
-          filtered={data.actions.filtered}
+          status="filtered"
           className="absolute right-1 top-1 z-20"
         />
       )}
@@ -225,7 +224,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       <DataText
         as="div"
         className={cn('text-sm break-words text-center font-normal', {
-          'font-bold': data.operationType === 'stage' || isSelected,
+          'font-bold': data.operationType === 'stage' || isFiltered,
           'px-5': data.actions?.filtered,
         })}
       >
@@ -251,7 +250,6 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       {data.actions && (
         <DAGItemActions
           label={data.label}
-          divided={false}
           backgroundColor={heatmapColor ?? activeColor}
           previewOpen={activePreviewId === previewId}
           onOpenChange={open => setActivePreviewId(open ? previewId : null)}

@@ -9,7 +9,7 @@ const query = '00000000-0000-0000-0000-000000000004';
 const pipeDetailsTab = (page: Page) => page.getByRole('tab', { name: 'Pipes' });
 const operatorTab = (page: Page) => page.getByRole('tab', { name: 'Operators' });
 
-test('operator and pipe clicks add and remove independent detail pins', async ({ page }) => {
+test('operator filters and inspected pipes remain independent', async ({ page }) => {
   await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
   const node = page.locator('.react-flow__node').first();
   await expect(node).toBeVisible();
@@ -58,7 +58,7 @@ test('selecting a pipe de-emphasizes everything else without selecting any opera
   await expect(dimmed).toHaveCount(0);
 });
 
-test('node and pipe clicks preserve pins of the other type', async ({ page }) => {
+test('operator and pipe clicks preserve the other selection type', async ({ page }) => {
   await page.goto(`/profile/engine/${engine}/query/${query}/timeline`);
   const node = page.locator('.react-flow__node').first();
   await expect(node).toBeVisible();

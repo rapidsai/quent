@@ -47,14 +47,11 @@ describe('DAGItemActions', () => {
     expect(screen.getByText('Pipe preview')).toBeVisible();
   });
 
-  it('stays hidden until hover or focus and stretches each action equally', () => {
-    render(
-      <DAGItemActions label="Scan" divided={false} previewContent={<div>Scan preview</div>} />
-    );
+  it('stays hidden until hover or focus and stretches its action', () => {
+    render(<DAGItemActions label="Scan" previewContent={<div>Scan preview</div>} />);
 
     const toolbar = screen.getByRole('toolbar', { name: 'Actions for Scan' });
     expect(toolbar).toHaveClass('w-full', 'opacity-0', 'group-hover:opacity-100');
-    expect(toolbar).not.toHaveClass('divide-x');
     for (const button of within(toolbar).getAllByRole('button')) {
       expect(button).toHaveClass('flex-1', 'cursor-pointer');
     }

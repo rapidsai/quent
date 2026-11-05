@@ -24,7 +24,7 @@ export type OperatorSelectionAction =
       label: string;
       operatorIds: Iterable<string>;
       selectedData: SelectedOperatorGroupData;
-      detailAttention?: 'show' | 'preserve' | 'none';
+      detailAttention?: 'show' | 'none';
     }
   | { type: 'remove'; selectionId: string }
   | {
@@ -35,7 +35,7 @@ export type OperatorSelectionAction =
         operatorIds: Iterable<string>;
         selectedData?: SelectedOperatorGroupData;
       }>;
-      detailAttention?: 'show' | 'preserve' | 'none';
+      detailAttention?: 'show' | 'none';
     }
   | {
       type: 'hydrate';
@@ -137,7 +137,6 @@ export const operatorSelectionActionAtom = atom(
         set(requestDagDetailAttentionAtom, {
           kind: 'operator',
           id: addedSelectionId,
-          activateTab: action.detailAttention !== 'preserve',
         });
       }
     }

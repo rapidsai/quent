@@ -56,9 +56,6 @@ vi.mock('@xyflow/react', async importOriginal => {
       edgeTypes,
       children,
       onNodeClick,
-      onSelectionStart,
-      onSelectionChange,
-      onSelectionEnd,
       onPaneClick,
       onMoveStart,
       selectionKeyCode,
@@ -69,9 +66,6 @@ vi.mock('@xyflow/react', async importOriginal => {
       edgeTypes: Record<string, ComponentType<EdgeProps>>;
       children: ReactNode;
       onNodeClick?: (event: ReactMouseEvent, node: Node) => void;
-      onSelectionStart?: () => void;
-      onSelectionChange?: (selection: { nodes: Node[]; edges: Edge[] }) => void;
-      onSelectionEnd?: () => void;
       onPaneClick?: () => void;
       onMoveStart?: () => void;
       selectionKeyCode?: string | null;
@@ -89,16 +83,6 @@ vi.mock('@xyflow/react', async importOriginal => {
             onClick={event => onNodeClick?.(event, node)}
           >{`Select ${node.id}`}</button>
         ))}
-        <button
-          type="button"
-          onClick={() => {
-            onSelectionStart?.();
-            onSelectionChange?.({ nodes, edges });
-            onSelectionEnd?.();
-          }}
-        >
-          Box select all
-        </button>
         <button type="button" onClick={onPaneClick}>
           Click DAG background
         </button>
@@ -292,28 +276,7 @@ describe('DAGChart selection', () => {
     expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
   });
 
-  it('treats controlled node IDs as filters and reports filter changes', async () => {
-    const onSelectionChange = vi.fn();
-    render(
-      <Provider store={createStore()}>
-        <SelectionProbe />
-        <DAGChart
-          data={selectionData}
-          isDark={false}
-          selectedNodeIds={['first']}
-          onSelectionChange={onSelectionChange}
-        />
-      </Provider>
-    );
-
-    await waitFor(() =>
-      expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first')
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Select second' }));
-    expect(onSelectionChange).toHaveBeenLastCalledWith(['first', 'second']);
-  });
-
-  it('disables modifier-based box selection', async () => {
+  it('disables modifier-based box selection', () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -324,13 +287,9 @@ describe('DAGChart selection', () => {
     const flow = screen.getByTestId('flow');
     expect(flow).not.toHaveAttribute('data-selection-key');
     expect(flow).not.toHaveAttribute('data-multi-selection-key');
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Box select all' }));
-    expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
-    expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
   });
 
-  it('adds and removes pipe pins on click', async () => {
+  it('adds and removes inspected pipes on click', async () => {
     render(
       <Provider store={createStore()}>
         <SelectionProbe />
@@ -481,7 +440,7 @@ describe('DAGChart edge scaling', () => {
     );
   });
 
-  it('preserves metric color when a pipe is pinned', async () => {
+  it('preserves metric color when a pipe is inspected', async () => {
     const { container } = render(
       <Provider store={createStore()}>
         <PipeColorConfiguration />

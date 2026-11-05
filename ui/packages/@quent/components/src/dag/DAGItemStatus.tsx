@@ -6,35 +6,26 @@ import { cn } from '@quent/utils';
 
 interface DAGItemStatusProps {
   label: string;
-  pinned?: boolean;
-  filtered?: boolean;
+  status: 'pinned' | 'filtered';
   className?: string;
 }
 
-export function DAGItemStatus({
-  label,
-  pinned = false,
-  filtered = false,
-  className,
-}: DAGItemStatusProps) {
-  if (!pinned && !filtered) {
-    return null;
-  }
-
-  const state = pinned && filtered ? 'pinned and filtered' : filtered ? 'filtered' : 'pinned';
-
+export function DAGItemStatus({ label, status, className }: DAGItemStatusProps) {
   return (
     <span
       role="status"
-      aria-label={`${label}: ${state}`}
-      title={state}
+      aria-label={`${label}: ${status}`}
+      title={status}
       className={cn(
         'pointer-events-none inline-flex items-center gap-0.5 text-foreground',
         className
       )}
     >
-      {filtered && <Filter aria-hidden className="size-3.5 opacity-40" />}
-      {pinned && <Pin aria-hidden className="size-3.5 opacity-40" />}
+      {status === 'filtered' ? (
+        <Filter aria-hidden className="size-3.5 opacity-40" />
+      ) : (
+        <Pin aria-hidden className="size-3.5 opacity-40" />
+      )}
     </span>
   );
 }
