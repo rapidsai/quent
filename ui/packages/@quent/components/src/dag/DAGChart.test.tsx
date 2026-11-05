@@ -16,7 +16,6 @@ import {
   useDagEdgeWidthConfig,
   useEdgeColorPalette,
   useInspectedPipes,
-  usePinnedOperatorDetailIds,
   useSelectedOperatorIds,
   useSelectedEdgeColorField,
   useSelectedScaleType,
@@ -194,12 +193,10 @@ const metricPipeData: DAGData = {
 };
 
 function SelectionProbe() {
-  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
   const filteredOperatorIds = useSelectedOperatorIds();
   const inspectedPipes = useInspectedPipes();
   return (
     <>
-      <span data-testid="selected-operators">{[...pinnedOperatorDetailIds].sort().join(',')}</span>
       <span data-testid="filtered-operators">{[...filteredOperatorIds].sort().join(',')}</span>
       <span data-testid="selected-pipes">
         {inspectedPipes
@@ -281,24 +278,39 @@ describe('DAGChart selection', () => {
 
     fireEvent.click(first);
     expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first');
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
     fireEvent.click(first);
     expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
-    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
 
     fireEvent.click(second);
     expect(screen.getByTestId('filtered-operators')).toHaveTextContent('second');
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('second');
 
     fireEvent.click(first);
     expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first,second');
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first,second');
     fireEvent.click(second);
     expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first');
-    expect(screen.getByTestId('selected-operators')).toHaveTextContent('first');
     fireEvent.click(first);
     expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
-    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+  });
+
+  it('treats controlled node IDs as filters and reports filter changes', async () => {
+    const onSelectionChange = vi.fn();
+    render(
+      <Provider store={createStore()}>
+        <SelectionProbe />
+        <DAGChart
+          data={selectionData}
+          isDark={false}
+          selectedNodeIds={['first']}
+          onSelectionChange={onSelectionChange}
+        />
+      </Provider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('filtered-operators')).toHaveTextContent('first')
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Select second' }));
+    expect(onSelectionChange).toHaveBeenLastCalledWith(['first', 'second']);
   });
 
   it('disables modifier-based box selection', async () => {
@@ -314,7 +326,7 @@ describe('DAGChart selection', () => {
     expect(flow).not.toHaveAttribute('data-multi-selection-key');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Box select all' }));
-    expect(screen.getByTestId('selected-operators')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('filtered-operators')).toBeEmptyDOMElement();
     expect(screen.getByTestId('selected-pipes')).toBeEmptyDOMElement();
   });
 

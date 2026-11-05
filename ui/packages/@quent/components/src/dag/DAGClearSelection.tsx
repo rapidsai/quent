@@ -5,33 +5,24 @@ import { Panel } from '@xyflow/react';
 import { X } from 'lucide-react';
 import {
   useClearInspectedPipes,
-  useDisplayedPipeDetails,
-  useOperatorDetailsActions,
+  useInspectedPipes,
   useOperatorSelectionActions,
-  usePinnedOperatorDetailIds,
   useSelectedOperatorIds,
 } from '@quent/hooks';
 
-/** Clears every DAG filter and detail selection. */
+/** Clears every DAG filter and pipe selection. */
 export const DAGClearSelection = () => {
-  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
   const selectedOperatorIds = useSelectedOperatorIds();
-  const pipeDetails = useDisplayedPipeDetails();
+  const inspectedPipes = useInspectedPipes();
   const clearPipes = useClearInspectedPipes();
-  const updateOperatorDetails = useOperatorDetailsActions();
   const updateOperatorSelection = useOperatorSelectionActions();
 
-  if (
-    pinnedOperatorDetailIds.size === 0 &&
-    selectedOperatorIds.size === 0 &&
-    pipeDetails.length === 0
-  ) {
+  if (selectedOperatorIds.size === 0 && inspectedPipes.length === 0) {
     return null;
   }
 
   const clearSelection = () => {
     updateOperatorSelection({ type: 'clear' });
-    updateOperatorDetails({ type: 'clear' });
     clearPipes();
   };
 

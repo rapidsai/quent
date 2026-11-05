@@ -9,12 +9,10 @@ import {
   useDataFlowIsPlaying,
   useDataFlowMeta,
   useDisplayedOperatorDetails,
-  useDisplayedPipeDetails,
+  useInspectedPipes,
   useInspectedPipeNodes,
-  useOperatorDetailsActions,
   useOperatorSelection,
   useOperatorSelectionActions,
-  usePinnedOperatorDetailIds,
   useToggleInspectedPipe,
 } from '@quent/hooks';
 import { cn, type QuantitySpec } from '@quent/utils';
@@ -63,15 +61,12 @@ export const DAGNodeInfoPanel = ({
   onPreferredHeightChange?: (height: number) => void;
 }) => {
   const operatorDetails = useDisplayedOperatorDetails();
-  const pipeDetails = useDisplayedPipeDetails();
+  const inspectedPipes = useInspectedPipes();
   const inspectedPipeNodes = useInspectedPipeNodes();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
-  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
-  const updateOperatorDetails = useOperatorDetailsActions();
   const toggleInspectedPipe = useToggleInspectedPipe();
   const selectedOperators = operatorDetails.map(detail => detail.data);
-  const inspectedPipes = pipeDetails.map(detail => detail.pipe);
   const dataFlowEnabled = useDataFlowEnabled();
   const isPlaying = useDataFlowIsPlaying();
   const dataFlowMeta = useDataFlowMeta();
@@ -88,7 +83,6 @@ export const DAGNodeInfoPanel = ({
   const dataFlowContentRef = useRef<HTMLDivElement>(null);
   const operatorEntryRefs = useRef(new Map<string, HTMLDivElement>());
   const pipeEntryRefs = useRef(new Map<string, HTMLDivElement>());
-  const previousPinnedOperatorIds = useRef(new Set(pinnedOperatorDetailIds));
   const previousFilterIds = useRef(new Set(operatorSelection.selections.keys()));
   const previousPipeIds = useRef(new Set(inspectedPipes.map(pipe => pipe.id)));
   const [suppressNextOperatorAttention, setSuppressNextOperatorAttention] = useState(false);
@@ -178,22 +172,15 @@ export const DAGNodeInfoPanel = ({
   }
 
   useLayoutEffect(() => {
-    const currentPinnedOperatorIds = new Set(pinnedOperatorDetailIds);
     const currentFilterIds = new Set(operatorSelection.selections.keys());
     const currentPipeIds = new Set(inspectedPipes.map(pipe => pipe.id));
-    const pinnedOperatorId = latestAddedId(
-      currentPinnedOperatorIds,
-      previousPinnedOperatorIds.current
-    );
     const filteredOperatorId = latestAddedId(currentFilterIds, previousFilterIds.current);
     const pinnedPipeId = latestAddedId(currentPipeIds, previousPipeIds.current);
 
-    previousPinnedOperatorIds.current = currentPinnedOperatorIds;
     previousFilterIds.current = currentFilterIds;
     previousPipeIds.current = currentPipeIds;
     const suppressOperatorAttention =
-      suppressNextOperatorAttention &&
-      (filteredOperatorId !== undefined || pinnedOperatorId !== undefined);
+      suppressNextOperatorAttention && filteredOperatorId !== undefined;
     if (suppressOperatorAttention) {
       setSuppressNextOperatorAttention(false);
     }
@@ -204,21 +191,14 @@ export const DAGNodeInfoPanel = ({
         ? null
         : filteredOperatorId
           ? { kind: 'operator' as const, id: filteredOperatorId }
-          : pinnedOperatorId
-            ? { kind: 'operator' as const, id: pinnedOperatorId }
-            : null;
+          : null;
     if (!attention) {
       return;
     }
     setIsExpanded(true);
     setActiveTab(attention.kind === 'pipe' ? 'pipes' : 'stats');
     setDetailAttention(attention);
-  }, [
-    inspectedPipes,
-    operatorSelection.selections,
-    pinnedOperatorDetailIds,
-    suppressNextOperatorAttention,
-  ]);
+  }, [inspectedPipes, operatorSelection.selections, suppressNextOperatorAttention]);
 
   useLayoutEffect(() => {
     if (!detailAttention || !isExpanded) {
@@ -274,7 +254,6 @@ export const DAGNodeInfoPanel = ({
           for (const selectionId of matchingFilterIds) {
             updateOperatorSelection({ type: 'remove', selectionId });
           }
-          updateOperatorDetails({ type: 'unpin', selectionId: detail.selectionId });
         };
 
         return (
@@ -311,34 +290,34 @@ export const DAGNodeInfoPanel = ({
 
   const pipesContent = showPipesTab ? (
     <div ref={pipesContentRef} className="flex flex-col gap-1 pt-1.5">
-      {pipeDetails.map((detail, index) => (
+      {inspectedPipes.map((pipe, index) => (
         <div
-          key={detail.pipe.id}
+          key={pipe.id}
           ref={element => {
             if (element) {
-              pipeEntryRefs.current.set(detail.pipe.id, element);
+              pipeEntryRefs.current.set(pipe.id, element);
             } else {
-              pipeEntryRefs.current.delete(detail.pipe.id);
+              pipeEntryRefs.current.delete(pipe.id);
             }
           }}
-          data-testid={`pipe-detail-entry-${detail.pipe.id}`}
+          data-testid={`pipe-detail-entry-${pipe.id}`}
           className={cn(index > 0 && 'border-t pt-3 mt-3')}
         >
           <PipeDetailsBlock
-            pipe={detail.pipe}
-            open={isOperatorOpen(detail.pipe.id)}
-            onOpenChange={open => setOperatorOpen(detail.pipe.id, open)}
+            pipe={pipe}
+            open={isOperatorOpen(pipe.id)}
+            onOpenChange={open => setOperatorOpen(pipe.id, open)}
             onOperatorFilterAdded={() => {
               setSuppressNextOperatorAttention(true);
             }}
             actions={
               <DetailItemActions
-                label={`pipe from ${inspectedPipeNodes.get(detail.pipe.source)?.label ?? detail.pipe.source} to ${inspectedPipeNodes.get(detail.pipe.target)?.label ?? detail.pipe.target}`}
+                label={`pipe from ${inspectedPipeNodes.get(pipe.source)?.label ?? pipe.source} to ${inspectedPipeNodes.get(pipe.target)?.label ?? pipe.target}`}
                 onRemove={() => {
-                  if (detail.pipe.sourcePortId && detail.pipe.targetPortId) {
+                  if (pipe.sourcePortId && pipe.targetPortId) {
                     toggleInspectedPipe({
-                      sourcePortId: detail.pipe.sourcePortId,
-                      targetPortId: detail.pipe.targetPortId,
+                      sourcePortId: pipe.sourcePortId,
+                      targetPortId: pipe.targetPortId,
                     });
                   }
                 }}

@@ -68,12 +68,6 @@ export const inspectedPipesAtom = atom(get => {
     return edge ? [edge] : [];
   });
 });
-export interface DisplayedPipeDetail {
-  pipe: DAGEdge;
-}
-export const displayedPipeDetailsAtom = atom<DisplayedPipeDetail[]>(get =>
-  get(inspectedPipesAtom).map(pipe => ({ pipe }))
-);
 /** Operators by id for labelling inspected pipes, including those on other plans. */
 export const inspectedPipeNodesAtom = atom(get => {
   const nodes = new Map<string, DAGNode>();

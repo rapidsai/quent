@@ -8,7 +8,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import {
   useDataFlowSync,
-  useOperatorDetailsActions,
+  useOperatorSelectionActions,
   useSetDataFlowEnabled,
   useSetDataFlowLabelMeasure,
   useSetDataFlowSelectedDimensions,
@@ -415,18 +415,23 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
     response: DataFlowTimelineBinned = RESPONSE
   ) {
     function SelectNode({ value }: { value: SelectedOperatorGroupData }) {
-      const updateOperatorDetails = useOperatorDetailsActions();
+      const updateOperatorSelection = useOperatorSelectionActions();
       useEffect(() => {
-        updateOperatorDetails({
+        updateOperatorSelection({
           type: 'replace',
-          entries: [
+          selections: [
             {
               selectionId: value.nodeId,
-              data: value,
+              label: value.label,
+              operatorIds: [
+                value.nodeId,
+                ...(value.relatedOperators?.map(operator => operator.nodeId) ?? []),
+              ],
+              selectedData: value,
             },
           ],
         });
-      }, [updateOperatorDetails, value]);
+      }, [updateOperatorSelection, value]);
       return <DAGNodeInfoPanel />;
     }
     return render(

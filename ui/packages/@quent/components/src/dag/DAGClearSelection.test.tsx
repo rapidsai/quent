@@ -10,9 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   useAddInspectedPipe,
   useInspectedPipes,
-  useOperatorDetailsActions,
   useOperatorSelectionActions,
-  usePinnedOperatorDetailIds,
   useSelectedOperatorIds,
   useSyncDisplayedPipes,
 } from '@quent/hooks';
@@ -20,23 +18,15 @@ import { DAGClearSelection } from './DAGClearSelection';
 
 const EDGES = [{ id: 'e1', source: 'a', target: 'b', sourcePortId: 'out', targetPortId: 'in' }];
 
-function Harness({ pinOperator = true }: { pinOperator?: boolean }) {
-  const operatorIds = usePinnedOperatorDetailIds();
+function Harness() {
   const filterIds = useSelectedOperatorIds();
   const pipes = useInspectedPipes();
   const addPipe = useAddInspectedPipe();
-  const updateOperatorDetails = useOperatorDetailsActions();
   const updateOperatorSelection = useOperatorSelectionActions();
   useSyncDisplayedPipes(EDGES);
 
   useEffect(() => {
     const data = { nodeId: 'scan', label: 'Scan', operationType: 'scan', statistics: [] };
-    if (pinOperator) {
-      updateOperatorDetails({
-        type: 'pin',
-        entry: { selectionId: 'scan', data },
-      });
-    }
     updateOperatorSelection({
       type: 'add',
       selectionId: 'scan',
@@ -44,7 +34,7 @@ function Harness({ pinOperator = true }: { pinOperator?: boolean }) {
       operatorIds: ['scan'],
       selectedData: data,
     });
-  }, [pinOperator, updateOperatorDetails, updateOperatorSelection]);
+  }, [updateOperatorSelection]);
 
   return (
     <>
@@ -56,7 +46,6 @@ function Harness({ pinOperator = true }: { pinOperator?: boolean }) {
       <button type="button" onClick={() => addPipe({ sourcePortId: 'out', targetPortId: 'in' })}>
         Add pipe
       </button>
-      <span data-testid="operators">{operatorIds.size}</span>
       <span data-testid="filters">{filterIds.size}</span>
       <span data-testid="pipes">{pipes.length}</span>
     </>
@@ -64,7 +53,7 @@ function Harness({ pinOperator = true }: { pinOperator?: boolean }) {
 }
 
 describe('DAGClearSelection', () => {
-  it('clears filters and pinned operators and pipes together, then hides itself', async () => {
+  it('clears operator filters and pipes together, then hides itself', async () => {
     const user = userEvent.setup();
     render(
       <Provider>
@@ -75,12 +64,11 @@ describe('DAGClearSelection', () => {
     );
 
     await user.click(await screen.findByRole('button', { name: 'Add pipe' }));
-    expect(screen.getByTestId('operators')).toHaveTextContent('1');
+    expect(screen.getByTestId('filters')).toHaveTextContent('1');
     expect(screen.getByTestId('pipes')).toHaveTextContent('1');
 
     await user.click(screen.getByRole('button', { name: 'Clear all selections' }));
 
-    expect(screen.getByTestId('operators')).toHaveTextContent('0');
     expect(screen.getByTestId('filters')).toHaveTextContent('0');
     expect(screen.getByTestId('pipes')).toHaveTextContent('0');
     expect(screen.queryByRole('button', { name: 'Clear all selections' })).not.toBeInTheDocument();
@@ -94,24 +82,6 @@ describe('DAGClearSelection', () => {
         </ReactFlow>
       </Provider>
     );
-    expect(screen.queryByRole('button', { name: 'Clear all selections' })).not.toBeInTheDocument();
-  });
-
-  it('renders for and clears a filter with its automatic pin', async () => {
-    const user = userEvent.setup();
-    render(
-      <Provider>
-        <ReactFlowProvider>
-          <Harness pinOperator={false} />
-        </ReactFlowProvider>
-      </Provider>
-    );
-
-    expect(screen.getByTestId('operators')).toHaveTextContent('1');
-    expect(screen.getByTestId('filters')).toHaveTextContent('1');
-    await user.click(await screen.findByRole('button', { name: 'Clear all selections' }));
-    expect(screen.getByTestId('operators')).toHaveTextContent('0');
-    expect(screen.getByTestId('filters')).toHaveTextContent('0');
     expect(screen.queryByRole('button', { name: 'Clear all selections' })).not.toBeInTheDocument();
   });
 });

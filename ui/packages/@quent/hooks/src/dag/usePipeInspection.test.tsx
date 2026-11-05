@@ -8,7 +8,6 @@ import {
   hoveredPipeIdAtom,
   addInspectedPipeAtom,
   clearInspectedPipesAtom,
-  displayedPipeDetailsAtom,
   inspectedPipeNodesAtom,
   inspectedPipesAtom,
   inspectedPipeRefsAtom,
@@ -241,7 +240,7 @@ describe('inspected pipe actions', () => {
       store.set(replaceInspectedPipesAtom, [first, first]);
     });
     expect(store.get(inspectedPipeRefsAtom)).toEqual([first]);
-    expect(store.get(displayedPipeDetailsAtom)).toEqual([{ pipe: one }]);
+    expect(store.get(inspectedPipesAtom)).toEqual([one]);
     view.unmount();
   });
 });

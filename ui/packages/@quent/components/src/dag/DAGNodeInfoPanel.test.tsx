@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import { useOperatorDetailsActions, useOperatorSelectionActions } from '@quent/hooks';
+import { useOperatorSelectionActions } from '@quent/hooks';
 import { getDeterministicColor } from '@quent/utils';
 import type { DAGEdge } from '@quent/utils';
 import {
@@ -14,74 +14,74 @@ import {
 import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
 
 function SelectedNode({ onExpandedChange }: { onExpandedChange?: (expanded: boolean) => void }) {
-  const updateOperatorDetails = useOperatorDetailsActions();
+  const updateOperatorSelection = useOperatorSelectionActions();
 
   useEffect(() => {
-    updateOperatorDetails({
-      type: 'pin',
-      entry: {
-        selectionId: 'logical',
-        data: {
-          nodeId: 'logical',
-          label: 'Logical join',
-          operationType: 'logicaljoin',
-          statistics: [{ key: 'logical_rows', value: 10 }],
-          relatedOperators: [
-            {
-              nodeId: 'physical-1',
-              label: 'Build hash table',
-              operationType: 'hashbuild',
-              statistics: [{ key: 'build_rows', value: 20 }],
-            },
-            {
-              nodeId: 'physical-2',
-              label: 'Probe hash table',
-              operationType: 'hashprobe',
-              statistics: [{ key: 'probe_rows', value: 30 }],
-            },
-          ],
-        },
+    updateOperatorSelection({
+      type: 'add',
+      selectionId: 'logical',
+      label: 'Logical join',
+      operatorIds: ['logical', 'physical-1', 'physical-2'],
+      selectedData: {
+        nodeId: 'logical',
+        label: 'Logical join',
+        operationType: 'logicaljoin',
+        statistics: [{ key: 'logical_rows', value: 10 }],
+        relatedOperators: [
+          {
+            nodeId: 'physical-1',
+            label: 'Build hash table',
+            operationType: 'hashbuild',
+            statistics: [{ key: 'build_rows', value: 20 }],
+          },
+          {
+            nodeId: 'physical-2',
+            label: 'Probe hash table',
+            operationType: 'hashprobe',
+            statistics: [{ key: 'probe_rows', value: 30 }],
+          },
+        ],
       },
     });
-  }, [updateOperatorDetails]);
+  }, [updateOperatorSelection]);
 
   return <DAGNodeInfoPanel onExpandedChange={onExpandedChange} />;
 }
 
 function SameNameOnDifferentWorkers() {
-  const updateOperatorDetails = useOperatorDetailsActions();
+  const updateOperatorSelection = useOperatorSelectionActions();
 
   useEffect(() => {
-    updateOperatorDetails({
-      type: 'pin',
-      entry: {
-        selectionId: 'scan',
-        data: {
-          nodeId: 'scan-1',
-          label: 'Table scan',
-          operationType: 'scan',
-          statistics: [{ key: 'output_rows', value: 10 }],
-          workerLabel: 'worker-1',
-          relatedOperators: [
-            {
-              nodeId: 'scan-2',
-              label: 'Table scan',
-              operationType: 'scan',
-              statistics: [{ key: 'output_rows', value: 20 }],
-              workerLabel: 'worker-2',
-            },
-          ],
-        },
+    updateOperatorSelection({
+      type: 'add',
+      selectionId: 'scan',
+      label: 'Table scan',
+      operatorIds: ['scan', 'scan-1', 'scan-2'],
+      selectedData: {
+        nodeId: 'scan-1',
+        label: 'Table scan',
+        operationType: 'scan',
+        statistics: [{ key: 'output_rows', value: 10 }],
+        workerLabel: 'worker-1',
+        relatedOperators: [
+          {
+            nodeId: 'scan-2',
+            label: 'Table scan',
+            operationType: 'scan',
+            statistics: [{ key: 'output_rows', value: 20 }],
+            workerLabel: 'worker-2',
+          },
+        ],
       },
     });
-  }, [updateOperatorDetails]);
+  }, [updateOperatorSelection]);
 
   return <DAGNodeInfoPanel />;
 }
 
 function SwitchSelectedNode() {
   const [showLogical, setShowLogical] = useState(true);
-  const updateOperatorDetails = useOperatorDetailsActions();
+  const updateOperatorSelection = useOperatorSelectionActions();
 
   useEffect(() => {
     const data = showLogical
@@ -97,16 +97,18 @@ function SwitchSelectedNode() {
           operationType: 'scan',
           statistics: [],
         };
-    updateOperatorDetails({
+    updateOperatorSelection({
       type: 'replace',
-      entries: [
+      selections: [
         {
           selectionId: data.nodeId,
-          data,
+          label: data.label,
+          operatorIds: [data.nodeId],
+          selectedData: data,
         },
       ],
     });
-  }, [showLogical, updateOperatorDetails]);
+  }, [showLogical, updateOperatorSelection]);
 
   return (
     <>
@@ -117,42 +119,42 @@ function SwitchSelectedNode() {
 }
 
 function TwoSelectedNodes() {
-  const updateOperatorDetails = useOperatorDetailsActions();
+  const updateOperatorSelection = useOperatorSelectionActions();
 
   useEffect(() => {
-    updateOperatorDetails({
-      type: 'pin',
-      entry: {
-        selectionId: 'scan',
-        data: {
-          nodeId: 'scan',
-          label: 'Table scan',
-          operationType: 'scan',
-          statistics: [{ key: 'output_rows', value: 10 }],
-        },
+    updateOperatorSelection({
+      type: 'add',
+      selectionId: 'scan',
+      label: 'Table scan',
+      operatorIds: ['scan'],
+      selectedData: {
+        nodeId: 'scan',
+        label: 'Table scan',
+        operationType: 'scan',
+        statistics: [{ key: 'output_rows', value: 10 }],
       },
     });
-    updateOperatorDetails({
-      type: 'pin',
-      entry: {
-        selectionId: 'join',
-        data: {
-          nodeId: 'join',
-          label: 'Hash join',
-          operationType: 'hashjoin',
-          statistics: [{ key: 'build_rows', value: 20 }],
-          relatedOperators: [
-            {
-              nodeId: 'probe',
-              label: 'Probe hash table',
-              operationType: 'hashprobe',
-              statistics: [{ key: 'probe_rows', value: 30 }],
-            },
-          ],
-        },
+    updateOperatorSelection({
+      type: 'add',
+      selectionId: 'join',
+      label: 'Hash join',
+      operatorIds: ['join', 'probe'],
+      selectedData: {
+        nodeId: 'join',
+        label: 'Hash join',
+        operationType: 'hashjoin',
+        statistics: [{ key: 'build_rows', value: 20 }],
+        relatedOperators: [
+          {
+            nodeId: 'probe',
+            label: 'Probe hash table',
+            operationType: 'hashprobe',
+            statistics: [{ key: 'probe_rows', value: 30 }],
+          },
+        ],
       },
     });
-  }, [updateOperatorDetails]);
+  }, [updateOperatorSelection]);
 
   return <DAGNodeInfoPanel />;
 }
@@ -177,7 +179,7 @@ function FilterOnly() {
 }
 
 describe('DAGNodeInfoPanel', () => {
-  it('scrolls to a newly pinned operator', async () => {
+  it('scrolls to a newly filtered operator', async () => {
     const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
     scrollIntoView.mockClear();
 
@@ -436,16 +438,16 @@ describe('pipes alongside operators', () => {
   };
   const selectOperator = (probe: ReturnType<typeof createPipeInspectionRecorder>) =>
     act(() =>
-      probe.latest().updateDetails({
-        type: 'pin',
-        entry: {
-          selectionId: 'scan',
-          data: {
-            nodeId: 'scan',
-            label: 'Table scan',
-            operationType: 'scan',
-            statistics: [],
-          },
+      probe.latest().updateSelection({
+        type: 'add',
+        selectionId: 'scan',
+        label: 'Table scan',
+        operatorIds: ['scan'],
+        selectedData: {
+          nodeId: 'scan',
+          label: 'Table scan',
+          operationType: 'scan',
+          statistics: [],
         },
       })
     );
@@ -466,7 +468,7 @@ describe('pipes alongside operators', () => {
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Operators' }), { button: 0 });
     expect(screen.getByRole('tab', { name: 'Operators' })).toHaveAttribute('aria-selected', 'true');
-    expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['scan']));
+    expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
     expect(probe.latest().inspectedPipes).toHaveLength(1);
   });
 

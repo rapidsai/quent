@@ -47,8 +47,6 @@ import {
   useHoveredPipeId,
   useSetHoveredPipeId,
   useInspectedPipes,
-  useOperatorDetailsActions,
-  usePinnedOperatorDetailIds,
   useToggleInspectedPipe,
   useSyncDisplayedPipes,
   COLOR_REGISTRY_KEYS,
@@ -90,6 +88,10 @@ const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
 const ARROW_WIDTH_BASE = 8;
 const ARROW_DEPTH_RATIO = 0.6;
+const EDGE_ACTIONS_Y_OFFSET_WITHOUT_LABEL = -18;
+const EDGE_ACTIONS_Y_OFFSET_WITH_LABEL = -26;
+const EDGE_STATUS_Y_OFFSET_WITHOUT_LABEL = 14;
+const EDGE_STATUS_Y_OFFSET_WITH_LABEL = 22;
 const EDGE_STATUS_X_OFFSET = 14;
 const EDGE_STATUS_ICON_HALF_SIZE = 7;
 const EDGE_STATUS_GAP = 4;
@@ -220,8 +222,14 @@ const VariableWidthEdge = ({
       edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeWidthField, fields))(v);
     }
   }
-  const edgeActionsYOffset = edgeLabelValue === undefined ? -18 : -26;
-  const edgeStatusYOffset = edgeLabelValue === undefined ? 14 : 22;
+  const edgeActionsYOffset =
+    edgeLabelValue === undefined
+      ? EDGE_ACTIONS_Y_OFFSET_WITHOUT_LABEL
+      : EDGE_ACTIONS_Y_OFFSET_WITH_LABEL;
+  const edgeStatusYOffset =
+    edgeLabelValue === undefined
+      ? EDGE_STATUS_Y_OFFSET_WITHOUT_LABEL
+      : EDGE_STATUS_Y_OFFSET_WITH_LABEL;
   const edgeStatusXOffset =
     Math.abs(sourceX - targetX) < VERTICAL_EDGE_EPSILON
       ? Math.max(
@@ -405,9 +413,9 @@ interface DAGProps {
   height?: string;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
-  /** Controlled pinned operator-detail IDs. When provided, overrides internal detail pins. */
+  /** Controlled filtered operator IDs. */
   selectedNodeIds?: string[];
-  /** Called when pinned operator details change. */
+  /** Called when filtered operator IDs change. */
   onSelectionChange?: (nodeIds: string[]) => void;
   /** Called when the empty chart background is clicked. */
   onBackgroundClick?: () => void;
@@ -442,6 +450,7 @@ const FlowLayout = ({
   isDark,
   operators,
   selectedNodeIds: controlledSelectedNodeIds,
+  onSelectionChange,
   onBackgroundClick,
 }: {
   data: DAGData;
@@ -460,8 +469,6 @@ const FlowLayout = ({
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
   const [, setActivePreviewId] = useAtom(activeDAGPreviewIdAtom);
-  const pinnedOperatorDetailIds = usePinnedOperatorDetailIds();
-  const updateOperatorDetails = useOperatorDetailsActions();
   const [highlightState] = useHighlightedNodeIds();
   const selectedOperatorIds = useSelectedOperatorIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
@@ -508,34 +515,32 @@ const FlowLayout = ({
     return [...byId.values()];
   }, [data.nodes, operators]);
   const hydratedNodeIdsKey = useMemo(
-    () =>
-      [
-        ...(controlledSelectedNodeIds === undefined
-          ? pinnedOperatorDetailIds
-          : controlledSelectedNodeIds),
-      ]
-        .sort()
-        .join('\0'),
-    [controlledSelectedNodeIds, pinnedOperatorDetailIds]
+    () => [...(controlledSelectedNodeIds ?? selectedOperatorIds)].sort().join('\0'),
+    [controlledSelectedNodeIds, selectedOperatorIds]
   );
 
   useEffect(() => {
     const operatorIds = new Set(hydratedNodeIdsKey === '' ? [] : hydratedNodeIdsKey.split('\0'));
     const resolved = resolveSelectedOperatorsFromNodes(data.nodes, operatorIds);
     if (controlledSelectedNodeIds !== undefined) {
-      updateOperatorDetails({
-        type: 'replaceIds',
-        selectionIds: controlledSelectedNodeIds,
+      updateOperatorSelection({
+        type: 'replace',
+        selections: [
+          ...resolved.selections,
+          ...[...resolved.unresolvedOperatorIds].map(operatorId => ({
+            selectionId: operatorId,
+            label: operatorId,
+            operatorIds: new Set([operatorId]),
+          })),
+        ],
       });
+      return;
     }
-    updateOperatorDetails({
+    updateOperatorSelection({
       type: 'hydrate',
-      entries: resolved.selections.map(selection => ({
-        selectionId: selection.selectionId,
-        data: selection.selectedData,
-      })),
+      selections: resolved.selections,
     });
-  }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorDetails]);
+  }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
 
   const handleMoveStart = useCallback<OnMoveStart>(
     event => {
@@ -645,8 +650,9 @@ const FlowLayout = ({
 
   const toggleOperatorFilter = useCallback(
     (node: Node<QueryPlanNodeData>) => {
+      let nextSelectedIds: ReadonlySet<string>;
       if (selectedOperatorIds.has(node.id)) {
-        updateOperatorSelection({
+        nextSelectedIds = updateOperatorSelection({
           type: 'replace',
           selections: toggleOperatorSelection(
             hierarchyOperators,
@@ -656,7 +662,7 @@ const FlowLayout = ({
           ),
         });
       } else {
-        updateOperatorSelection({
+        nextSelectedIds = updateOperatorSelection({
           type: 'add',
           selectionId: node.id,
           label: node.data.label,
@@ -664,10 +670,12 @@ const FlowLayout = ({
           selectedData: selectedOperatorDataFromFlowNode(node),
         });
       }
+      onSelectionChange?.([...nextSelectedIds]);
     },
     [
       getSelectionIds,
       hierarchyOperators,
+      onSelectionChange,
       operatorSelection.selections,
       selectedOperatorIds,
       updateOperatorSelection,

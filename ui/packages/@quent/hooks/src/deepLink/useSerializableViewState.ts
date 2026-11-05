@@ -15,11 +15,9 @@ import {
 } from '@quent/utils';
 import {
   operatorSelectionActionAtom,
-  operatorSelectionAtom,
   selectedOperatorIdsAtom,
   selectedPlanIdAtom,
 } from '../atoms/dag';
-import { operatorDetailsActionAtom, pinnedOperatorDetailsAtom } from '../atoms/operatorDetails';
 import {
   dataFlowEnabledAtom,
   dataFlowIsPlayingAtom,
@@ -124,9 +122,6 @@ export function useSerializableViewState({
       selection: {
         planId: store.get(selectedPlanIdAtom),
         operatorNodeIds: [...store.get(selectedOperatorIdsAtom)].sort(),
-        ...(store.get(pinnedOperatorDetailsAtom).size > 0
-          ? { operatorDetailsNodeIds: [...store.get(pinnedOperatorDetailsAtom).keys()].sort() }
-          : {}),
         ...(store.get(inspectedPipeRefsAtom).length > 0
           ? { pipes: store.get(inspectedPipeRefsAtom) }
           : {}),
@@ -176,21 +171,17 @@ export function useSerializableViewState({
       if (state.selection?.planId !== undefined) {
         store.set(selectedPlanIdAtom, state.selection.planId);
       }
-      if (state.selection?.operatorNodeIds !== undefined) {
+      if (
+        state.selection?.operatorNodeIds !== undefined ||
+        state.selection?.operatorDetailsNodeIds !== undefined
+      ) {
+        const operatorIds = new Set([
+          ...(state.selection.operatorNodeIds ?? []),
+          ...(state.selection.operatorDetailsNodeIds ?? []),
+        ]);
         store.set(operatorSelectionActionAtom, {
           type: 'replace',
-          selections: resolveSelectedOperatorSelections(operators, state.selection.operatorNodeIds),
-        });
-      }
-      if (state.selection?.operatorDetailsNodeIds !== undefined) {
-        store.set(operatorDetailsActionAtom, {
-          type: 'replaceIds',
-          selectionIds: [
-            ...new Set([
-              ...state.selection.operatorDetailsNodeIds,
-              ...store.get(operatorSelectionAtom).selections.keys(),
-            ]),
-          ],
+          selections: resolveSelectedOperatorSelections(operators, operatorIds),
         });
       }
 

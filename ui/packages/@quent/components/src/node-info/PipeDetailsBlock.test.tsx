@@ -95,15 +95,12 @@ it('shows filtered endpoints in details without changing pipe inspection', () =>
   fireEvent.click(sending);
   expect(probe.latest().inspectedPipes).toHaveLength(1);
   expect(probe.latest().selectedOperatorIds).toEqual(new Set(['other', 'scan', 'scan-worker']));
-  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['other', 'scan']));
   expect(probe.latest().displayedOperatorDetails[0]?.data.label).toBe('Parquet scan [6]');
   fireEvent.click(sending);
   expect(probe.latest().selectedOperatorIds).toEqual(new Set(['other']));
-  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['other']));
   expect(probe.latest().displayedOperatorDetails).toEqual([]);
   fireEvent.click(screen.getByRole('button', { name: 'Filter by Partitioned join [42] operator' }));
   expect(probe.latest().selectedOperatorIds).toEqual(new Set(['other', 'join']));
-  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['other', 'join']));
   expect(probe.latest().displayedOperatorDetails[0]?.data.label).toBe('Partitioned join [42]');
 });
 
@@ -140,7 +137,6 @@ it('shows a filter indicator only for filtered endpoint operators', () => {
 
   fireEvent.click(sending);
   expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
-  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set(['scan']));
   expect(probe.latest().displayedOperatorDetails[0]?.data.label).toBe('Parquet scan [6]');
   const filterStatus = within(sending).getByRole('status', {
     name: 'Parquet scan [6]: filtered',
@@ -155,7 +151,6 @@ it('shows a filter indicator only for filtered endpoint operators', () => {
 
   fireEvent.click(sending);
   expect(probe.latest().selectedOperatorIds).toEqual(new Set());
-  expect(probe.latest().pinnedOperatorDetailIds).toEqual(new Set());
   expect(
     within(sending).queryByRole('status', { name: 'Parquet scan [6]: filtered' })
   ).not.toBeInTheDocument();

@@ -16,11 +16,7 @@ export type { ColorRegistry, ColorRegistryKey } from './colors/colorRegistry';
 // DAG hooks
 export { useSelectedOperatorIds } from './dag/useSelectedOperatorIds';
 export { useOperatorSelection, useOperatorSelectionActions } from './dag/useOperatorSelection';
-export {
-  useDisplayedOperatorDetails,
-  usePinnedOperatorDetailIds,
-  useOperatorDetailsActions,
-} from './dag/useOperatorDetails';
+export { useDisplayedOperatorDetails } from './dag/useOperatorDetails';
 export {
   useHydrateSelectedPlanId,
   useSelectedPlanId,
@@ -168,7 +164,6 @@ export type { AggMode } from './atoms/pivotTable';
 
 export {
   useInspectedPipes,
-  useDisplayedPipeDetails,
   useAddInspectedPipe,
   useToggleInspectedPipe,
   useReplaceInspectedPipes,

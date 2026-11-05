@@ -49,6 +49,14 @@ function ToolbarHarness() {
         label: 'Parent operator',
         operationType: 'logical',
         statistics: [],
+        relatedOperators: [
+          {
+            nodeId: 'child',
+            label: 'Child operator',
+            operationType: 'physical',
+            statistics: [],
+          },
+        ],
       },
     });
   }, [updateOperatorSelection]);

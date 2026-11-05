@@ -442,6 +442,40 @@ describe('DeepLinkBoundary', () => {
     );
   });
 
+  it('migrates legacy operator detail IDs into operator filters', () => {
+    const encoded = encodeDeepLinkState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 10, end: 40 } },
+      selection: {
+        planId: 'plan-a',
+        operatorNodeIds: [],
+        operatorDetailsNodeIds: ['operator-a', 'operator-child'],
+      },
+    });
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          operators={DEEP_LINK_OPERATORS}
+          encodedState={encoded.value}
+        >
+          <SerializableStateProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    const value = JSON.parse(screen.getByTestId('serializable-state').textContent ?? '{}');
+    expect(value.view.selection).toEqual({
+      planId: 'plan-a',
+      operatorNodeIds: ['operator-a', 'operator-child'],
+    });
+  });
+
   it('clears an existing resource filter when shared state omits resources', () => {
     const encoded = encodeDeepLinkState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },

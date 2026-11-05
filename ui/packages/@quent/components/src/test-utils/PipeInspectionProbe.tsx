@@ -7,9 +7,7 @@ import {
   useHoveredPipeId,
   useInspectedPipes,
   useDisplayedOperatorDetails,
-  useOperatorDetailsActions,
   useOperatorSelectionActions,
-  usePinnedOperatorDetailIds,
   useSelectedOperatorIds,
   useSelectedOperatorsData,
   useAddInspectedPipe,
@@ -19,7 +17,6 @@ import type { DAGEdge, DAGNode } from '@quent/utils';
 
 type Actions = {
   addInspectedPipe: ReturnType<typeof useAddInspectedPipe>;
-  updateDetails: ReturnType<typeof useOperatorDetailsActions>;
   updateSelection: ReturnType<typeof useOperatorSelectionActions>;
 };
 
@@ -30,7 +27,6 @@ export type PipeInspectionSnapshot = Actions & {
   highlight: ReturnType<typeof useHighlightedNodeIds>[0];
   selectedOperatorIds: ReturnType<typeof useSelectedOperatorIds>;
   selectedOperatorsData: ReturnType<typeof useSelectedOperatorsData>;
-  pinnedOperatorDetailIds: ReturnType<typeof usePinnedOperatorDetailIds>;
   displayedOperatorDetails: ReturnType<typeof useDisplayedOperatorDetails>;
 };
 
@@ -83,10 +79,8 @@ export function PipeInspectionProbe({
     highlight,
     selectedOperatorIds: useSelectedOperatorIds(),
     selectedOperatorsData: useSelectedOperatorsData(),
-    pinnedOperatorDetailIds: usePinnedOperatorDetailIds(),
     displayedOperatorDetails: useDisplayedOperatorDetails(),
     addInspectedPipe: useAddInspectedPipe(),
-    updateDetails: useOperatorDetailsActions(),
     updateSelection: useOperatorSelectionActions(),
   };
   useEffect(() => recorder.record(snapshot));

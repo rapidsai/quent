@@ -6,7 +6,6 @@ import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { isSamePipe, type DAGEdge, type DAGNode } from '@quent/utils';
 import {
   displayedPipesAtom,
-  displayedPipeDetailsAtom,
   displayedDagNodesAtom,
   hoveredPipeIdAtom,
   addInspectedPipeAtom,
@@ -21,7 +20,6 @@ import {
 } from '../atoms/pipeInspection';
 
 export const useInspectedPipes = () => useAtomValue(inspectedPipesAtom);
-export const useDisplayedPipeDetails = () => useAtomValue(displayedPipeDetailsAtom);
 export const useAddInspectedPipe = () => useSetAtom(addInspectedPipeAtom);
 export const useToggleInspectedPipe = () => useSetAtom(toggleInspectedPipeAtom);
 export const useReplaceInspectedPipes = () => useSetAtom(replaceInspectedPipesAtom);

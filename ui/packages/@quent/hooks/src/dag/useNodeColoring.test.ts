@@ -9,7 +9,6 @@ import { continuousColor } from '@quent/utils';
 import { hoveredPipeIdAtom, inspectedPipeRefsAtom } from '../atoms/pipeInspection';
 import { nodeColoringAtom, selectedScaleTypeAtom } from '../atoms/dagControls';
 import { operatorSelectionActionAtom } from '../atoms/dag';
-import { operatorDetailsActionAtom } from '../atoms/operatorDetails';
 import { isOperatorGroupSelected, useNodeColoring } from './useNodeColoring';
 
 describe('isOperatorGroupSelected', () => {
@@ -87,7 +86,7 @@ describe('useNodeColoring with pipes', () => {
     expect(render('scan', store).result.current.isDimmed).toBe(false);
   });
 
-  it('keeps both explicit and filter-created pins at full opacity', () => {
+  it('keeps filtered operators at full opacity', () => {
     const store = createStore();
     store.set(operatorSelectionActionAtom, {
       type: 'add',
@@ -101,28 +100,15 @@ describe('useNodeColoring with pipes', () => {
         statistics: [],
       },
     });
-    store.set(operatorDetailsActionAtom, {
-      type: 'pin',
-      entry: {
-        selectionId: 'pinned',
-        data: {
-          nodeId: 'pinned',
-          label: 'Pinned',
-          operationType: 'join',
-          statistics: [],
-        },
-      },
-    });
-
     expect(render('filtered', store).result.current).toMatchObject({
       isFiltered: true,
       isSelected: true,
       isDimmed: false,
     });
-    expect(render('pinned', store).result.current).toMatchObject({
+    expect(render('other', store).result.current).toMatchObject({
       isFiltered: false,
-      isSelected: true,
-      isDimmed: false,
+      isSelected: false,
+      isDimmed: true,
     });
   });
 });

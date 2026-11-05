@@ -12,6 +12,7 @@ import type {
   NodeLabelField,
   DagLayoutDirection,
   ScaleType,
+  OperatorSelection,
   SelectedOperatorGroupData,
   AggMode,
 } from '@quent/utils';
@@ -40,10 +41,24 @@ export interface HighlightedNodeIdsState {
   primaryOperatorId: string | null;
 }
 
-/** Details for every selected operator group, keyed by selection id. */
-export const selectedOperatorsDataAtom = atom<ReadonlyMap<string, SelectedOperatorGroupData>>(
+export interface CachedOperatorSelection extends OperatorSelection {
+  data?: SelectedOperatorGroupData;
+}
+
+/** Non-authoritative detail and grouping cache, keyed by selection id. */
+export const operatorSelectionCacheAtom = atom<ReadonlyMap<string, CachedOperatorSelection>>(
   new Map()
 );
+
+export const selectedOperatorsDataAtom = atom(get => {
+  const selectedData = new Map<string, SelectedOperatorGroupData>();
+  for (const [selectionId, selection] of get(operatorSelectionCacheAtom)) {
+    if (selection.data) {
+      selectedData.set(selectionId, selection.data);
+    }
+  }
+  return selectedData;
+});
 
 /** Consolidated hover/highlight state shared between table and DAG. */
 export const highlightedNodeIdsAtom = atom<HighlightedNodeIdsState>({

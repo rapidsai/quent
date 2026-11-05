@@ -2,24 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom } from 'jotai';
-import type {
-  OperatorSelectionInput,
-  OperatorSelectionState,
-  SelectedOperatorGroupData,
-} from '@quent/utils';
+import type { OperatorSelectionState, SelectedOperatorGroupData } from '@quent/utils';
+import { resolveOperatorSelectionCandidates } from '@quent/utils';
 import {
   addOperatorSelection as addSelection,
   createEmptyOperatorSelectionState,
   getSelectedOperatorIds,
   removeOperatorSelection as removeSelection,
 } from '../dag/operatorSelection';
+import { findSelectedOperatorData } from '../dag/selectedOperatorData';
 import {
-  findSelectedOperatorData,
-  removeSelectedOperatorData,
-  upsertSelectedOperatorData,
-} from '../dag/selectedOperatorData';
-import { selectedOperatorsDataAtom } from './dagControls';
-import { pinnedOperatorDetailsAtom } from './operatorDetails';
+  operatorSelectionCacheAtom,
+  selectedOperatorsDataAtom,
+  type CachedOperatorSelection,
+} from './dagControls';
 
 export type OperatorSelectionAction =
   | {
@@ -32,9 +28,12 @@ export type OperatorSelectionAction =
   | { type: 'remove'; selectionId: string }
   | {
       type: 'replace';
-      selections: ReadonlyArray<
-        OperatorSelectionInput & { selectedData?: SelectedOperatorGroupData }
-      >;
+      selections: ReadonlyArray<{
+        selectionId: string;
+        label: string;
+        operatorIds: Iterable<string>;
+        selectedData?: SelectedOperatorGroupData;
+      }>;
     }
   | {
       type: 'hydrate';
@@ -47,10 +46,32 @@ export type OperatorSelectionAction =
     }
   | { type: 'clear' };
 
-/** Canonical operator filter selection state */
-export const operatorSelectionAtom = atom<OperatorSelectionState>(
-  createEmptyOperatorSelectionState()
-);
+/** Canonical filtered operator IDs. */
+export const selectedOperatorIdsAtom = atom<Set<string>>(new Set<string>());
+
+/** Grouped filter metadata resolved from the canonical IDs and their payload cache. */
+export const operatorSelectionAtom = atom<OperatorSelectionState>(get => {
+  const selectedIds = get(selectedOperatorIdsAtom);
+  const cache = get(operatorSelectionCacheAtom);
+  const resolved = resolveOperatorSelectionCandidates(
+    [...cache].map(([selectionId, selection]) => ({ selectionId, ...selection })),
+    selectedIds
+  );
+  const selections = new Map(
+    resolved.selections.map(({ selectionId, label, operatorIds }) => [
+      selectionId,
+      { label, operatorIds },
+    ])
+  );
+  const selectedData = get(selectedOperatorsDataAtom);
+  for (const operatorId of resolved.unresolvedOperatorIds) {
+    selections.set(operatorId, {
+      label: findSelectedOperatorData(selectedData, operatorId)?.label ?? operatorId,
+      operatorIds: new Set([operatorId]),
+    });
+  }
+  return { selections };
+});
 
 /** Updates operator filters and their selected details as one transaction. */
 export const operatorSelectionActionAtom = atom(
@@ -59,28 +80,46 @@ export const operatorSelectionActionAtom = atom(
     const currentSelection = get(operatorSelectionAtom);
     const currentData = get(selectedOperatorsDataAtom);
     let nextSelection: OperatorSelectionState;
-    let nextData: ReadonlyMap<string, SelectedOperatorGroupData>;
+    let nextCache: Map<string, CachedOperatorSelection>;
 
     switch (action.type) {
-      case 'add':
+      case 'add': {
         nextSelection = addSelection(
           currentSelection,
           action.selectionId,
           action.label,
           action.operatorIds
         );
-        nextData = new Map([...currentData].filter(([id]) => nextSelection.selections.has(id)));
-        if (nextSelection.selections.has(action.selectionId)) {
-          nextData = upsertSelectedOperatorData(nextData, action.selectionId, action.selectedData);
-        }
+        nextCache = new Map(
+          [...nextSelection.selections].map(([selectionId, selection]) => [
+            selectionId,
+            {
+              ...selection,
+              data:
+                selectionId === action.selectionId
+                  ? action.selectedData
+                  : findSelectedOperatorData(currentData, selectionId),
+            },
+          ])
+        );
         break;
-      case 'remove':
+      }
+      case 'remove': {
         nextSelection = removeSelection(currentSelection, action.selectionId);
-        nextData = removeSelectedOperatorData(currentData, action.selectionId);
+        nextCache = new Map(
+          [...nextSelection.selections].map(([selectionId, selection]) => [
+            selectionId,
+            {
+              ...selection,
+              data: findSelectedOperatorData(currentData, selectionId),
+            },
+          ])
+        );
         break;
+      }
       case 'replace': {
         nextSelection = createEmptyOperatorSelectionState();
-        nextData = new Map();
+        const replacementData = new Map<string, SelectedOperatorGroupData>();
         for (const selection of action.selections) {
           nextSelection = addSelection(
             nextSelection,
@@ -88,60 +127,50 @@ export const operatorSelectionActionAtom = atom(
             selection.label,
             selection.operatorIds
           );
-          if (!nextSelection.selections.has(selection.selectionId)) {
-            continue;
-          }
           const selectedData =
             selection.selectedData ?? findSelectedOperatorData(currentData, selection.selectionId);
           if (selectedData) {
-            nextData = upsertSelectedOperatorData(nextData, selection.selectionId, selectedData);
+            replacementData.set(selection.selectionId, selectedData);
           }
         }
-        nextData = new Map([...nextData].filter(([id]) => nextSelection.selections.has(id)));
+        nextCache = new Map(
+          [...nextSelection.selections].map(([selectionId, selection]) => [
+            selectionId,
+            {
+              ...selection,
+              data:
+                replacementData.get(selectionId) ??
+                findSelectedOperatorData(currentData, selectionId),
+            },
+          ])
+        );
         break;
       }
       case 'hydrate': {
         nextSelection = currentSelection;
-        nextData = new Map(currentData);
+        nextCache = new Map(get(operatorSelectionCacheAtom));
         for (const selection of action.selections) {
           if (currentSelection.selections.has(selection.selectionId)) {
-            nextData = upsertSelectedOperatorData(
-              nextData,
-              selection.selectionId,
-              selection.selectedData
-            );
+            nextCache.set(selection.selectionId, {
+              label: selection.label,
+              operatorIds: new Set(selection.operatorIds),
+              data: selection.selectedData,
+            });
           }
         }
         break;
       }
       case 'clear':
         nextSelection = createEmptyOperatorSelectionState();
-        nextData = new Map();
+        nextCache = new Map();
         break;
     }
 
-    set(operatorSelectionAtom, nextSelection);
-    set(selectedOperatorsDataAtom, nextData);
-    const nextPinnedDetails = new Map(get(pinnedOperatorDetailsAtom));
-    for (const selectionId of currentSelection.selections.keys()) {
-      if (!nextSelection.selections.has(selectionId)) {
-        nextPinnedDetails.delete(selectionId);
-      }
-    }
-    for (const selectionId of nextSelection.selections.keys()) {
-      nextPinnedDetails.set(
-        selectionId,
-        nextData.get(selectionId) ?? nextPinnedDetails.get(selectionId)
-      );
-    }
-    set(pinnedOperatorDetailsAtom, nextPinnedDetails);
-    return getSelectedOperatorIds(nextSelection);
+    const nextIds = getSelectedOperatorIds(nextSelection);
+    set(selectedOperatorIdsAtom, nextIds);
+    set(operatorSelectionCacheAtom, nextCache);
+    return nextIds;
   }
-);
-
-/** The operator IDs represented by the current selections */
-export const selectedOperatorIdsAtom = atom(get =>
-  getSelectedOperatorIds(get(operatorSelectionAtom))
 );
 
 /** The currently selected plan ID in the query plan tree view */
