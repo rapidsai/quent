@@ -317,3 +317,25 @@ describe('TreeTable info cell', () => {
     expect(cell).not.toBeNull();
   });
 });
+
+describe('TreeTable variable row heights', () => {
+  it('uses a per-row height override in virtualized trees', () => {
+    const parent = { ...row('parent'), children: [row('child')] };
+    const getRowHeight = vi.fn((item: Row) => (item.id === 'parent' ? 24 : ROW_HEIGHT));
+    render(
+      <TreeTable<Row>
+        data={[parent]}
+        columns={columns}
+        controlledExpandedIds={new Set(['parent'])}
+        getRowHeight={getRowHeight}
+        rowHeight={ROW_HEIGHT}
+        virtualized
+      />
+    );
+
+    expect(screen.getByRole('tree')).toHaveStyle({ height: `${24 + ROW_HEIGHT}px` });
+    expect(getRowHeight.mock.calls.map(([item]) => item.id)).toEqual(
+      expect.arrayContaining(['parent', 'child'])
+    );
+  });
+});

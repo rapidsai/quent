@@ -5,6 +5,8 @@ import type { ReactNode } from 'react';
 import type { TreeTableItem } from '@quent/components';
 import type { TimelineTreeItem } from '../TimelineTreeTable';
 
+export const TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT = 28;
+
 export interface ResourceTimelineSubRow {
   id: string;
   /** Short name of the row, as plain text. */

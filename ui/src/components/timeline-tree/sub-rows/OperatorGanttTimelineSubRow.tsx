@@ -45,10 +45,7 @@ export function createOperatorGanttTimelineSubRow({
               createTimelineSubRowDisclosure(
                 item.id,
                 OPERATOR_TIMELINE_ROW_TYPE,
-                createSyntheticSubRow(
-                  operatorTimelineRowId(item.id),
-                  OPERATOR_TIMELINE_ROW_TYPE
-                )
+                createSyntheticSubRow(operatorTimelineRowId(item.id), OPERATOR_TIMELINE_ROW_TYPE)
               ),
               ...children,
             ]

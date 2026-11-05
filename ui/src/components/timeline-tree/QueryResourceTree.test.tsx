@@ -18,6 +18,7 @@ import type {
   NvtxCatalog,
 } from '@quent/utils';
 import {
+  DEFAULT_TIMELINE_HEIGHT,
   LONG_ENTITIES_ROW_TYPE,
   NVTX_LANE_ROW_TYPE,
   NVTX_SECTION_ROW_TYPE,
@@ -27,7 +28,7 @@ import {
 import { operatorTimelineRowId } from '@quent/components';
 import { pinnedIdsAtom, resourceFilterAtom } from '@/atoms/resourceTree';
 import { EMPTY_RESOURCE_FILTER } from '@/features/resource-filter/resourceFilter';
-import type { ResourceTimelineSubRow } from './sub-rows';
+import { TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT, type ResourceTimelineSubRow } from './sub-rows';
 
 // ---------------------------------------------------------------------------
 // Mock heavy/visual dependencies so tests run without a real browser/canvas
@@ -67,6 +68,7 @@ let capturedReorderPinned: ((activeId: string, overId: string) => void) | undefi
 let capturedClearPinned: (() => void) | undefined;
 let capturedBulkExtraItems: TreeTableItem[] | undefined;
 let capturedOnExpandChange: ((itemId: string, isExpanded: boolean) => void) | undefined;
+let capturedGetRowHeight: ((item: TreeTableItem) => number) | undefined;
 let capturedInlineSelectors: Array<{
   id: string;
   value: string;
@@ -100,6 +102,7 @@ vi.mock('@quent/components', async importOriginal => {
         }) => React.ReactNode;
       }>;
       controlledExpandedIds?: Set<string>;
+      getRowHeight?: (item: TreeTableItem) => number;
       data: TreeTableItem[];
       highlightedItemIds?: Set<string>;
       onExpandChange?: (itemId: string, isExpanded: boolean) => void;
@@ -122,6 +125,7 @@ vi.mock('@quent/components', async importOriginal => {
       capturedHighlightedIds = props.highlightedItemIds ?? new Set();
       capturedExpandedIds = props.controlledExpandedIds ?? new Set();
       capturedOnExpandChange = props.onExpandChange;
+      capturedGetRowHeight = props.getRowHeight;
       const longEntityElement = props.columns[1]?.render?.({
         item: {
           id: actual.longEntitiesRowId(RESOURCE_ID),
@@ -304,6 +308,7 @@ beforeEach(() => {
   capturedClearPinned = undefined;
   capturedBulkExtraItems = undefined;
   capturedOnExpandChange = undefined;
+  capturedGetRowHeight = undefined;
   capturedLongEntityProps = undefined;
   vi.mocked(clientApi.useNvtxStream).mockReturnValue({
     contextId: undefined,
@@ -630,6 +635,21 @@ describe('QueryResourceTree — configurable resource subrows', () => {
     const rowTypes = collectRowTypes(capturedTreeData);
     expect(rowTypes).toContain(OPERATOR_TIMELINE_ROW_TYPE);
     expect(rowTypes).toContain(LONG_ENTITIES_ROW_TYPE);
+  });
+
+  it('renders disclosure headers more compactly than timeline rows', () => {
+    renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    const resource = capturedTreeData[0]?.children?.[0];
+    const disclosure = resource?.children?.[0];
+    expect(resource).toBeDefined();
+    expect(disclosure).toBeDefined();
+    expect(capturedGetRowHeight?.(resource!)).toBe(DEFAULT_TIMELINE_HEIGHT);
+    expect(capturedGetRowHeight?.(disclosure!)).toBe(TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT);
   });
 
   it('shows chart disclosures by default and lets each one collapse independently', async () => {

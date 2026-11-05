@@ -7,6 +7,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@quent/client';
 import {
+  DEFAULT_TIMELINE_HEIGHT,
   ResourceColumn,
   UsageColumn,
   buildBulkParamsForItem,
@@ -51,7 +52,7 @@ import {
 import { usePinnedCollapsed, usePinnedIds } from '@/hooks/usePinnedIds';
 import { PinnedRowPath } from './PinnedRowPath';
 import { SubRowVisibilityControls, type SubRowVisibilityControl } from './SubRowVisibilityControls';
-import type { ResourceTimelineSubRow } from './sub-rows';
+import { TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT, type ResourceTimelineSubRow } from './sub-rows';
 import {
   TimelineTreeTable,
   useTimelineTreeSetup,
@@ -502,6 +503,13 @@ export function useResourceTimelinesTreeModel({
       subRows,
     ]
   );
+  const getRowHeight = useCallback(
+    (item: TimelineTreeItem) =>
+      subRows.some(subRow => subRow.disclosureRowType === item.type)
+        ? TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT
+        : DEFAULT_TIMELINE_HEIGHT,
+    [subRows]
+  );
 
   return {
     filterMatchCount: resourceFilterResult.matchCount,
@@ -511,6 +519,7 @@ export function useResourceTimelinesTreeModel({
     trees: trees as TimelineTreeItem[],
     pinning,
     rowPinning,
+    getRowHeight,
     emptyMessage: 'No resources match this filter.',
     filters: (
       <>

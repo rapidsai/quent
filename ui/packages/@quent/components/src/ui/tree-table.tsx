@@ -487,6 +487,8 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
    * actual rendered row height as closely as possible.
    */
   rowHeight?: number;
+  /** Optional per-row height override for compact or expanded row types. */
+  getRowHeight?: (item: TreeTableDataItem) => number;
   /**
    * Number of extra rows to render above and below the visible window so
    * scrolling doesn't reveal blank space before the next render. Only used
@@ -579,6 +581,7 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       controlledExpandedIds,
       virtualized: _virtualized,
       rowHeight = DEFAULT_TREE_ROW_HEIGHT,
+      getRowHeight,
       overscanRows = DEFAULT_TREE_OVERSCAN_ROWS,
       ...props
     },
@@ -621,7 +624,10 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
     const rowVirtualizer = useVirtualizer({
       count: visibleRows.length,
       getScrollElement: () => scrollContainerRef?.current ?? null,
-      estimateSize: () => rowHeight,
+      estimateSize: index => {
+        const item = visibleRows[index]?.item;
+        return item && getRowHeight ? getRowHeight(item) : rowHeight;
+      },
       overscan: overscanRows,
       getItemKey: index => visibleRows[index]?.item.id ?? index,
     });
@@ -644,6 +650,7 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
             const isIndicated = indicatorItemIds?.has(item.id) ?? false;
             const chevronTransform = isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)';
             const chevronLeft = 10 + level * 20;
+            const currentRowHeight = getRowHeight?.(item) ?? rowHeight;
 
             return (
               <div
@@ -664,7 +671,7 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
                   top: 0,
                   left: 0,
                   right: 0,
-                  minHeight: `${rowHeight}px`,
+                  minHeight: `${currentRowHeight}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
                 onClick={() => {
@@ -746,6 +753,7 @@ const RecursiveTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       scrollContainerRef: _scrollContainerRef,
       virtualized: _virtualized,
       rowHeight: _rowHeight,
+      getRowHeight: _getRowHeight,
       overscanRows: _overscanRows,
       ...props
     },

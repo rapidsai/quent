@@ -28,12 +28,8 @@ describe('createLongEntitiesTimelineSubRow', () => {
 
     expect(tree.children?.map(child => child.id)).toEqual(['res-1', 'res-2']);
     expect(tree.children?.[0]?.children?.[0]?.type).toBe('long-entities-disclosure');
-    expect(tree.children?.[0]?.children?.[0]?.children?.[0]?.id).toBe(
-      '__long_entities__res-1'
-    );
-    expect(tree.children?.[1]?.children?.[0]?.children?.[0]?.id).toBe(
-      '__long_entities__res-2'
-    );
+    expect(tree.children?.[0]?.children?.[0]?.children?.[0]?.id).toBe('__long_entities__res-1');
+    expect(tree.children?.[1]?.children?.[0]?.children?.[0]?.id).toBe('__long_entities__res-2');
   });
 
   it('is labeled Entities', () => {
