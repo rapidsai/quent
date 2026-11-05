@@ -4,7 +4,7 @@
 import { useCallback } from 'react';
 import { useAtomValueRawSync, useSetAtom } from 'jotai';
 import { pinnedCollapsedAtom, pinnedIdsAtom } from '@/atoms/resourceTree';
-import { MAX_PINNED_ROWS, reorderPinnedIds } from '@/features/pinned-rows/pinnedRows';
+import { computePinAllPlan, reorderPinnedIds } from '@/features/pinned-rows/pinnedRows';
 
 /* getter/setter for the ids of pinned timeline rows */
 export function usePinnedIds() {
@@ -19,13 +19,25 @@ export function usePinnedIds() {
           next.delete(id);
           return next;
         }
-        // At the limit, ignore the request and keep the same set.
-        if (prev.size >= MAX_PINNED_ROWS) {
-          return prev;
-        }
         return new Set(prev).add(id);
       });
     },
+    [setPinnedIds]
+  );
+
+  // Pin several rows at once, after the existing pins.
+  const pinMany = useCallback(
+    (ids: readonly string[]) => {
+      setPinnedIds(prev => {
+        const { toPin } = computePinAllPlan(ids, prev);
+        return toPin.length === 0 ? prev : new Set([...prev, ...toPin]);
+      });
+    },
+    [setPinnedIds]
+  );
+
+  const clearPins = useCallback(
+    () => setPinnedIds(prev => (prev.size === 0 ? prev : new Set<string>())),
     [setPinnedIds]
   );
 
@@ -39,8 +51,9 @@ export function usePinnedIds() {
   return {
     pinnedIds,
     togglePin,
+    pinMany,
+    clearPins,
     movePin,
-    isAtPinLimit: pinnedIds.size >= MAX_PINNED_ROWS,
   } as const;
 }
 

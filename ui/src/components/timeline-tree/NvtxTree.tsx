@@ -4,6 +4,7 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { ChartGantt } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { useNvtxStream, type NvtxCategoryFilter } from '@quent/client';
 import {
   DEFAULT_TIMELINE_HEIGHT,
@@ -29,12 +30,15 @@ import {
   selectedNvtxCategoriesAtom,
   selectedNvtxDomainAtom,
 } from '@/atoms/resourceTree';
+import { findAncestorNames } from '@/features/pinned-rows/pinnedRows';
 import { useAutoExpandMatchingAncestors, useExpandedIds } from '@/hooks/useExpandedIds';
+import { PinnedRowPath } from './PinnedRowPath';
 import {
   TimelineTreeTable,
   useTimelineTreeSetup,
   type TimelineTreeControls,
   type TimelineTreeItem,
+  type RowPinning,
   type TimelineTreeModel,
 } from './TimelineTreeTable';
 
@@ -140,7 +144,24 @@ function NvtxDomainLabel({
 export interface NvtxTreeModel extends TimelineTreeModel, TimelineTreeControls {
   filterMatchCount: number;
   isFilterActive: boolean;
+  // The whole tree before any filter, where pinned rows are looked up.
+  fullTree: TimelineTreeItem | null;
+  // Matching lane rows the user can pin with "pin all", in tree order.
+  pinnableMatchIds: string[];
 }
+
+function nvtxRowName(item: TimelineTreeItem): string {
+  if (item.type === NVTX_SECTION_ROW_TYPE) {
+    return 'NVTX';
+  }
+  if (!isNvtxTreeEntity(item.entity)) {
+    return item.id;
+  }
+  return item.entity.nvtxKind === 'domain' ? item.entity.domain.name : nvtxLaneLabel(item.entity);
+}
+
+// Only lane rows have timeline content of their own, so they are the rows that can be pinned.
+const isNvtxRowPinnable = (item: TimelineTreeItem) => item.type === NVTX_LANE_ROW_TYPE;
 
 interface NvtxTreeProps {
   engineId: string;
@@ -288,6 +309,37 @@ export function useNvtxTreeModel({
         : new Set<string>(),
     [filterResult, resourceFilter.showOthers]
   );
+  const pinnableMatchIds = useMemo(() => {
+    const ids: string[] = [];
+    const directMatchIds = filterResult?.directMatchIds;
+    const visit = (item: TimelineTreeItem) => {
+      if (directMatchIds?.has(item.id) && isNvtxRowPinnable(item)) {
+        ids.push(item.id);
+      }
+      item.children?.forEach(visit);
+    };
+    if (tree) {
+      visit(tree as TimelineTreeItem);
+    }
+    return ids;
+  }, [filterResult, tree]);
+  const getPinnedRowDescription = useCallback(
+    (item: TimelineTreeItem) => {
+      const names = unfilteredTree
+        ? findAncestorNames([unfilteredTree as TimelineTreeItem], item.id, nvtxRowName)
+        : null;
+      return names?.length ? <PinnedRowPath names={names} /> : undefined;
+    },
+    [unfilteredTree]
+  );
+  const rowPinning = useMemo<RowPinning>(
+    () => ({
+      isPinnable: isNvtxRowPinnable,
+      getName: nvtxRowName,
+      getDescription: getPinnedRowDescription,
+    }),
+    [getPinnedRowDescription]
+  );
   const onZoomChange = useCallback(
     (range: { start: number; end: number }) => {
       setZoomRange(range);
@@ -297,7 +349,7 @@ export function useNvtxTreeModel({
   );
 
   const renderLabel = useCallback(
-    (item: TimelineTreeItem) => {
+    (item: TimelineTreeItem, description?: ReactNode) => {
       if (item.type === NVTX_SECTION_ROW_TYPE) {
         return catalog ? (
           <NvtxSectionLabel
@@ -340,7 +392,17 @@ export function useNvtxTreeModel({
       }
       if (item.type === NVTX_LANE_ROW_TYPE) {
         const label = isNvtxTreeEntity(item.entity) ? nvtxLaneLabel(item.entity) : '';
-        return <span className="truncate text-xs leading-none text-muted-foreground">{label}</span>;
+        const labelElement = (
+          <span className="truncate text-xs leading-none text-muted-foreground">{label}</span>
+        );
+        return description ? (
+          <div className="flex min-w-0 flex-col gap-0.5">
+            {labelElement}
+            <span className="text-[10px] leading-none text-muted-foreground">{description}</span>
+          </div>
+        ) : (
+          labelElement
+        );
       }
       return null;
     },
@@ -377,6 +439,9 @@ export function useNvtxTreeModel({
     filterMatchCount: filterResult?.matchCount ?? 0,
     isFilterActive: filterResult?.isActive ?? false,
     trees: tree ? [tree as TimelineTreeItem] : [],
+    fullTree: unfilteredTree as TimelineTreeItem | null,
+    pinnableMatchIds,
+    rowPinning,
     initialSelectedItemId: tree?.id,
     expandedIds,
     highlightedItemIds,

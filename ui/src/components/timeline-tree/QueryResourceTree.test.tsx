@@ -64,6 +64,7 @@ let capturedPinnedItems: TreeTableItem[] = [];
 let capturedHiddenPinnedCount = 0;
 let capturedPinnedCollapse: { isCollapsed: boolean; toggle?: () => void } = { isCollapsed: false };
 let capturedReorderPinned: ((activeId: string, overId: string) => void) | undefined;
+let capturedClearPinned: (() => void) | undefined;
 let capturedBulkExtraItems: TreeTableItem[] | undefined;
 let capturedOnExpandChange: ((itemId: string, isExpanded: boolean) => void) | undefined;
 let capturedInlineSelectors: Array<{
@@ -107,6 +108,7 @@ vi.mock('@quent/components', async importOriginal => {
       isPinnedCollapsed?: boolean;
       onTogglePinnedCollapsed?: () => void;
       onReorderPinned?: (activeId: string, overId: string) => void;
+      onClearPinned?: () => void;
     }) => {
       capturedTreeData = props.data;
       capturedPinnedItems = props.pinnedItems ?? [];
@@ -116,6 +118,7 @@ vi.mock('@quent/components', async importOriginal => {
         toggle: props.onTogglePinnedCollapsed,
       };
       capturedReorderPinned = props.onReorderPinned;
+      capturedClearPinned = props.onClearPinned;
       capturedHighlightedIds = props.highlightedItemIds ?? new Set();
       capturedExpandedIds = props.controlledExpandedIds ?? new Set();
       capturedOnExpandChange = props.onExpandChange;
@@ -296,6 +299,7 @@ beforeEach(() => {
   capturedHiddenPinnedCount = 0;
   capturedPinnedCollapse = { isCollapsed: false };
   capturedReorderPinned = undefined;
+  capturedClearPinned = undefined;
   capturedBulkExtraItems = undefined;
   capturedOnExpandChange = undefined;
   capturedLongEntityProps = undefined;
@@ -695,6 +699,25 @@ describe('QueryResourceTree — resource filtering', () => {
     expect(capturedHighlightedIds).not.toContain(RESOURCE_ID);
   });
 
+  it('leaves Entities rows out of "pin all"', async () => {
+    const store = createStore();
+    store.set(resourceFilterAtom, {
+      search: 'GPU 0',
+      resourceTypes: [],
+      fsmTypes: [],
+      showOthers: false,
+    });
+
+    const { getByRole } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await userEvent.click(getByRole('button', { name: 'Resource filters, 1 selected filter' }));
+    expect(getByRole('button', { name: 'Pin all 1' })).toBeInTheDocument();
+  });
+
   it('allows matching resource rows to be expanded while Show All is selected', async () => {
     const store = createStore();
     store.set(resourceFilterAtom, {
@@ -1010,6 +1033,26 @@ describe('QueryResourceTree — pinned rows', () => {
     await waitFor(() => expect(capturedPinnedCollapse.isCollapsed).toBe(false));
   });
 
+  it('clears every pin, including ones a filter hides', async () => {
+    const store = renderWithPins([SECOND_RESOURCE_ID, RESOURCE_ID]);
+    await waitFor(() => expect(pinnedIds()).toHaveLength(2));
+    act(() =>
+      store.set(resourceFilterAtom, {
+        search: 'GPU 0',
+        resourceTypes: [],
+        fsmTypes: [],
+        showOthers: false,
+      })
+    );
+    await waitFor(() => expect(capturedHiddenPinnedCount).toBe(1));
+
+    act(() => capturedClearPinned?.());
+
+    await waitFor(() => expect(pinnedIds()).toEqual([]));
+    expect(capturedHiddenPinnedCount).toBe(0);
+    expect(store.get(pinnedIdsAtom).size).toBe(0);
+  });
+
   it('asks for bulk timeline data for pinned resources but not for pinned sub-rows', async () => {
     renderWithPins([SECOND_RESOURCE_ID, `__long_entities__${RESOURCE_ID}`]);
 
@@ -1241,5 +1284,111 @@ describe('QueryResourceTree — arranging pinned rows', () => {
 
     await waitFor(() => expect(pinnedOrder()).toEqual([LANE_ID, RESOURCE_ID]));
     expect([...store.get(pinnedIdsAtom)]).toEqual([LANE_ID, RESOURCE_ID]);
+  });
+});
+
+describe('QueryResourceTree — NVTX pinning', () => {
+  const NVTX_THREAD_ROW_ID = '__nvtx_thread__1__7';
+
+  const mockNvtxThread = () => {
+    vi.mocked(clientApi.useNvtxStream).mockReturnValue({
+      contextId: 'context-1',
+      catalog: {
+        domains: [
+          {
+            domain_id: '1',
+            source_domain_ids: ['1'],
+            name: 'Domain 1',
+            color: '#76b900ff',
+            threads: [{ thread_id: 7, name: 'worker 7' }],
+            categories: [],
+            has_uncategorized: false,
+          },
+        ],
+      } as unknown as NvtxCatalog,
+      viewport: {
+        viewport: { start: 0, end: DURATION_S },
+        domains: [
+          {
+            domain_id: '1',
+            source_domain_ids: ['1'],
+            name: 'Domain 1',
+            color: '#76b900ff',
+            lanes: [
+              {
+                id: 'thread-7',
+                label: 'worker 7',
+                identity: { kind: 'thread', source_domain_id: '1', thread_id: 7, depth: 0 },
+                ranges: [],
+                marks: [],
+              },
+            ],
+          },
+        ],
+        statistics: [],
+      } as unknown as NonNullable<ReturnType<typeof clientApi.useNvtxStream>['viewport']>,
+      isLoading: false,
+    });
+  };
+
+  beforeEach(() => {
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
+    vi.mocked(clientApi.fetchBulkTimelines).mockResolvedValue({ entries: {} } as never);
+    mockNvtxThread();
+  });
+
+  it('pins every NVTX lane that matches the search with "pin all"', async () => {
+    const store = createStore();
+    store.set(resourceFilterAtom, {
+      search: 'worker 7',
+      resourceTypes: [],
+      fsmTypes: [],
+      showOthers: false,
+    });
+
+    const { getByRole } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await userEvent.click(getByRole('button', { name: 'Resource filters, 1 selected filter' }));
+    await userEvent.click(getByRole('button', { name: 'Pin all 1' }));
+
+    expect([...store.get(pinnedIdsAtom)]).toEqual([NVTX_THREAD_ROW_ID]);
+    await waitFor(() =>
+      expect(capturedPinnedItems.map(item => item.id)).toEqual([NVTX_THREAD_ROW_ID])
+    );
+  });
+
+  it('pins matching resource and NVTX rows together', async () => {
+    const store = createStore();
+    store.set(resourceFilterAtom, {
+      search: 'GPU 0, worker 7',
+      resourceTypes: [],
+      fsmTypes: [],
+      showOthers: false,
+    });
+
+    const { getByRole } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await userEvent.click(getByRole('button', { name: 'Resource filters, 1 selected filter' }));
+    await userEvent.click(getByRole('button', { name: 'Pin all 2' }));
+
+    expect([...store.get(pinnedIdsAtom)].sort()).toEqual([NVTX_THREAD_ROW_ID, RESOURCE_ID].sort());
+  });
+
+  it('offers a pin button on NVTX lane rows', async () => {
+    const { getByRole } = renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await waitFor(() => expect(getByRole('button', { name: 'Pin worker 7' })).toBeInTheDocument());
   });
 });

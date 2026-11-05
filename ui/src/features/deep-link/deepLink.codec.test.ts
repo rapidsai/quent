@@ -16,6 +16,7 @@ import {
   DeepLinkStateV2Schema,
   DeepLinkStateV3Schema,
   MAX_EXPANDED_RESOURCE_IDS,
+  MAX_PINNED_ROW_IDS,
   MAX_SELECTED_NODE_IDS,
   OperatorGroupSchema,
   type DeepLinkStateV3,
@@ -501,12 +502,12 @@ describe('deep-link pinned rows', () => {
   it('allows the maximum number of pins and rejects more', () => {
     const ids = (count: number) => Array.from({ length: count }, (_, i) => `row-${i}`);
 
-    expect(DeepLinkStateV3Schema.validate(withPins(ids(MAX_PINNED_ROWS)))).toBe(true);
-    expect(encodeDeepLinkState(withPins(ids(MAX_PINNED_ROWS + 1)))).toEqual({
+    expect(DeepLinkStateV3Schema.validate(withPins(ids(MAX_PINNED_ROW_IDS)))).toBe(true);
+    expect(encodeDeepLinkState(withPins(ids(MAX_PINNED_ROW_IDS + 1)))).toEqual({
       ok: false,
       code: 'invalid-state',
-      message: `Shared links support at most ${MAX_PINNED_ROWS} pinned rows.`,
-      messages: [`Shared links support at most ${MAX_PINNED_ROWS} pinned rows.`],
+      message: `Shared links support at most ${MAX_PINNED_ROW_IDS} pinned rows.`,
+      messages: [`Shared links support at most ${MAX_PINNED_ROW_IDS} pinned rows.`],
     });
   });
 
