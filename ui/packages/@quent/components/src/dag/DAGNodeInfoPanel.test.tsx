@@ -190,7 +190,7 @@ describe('DAGNodeInfoPanel', () => {
     );
 
     const entry = await screen.findByTestId('operator-detail-entry-logical');
-    expect(scrollIntoView.mock.contexts.at(-1)).toBe(entry);
+    expect(scrollIntoView.mock.contexts[scrollIntoView.mock.contexts.length - 1]).toBe(entry);
     expect(scrollIntoView).toHaveBeenLastCalledWith({
       behavior: 'smooth',
       block: 'nearest',
@@ -464,7 +464,7 @@ describe('pipes alongside operators', () => {
     expect(screen.getByRole('tab', { name: 'Pipes' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('region', { name: 'Sending port' })).toBeVisible();
     const pipeEntry = screen.getByTestId('pipe-detail-entry-one');
-    expect(scrollIntoView.mock.contexts.at(-1)).toBe(pipeEntry);
+    expect(scrollIntoView.mock.contexts[scrollIntoView.mock.contexts.length - 1]).toBe(pipeEntry);
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Operators' }), { button: 0 });
     expect(screen.getByRole('tab', { name: 'Operators' })).toHaveAttribute('aria-selected', 'true');
@@ -495,7 +495,11 @@ describe('pipes alongside operators', () => {
 
     expect(screen.getByRole('tab', { name: 'Operators' })).toHaveAttribute('aria-selected', 'true');
     const operatorEntry = screen.getByTestId('operator-detail-entry-scan');
-    await waitFor(() => expect(scrollIntoView.mock.contexts.at(-1)).toBe(operatorEntry));
+    await waitFor(() =>
+      expect(scrollIntoView.mock.contexts[scrollIntoView.mock.contexts.length - 1]).toBe(
+        operatorEntry
+      )
+    );
   });
 
   it('keeps the Pipes tab active when filtering an endpoint from pipe details', () => {
