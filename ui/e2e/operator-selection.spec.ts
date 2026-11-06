@@ -26,7 +26,14 @@ async function openTimeline(page: Page) {
 }
 
 async function openOperatorGanttCharts(page: Page) {
-  const operatorDisclosures = page.getByText('Operators', { exact: true });
+  // Row labels only; the "Operators" tab link in the nav has the same text.
+  const operatorDisclosures = page.locator('span.text-xs', { hasText: /^Operators$/ });
+  // Disclosure rows only show once their worker is expanded.
+  await expect(page.getByText('worker-1', { exact: true })).toBeVisible();
+  if ((await operatorDisclosures.count()) < 2) {
+    await page.getByText('worker-0', { exact: true }).click();
+    await page.getByText('worker-1', { exact: true }).click();
+  }
   await expect(operatorDisclosures).toHaveCount(2);
   await operatorDisclosures.nth(1).click();
   await operatorDisclosures.nth(0).click();
