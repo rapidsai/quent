@@ -380,7 +380,7 @@ describe('TreeTable info cell', () => {
 describe('TreeTable variable row heights', () => {
   it('uses a per-row height override in virtualized trees', () => {
     const parent = { ...row('parent'), children: [row('child')] };
-    const getRowHeight = vi.fn((item: Row) => (item.id === 'parent' ? 24 : ROW_HEIGHT));
+    const getRowHeight = vi.fn((item: { id: string }) => (item.id === 'parent' ? 24 : ROW_HEIGHT));
     render(
       <TreeTable<Row>
         data={[parent]}
