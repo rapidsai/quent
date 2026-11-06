@@ -12,7 +12,6 @@ import {
 import { commonQueryMetrics, diffQueryBundles } from '@quent/query-analysis';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import {
-  createNonInteractiveSelector,
   createTerminalSelector,
   discoverQueryTreeChoices,
   selectEngine,
@@ -52,7 +51,7 @@ Options:
   --db-trust-all          Trust every source opened from the database
   --baseline-source ID    "local" or a registered database run
   --candidate-source ID   Candidate source; one for all or one per candidate
-  --json                  Emit versioned JSON; never open interactive prompts`;
+  --json                  Emit versioned JSON output (selection may still be interactive)`;
 
 type QueryDiffCliValue = string | string[] | boolean | undefined;
 type QueryDiffCliValues = Record<string, QueryDiffCliValue>;
@@ -99,6 +98,13 @@ type SelectMetrics = (
 const ALL_METRICS = '\0all-metrics';
 
 type InputText = (prompt: string, placeholder?: string) => Promise<string>;
+
+export interface QueryDiffInteraction {
+  select: SelectFromList;
+  selectTree: SelectFromQueryTree;
+  selectMetrics: SelectMetrics;
+  inputText: InputText;
+}
 
 export async function resolveQueryDiffMetrics(
   values: QueryDiffCliValues,
@@ -517,9 +523,6 @@ export async function resolveDatabaseRunIds(
   if (!values.db) {
     return [];
   }
-  if (values.json) {
-    throw new Error('JSON mode requires explicit --db-run when --db is used.');
-  }
   const entered = await inputText('Enter database run IDs', 'comma-separated, e.g. 6647, 6650');
   const runs = entered
     .split(',')
@@ -548,166 +551,146 @@ function clientDiscoveryApi(baseUrl: string): DiscoveryApi {
   };
 }
 
+export async function runQueryDiffCommand(
+  args: string[],
+  interaction: QueryDiffInteraction = {
+    select: createTerminalSelector(),
+    selectTree: selectFromQueryTreeWithInk,
+    selectMetrics: selectManyWithInk,
+    inputText: inputDatabaseRunIds,
+  }
+): Promise<void> {
+  const { values } = parseArgs({
+    args,
+    allowNegative: true,
+    allowPositionals: false,
+    options: {
+      'api-base': { type: 'string' },
+      'baseline-engine': { type: 'string' },
+      'baseline-query': { type: 'string' },
+      'baseline-source': { type: 'string' },
+      candidate: { type: 'string', multiple: true },
+      'candidate-engine': { type: 'string', multiple: true },
+      'candidate-query': { type: 'string', multiple: true },
+      'candidate-source': { type: 'string', multiple: true },
+      'combined-table': { type: 'boolean', default: true },
+      db: { type: 'boolean' },
+      'db-api-base-url': { type: 'string' },
+      'db-run': { type: 'string', multiple: true },
+      'db-token': { type: 'string' },
+      'db-trust': { type: 'string', multiple: true },
+      'db-trust-all': { type: 'boolean' },
+      engine: { type: 'string' },
+      json: { type: 'boolean' },
+      metric: { type: 'string', multiple: true },
+    },
+  });
+
+  const configuredLocalApiBase = values['api-base'] ?? process.env.QUENT_API_BASE_URL;
+  const apiBase = configuredLocalApiBase ?? 'http://localhost:8080/api';
+  setApiBaseUrl(apiBase.replace(/\/+$/u, ''));
+  const databaseRuns = await resolveDatabaseRunIds(values, interaction.inputText);
+  const databaseMode = Boolean(values.db) || databaseRuns.length > 0;
+  const includeLocal = !databaseMode || configuredLocalApiBase !== undefined;
+
+  let handles: QuentOpenDbHandle[] = [];
+  let interrupted = false;
+  const stopOnSignal = (exitCode: number) => {
+    interrupted = true;
+    process.exitCode = exitCode;
+    void stopQuentOpenDbRuns(handles);
+  };
+  const onInterrupt = () => stopOnSignal(130);
+  const onTerminate = () => stopOnSignal(143);
+  if (databaseMode) {
+    process.once('SIGINT', onInterrupt);
+    process.once('SIGTERM', onTerminate);
+  }
+  try {
+    if (databaseMode) {
+      handles = await launchQuentOpenDbRuns(databaseRuns, {
+        apiBaseUrl: optionalId(values['db-api-base-url']),
+        interactive: Boolean(process.stdin.isTTY && process.stderr.isTTY),
+        token: optionalId(values['db-token']),
+        trust: ids(values['db-trust']),
+        trustAll: Boolean(values['db-trust-all']),
+      });
+    }
+    if (interrupted) {
+      return;
+    }
+    const sources: QueryDiffSource[] = [
+      ...(includeLocal
+        ? [
+            {
+              id: 'local',
+              label: 'local',
+              api: databaseMode
+                ? clientDiscoveryApi(apiBase.replace(/\/+$/u, ''))
+                : globalDiscoveryApi(),
+            },
+          ]
+        : []),
+      ...handles.map(handle => ({
+        id: handle.run,
+        label: `db ${handle.run}`,
+        api: clientDiscoveryApi(handle.apiBaseUrl),
+      })),
+    ];
+    const { baseline, candidates } = await resolveSourcedQueryDiffSelections(
+      values,
+      sources,
+      interaction.select,
+      interaction.selectTree
+    );
+    const baselineApi = findSource(sources, baseline.sourceId).api;
+    const baselineBundle = await baselineApi.fetchQueryBundle(baseline.engineId, baseline.queryId);
+    const candidateBundles = await Promise.all(
+      candidates.map(candidate =>
+        findSource(sources, candidate.sourceId).api.fetchQueryBundle(
+          candidate.engineId,
+          candidate.queryId
+        )
+      )
+    );
+    const metrics = await resolveQueryDiffMetrics(
+      values,
+      [baselineBundle, ...candidateBundles],
+      interaction.selectMetrics
+    );
+    const result = diffQueryBundles(
+      {
+        ...(databaseMode ? { source: baseline.sourceLabel } : {}),
+        engineId: baseline.engineId,
+        bundle: baselineBundle,
+      },
+      candidates.map((candidate, index) => ({
+        ...(databaseMode ? { source: candidate.sourceLabel } : {}),
+        engineId: candidate.engineId,
+        bundle: candidateBundles[index]!,
+      })),
+      { metrics }
+    );
+    process.stdout.write(
+      values.json
+        ? serializeMachineOutput(machineResult('query-diff', result))
+        : `${formatQueryDiff(result, {
+            color: process.stdout.isTTY && !('NO_COLOR' in process.env),
+            combinedTable: values['combined-table'],
+          })}\n`
+    );
+  } finally {
+    if (databaseMode) {
+      process.removeListener('SIGINT', onInterrupt);
+      process.removeListener('SIGTERM', onTerminate);
+      await stopQuentOpenDbRuns(handles);
+    }
+  }
+}
+
 export const queryDiffCommand: AskCommand = {
   id: 'query-diff',
   explanation: 'Compares numeric operator statistics and active spans from two query bundles.',
   usage,
-  async run(args) {
-    const { values } = parseArgs({
-      args,
-      allowNegative: true,
-      allowPositionals: false,
-      options: {
-        'api-base': { type: 'string' },
-        'baseline-engine': { type: 'string' },
-        'baseline-query': { type: 'string' },
-        'baseline-source': { type: 'string' },
-        candidate: { type: 'string', multiple: true },
-        'candidate-engine': { type: 'string', multiple: true },
-        'candidate-query': { type: 'string', multiple: true },
-        'candidate-source': { type: 'string', multiple: true },
-        'combined-table': { type: 'boolean', default: true },
-        db: { type: 'boolean' },
-        'db-api-base-url': { type: 'string' },
-        'db-run': { type: 'string', multiple: true },
-        'db-token': { type: 'string' },
-        'db-trust': { type: 'string', multiple: true },
-        'db-trust-all': { type: 'boolean' },
-        engine: { type: 'string' },
-        json: { type: 'boolean' },
-        metric: { type: 'string', multiple: true },
-      },
-    });
-
-    const configuredLocalApiBase = values['api-base'] ?? process.env.QUENT_API_BASE_URL;
-    const apiBase = configuredLocalApiBase ?? 'http://localhost:8080/api';
-    setApiBaseUrl(apiBase.replace(/\/+$/u, ''));
-    const databaseRuns = await resolveDatabaseRunIds(values);
-    const databaseMode = Boolean(values.db) || databaseRuns.length > 0;
-    const includeLocal = !databaseMode || configuredLocalApiBase !== undefined;
-
-    if (values.json) {
-      const qualifiedCount = ids(values.candidate).length;
-      const candidateQueryCount = ids(values['candidate-query']).length;
-      const hasCandidates = qualifiedCount > 0 || candidateQueryCount > 0;
-      const candidateQueriesHaveEngine =
-        candidateQueryCount === 0 ||
-        ids(values['candidate-engine']).length > 0 ||
-        Boolean(values.engine);
-      const sourceCount = databaseRuns.length + (includeLocal ? 1 : 0);
-      const missing = [
-        !values.engine && !values['baseline-engine'] && '--baseline-engine or --engine',
-        !values['baseline-query'] && '--baseline-query',
-        !hasCandidates && '--candidate or --candidate-query',
-        hasCandidates && !candidateQueriesHaveEngine && '--candidate-engine or --engine',
-        sourceCount > 1 && !values['baseline-source'] && '--baseline-source',
-        sourceCount > 1 && ids(values['candidate-source']).length === 0 && '--candidate-source',
-        ids(values.metric).length === 0 && '--metric',
-      ].filter((option): option is string => Boolean(option));
-      if (missing.length > 0) {
-        throw new Error(
-          `JSON mode requires explicit ${missing.join(', ')}. Use the discovery commands to find IDs.`
-        );
-      }
-    }
-
-    const select = values.json ? createNonInteractiveSelector() : createTerminalSelector();
-    const selectTree: SelectFromQueryTree = values.json
-      ? async () => {
-          throw new Error('Query tree selection is unavailable in JSON mode.');
-        }
-      : selectFromQueryTreeWithInk;
-    let handles: QuentOpenDbHandle[] = [];
-    let interrupted = false;
-    const stopOnSignal = (exitCode: number) => {
-      interrupted = true;
-      process.exitCode = exitCode;
-      void stopQuentOpenDbRuns(handles);
-    };
-    const onInterrupt = () => stopOnSignal(130);
-    const onTerminate = () => stopOnSignal(143);
-    if (databaseMode) {
-      process.once('SIGINT', onInterrupt);
-      process.once('SIGTERM', onTerminate);
-    }
-    try {
-      if (databaseMode) {
-        handles = await launchQuentOpenDbRuns(databaseRuns, {
-          apiBaseUrl: optionalId(values['db-api-base-url']),
-          interactive: !values.json,
-          token: optionalId(values['db-token']),
-          trust: ids(values['db-trust']),
-          trustAll: Boolean(values['db-trust-all']),
-        });
-      }
-      if (interrupted) {
-        return;
-      }
-      const sources: QueryDiffSource[] = [
-        ...(includeLocal
-          ? [
-              {
-                id: 'local',
-                label: 'local',
-                api: databaseMode
-                  ? clientDiscoveryApi(apiBase.replace(/\/+$/u, ''))
-                  : globalDiscoveryApi(),
-              },
-            ]
-          : []),
-        ...handles.map(handle => ({
-          id: handle.run,
-          label: `db ${handle.run}`,
-          api: clientDiscoveryApi(handle.apiBaseUrl),
-        })),
-      ];
-      const { baseline, candidates } = await resolveSourcedQueryDiffSelections(
-        values,
-        sources,
-        select,
-        selectTree
-      );
-      const baselineApi = findSource(sources, baseline.sourceId).api;
-      const baselineBundle = await baselineApi.fetchQueryBundle(
-        baseline.engineId,
-        baseline.queryId
-      );
-      const candidateBundles = await Promise.all(
-        candidates.map(candidate =>
-          findSource(sources, candidate.sourceId).api.fetchQueryBundle(
-            candidate.engineId,
-            candidate.queryId
-          )
-        )
-      );
-      const metrics = await resolveQueryDiffMetrics(values, [baselineBundle, ...candidateBundles]);
-      const result = diffQueryBundles(
-        {
-          ...(databaseMode ? { source: baseline.sourceLabel } : {}),
-          engineId: baseline.engineId,
-          bundle: baselineBundle,
-        },
-        candidates.map((candidate, index) => ({
-          ...(databaseMode ? { source: candidate.sourceLabel } : {}),
-          engineId: candidate.engineId,
-          bundle: candidateBundles[index]!,
-        })),
-        { metrics }
-      );
-      process.stdout.write(
-        values.json
-          ? serializeMachineOutput(machineResult('query-diff', result))
-          : `${formatQueryDiff(result, {
-              color: process.stdout.isTTY && !('NO_COLOR' in process.env),
-              combinedTable: values['combined-table'],
-            })}\n`
-      );
-    } finally {
-      if (databaseMode) {
-        process.removeListener('SIGINT', onInterrupt);
-        process.removeListener('SIGTERM', onTerminate);
-        await stopQuentOpenDbRuns(handles);
-      }
-    }
-  },
+  run: runQueryDiffCommand,
 };

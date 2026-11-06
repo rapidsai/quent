@@ -11,6 +11,7 @@ import {
   resolveQueryDiffMetrics,
   resolveQueryDiffSelections,
   resolveSourcedQueryDiffSelections,
+  runQueryDiffCommand,
   type QueryDiffSource,
 } from './queryDiff';
 
@@ -70,10 +71,31 @@ function metricBundle(queryId: string, metrics: string[]): QueryBundle<EntityRef
 }
 
 describe('query diff selections', () => {
-  it('requires every selection explicitly in JSON mode', async () => {
-    await expect(queryDiffCommand.run(['--json'])).rejects.toThrow(
-      'JSON mode requires explicit --baseline-engine or --engine, --baseline-query, --candidate or --candidate-query, --metric'
+  it('keeps query and metric selection interactive in JSON mode', async () => {
+    const api = discoveryApi();
+    api.fetchQueryBundle = vi.fn(async (_engineId, queryId) =>
+      metricBundle(queryId, ['output_rows'])
     );
+    setApiClient(api as unknown as ApiClient);
+    const selectTree = vi
+      .fn<SelectFromQueryTree>()
+      .mockResolvedValueOnce(['engine-1\0query-1'])
+      .mockResolvedValueOnce(['engine-2\0query-2']);
+    const selectMetrics = vi.fn().mockResolvedValue(['all']);
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    await runQueryDiffCommand(['--json'], {
+      select: vi.fn<SelectFromList>(),
+      selectTree,
+      selectMetrics,
+      inputText: vi.fn(),
+    });
+
+    expect(selectTree).toHaveBeenCalledTimes(2);
+    expect(selectMetrics).toHaveBeenCalledOnce();
+    const output = JSON.parse(String(write.mock.calls[0]![0]));
+    expect(output.schemaVersion).toBe(2);
+    expect(output.command).toBe('query-diff');
   });
 
   it('selects the baseline and multiple candidates from the all-engine query tree', async () => {
@@ -422,9 +444,13 @@ describe('database run selection', () => {
     await expect(resolveDatabaseRunIds({ db: true }, input)).resolves.toEqual(['6647', '6650']);
   });
 
-  it('does not prompt in JSON mode', async () => {
-    await expect(resolveDatabaseRunIds({ db: true, json: true }, vi.fn())).rejects.toThrow(
-      'JSON mode requires explicit --db-run'
-    );
+  it('accepts interactive run IDs in JSON mode', async () => {
+    const input = vi.fn().mockResolvedValue('6647, 6650, 6647');
+
+    await expect(resolveDatabaseRunIds({ db: true, json: true }, input)).resolves.toEqual([
+      '6647',
+      '6650',
+    ]);
+    expect(input).toHaveBeenCalledOnce();
   });
 });

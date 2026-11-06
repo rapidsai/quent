@@ -35,11 +35,12 @@ describe('ask command dispatcher', () => {
   });
 
   it('allows interactive selection with JSON output', () => {
-    const usage = getAskCommand('operator-facts').usage;
-
-    expect(usage).toContain('--json');
-    expect(usage).toContain('selection may still be interactive');
-    expect(usage).not.toContain('never open interactive prompts');
+    for (const command of ['operator-facts', 'query-diff']) {
+      const usage = getAskCommand(command).usage;
+      expect(usage).toContain('--json');
+      expect(usage).toContain('selection may still be interactive');
+      expect(usage).not.toContain('never open interactive prompts');
+    }
   });
 
   it('only advertises options used by current questions', () => {
