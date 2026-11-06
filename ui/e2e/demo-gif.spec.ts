@@ -369,7 +369,7 @@ test('exercises and records the README demo flow with generated simulator data',
   await expect(page.getByRole('button', { name: 'Clear all filters' })).toHaveCount(0);
   await beat(page);
 
-  await humanClick(page, page.locator('[role="tree"] .chevron-icon[data-open="false"]').first());
+  await humanClick(page, page.getByText('Entities', { exact: true }).first());
   await expect(page.locator('[data-long-entities-gantt]').first()).toBeVisible();
   await zoomTimeline(page, 0.08);
   await beat(page, 1_000);
