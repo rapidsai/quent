@@ -25,7 +25,6 @@ export const useClearInspectedPipes = () => useSetAtom(clearInspectedPipesAtom);
 
 export const useInspectedPipeNodes = () => useAtomValue(inspectedPipeNodesAtom);
 export const useDisplayedPipes = () => useAtomValue(displayedPipesAtom);
-export const useDisplayedDagNodes = () => useAtomValue(displayedDagNodesAtom);
 export const useHoveredPipeId = () => useAtomValue(hoveredPipeIdAtom);
 export const useSetHoveredPipeId = () => useSetAtom(hoveredPipeIdAtom);
 const EMPTY_NODES: readonly DAGNode[] = [];
