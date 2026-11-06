@@ -81,16 +81,26 @@ interface DisclosureExpansion {
   ownerId?: string;
 }
 
-function withDisclosuresShown(
+function withOwnersExpanded(
   expandedIds: ReadonlySet<string>,
   disclosures: readonly DisclosureExpansion[]
 ) {
   const next = new Set(expandedIds);
-  for (const { id, ownerId } of disclosures) {
-    next.add(id);
+  for (const { ownerId } of disclosures) {
     if (ownerId) {
       next.add(ownerId);
     }
+  }
+  return next;
+}
+
+function withDisclosuresShown(
+  expandedIds: ReadonlySet<string>,
+  disclosures: readonly DisclosureExpansion[]
+) {
+  const next = new Set(withOwnersExpanded(expandedIds, disclosures));
+  for (const { id } of disclosures) {
+    next.add(id);
   }
   return next;
 }
@@ -107,8 +117,8 @@ function withDisclosuresHidden(
 }
 
 /**
- * Expands newly discovered disclosures once when `showDisclosures` is on, and leaves them
- * collapsed otherwise. Flipping `showDisclosures` later applies to every disclosure; the user can
+ * Expands the owner of each newly discovered disclosure once, so the disclosure row is always
+ * visible, and opens the disclosure itself only when `showDisclosures` is on. Flipping `showDisclosures` later applies to every disclosure; the user can
  * still open or close individual rows afterwards.
  */
 export function useInitializeDisclosureExpansion(
@@ -125,9 +135,13 @@ export function useInitializeDisclosureExpansion(
     if (newDisclosures.length === 0) {
       return;
     }
-    if (showDisclosures) {
-      setExpandedIds(previous => withDisclosuresShown(previous, newDisclosures));
-    }
+    // The owner opens either way so the disclosure row is visible; `showDisclosures` decides
+    // whether its chart is open too.
+    setExpandedIds(previous =>
+      showDisclosures
+        ? withDisclosuresShown(previous, newDisclosures)
+        : withOwnersExpanded(previous, newDisclosures)
+    );
     setInitializedIds(previous => new Set([...previous, ...newDisclosures.map(({ id }) => id)]));
   }, [disclosures, initializedIds, setExpandedIds, setInitializedIds, showDisclosures]);
 

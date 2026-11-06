@@ -61,9 +61,7 @@ describe('TimelineSettingsPopover', () => {
   it('leaves nested entity and operator rows unchecked by default', () => {
     render(<TimelineSettingsPopover />);
 
-    expect(
-      screen.getByRole('checkbox', { name: 'Show entity/operator rows' })
-    ).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Show entity/operator rows' })).not.toBeChecked();
   });
 
   it('shows and hides nested rows when the checkbox is toggled', () => {

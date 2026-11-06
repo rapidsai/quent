@@ -14,9 +14,7 @@ import {
   collectVisibleEntries,
   findItemById,
   getAdaptiveNumBins,
-  LONG_ENTITIES_ROW_TYPE,
   OPERATOR_TIMELINE_ROW_TYPE,
-  resourceIdFromLongEntitiesRowId,
   workerIdFromOperatorTimelineRowId,
   transformResourceTree,
   type TreeTableItem,
@@ -229,31 +227,58 @@ export function useResourceTimelinesTreeModel({
   const { pinnedIds, togglePin, pinMany, clearPins, movePin } = usePinnedIds();
   const { isPinnedCollapsed, togglePinnedCollapsed } = usePinnedCollapsed();
   // A pin whose row a filter has removed is hidden, not forgotten; clearing the filter restores it.
-  const { shownItems: pinnedItems, hiddenCount: hiddenPinnedCount } = useMemo(
-    () =>
-      resolvePinnedRows(
-        pinnedIds,
-        [fullTree, ...(siblingPinning?.fullRoots ?? [])],
-        [...trees, ...(siblingPinning?.displayedRoots ?? [])]
-      ),
-    [fullTree, pinnedIds, siblingPinning?.displayedRoots, siblingPinning?.fullRoots, trees]
-  );
+  const { shownItems: pinnedItems, hiddenCount: hiddenPinnedCount } = useMemo(() => {
+    // Rows that are pinned with their owner (Entities) cannot be pinned on their own, so an id
+    // for one, such as from an old shared link, is ignored.
+    const ownedRowIds = new Set<string>();
+    const collectOwnedRows = (item: TimelineTreeItem) => {
+      if (subRows.some(subRow => subRow.pinsWithOwner && subRow.matches(item))) {
+        ownedRowIds.add(item.id);
+      }
+      item.children?.forEach(collectOwnedRows);
+    };
+    collectOwnedRows(fullTree as TimelineTreeItem);
+    const standalonePinnedIds = new Set([...pinnedIds].filter(id => !ownedRowIds.has(id)));
+
+    const resolved = resolvePinnedRows(
+      standalonePinnedIds,
+      [fullTree, ...(siblingPinning?.fullRoots ?? [])],
+      [...trees, ...(siblingPinning?.displayedRoots ?? [])]
+    );
+    // A pinned copy shows only the disclosure rows pinned with it (each with its chart row), not
+    // the rest of its subtree.
+    const shownItems = resolved.shownItems.map(item => {
+      const ownedRows = (item.children ?? []).filter(child =>
+        subRows.some(subRow => subRow.pinsWithOwner && subRow.disclosureRowType === child.type)
+      );
+      return { ...item, children: ownedRows.length > 0 ? ownedRows : undefined };
+    });
+    return { shownItems, hiddenCount: resolved.hiddenCount };
+  }, [
+    fullTree,
+    pinnedIds,
+    siblingPinning?.displayedRoots,
+    siblingPinning?.fullRoots,
+    subRows,
+    trees,
+  ]);
   const getPinnedRowDescription = useCallback(
     (item: TimelineTreeItem) => {
+      // A row pinned with its owner (Entities) is drawn under that owner, which already has the path.
+      if (subRows.some(subRow => subRow.pinsWithOwner && subRow.matches(item))) {
+        return undefined;
+      }
       const getName = (row: TimelineTreeItem) => {
         const worker = entities.workers[row.id];
         return worker ? workerDisplayName(worker) : (getEntityName(row as TreeTableItem) ?? row.id);
       };
       const roots = [fullTree as TimelineTreeItem];
-      // Entities and Operators rows belong to a resource or worker, so that owner is part of
-      // the path even when the tree puts it beside the row (Entities) or leaves it out as the
-      // only root (Operators).
+      // An Operators row belongs to a worker that the tree leaves out as the only root, so that
+      // worker is part of the path.
       const ownerId =
-        item.type === LONG_ENTITIES_ROW_TYPE
-          ? resourceIdFromLongEntitiesRowId(item.id)
-          : item.type === OPERATOR_TIMELINE_ROW_TYPE
-            ? workerIdFromOperatorTimelineRowId(item.id)
-            : null;
+        item.type === OPERATOR_TIMELINE_ROW_TYPE
+          ? workerIdFromOperatorTimelineRowId(item.id)
+          : null;
       const owner = ownerId != null ? findItemById(fullTree, ownerId) : undefined;
       if (owner) {
         const aboveOwner = findAncestorNames(roots, owner.id, getName);
@@ -263,12 +288,16 @@ export function useResourceTimelinesTreeModel({
       const names = findAncestorNames(roots, item.id, getName);
       return names?.length ? <PinnedRowPath names={names} /> : undefined;
     },
-    [entities.workers, fullTree]
+    [entities.workers, fullTree, subRows]
   );
   // The root group is already summarized by the overview bar, so it has no pin button.
   const isPinnable = useCallback(
     (item: TimelineTreeItem) =>
-      item.id !== rootItem.id && !subRows.some(subRow => subRow.disclosureRowType === item.type),
+      item.id !== rootItem.id &&
+      !subRows.some(
+        subRow =>
+          subRow.disclosureRowType === item.type || (subRow.pinsWithOwner && subRow.matches(item))
+      ),
     [rootItem.id, subRows]
   );
   // Matches the user can pin with "pin all": the matching resource rows, in tree order, then the

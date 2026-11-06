@@ -15,6 +15,11 @@ export interface ResourceTimelineSubRow {
   disclosureRowType: string;
   /** Whether adding this disclosure turns a former leaf into an initially expanded owner. */
   expandOwnerByDefault: boolean;
+  /**
+   * Whether the chart row is pinned together with its owner instead of on its own. The owner's
+   * pinned copy shows the chart row beneath it, and the chart row has no pin button.
+   */
+  pinsWithOwner: boolean;
   injectRows: (rootItem: TreeTableItem) => TreeTableItem;
   matches: (item: TimelineTreeItem) => boolean;
   renderLabel: (item: TimelineTreeItem, description?: ReactNode) => ReactNode;
@@ -76,6 +81,7 @@ export function createTimelineSubRow({
   label,
   renderTimeline,
   expandOwnerByDefault = false,
+  pinsWithOwner = false,
 }: {
   id: string;
   rowType: string;
@@ -83,6 +89,7 @@ export function createTimelineSubRow({
   label: string;
   renderTimeline: ResourceTimelineSubRow['renderTimeline'];
   expandOwnerByDefault?: boolean;
+  pinsWithOwner?: boolean;
 }): ResourceTimelineSubRow {
   const disclosureRowType = `${rowType}-disclosure`;
   return {
@@ -90,6 +97,7 @@ export function createTimelineSubRow({
     label,
     disclosureRowType,
     expandOwnerByDefault,
+    pinsWithOwner,
     injectRows,
     matches: item => item.type === rowType || item.type === disclosureRowType,
     renderLabel: (_item, description) => (

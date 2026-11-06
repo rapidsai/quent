@@ -44,6 +44,7 @@ export function createLongEntitiesTimelineSubRow({
     rowType: LONG_ENTITIES_ROW_TYPE,
     label: 'Entities',
     expandOwnerByDefault: true,
+    pinsWithOwner: true,
     injectRows: rootItem =>
       mapTreeItems(rootItem, (item, children) => {
         if (item.type !== EntityTypeKey.Resource || zeroUtilizationResourceIds?.has(item.id)) {

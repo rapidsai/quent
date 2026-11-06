@@ -852,7 +852,7 @@ export function TreeTable<I extends TreeTableDataItem>({
   data: I[];
   columns: Column<I>[];
   columnWidths?: ColumnWidth[];
-  /** Rows to show in a sticky section above the tree, in the order given. */
+  /** Rows to show in a sticky section above the tree, in the order given. A pinned row's children are drawn beneath it and move with it. */
   pinnedItems?: I[];
   /** Pinned rows a filter has hidden; only used to explain why they are missing. */
   hiddenPinnedCount?: number;
@@ -1036,6 +1036,40 @@ export function TreeTable<I extends TreeTableDataItem>({
     renderRow(item, level, isSelected);
 
   const pinnedRowHeight = treeViewProps.rowHeight ?? DEFAULT_TREE_ROW_HEIGHT;
+
+  const renderPinnedChild = (child: TreeTableDataItem, level: number): React.ReactNode => {
+    const hasChildren = !!child.children?.length;
+    const isOpen = hasChildren && (treeViewProps.controlledExpandedIds?.has(child.id) ?? false);
+    const chevronLeft = Math.min(level * indentPerLevel, Math.max(firstColumnBodyWidth - 12, 0));
+    return (
+      <div key={child.id}>
+        <div
+          className={cn(
+            'relative flex items-center',
+            hasChildren && 'cursor-pointer hover:bg-secondary/10'
+          )}
+          style={{ minHeight: `${treeViewProps.getRowHeight?.(child) ?? pinnedRowHeight}px` }}
+          onClick={
+            hasChildren ? () => treeViewProps.onExpandChange?.(child.id, !isOpen) : undefined
+          }
+        >
+          {hasChildren && (
+            <ChevronRight
+              aria-hidden="true"
+              className="chevron-icon absolute top-1/2 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200"
+              data-open={isOpen ? 'true' : 'false'}
+              style={{
+                left: `${chevronLeft}px`,
+                transform: isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)',
+              }}
+            />
+          )}
+          <div className="min-w-0 flex-1">{renderRow(child, level, false, true)}</div>
+        </div>
+        {isOpen && child.children?.map(grandchild => renderPinnedChild(grandchild, level + 1))}
+      </div>
+    );
+  };
   const pinnedCount = pinnedItems?.length ?? 0;
   const showPinnedSection = pinnedCount > 0 || hiddenPinnedCount > 0;
 
@@ -1192,7 +1226,16 @@ export function TreeTable<I extends TreeTableDataItem>({
                       maxHeight={MAX_VISIBLE_PINNED_ROWS * pinnedRowHeight}
                       rowMinHeight={pinnedRowHeight}
                       rowPaddingLeft={totalLeftSpacing}
-                      renderRow={(item, dragArea) => renderRow(item, 0, false, true, dragArea)}
+                      renderRow={(item, dragArea) =>
+                        item.children?.length ? (
+                          <div className="flex min-w-0 flex-col">
+                            {renderRow(item, 0, false, true, dragArea)}
+                            {item.children.map(child => renderPinnedChild(child, 1))}
+                          </div>
+                        ) : (
+                          renderRow(item, 0, false, true, dragArea)
+                        )
+                      }
                       onReorder={onReorderPinned}
                     />
                   )}
