@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Fragment, useEffect, type ReactNode } from 'react';
-import { Filter } from 'lucide-react';
+import { ArrowRight, Filter } from 'lucide-react';
 import {
   useInspectedPipeNodes,
   useOperatorSelection,
@@ -92,9 +92,7 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
       header={
         <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <OperatorBadge label={sourceLabel} operationType={sourceNode?.type} />
-          <span aria-hidden className="text-muted-foreground">
-            →
-          </span>
+          <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           <OperatorBadge label={targetLabel} operationType={targetNode?.type} />
         </span>
       }
