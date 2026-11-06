@@ -91,6 +91,7 @@ const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
 const ARROW_WIDTH_BASE = 8;
 const ARROW_DEPTH_RATIO = 0.6;
+// Keep edge action/status overlays clear of metric labels and variable-width strokes.
 const EDGE_ACTIONS_Y_OFFSET_WITHOUT_LABEL = -18;
 const EDGE_ACTIONS_Y_OFFSET_WITH_LABEL = -26;
 const EDGE_STATUS_Y_OFFSET_WITHOUT_LABEL = 14;
@@ -445,6 +446,7 @@ const FlowLayout = ({
   const hasUserInteracted = useRef(false);
   const appliedMeasuredLayoutKey = useRef<string | null>(null);
   const estimatedNodeHeight = NODE_LAYOUT_HEIGHT + (flowBarVisible ? FLOW_BAR_HEIGHT : 0);
+  // Stable geometry keys trigger one relayout when measured sizes or edge topology changes.
   const measuredNodeSizesKey = useMemo(() => {
     if (nodes.length === 0 || nodes.some(node => !node.measured?.width || !node.measured?.height)) {
       return null;
