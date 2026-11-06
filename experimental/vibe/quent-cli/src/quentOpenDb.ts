@@ -5,7 +5,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import path from 'node:path';
 
-const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '../..');
+const REPOSITORY_ROOT = path.resolve(import.meta.dirname, '../../../..');
 const MAX_CAPTURED_OUTPUT = 64 * 1024;
 const STOP_TIMEOUT_MS = 5_000;
 
@@ -19,32 +19,61 @@ export interface QuentOpenDbOptions {
 
 export interface QuentOpenDbHandle {
   run: string;
-  apiBaseUrl: string;
+  viewers: QuentOpenDbViewer[];
   stop(): Promise<void>;
 }
 
+export interface QuentOpenDbViewer {
+  label: string;
+  apiBaseUrl: string;
+}
+
 export interface QuentOpenReadyState {
-  apiBaseUrl?: string;
   viewerCount?: number;
+  viewer?: QuentOpenDbViewer;
 }
 
 export function parseQuentOpenLine(line: string): QuentOpenReadyState {
-  const viewerMatch = line.match(/discovered \d+ context\(s\) -> (\d+) viewer\(s\)/u);
-  const readyMatch = line.match(/\bready:.*\s(https?:\/\/\S+)\s*$/u);
+  const discoveredMatch = line.match(/discovered \d+ context\(s\) -> (\d+) viewer\(s\)/u);
+  const servingMatch = line.match(/\bserving (\d+) viewer\(s\)/u);
+  const readyMatch = line.match(/\bready:\s*(.+?)\s+(https?:\/\/\S+)\s*$/u);
   return {
-    ...(viewerMatch ? { viewerCount: Number(viewerMatch[1]) } : {}),
-    ...(readyMatch ? { apiBaseUrl: `${readyMatch[1]!.replace(/\/+$/u, '')}/api` } : {}),
+    ...(servingMatch || discoveredMatch
+      ? { viewerCount: Number((servingMatch ?? discoveredMatch)![1]) }
+      : {}),
+    ...(readyMatch
+      ? {
+          viewer: {
+            label: readyMatch[1]!.trim(),
+            apiBaseUrl: `${readyMatch[2]!.replace(/\/+$/u, '')}/api`,
+          },
+        }
+      : {}),
   };
 }
 
-export function readyApiBaseFromLine(line: string, run: string): string | undefined {
-  const state = parseQuentOpenLine(line);
-  if (state.viewerCount !== undefined && state.viewerCount !== 1) {
-    throw new Error(
-      `Database run "${run}" produced ${state.viewerCount} viewer APIs; query-diff currently requires exactly one.`
-    );
-  }
-  return state.apiBaseUrl;
+export function createQuentOpenReadyTracker(): {
+  consume(line: string): QuentOpenDbViewer[] | undefined;
+} {
+  let expectedViewerCount: number | undefined;
+  const viewers: QuentOpenDbViewer[] = [];
+  return {
+    consume(line) {
+      const state = parseQuentOpenLine(line);
+      expectedViewerCount = state.viewerCount ?? expectedViewerCount;
+      if (state.viewer) {
+        viewers.push(state.viewer);
+      }
+      if (
+        expectedViewerCount !== undefined &&
+        expectedViewerCount > 0 &&
+        viewers.length === expectedViewerCount
+      ) {
+        return [...viewers];
+      }
+      return undefined;
+    },
+  };
 }
 
 export function quentOpenDbArguments(run: string, options: QuentOpenDbOptions): string[] {
@@ -110,6 +139,7 @@ export async function launchQuentOpenDb(
   let output = '';
   let lineBuffer = '';
   let isReady = false;
+  const readyTracker = createQuentOpenReadyTracker();
   child.stderr?.on('data', chunk => {
     const text = String(chunk);
     if (!isReady) {
@@ -118,7 +148,7 @@ export async function launchQuentOpenDb(
     process.stderr.write(text);
   });
 
-  const ready = new Promise<string>((resolve, reject) => {
+  const ready = new Promise<QuentOpenDbViewer[]>((resolve, reject) => {
     child.once('error', reject);
     child.once('exit', (code, signal) => {
       reject(
@@ -138,16 +168,10 @@ export async function launchQuentOpenDb(
       const lines = lineBuffer.split('\n');
       lineBuffer = lines.pop() ?? '';
       for (const line of lines) {
-        let apiBaseUrl: string | undefined;
-        try {
-          apiBaseUrl = readyApiBaseFromLine(line, run);
-        } catch (error) {
-          reject(error);
-          return;
-        }
-        if (apiBaseUrl) {
+        const viewers = readyTracker.consume(line);
+        if (viewers) {
           isReady = true;
-          resolve(apiBaseUrl);
+          resolve(viewers);
           return;
         }
       }
@@ -155,10 +179,10 @@ export async function launchQuentOpenDb(
   });
 
   try {
-    const apiBaseUrl = await ready;
+    const viewers = await ready;
     return {
       run,
-      apiBaseUrl,
+      viewers,
       stop: () => stopChild(child),
     };
   } catch (error) {
