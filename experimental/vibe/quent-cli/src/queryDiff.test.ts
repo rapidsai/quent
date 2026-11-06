@@ -6,6 +6,7 @@ import { getApiClient, setApiClient, type ApiClient } from '@quent/client';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import type { DiscoveryApi, SelectFromList, SelectFromQueryTree } from './askSelection';
 import {
+  createHttpDiscoveryApi,
   queryDiffCommand,
   resolveDatabaseRunIds,
   resolveQueryDiffMetrics,
@@ -19,6 +20,7 @@ const originalClient = getApiClient();
 
 afterEach(() => {
   setApiClient(originalClient);
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -505,5 +507,82 @@ describe('database run selection', () => {
       '6650',
     ]);
     expect(input).toHaveBeenCalledOnce();
+  });
+});
+
+describe('quent-open discovery compatibility', () => {
+  it('normalizes current catalog responses', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async input => {
+        const url = String(input);
+        if (url.endsWith('/engines?with_metadata=true')) {
+          return new Response(
+            JSON.stringify({
+              items: [{ id: 'engine-1', instance_name: 'Engine' }],
+              initial_group_by_attribute: 'frontend',
+            })
+          );
+        }
+        if (url.endsWith('/engines/engine-1/queries')) {
+          return new Response(
+            JSON.stringify({
+              items: [{ id: 'query-1', instance_name: 'Query' }],
+              initial_group_by_attribute: 'workload',
+            })
+          );
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      })
+    );
+    const api = createHttpDiscoveryApi('http://viewer.test/api/');
+
+    await expect(api.fetchListEngines()).resolves.toMatchObject({
+      items: [{ id: 'engine-1' }],
+      initial_group_by_attribute: 'frontend',
+    });
+    await expect(api.fetchListQueries('engine-1')).resolves.toMatchObject({
+      items: [{ id: 'query-1' }],
+      initial_group_by_attribute: 'workload',
+    });
+  });
+
+  it('discovers queries through legacy query groups', async () => {
+    const fetchMock = vi.fn(async input => {
+      const url = String(input);
+      if (url.endsWith('/engines?with_metadata=true')) {
+        return new Response(JSON.stringify([{ id: 'engine-1', instance_name: 'Engine' }]));
+      }
+      if (url.endsWith('/engines/engine-1/queries')) {
+        return new Response('<!doctype html><html><body>Viewer</body></html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        });
+      }
+      if (url.endsWith('/engines/engine-1/query-groups')) {
+        return new Response(JSON.stringify([{ id: 'group-1' }, { id: 'group-2' }]));
+      }
+      if (url.endsWith('/query_group/group-1/queries')) {
+        return new Response(JSON.stringify([{ id: 'query-1', instance_name: 'First' }]));
+      }
+      if (url.endsWith('/query_group/group-2/queries')) {
+        return new Response(JSON.stringify([{ id: 'query-2', instance_name: 'Second' }]));
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const api = createHttpDiscoveryApi('http://viewer.test/api');
+
+    await expect(api.fetchListEngines()).resolves.toEqual({
+      items: [{ id: 'engine-1', instance_name: 'Engine' }],
+      initial_group_by_attribute: null,
+    });
+    await expect(api.fetchListQueries('engine-1')).resolves.toEqual({
+      items: [
+        { id: 'query-1', instance_name: 'First' },
+        { id: 'query-2', instance_name: 'Second' },
+      ],
+      initial_group_by_attribute: null,
+    });
   });
 });

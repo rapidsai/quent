@@ -42,16 +42,17 @@ orchestration, Ink interaction, and terminal formatting.
 
 ## Database sources
 
-Database support is opt-in. Repeat `--db-run` to start one temporary
-`quent-open` API per benchmark run, or pass `--db` to enter comma-separated run
-IDs interactively. `--db-api-base-url` and `--db-token` mirror
+Database support is opt-in. Repeat `--db-run` to start temporary `quent-open`
+APIs for benchmark runs, or pass `--db` to enter comma-separated run IDs
+interactively. `--db-api-base-url` and `--db-token` mirror
 `quent-open`; `QUENT_OPEN_API_BASE_URL`, `QUENT_OPEN_TOKEN`, and its `.env`
 loading remain valid defaults. Trust prompts are also inherited, with
 `--db-trust` and `--db-trust-all` available for explicit passthrough.
 
 Database APIs start serially to avoid races in the shared viewer build cache.
-The command currently requires each run to produce exactly one viewer API.
-Every child is stopped when the diff finishes or fails.
+When a run produces multiple viewer APIs, all of their engines and queries
+appear in the combined selection tree. Every child is stopped when the diff
+finishes or fails.
 
 With database mode active, a local API is included only when `--api-base` or
 `QUENT_API_BASE_URL` is explicitly configured. This makes DB-only operation
@@ -94,8 +95,10 @@ pixi run pnpm --dir experimental/vibe/quent-cli ask query-diff \
   --db-token "$QUENT_OPEN_TOKEN"
 ```
 
-The combined query tree labels sources as `local` and `db RUN`. For JSON,
-identify sources explicitly when more than one is registered:
+The combined query tree labels sources as `local`, `db RUN`, or
+`db RUN · VIEWER` when a run has multiple viewers. Multi-viewer source IDs use
+`RUN#1`, `RUN#2`, and so on. For JSON, identify sources explicitly when more
+than one is registered:
 
 ```sh
 pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \

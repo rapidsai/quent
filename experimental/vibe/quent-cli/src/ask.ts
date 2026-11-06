@@ -4,6 +4,15 @@
 import { askUsage, getAskCommand } from './askCommands';
 import { machineError, serializeMachineOutput } from './machineOutput';
 
+function isParseArgsError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code.startsWith('ERR_PARSE_ARGS_')
+  );
+}
+
 const [commandId, ...args] = process.argv.slice(2);
 let selectedUsage = askUsage;
 try {
@@ -22,9 +31,9 @@ try {
   if (args.includes('--json')) {
     process.stderr.write(serializeMachineOutput(machineError(commandId ?? null, error)));
   } else {
-    process.stderr.write(
-      `${error instanceof Error ? error.message : String(error)}\n\n${selectedUsage}\n`
-    );
+    const message = error instanceof Error ? error.message : String(error);
+    const showUsage = selectedUsage === askUsage || isParseArgsError(error);
+    process.stderr.write(`${message}${showUsage ? `\n\n${selectedUsage}` : ''}\n`);
   }
   process.exitCode = 1;
 }

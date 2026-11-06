@@ -3,10 +3,10 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createQuentOpenReadyTracker,
   launchQuentOpenDbRuns,
   parseQuentOpenLine,
   quentOpenDbArguments,
-  readyApiBaseFromLine,
   type QuentOpenDbHandle,
   type QuentOpenDbOptions,
 } from './quentOpenDb';
@@ -27,11 +27,34 @@ describe('quent-open database launcher', () => {
     expect(
       parseQuentOpenLine('ready: query-engine — 3 context(s)  http://127.0.0.1:49152/')
     ).toEqual({
-      apiBaseUrl: 'http://127.0.0.1:49152/api',
+      viewer: {
+        label: 'query-engine — 3 context(s)',
+        apiBaseUrl: 'http://127.0.0.1:49152/api',
+      },
     });
-    expect(() => readyApiBaseFromLine('discovered 3 context(s) -> 2 viewer(s)', '6647')).toThrow(
-      'produced 2 viewer APIs'
-    );
+    expect(parseQuentOpenLine('serving 2 viewer(s)')).toEqual({ viewerCount: 2 });
+  });
+
+  it('waits for every running viewer API', () => {
+    const tracker = createQuentOpenReadyTracker();
+
+    expect(tracker.consume('discovered 3 context(s) -> 2 viewer(s)')).toBeUndefined();
+    expect(tracker.consume('serving 2 viewer(s)')).toBeUndefined();
+    expect(
+      tracker.consume('ready: query-engine-a — 2 context(s)  http://127.0.0.1:49152/')
+    ).toBeUndefined();
+    expect(
+      tracker.consume('ready: query-engine-b — 1 context(s)  http://127.0.0.1:49153/')
+    ).toEqual([
+      {
+        label: 'query-engine-a — 2 context(s)',
+        apiBaseUrl: 'http://127.0.0.1:49152/api',
+      },
+      {
+        label: 'query-engine-b — 1 context(s)',
+        apiBaseUrl: 'http://127.0.0.1:49153/api',
+      },
+    ]);
   });
 
   it('keeps credentials out of spawned arguments', () => {
@@ -54,7 +77,11 @@ describe('quent-open database launcher', () => {
       await Promise.resolve();
       order.push(`ready:${run}`);
       active -= 1;
-      return { run, apiBaseUrl: `http://${run}/api`, stop: vi.fn() };
+      return {
+        run,
+        viewers: [{ label: run, apiBaseUrl: `http://${run}/api` }],
+        stop: vi.fn(),
+      };
     });
 
     const handles = await launchQuentOpenDbRuns(['6647', '6650', '6647'], options, launch);
@@ -70,7 +97,7 @@ describe('quent-open database launcher', () => {
       .fn()
       .mockResolvedValueOnce({
         run: '6647',
-        apiBaseUrl: 'http://6647/api',
+        viewers: [{ label: '6647', apiBaseUrl: 'http://6647/api' }],
         stop,
       })
       .mockRejectedValueOnce(new Error('startup failed'));
