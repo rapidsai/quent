@@ -34,6 +34,24 @@ describe('ask command dispatcher', () => {
     expect(getAskCommand('query-diff').usage).toContain('pnpm ask query-diff');
   });
 
+  it('supports database-backed sources in every command', () => {
+    for (const command of askCommandRegistry.values()) {
+      expect(command.usage).toContain('--db-run');
+      expect(command.usage).toContain('--db-api-base-url');
+      expect(command.usage).toContain('--db-token');
+    }
+    for (const id of [
+      'engines',
+      'queries',
+      'query-lifecycle',
+      'query-structure',
+      'operator-facts',
+      'operator-statistics-summary',
+    ]) {
+      expect(getAskCommand(id).usage).toContain('--source');
+    }
+  });
+
   it('allows interactive selection with JSON output', () => {
     for (const command of ['operator-facts', 'query-diff']) {
       const usage = getAskCommand(command).usage;

@@ -53,6 +53,26 @@ pixi run pnpm --dir experimental/vibe/quent-cli ask query-diff
 
 See [Query diff CLI](./query-diff-cli.md) for the detailed comparison contract.
 
+## Database sources
+
+Every command accepts database runs as query sources. Repeat `--db-run`, or use
+`--db` to enter run IDs interactively:
+
+```sh
+pixi run pnpm --dir experimental/vibe/quent-cli ask engines \
+  --db-run RUN_ID
+pixi run pnpm --dir experimental/vibe/quent-cli ask query-lifecycle \
+  --db-run RUN_ID
+```
+
+`--db-api-base-url`, `--db-token`, `--db-trust`, and `--db-trust-all` are passed
+to the temporary `quent-open` viewers. When several sources are available,
+single-source commands prompt for one; pass `--source RUN_ID` to choose it
+explicitly. `engines` lists every source unless `--source` limits it.
+
+Database mode excludes the implicit localhost API. Pass `--api-base` or set
+`QUENT_API_BASE_URL` to include a local API alongside database runs.
+
 ## Validation
 
 ```sh
