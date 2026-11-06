@@ -26,11 +26,3 @@ contract; older and unrelated branch revisions use the preserved contract.
 Once releases are available, prefer the first release tag containing a new
 wrapper contract as its compatibility boundary. Keep full-SHA boundaries for
 artifacts produced from untagged development revisions.
-
-## Experimental question CLI
-
-All commands in `experimental/vibe/quent-cli` can include benchmark database
-runs as query sources. Database runs can be used alone, combined with other
-runs, or mixed with an explicitly configured local API. Follow the nested
-`experimental/vibe/quent-cli/AGENTS.md` instructions when changing or invoking
-that CLI.
