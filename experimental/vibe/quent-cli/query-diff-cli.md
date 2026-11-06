@@ -118,9 +118,9 @@ pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \
 
 ## Agent usage
 
-`--json` is the primary automation interface. It disables Ink and
-`quent-open` trust prompts regardless of TTY detection and requires engine,
-query, metric, and any ambiguous source IDs:
+`--json` is the primary automation interface, but it changes output rather than
+making selection non-interactive. Agents should pass engine, query, metric, and
+any ambiguous source IDs explicitly:
 
 ```sh
 pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \
@@ -142,6 +142,23 @@ pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \
   --candidate ENGINE:QUERY \
   --metric active_span_s \
   --metric output_rows \
+  --json
+```
+
+Database runs can be mixed with each other or with `--api-base`. Prefer
+`QUENT_OPEN_API_BASE_URL` and `QUENT_OPEN_TOKEN`, then identify every source:
+
+```sh
+pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \
+  --db-run BASELINE_RUN \
+  --db-run CANDIDATE_RUN \
+  --baseline-source BASELINE_RUN \
+  --baseline-engine BASELINE_ENGINE \
+  --baseline-query BASELINE_QUERY \
+  --candidate-source CANDIDATE_RUN \
+  --candidate-engine CANDIDATE_ENGINE \
+  --candidate-query CANDIDATE_QUERY \
+  --metric all \
   --json
 ```
 
