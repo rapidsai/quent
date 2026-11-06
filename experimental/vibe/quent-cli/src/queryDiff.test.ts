@@ -98,6 +98,59 @@ describe('query diff selections', () => {
     expect(output.command).toBe('query-diff');
   });
 
+  it('opens the non-JSON prompt when another engine query list fails', async () => {
+    const api = discoveryApi();
+    vi.mocked(api.fetchListQueries).mockImplementation(async engineId => {
+      if (engineId === 'engine-2') {
+        throw new Error('API Error: 500 Internal Server Error');
+      }
+      return {
+        items: [
+          {
+            id: 'query-1',
+            instance_name: 'Old query',
+            custom_attributes: [],
+            start_unix_ns: null,
+            planning_s: null,
+            executing_s: null,
+            completed_s: null,
+          },
+          {
+            id: 'query-2',
+            instance_name: 'New query',
+            custom_attributes: [],
+            start_unix_ns: null,
+            planning_s: null,
+            executing_s: null,
+            completed_s: null,
+          },
+        ],
+        initial_group_by_attribute: null,
+      };
+    });
+    api.fetchQueryBundle = vi.fn(async (_engineId, queryId) =>
+      metricBundle(queryId, ['output_rows'])
+    );
+    setApiClient(api as unknown as ApiClient);
+    const selectTree = vi
+      .fn<SelectFromQueryTree>()
+      .mockResolvedValueOnce(['engine-1\0query-1'])
+      .mockResolvedValueOnce(['engine-1\0query-2']);
+    const selectMetrics = vi.fn().mockResolvedValue(['all']);
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    await runQueryDiffCommand([], {
+      select: vi.fn<SelectFromList>(),
+      selectTree,
+      selectMetrics,
+      inputText: vi.fn(),
+    });
+
+    expect(selectTree).toHaveBeenCalledTimes(2);
+    expect(selectMetrics).toHaveBeenCalledOnce();
+    expect(write).toHaveBeenCalledOnce();
+  });
+
   it('selects the baseline and multiple candidates from the all-engine query tree', async () => {
     const api = discoveryApi();
     const select = vi.fn<SelectFromList>();

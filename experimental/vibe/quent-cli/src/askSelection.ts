@@ -119,11 +119,22 @@ export async function discoverQueryTreeChoices(
   engineIds?: ReadonlySet<string>
 ): Promise<QueryTreeChoice[]> {
   const { items: engines } = await api.fetchListEngines();
-  const engineBranches = await Promise.all(
+  const branchResults = await Promise.allSettled(
     engines
       .filter(engine => !engineIds || engineIds.has(engine.id))
       .map(async engine => ({ engine, queries: (await api.fetchListQueries(engine.id)).items }))
   );
+  const engineBranches = branchResults.flatMap(result =>
+    result.status === 'fulfilled' ? [result.value] : []
+  );
+  if (engineBranches.length === 0) {
+    const firstFailure = branchResults.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    );
+    if (firstFailure) {
+      throw firstFailure.reason;
+    }
+  }
   return engineBranches
     .flatMap(({ engine, queries }) =>
       queries.map(query => ({
