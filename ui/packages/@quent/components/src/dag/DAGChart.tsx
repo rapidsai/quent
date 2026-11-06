@@ -429,7 +429,7 @@ const FlowLayout = ({
   useSyncDisplayedPipes(data.edges, data.nodes);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const { fitView } = useReactFlow();
+  const { fitView, getEdges, getNodes } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
@@ -444,9 +444,7 @@ const FlowLayout = ({
   // so toggling the overlay relayouts exactly once.
   const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
-  const appliedMeasuredLayoutKey = useRef<string | null>(null);
   const estimatedNodeHeight = NODE_LAYOUT_HEIGHT + (flowBarVisible ? FLOW_BAR_HEIGHT : 0);
-  // Stable geometry keys trigger one relayout when measured sizes or edge topology changes.
   const measuredNodeSizesKey = useMemo(() => {
     if (nodes.length === 0 || nodes.some(node => !node.measured?.width || !node.measured?.height)) {
       return null;
@@ -463,6 +461,14 @@ const FlowLayout = ({
         .sort()
         .join('|'),
     [edges]
+  );
+  // This key triggers one relayout when measured geometry or topology changes.
+  const measuredLayoutKey = useMemo(
+    () =>
+      measuredNodeSizesKey
+        ? `${layoutDirection}|${estimatedNodeHeight}|${edgeTopologyKey}|${measuredNodeSizesKey}`
+        : null,
+    [edgeTopologyKey, estimatedNodeHeight, layoutDirection, measuredNodeSizesKey]
   );
   const hierarchyOperators = useMemo(() => {
     if (operators) {
@@ -657,82 +663,60 @@ const FlowLayout = ({
   // Calculate and apply layout
   useLayoutEffect(() => {
     hasUserInteracted.current = false;
-    appliedMeasuredLayoutKey.current = null;
-    // calculateLayout is async: rapid dependency changes (e.g. flowBarVisible
-    // toggles) can interleave calls, so discard results from stale runs
-    // instead of letting them overwrite a newer layout.
-    let cancelled = false;
+    const { flowNodes, flowEdges } = convertToReactFlow();
+    const layoutResult = calculateLayout(
+      flowNodes,
+      flowEdges,
+      layoutDirection,
+      estimatedNodeHeight
+    );
+    setNodes(layoutResult.nodes);
+    setEdges(layoutResult.edges);
 
-    const applyLayout = async () => {
-      const { flowNodes, flowEdges } = convertToReactFlow();
-      const layoutResult = await calculateLayout(
-        flowNodes,
-        flowEdges,
-        layoutDirection,
-        estimatedNodeHeight
-      );
-      if (cancelled) {
-        return;
+    const fitFrame = requestAnimationFrame(() => {
+      if (!hasUserInteracted.current) {
+        fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM });
       }
-
-      setNodes(layoutResult.nodes);
-      setEdges(layoutResult.edges);
-
-      // Fit view after layout
-      setTimeout(() => fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM }), 0);
-    };
-
-    applyLayout();
+    });
     return () => {
-      cancelled = true;
+      cancelAnimationFrame(fitFrame);
     };
   }, [data, convertToReactFlow, estimatedNodeHeight, fitView, setNodes, setEdges, layoutDirection]);
 
   useLayoutEffect(() => {
-    if (!measuredNodeSizesKey) {
-      return;
-    }
-    const layoutKey = `${layoutDirection}|${edgeTopologyKey}|${measuredNodeSizesKey}`;
-    if (appliedMeasuredLayoutKey.current === layoutKey) {
+    if (!measuredLayoutKey) {
       return;
     }
 
-    let cancelled = false;
-    const applyMeasuredLayout = async () => {
-      const layoutResult = await calculateLayout(
-        nodes,
-        edges,
-        layoutDirection,
-        estimatedNodeHeight
-      );
-      if (cancelled) {
-        return;
-      }
-      appliedMeasuredLayoutKey.current = layoutKey;
-      const positions = new Map(layoutResult.nodes.map(node => [node.id, node.position]));
-      setNodes(current =>
-        current.map(node => ({
-          ...node,
-          position: positions.get(node.id) ?? node.position,
-        }))
-      );
+    const layoutResult = calculateLayout(
+      getNodes(),
+      getEdges(),
+      layoutDirection,
+      estimatedNodeHeight
+    );
+    const positions = new Map(layoutResult.nodes.map(node => [node.id, node.position]));
+    setNodes(current =>
+      current.map(node => ({
+        ...node,
+        position: positions.get(node.id) ?? node.position,
+      }))
+    );
+
+    const fitFrame = requestAnimationFrame(() => {
       if (!hasUserInteracted.current) {
-        setTimeout(() => fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM }), 0);
+        fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM });
       }
-    };
-
-    applyMeasuredLayout();
+    });
     return () => {
-      cancelled = true;
+      cancelAnimationFrame(fitFrame);
     };
   }, [
-    edgeTopologyKey,
-    edges,
     estimatedNodeHeight,
     fitView,
+    getEdges,
+    getNodes,
     layoutDirection,
-    measuredNodeSizesKey,
-    nodes,
+    measuredLayoutKey,
     setNodes,
   ]);
 

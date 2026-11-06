@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => ({ fitView: vi.fn() }));
 // and legend, driven by the real statistic-processing and selection hooks.
 vi.mock('./layout', async importOriginal => ({
   ...(await importOriginal<typeof import('./layout')>()),
-  calculateLayout: async (nodes: unknown[], edges: unknown[]) => ({ nodes, edges }),
+  calculateLayout: (nodes: unknown[], edges: unknown[]) => ({ nodes, edges }),
 }));
 vi.mock('@xyflow/react', async importOriginal => {
   const actual = await importOriginal<typeof import('@xyflow/react')>();

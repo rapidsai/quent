@@ -19,26 +19,26 @@ const edges: Edge[] = [
 ];
 
 describe('calculateLayout', () => {
-  it('defaults to bottom-to-top: sources render below the root', async () => {
-    const result = await calculateLayout(nodes, edges);
+  it('defaults to bottom-to-top: sources render below the root', () => {
+    const result = calculateLayout(nodes, edges);
     const yById = new Map(result.nodes.map(n => [n.id, n.position.y]));
     expect(yById.get('root')).toBeLessThan(yById.get('filter')!);
     expect(yById.get('filter')).toBeLessThan(yById.get('scan')!);
   });
 
-  it('top-to-bottom: sources render above the root', async () => {
-    const result = await calculateLayout(nodes, edges, DAG_LAYOUT_DIRECTION.TOP_TO_BOTTOM);
+  it('top-to-bottom: sources render above the root', () => {
+    const result = calculateLayout(nodes, edges, DAG_LAYOUT_DIRECTION.TOP_TO_BOTTOM);
     const yById = new Map(result.nodes.map(n => [n.id, n.position.y]));
     expect(yById.get('scan')).toBeLessThan(yById.get('filter')!);
     expect(yById.get('filter')).toBeLessThan(yById.get('root')!);
   });
 
-  it('leaves rendered edges pointing from source to sink regardless of direction', async () => {
-    const result = await calculateLayout(nodes, edges);
+  it('leaves rendered edges pointing from source to sink regardless of direction', () => {
+    const result = calculateLayout(nodes, edges);
     expect(result.edges).toEqual(edges);
   });
 
-  it('preserves layer spacing when rendered nodes grow taller', async () => {
+  it('preserves layer spacing when rendered nodes grow taller', () => {
     const tallNodes: Node<Record<string, unknown>>[] = [
       {
         ...nodes[0],
@@ -49,7 +49,7 @@ describe('calculateLayout', () => {
         measured: { width: 200, height: 180 },
       },
     ];
-    const result = await calculateLayout(tallNodes, [
+    const result = calculateLayout(tallNodes, [
       { id: 'tall-edge', source: 'scan', target: 'root' },
     ]);
     const byId = new Map(result.nodes.map(node => [node.id, node]));
@@ -61,7 +61,7 @@ describe('calculateLayout', () => {
     );
   });
 
-  it('preserves sibling spacing when rendered nodes grow wider', async () => {
+  it('preserves sibling spacing when rendered nodes grow wider', () => {
     const wideNodes: Node<Record<string, unknown>>[] = [
       {
         id: 'left',
@@ -77,7 +77,7 @@ describe('calculateLayout', () => {
       },
       nodes[2],
     ];
-    const result = await calculateLayout(wideNodes, [
+    const result = calculateLayout(wideNodes, [
       { id: 'left-root', source: 'left', target: 'root' },
       { id: 'right-root', source: 'right', target: 'root' },
     ]);
