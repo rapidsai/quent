@@ -2,23 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseArgs } from 'node:util';
-import {
-  createHttpApiClient,
-  fetchListEngines,
-  fetchListQueries,
-  fetchQueryBundle,
-  setApiBaseUrl,
-} from '@quent/client';
 import { commonQueryMetrics, diffQueryBundles } from '@quent/query-analysis';
-import {
-  parseJsonWithBigInt,
-  type Engine,
-  type EngineListResponse,
-  type EntityRef,
-  type Query,
-  type QueryBundle,
-  type QueryListResponse,
-} from '@quent/utils';
+import type { EntityRef, QueryBundle } from '@quent/utils';
 import {
   createTerminalSelector,
   discoverQueryTreeChoices,
@@ -32,10 +17,19 @@ import {
   type SelectFromQueryTree,
 } from './askSelection';
 import type { AskCommand } from './askCommand.types';
-import { inputWithInk, selectFromQueryTreeWithInk, selectManyWithInk } from './inkSelectorRunner';
+import { selectFromQueryTreeWithInk, selectManyWithInk } from './inkSelectorRunner';
 import { machineResult, serializeMachineOutput } from './machineOutput';
-import { launchQuentOpenDbRuns, stopQuentOpenDbRuns, type QuentOpenDbHandle } from './quentOpenDb';
 import { formatQueryDiff } from './queryDiffFormat';
+import {
+  createHttpQuerySourceApi,
+  inputDatabaseRunIds,
+  querySourceOptions,
+  resolveDatabaseRunIds,
+  withQuerySources,
+} from './querySources';
+
+export { resolveDatabaseRunIds };
+export const createHttpDiscoveryApi = createHttpQuerySourceApi;
 
 const usage = `Usage:
   pnpm ask query-diff [options]
@@ -105,7 +99,7 @@ type SelectMetrics = (
 
 const ALL_METRICS = '\0all-metrics';
 
-type InputText = (prompt: string, placeholder?: string) => Promise<string>;
+type InputText = typeof inputDatabaseRunIds;
 
 export interface QueryDiffInteraction {
   select: SelectFromList;
@@ -513,121 +507,6 @@ export async function resolveQueryDiffSelections(
   return { baseline, candidates: uniqueCandidates(baseline, candidates) };
 }
 
-async function inputDatabaseRunIds(prompt: string, placeholder?: string): Promise<string> {
-  if (!process.stdin.isTTY || !process.stderr.isTTY) {
-    throw new Error('Database run selection requires an interactive terminal; pass --db-run.');
-  }
-  return inputWithInk(prompt, placeholder);
-}
-
-export async function resolveDatabaseRunIds(
-  values: QueryDiffCliValues,
-  inputText: InputText = inputDatabaseRunIds
-): Promise<string[]> {
-  const explicit = ids(values['db-run']);
-  if (explicit.length > 0) {
-    return [...new Set(explicit)];
-  }
-  if (!values.db) {
-    return [];
-  }
-  const entered = await inputText('Enter database run IDs', 'comma-separated, e.g. 6647, 6650');
-  const runs = entered
-    .split(',')
-    .map(run => run.trim())
-    .filter(Boolean);
-  if (runs.length === 0) {
-    throw new Error('Enter at least one database run ID.');
-  }
-  return [...new Set(runs)];
-}
-
-function globalDiscoveryApi(): DiscoveryApi {
-  return {
-    fetchListEngines,
-    fetchListQueries,
-    fetchQueryBundle,
-  };
-}
-
-type CatalogResponse<T> = {
-  items: T[];
-  initial_group_by_attribute: string | null;
-};
-
-function normalizeCatalogResponse<T>(value: unknown, name: string): CatalogResponse<T> {
-  if (Array.isArray(value)) {
-    return { items: value as T[], initial_group_by_attribute: null };
-  }
-  if (value && typeof value === 'object' && Array.isArray(Reflect.get(value, 'items'))) {
-    return value as CatalogResponse<T>;
-  }
-  throw new Error(`The Quent API returned an invalid ${name} catalog.`);
-}
-
-function parseApiText<T>(text: string, response: Response): T {
-  try {
-    return parseJsonWithBigInt<T>(text);
-  } catch {
-    throw new Error(
-      `Quent API endpoint ${response.url || '(unknown)'} returned a non-JSON response.`
-    );
-  }
-}
-
-async function parseApiResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
-  }
-  return parseApiText<T>(await response.text(), response);
-}
-
-export function createHttpDiscoveryApi(baseUrl: string): DiscoveryApi {
-  const normalizedBaseUrl = baseUrl.replace(/\/+$/u, '');
-  const client = createHttpApiClient(normalizedBaseUrl);
-  const get = (path: string) => fetch(`${normalizedBaseUrl}${path}`);
-  return {
-    fetchListEngines: async (): Promise<EngineListResponse> =>
-      normalizeCatalogResponse<Engine>(
-        await parseApiResponse<unknown>(await get('/engines?with_metadata=true')),
-        'engine'
-      ),
-    fetchListQueries: async (engineId: string): Promise<QueryListResponse> => {
-      const encodedEngineId = encodeURIComponent(engineId);
-      const response = await get(`/engines/${encodedEngineId}/queries`);
-      if (response.ok) {
-        const text = await response.text();
-        if (!text.trimStart().startsWith('<')) {
-          return normalizeCatalogResponse<Query>(parseApiText<unknown>(text, response), 'query');
-        }
-      } else if (response.status !== 404) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      }
-      const groups = normalizeCatalogResponse<{ id: string }>(
-        await parseApiResponse<unknown>(await get(`/engines/${encodedEngineId}/query-groups`)),
-        'query group'
-      );
-      const groupedQueries = await Promise.all(
-        groups.items.map(async group =>
-          normalizeCatalogResponse<Query>(
-            await parseApiResponse<unknown>(
-              await get(
-                `/engines/${encodedEngineId}/query_group/${encodeURIComponent(group.id)}/queries`
-              )
-            ),
-            'query'
-          )
-        )
-      );
-      return {
-        items: groupedQueries.flatMap(group => group.items),
-        initial_group_by_attribute: null,
-      };
-    },
-    fetchQueryBundle: client.fetchQueryBundle,
-  };
-}
-
 export async function runQueryDiffCommand(
   args: string[],
   interaction: QueryDiffInteraction = {
@@ -642,7 +521,7 @@ export async function runQueryDiffCommand(
     allowNegative: true,
     allowPositionals: false,
     options: {
-      'api-base': { type: 'string' },
+      ...querySourceOptions,
       'baseline-engine': { type: 'string' },
       'baseline-query': { type: 'string' },
       'baseline-source': { type: 'string' },
@@ -651,72 +530,13 @@ export async function runQueryDiffCommand(
       'candidate-query': { type: 'string', multiple: true },
       'candidate-source': { type: 'string', multiple: true },
       'combined-table': { type: 'boolean', default: true },
-      db: { type: 'boolean' },
-      'db-api-base-url': { type: 'string' },
-      'db-run': { type: 'string', multiple: true },
-      'db-token': { type: 'string' },
-      'db-trust': { type: 'string', multiple: true },
-      'db-trust-all': { type: 'boolean' },
       engine: { type: 'string' },
       json: { type: 'boolean' },
       metric: { type: 'string', multiple: true },
     },
   });
 
-  const configuredLocalApiBase = values['api-base'] ?? process.env.QUENT_API_BASE_URL;
-  const apiBase = configuredLocalApiBase ?? 'http://localhost:8080/api';
-  setApiBaseUrl(apiBase.replace(/\/+$/u, ''));
-  const databaseRuns = await resolveDatabaseRunIds(values, interaction.inputText);
-  const databaseMode = Boolean(values.db) || databaseRuns.length > 0;
-  const includeLocal = !databaseMode || configuredLocalApiBase !== undefined;
-
-  let handles: QuentOpenDbHandle[] = [];
-  let interrupted = false;
-  const stopOnSignal = (exitCode: number) => {
-    interrupted = true;
-    process.exitCode = exitCode;
-    void stopQuentOpenDbRuns(handles);
-  };
-  const onInterrupt = () => stopOnSignal(130);
-  const onTerminate = () => stopOnSignal(143);
-  if (databaseMode) {
-    process.once('SIGINT', onInterrupt);
-    process.once('SIGTERM', onTerminate);
-  }
-  try {
-    if (databaseMode) {
-      handles = await launchQuentOpenDbRuns(databaseRuns, {
-        apiBaseUrl: optionalId(values['db-api-base-url']),
-        interactive: Boolean(process.stdin.isTTY && process.stderr.isTTY),
-        token: optionalId(values['db-token']),
-        trust: ids(values['db-trust']),
-        trustAll: Boolean(values['db-trust-all']),
-      });
-    }
-    if (interrupted) {
-      return;
-    }
-    const sources: QueryDiffSource[] = [
-      ...(includeLocal
-        ? [
-            {
-              id: 'local',
-              label: 'local',
-              api: databaseMode
-                ? createHttpDiscoveryApi(apiBase.replace(/\/+$/u, ''))
-                : globalDiscoveryApi(),
-            },
-          ]
-        : []),
-      ...handles.flatMap(handle =>
-        handle.viewers.map((viewer, index) => ({
-          id: handle.viewers.length === 1 ? handle.run : `${handle.run}#${index + 1}`,
-          label:
-            handle.viewers.length === 1 ? `db ${handle.run}` : `db ${handle.run} · ${viewer.label}`,
-          api: createHttpDiscoveryApi(viewer.apiBaseUrl),
-        }))
-      ),
-    ];
+  await withQuerySources(values, interaction.inputText, async ({ sources, databaseMode }) => {
     const { baseline, candidates } = await resolveSourcedQueryDiffSelections(
       values,
       sources,
@@ -759,13 +579,7 @@ export async function runQueryDiffCommand(
             combinedTable: values['combined-table'],
           })}\n`
     );
-  } finally {
-    if (databaseMode) {
-      process.removeListener('SIGINT', onInterrupt);
-      process.removeListener('SIGTERM', onTerminate);
-      await stopQuentOpenDbRuns(handles);
-    }
-  }
+  });
 }
 
 export const queryDiffCommand: AskCommand = {
