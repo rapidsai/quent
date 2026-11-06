@@ -70,7 +70,7 @@ export function TimelineSettingsPopover() {
             onChange={event => setShowNestedRows(event.target.checked)}
             className="h-3 w-3 cursor-pointer accent-primary"
           />
-          Show entity/operator rows
+          {showNestedRows ? 'Collapse' : 'Expand'} entity/operator rows
         </label>
       </PopoverContent>
     </Popover>

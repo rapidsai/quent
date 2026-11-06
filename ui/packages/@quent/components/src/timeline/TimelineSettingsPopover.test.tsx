@@ -61,19 +61,20 @@ describe('TimelineSettingsPopover', () => {
   it('leaves nested entity and operator rows unchecked by default', () => {
     render(<TimelineSettingsPopover />);
 
-    expect(screen.getByRole('checkbox', { name: 'Show entity/operator rows' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Expand entity/operator rows' })).not.toBeChecked();
   });
 
-  it('shows and hides nested rows when the checkbox is toggled', () => {
-    render(<TimelineSettingsPopover />);
-    const checkbox = screen.getByRole('checkbox', { name: 'Show entity/operator rows' });
-
-    fireEvent.click(checkbox);
+  it('expands, then offers to collapse, nested rows', () => {
+    const { unmount } = render(<TimelineSettingsPopover />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Expand entity/operator rows' }));
     expect(mocks.setShowNestedRows).toHaveBeenLastCalledWith(true);
+    unmount();
 
     mocks.showNestedRows = true;
     render(<TimelineSettingsPopover />);
-    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Show entity/operator rows' })[1]!);
+    const checkbox = screen.getByRole('checkbox', { name: 'Collapse entity/operator rows' });
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
     expect(mocks.setShowNestedRows).toHaveBeenLastCalledWith(false);
   });
 });
