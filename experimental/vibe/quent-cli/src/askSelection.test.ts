@@ -256,6 +256,50 @@ describe('ask CLI selections', () => {
     );
   });
 
+  it('keeps healthy engines available when another engine query list fails', async () => {
+    const api = discoveryApi();
+    api.fetchListQueries.mockImplementation(async engineId => {
+      if (engineId === 'engine-2') {
+        throw new Error('API Error: 500 Internal Server Error');
+      }
+      return {
+        items: [
+          {
+            id: 'query-1',
+            instance_name: 'Query A',
+            custom_attributes: [],
+            start_unix_ns: null,
+            planning_s: null,
+            executing_s: null,
+            completed_s: null,
+          },
+        ],
+        initial_group_by_attribute: null,
+      };
+    });
+    const selectTree = vi
+      .fn<SelectFromQueryTree>()
+      .mockResolvedValue([querySelectionKey('engine-1', 'query-1')]);
+
+    await expect(
+      selectQueriesFromTree(api, selectTree, 'Select candidates', true)
+    ).resolves.toEqual([{ engineId: 'engine-1', queryId: 'query-1' }]);
+    expect(selectTree).toHaveBeenCalledWith(
+      'Select candidates',
+      [expect.objectContaining({ engineId: 'engine-1', queryId: 'query-1' })],
+      true
+    );
+  });
+
+  it('reports the API error when every engine query list fails', async () => {
+    const api = discoveryApi();
+    api.fetchListQueries.mockRejectedValue(new Error('API Error: 500 Internal Server Error'));
+
+    await expect(
+      selectQueriesFromTree(api, vi.fn<SelectFromQueryTree>(), 'Select candidates', true)
+    ).rejects.toThrow('API Error: 500 Internal Server Error');
+  });
+
   it('fails clearly when interactive selection is unavailable', async () => {
     const input = Object.assign(new PassThrough(), { isTTY: false });
     const output = Object.assign(new PassThrough(), { isTTY: false });
