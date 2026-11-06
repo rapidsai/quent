@@ -10,7 +10,15 @@ import {
   setApiBaseUrl,
 } from '@quent/client';
 import { commonQueryMetrics, diffQueryBundles } from '@quent/query-analysis';
-import type { EntityRef, QueryBundle } from '@quent/utils';
+import {
+  parseJsonWithBigInt,
+  type Engine,
+  type EngineListResponse,
+  type EntityRef,
+  type Query,
+  type QueryBundle,
+  type QueryListResponse,
+} from '@quent/utils';
 import {
   createTerminalSelector,
   discoverQueryTreeChoices,
@@ -542,11 +550,80 @@ function globalDiscoveryApi(): DiscoveryApi {
   };
 }
 
-function clientDiscoveryApi(baseUrl: string): DiscoveryApi {
-  const client = createHttpApiClient(baseUrl);
+type CatalogResponse<T> = {
+  items: T[];
+  initial_group_by_attribute: string | null;
+};
+
+function normalizeCatalogResponse<T>(value: unknown, name: string): CatalogResponse<T> {
+  if (Array.isArray(value)) {
+    return { items: value as T[], initial_group_by_attribute: null };
+  }
+  if (value && typeof value === 'object' && Array.isArray(Reflect.get(value, 'items'))) {
+    return value as CatalogResponse<T>;
+  }
+  throw new Error(`The Quent API returned an invalid ${name} catalog.`);
+}
+
+function parseApiText<T>(text: string, response: Response): T {
+  try {
+    return parseJsonWithBigInt<T>(text);
+  } catch {
+    throw new Error(
+      `Quent API endpoint ${response.url || '(unknown)'} returned a non-JSON response.`
+    );
+  }
+}
+
+async function parseApiResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return parseApiText<T>(await response.text(), response);
+}
+
+export function createHttpDiscoveryApi(baseUrl: string): DiscoveryApi {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/u, '');
+  const client = createHttpApiClient(normalizedBaseUrl);
+  const get = (path: string) => fetch(`${normalizedBaseUrl}${path}`);
   return {
-    fetchListEngines: client.fetchListEngines,
-    fetchListQueries: client.fetchListQueries,
+    fetchListEngines: async (): Promise<EngineListResponse> =>
+      normalizeCatalogResponse<Engine>(
+        await parseApiResponse<unknown>(await get('/engines?with_metadata=true')),
+        'engine'
+      ),
+    fetchListQueries: async (engineId: string): Promise<QueryListResponse> => {
+      const encodedEngineId = encodeURIComponent(engineId);
+      const response = await get(`/engines/${encodedEngineId}/queries`);
+      if (response.ok) {
+        const text = await response.text();
+        if (!text.trimStart().startsWith('<')) {
+          return normalizeCatalogResponse<Query>(parseApiText<unknown>(text, response), 'query');
+        }
+      } else if (response.status !== 404) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+      const groups = normalizeCatalogResponse<{ id: string }>(
+        await parseApiResponse<unknown>(await get(`/engines/${encodedEngineId}/query-groups`)),
+        'query group'
+      );
+      const groupedQueries = await Promise.all(
+        groups.items.map(async group =>
+          normalizeCatalogResponse<Query>(
+            await parseApiResponse<unknown>(
+              await get(
+                `/engines/${encodedEngineId}/query_group/${encodeURIComponent(group.id)}/queries`
+              )
+            ),
+            'query'
+          )
+        )
+      );
+      return {
+        items: groupedQueries.flatMap(group => group.items),
+        initial_group_by_attribute: null,
+      };
+    },
     fetchQueryBundle: client.fetchQueryBundle,
   };
 }
@@ -626,16 +703,19 @@ export async function runQueryDiffCommand(
               id: 'local',
               label: 'local',
               api: databaseMode
-                ? clientDiscoveryApi(apiBase.replace(/\/+$/u, ''))
+                ? createHttpDiscoveryApi(apiBase.replace(/\/+$/u, ''))
                 : globalDiscoveryApi(),
             },
           ]
         : []),
-      ...handles.map(handle => ({
-        id: handle.run,
-        label: `db ${handle.run}`,
-        api: clientDiscoveryApi(handle.apiBaseUrl),
-      })),
+      ...handles.flatMap(handle =>
+        handle.viewers.map((viewer, index) => ({
+          id: handle.viewers.length === 1 ? handle.run : `${handle.run}#${index + 1}`,
+          label:
+            handle.viewers.length === 1 ? `db ${handle.run}` : `db ${handle.run} · ${viewer.label}`,
+          api: createHttpDiscoveryApi(viewer.apiBaseUrl),
+        }))
+      ),
     ];
     const { baseline, candidates } = await resolveSourcedQueryDiffSelections(
       values,
