@@ -15,6 +15,10 @@ import {
  */
 
 export const expandedIdsAtom = atom<Set<string>>(new Set<string>());
+/** Ids the app opens by itself (disclosure owners and chart rows). Not user choices, so links skip them. */
+export const defaultExpandedIdsAtom = atom<Set<string>>(new Set<string>());
+/** Default-open ids a shared link says the sender closed. The receiver's defaults leave them closed. */
+export const sharedCollapsedIdsAtom = atom<Set<string>>(new Set<string>());
 export const initializedDisclosureIdsAtom = atom<Set<string>>(new Set<string>());
 export const pinnedIdsAtom = atom<Set<string>>(new Set<string>());
 export const pinnedCollapsedAtom = atom(false);

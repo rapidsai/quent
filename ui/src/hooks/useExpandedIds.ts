@@ -2,8 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useAtomValueRawSync, useSetAtom } from 'jotai';
-import { expandedIdsAtom, initializedDisclosureIdsAtom } from '@/atoms/resourceTree';
+import { useAtomValueRawSync, useSetAtom, useStore } from 'jotai';
+import {
+  defaultExpandedIdsAtom,
+  expandedIdsAtom,
+  initializedDisclosureIdsAtom,
+  sharedCollapsedIdsAtom,
+} from '@/atoms/resourceTree';
 
 interface ExpandableTreeItem {
   id: string;
@@ -128,22 +133,46 @@ export function useInitializeDisclosureExpansion(
   const initializedIds = useAtomValueRawSync(initializedDisclosureIdsAtom);
   const setInitializedIds = useSetAtom(initializedDisclosureIdsAtom);
   const setExpandedIds = useSetAtom(expandedIdsAtom);
+  const setDefaultExpandedIds = useSetAtom(defaultExpandedIdsAtom);
+  const store = useStore();
   const previousShowRef = useRef(showDisclosures);
 
+  // Remember which ids are open only because of the defaults, so shared links can leave them out.
   useEffect(() => {
-    const newDisclosures = disclosures.filter(disclosure => !initializedIds.has(disclosure.id));
-    if (newDisclosures.length === 0) {
+    const defaults = new Set<string>();
+    for (const { id, ownerId } of disclosures) {
+      if (ownerId) {
+        defaults.add(ownerId);
+      }
+      if (showDisclosures) {
+        defaults.add(id);
+      }
+    }
+    setDefaultExpandedIds(defaults);
+  }, [disclosures, setDefaultExpandedIds, showDisclosures]);
+
+  useEffect(() => {
+    const allNew = disclosures.filter(disclosure => !initializedIds.has(disclosure.id));
+    if (allNew.length === 0) {
       return;
     }
+    // Rows a shared link closed stay closed.
+    const sharedCollapsed = store.get(sharedCollapsedIdsAtom);
+    const owners = allNew.filter(({ ownerId }) => ownerId && !sharedCollapsed.has(ownerId));
+    const shown = allNew.filter(({ id }) => !sharedCollapsed.has(id));
     // The owner opens either way so the disclosure row is visible; `showDisclosures` decides
     // whether its chart is open too.
-    setExpandedIds(previous =>
-      showDisclosures
-        ? withDisclosuresShown(previous, newDisclosures)
-        : withOwnersExpanded(previous, newDisclosures)
-    );
-    setInitializedIds(previous => new Set([...previous, ...newDisclosures.map(({ id }) => id)]));
-  }, [disclosures, initializedIds, setExpandedIds, setInitializedIds, showDisclosures]);
+    setExpandedIds(previous => {
+      const withOwners = withOwnersExpanded(previous, owners);
+      return showDisclosures
+        ? withDisclosuresShown(
+            withOwners,
+            shown.map(({ id }) => ({ id }))
+          )
+        : withOwners;
+    });
+    setInitializedIds(previous => new Set([...previous, ...allNew.map(({ id }) => id)]));
+  }, [disclosures, initializedIds, setExpandedIds, setInitializedIds, showDisclosures, store]);
 
   useEffect(() => {
     if (previousShowRef.current === showDisclosures) {
