@@ -61,6 +61,7 @@ pub async fn open_all(groups: Vec<ViewerGroup>, no_browser: bool, host: IpAddr) 
         }
     }
 
+    println!("serving {} viewer(s)", built.len());
     let mut set = JoinSet::new();
     for viewer in built {
         set.spawn(async move { serve_one(viewer, open_browser, host).await });

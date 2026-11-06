@@ -45,6 +45,14 @@ pixi run pnpm --dir experimental/vibe/quent-cli ask operator-statistics-summary
 
 `--json` changes the output format without disabling interactive selection.
 
+Compare one baseline query with one or more candidates:
+
+```sh
+pixi run pnpm --dir experimental/vibe/quent-cli ask query-diff
+```
+
+See [Query diff CLI](./query-diff-cli.md) for the detailed comparison contract.
+
 ## Validation
 
 ```sh
