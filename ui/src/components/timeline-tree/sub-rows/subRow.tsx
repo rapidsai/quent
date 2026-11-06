@@ -100,9 +100,10 @@ export function createTimelineSubRow({
     pinsWithOwner,
     injectRows,
     matches: item => item.type === rowType || item.type === disclosureRowType,
-    renderLabel: (_item, description) => (
-      <TimelineSubRowLabel description={description}>{label}</TimelineSubRowLabel>
-    ),
+    renderLabel: (item, description) =>
+      item.type === disclosureRowType || description != null ? (
+        <TimelineSubRowLabel description={description}>{label}</TimelineSubRowLabel>
+      ) : null,
     renderTimeline: item => (item.type === disclosureRowType ? null : renderTimeline(item)),
   };
 }
