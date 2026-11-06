@@ -26,8 +26,10 @@ async function openTimeline(page: Page) {
 }
 
 async function openOperatorGanttCharts(page: Page) {
-  await page.getByText('worker-0', { exact: true }).click();
-  await page.getByText('worker-1', { exact: true }).click();
+  const operatorDisclosures = page.getByText('Operators', { exact: true });
+  await expect(operatorDisclosures).toHaveCount(2);
+  await operatorDisclosures.nth(1).click();
+  await operatorDisclosures.nth(0).click();
   await expect(
     page.getByRole('group', { name: /Operator Gantt chart:.*FinalAggregate/ })
   ).toBeVisible();
