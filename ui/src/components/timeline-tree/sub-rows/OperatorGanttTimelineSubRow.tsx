@@ -38,6 +38,7 @@ export function createOperatorGanttTimelineSubRow({
     id: 'operator-gantt',
     rowType: OPERATOR_TIMELINE_ROW_TYPE,
     label: 'Operators',
+    pinsWithOwner: true,
     injectRows: rootItem =>
       mapTreeItems(rootItem, (item, children) =>
         workerIds.has(item.id)

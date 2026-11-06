@@ -14,8 +14,6 @@ import {
   collectVisibleEntries,
   findItemById,
   getAdaptiveNumBins,
-  OPERATOR_TIMELINE_ROW_TYPE,
-  workerIdFromOperatorTimelineRowId,
   transformResourceTree,
   type TreeTableItem,
 } from '@quent/components';
@@ -273,18 +271,6 @@ export function useResourceTimelinesTreeModel({
         return worker ? workerDisplayName(worker) : (getEntityName(row as TreeTableItem) ?? row.id);
       };
       const roots = [fullTree as TimelineTreeItem];
-      // An Operators row belongs to a worker that the tree leaves out as the only root, so that
-      // worker is part of the path.
-      const ownerId =
-        item.type === OPERATOR_TIMELINE_ROW_TYPE
-          ? workerIdFromOperatorTimelineRowId(item.id)
-          : null;
-      const owner = ownerId != null ? findItemById(fullTree, ownerId) : undefined;
-      if (owner) {
-        const aboveOwner = findAncestorNames(roots, owner.id, getName);
-        const path = aboveOwner ? [...aboveOwner, getName(owner as TimelineTreeItem)] : null;
-        return path ? <PinnedRowPath names={path} /> : undefined;
-      }
       const names = findAncestorNames(roots, item.id, getName);
       return names?.length ? <PinnedRowPath names={names} /> : undefined;
     },
