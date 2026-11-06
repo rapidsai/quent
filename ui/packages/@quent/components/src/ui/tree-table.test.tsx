@@ -70,6 +70,65 @@ describe('TreeTable pinned section', () => {
     expect(renderCalls.some(call => call.id === 'a' && call.isPinned)).toBe(false);
   });
 
+  it("draws a pinned row's children beneath it as part of the same pinned item", () => {
+    renderTable({
+      pinnedItems: [{ ...row('x'), children: [row('x-child')] }, row('y')],
+    });
+
+    const items = within(screen.getByRole('region', { name: 'Pinned rows' })).getAllByRole(
+      'listitem'
+    );
+    expect(items).toHaveLength(2);
+    const first = within(items[0]!);
+    expect(first.getByText('Row x')).toBeInTheDocument();
+    expect(first.getByText('Row x-child')).toBeInTheDocument();
+    expect(first.getByText('Row x').compareDocumentPosition(first.getByText('Row x-child'))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(within(items[1]!).queryByText('Row x-child')).not.toBeInTheDocument();
+  });
+
+  it("opens a pinned row's nested row with a caret that follows the shared expanded state", async () => {
+    const onExpandChange = vi.fn();
+    const pinnedItems = [
+      { ...row('x'), children: [{ ...row('x-disclosure'), children: [row('x-chart')] }] },
+    ];
+    const { rerender } = render(
+      <TreeTable<Row>
+        data={[row('a')]}
+        columns={columns}
+        virtualized
+        rowHeight={ROW_HEIGHT}
+        pinnedItems={pinnedItems}
+        controlledExpandedIds={new Set()}
+        onExpandChange={onExpandChange}
+      />
+    );
+
+    const region = within(screen.getByRole('region', { name: 'Pinned rows' }));
+    expect(region.getByText('Row x-disclosure')).toBeInTheDocument();
+    expect(region.queryByText('Row x-chart')).not.toBeInTheDocument();
+
+    await userEvent.click(region.getByText('Row x-disclosure'));
+    expect(onExpandChange).toHaveBeenCalledWith('x-disclosure', true);
+
+    rerender(
+      <TreeTable<Row>
+        data={[row('a')]}
+        columns={columns}
+        virtualized
+        rowHeight={ROW_HEIGHT}
+        pinnedItems={pinnedItems}
+        controlledExpandedIds={new Set(['x-disclosure'])}
+        onExpandChange={onExpandChange}
+      />
+    );
+    expect(region.getByText('Row x-chart')).toBeInTheDocument();
+
+    await userEvent.click(region.getByText('Row x-disclosure'));
+    expect(onExpandChange).toHaveBeenLastCalledWith('x-disclosure', false);
+  });
+
   it('shows how many rows are pinned in the header', () => {
     renderTable({ pinnedItems: [row('x'), row('y'), row('z')] });
 
@@ -315,5 +374,27 @@ describe('TreeTable info cell', () => {
       .closest('.group\\/info');
 
     expect(cell).not.toBeNull();
+  });
+});
+
+describe('TreeTable variable row heights', () => {
+  it('uses a per-row height override in virtualized trees', () => {
+    const parent = { ...row('parent'), children: [row('child')] };
+    const getRowHeight = vi.fn((item: { id: string }) => (item.id === 'parent' ? 24 : ROW_HEIGHT));
+    render(
+      <TreeTable<Row>
+        data={[parent]}
+        columns={columns}
+        controlledExpandedIds={new Set(['parent'])}
+        getRowHeight={getRowHeight}
+        rowHeight={ROW_HEIGHT}
+        virtualized
+      />
+    );
+
+    expect(screen.getByRole('tree')).toHaveStyle({ height: `${24 + ROW_HEIGHT}px` });
+    expect(getRowHeight.mock.calls.map(([item]) => item.id)).toEqual(
+      expect.arrayContaining(['parent', 'child'])
+    );
   });
 });

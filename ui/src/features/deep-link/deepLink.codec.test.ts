@@ -461,6 +461,45 @@ it('round trips structural pipe inspection independently of operator selection a
   expect(restored.dag?.edgeWidthField).toBe(shared.dag?.edgeWidthField);
 });
 
+describe('deep-link collapsed default rows', () => {
+  it('round-trips collapsed row ids', () => {
+    const shared: DeepLinkStateV3 = {
+      route: state.route,
+      timeline: state.timeline,
+      resources: { collapsedRowIds: [RESOURCE_A_ID] },
+    };
+    const encoded = encodeDeepLinkState(shared);
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+    expect(decodeDeepLinkState(encoded.value)).toEqual({
+      ok: true,
+      value: { version: 'v3', data: shared },
+    });
+  });
+});
+
+describe('deep-link nested chart rows', () => {
+  it('round-trips the nested chart rows setting', () => {
+    const shared: DeepLinkStateV3 = {
+      route: state.route,
+      timeline: state.timeline,
+      resources: { showNestedChartRows: true },
+    };
+    const encoded = encodeDeepLinkState(shared);
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+
+    expect(decodeDeepLinkState(encoded.value)).toEqual({
+      ok: true,
+      value: { version: 'v3', data: shared },
+    });
+  });
+});
+
 describe('deep-link pinned rows', () => {
   const withPins = (pinnedRowIds: string[]): DeepLinkStateV3 => ({
     route: state.route,

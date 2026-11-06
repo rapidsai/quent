@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DEFAULT_TIMELINE_HEIGHT,
@@ -37,6 +37,7 @@ export interface TimelineTreeModel {
   renderTimeline: (item: TimelineTreeItem) => ReactNode;
   // Which of this tree's rows can be pinned. Trees that leave it out have no pin buttons.
   rowPinning?: RowPinning;
+  getRowHeight?: (item: TimelineTreeItem) => number;
 }
 
 export interface RowPinning {
@@ -140,6 +141,13 @@ export function TimelineTreeTable({
     return { data, modelsByItemId };
   }, [trees]);
   const { pinning } = controls;
+  const getRowHeight = useCallback(
+    (item: { id: string }) => {
+      const timelineItem = item as TimelineTreeItem;
+      return modelsByItemId.get(item.id)?.getRowHeight?.(timelineItem) ?? DEFAULT_TIMELINE_HEIGHT;
+    },
+    [modelsByItemId]
+  );
   const columns = useMemo(
     () =>
       [
@@ -225,6 +233,7 @@ export function TimelineTreeTable({
             controlledExpandedIds={controls.expandedIds}
             virtualized
             rowHeight={DEFAULT_TIMELINE_HEIGHT}
+            getRowHeight={getRowHeight}
           />
         ) : (
           <EmptyState

@@ -167,11 +167,20 @@ const ResourceTreeSchema = z
       .max(MAX_EXPANDED_RESOURCE_IDS, limitMessage('expanded resources', MAX_EXPANDED_RESOURCE_IDS))
       .transform(uniqueSorted)
       .optional(),
+    collapsedRowIds: z
+      .array(IdSchema)
+      .max(
+        MAX_EXPANDED_RESOURCE_IDS,
+        limitMessage('collapsed resources', MAX_EXPANDED_RESOURCE_IDS)
+      )
+      .transform(uniqueSorted)
+      .optional(),
     pinnedRowIds: z
       .array(IdSchema)
       .max(MAX_PINNED_ROW_IDS, limitMessage('pinned rows', MAX_PINNED_ROW_IDS))
       .transform(uniqueInOrder)
       .optional(),
+    showNestedChartRows: z.boolean().optional(),
     rootResourceType: NameSchema.optional(),
     resourceFilter: ResourceFilterSchema.optional(),
     resourceTypeSelections: z
