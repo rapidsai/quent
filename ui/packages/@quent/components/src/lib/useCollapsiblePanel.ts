@@ -133,9 +133,9 @@ export function useCollapsiblePanel({
   };
 
   const onResize = ({ inPixels }: { inPixels: number }) => {
-    if (userSizedRef.current && !isCollapsed()) {
+    if (userSizedRef.current && !collapsed) {
       openSizeRef.current = inPixels;
-      reportSize(inPixels);
+      onSizeChange?.(inPixels);
     }
   };
 
