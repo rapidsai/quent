@@ -6,14 +6,6 @@ all-features = true
 [advisories]
 # The lint level for security vulnerabilities.
 version = 2
-ignore = [
-    # utoipa-swagger-ui uses zip 8.6 in its build script to unpack the Swagger UI
-    # distribution. Remove after a release uses zip 9. cargo-deny 0.20.2 only
-    # supports advisory-wide ignores, so these are not scoped to that dependency.
-    "RUSTSEC-2026-0367",
-    "RUSTSEC-2026-0368",
-    "RUSTSEC-2026-0369",
-]
 
 [licenses]
 # Workspace-private crates (publish = false) are excluded from license checks.
