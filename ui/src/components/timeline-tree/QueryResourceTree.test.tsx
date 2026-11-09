@@ -89,6 +89,15 @@ vi.mock('@quent/components', async importOriginal => {
       capturedTimelineData = props.timelineData;
       return null;
     },
+    PinnedSectionToggle: (props: {
+      isCollapsed: boolean;
+      onToggle?: () => void;
+      onClear?: () => void;
+    }) => {
+      capturedPinnedCollapse = { isCollapsed: props.isCollapsed, toggle: props.onToggle };
+      capturedClearPinned = props.onClear;
+      return null;
+    },
     TreeTable: (props: {
       columns: Array<{
         headerContent?: React.ReactNode;
@@ -105,23 +114,19 @@ vi.mock('@quent/components', async importOriginal => {
       onExpandChange?: (itemId: string, isExpanded: boolean) => void;
       pinnedItems?: TreeTableItem[];
       hiddenPinnedCount?: number;
-      isPinnedCollapsed?: boolean;
-      onTogglePinnedCollapsed?: () => void;
       onReorderPinned?: (activeId: string, overId: string) => void;
-      onClearPinned?: () => void;
     }) => {
-      capturedTreeData = props.data;
-      capturedPinnedItems = props.pinnedItems ?? [];
-      capturedHiddenPinnedCount = props.hiddenPinnedCount ?? 0;
-      capturedPinnedCollapse = {
-        isCollapsed: props.isPinnedCollapsed ?? false,
-        toggle: props.onTogglePinnedCollapsed,
-      };
-      capturedReorderPinned = props.onReorderPinned;
-      capturedClearPinned = props.onClearPinned;
-      capturedHighlightedIds = props.highlightedItemIds ?? new Set();
-      capturedExpandedIds = props.controlledExpandedIds ?? new Set();
-      capturedOnExpandChange = props.onExpandChange;
+      // The pinned rows get a table of their own, above the main one.
+      if (props.pinnedItems !== undefined) {
+        capturedPinnedItems = props.pinnedItems;
+        capturedHiddenPinnedCount = props.hiddenPinnedCount ?? 0;
+        capturedReorderPinned = props.onReorderPinned;
+      } else {
+        capturedTreeData = props.data;
+        capturedHighlightedIds = props.highlightedItemIds ?? new Set();
+        capturedExpandedIds = props.controlledExpandedIds ?? new Set();
+        capturedOnExpandChange = props.onExpandChange;
+      }
       const longEntityElement = props.columns[1]?.render?.({
         item: {
           id: actual.longEntitiesRowId(RESOURCE_ID),
@@ -971,6 +976,68 @@ describe('QueryResourceTree — pinned rows', () => {
     await waitFor(() => expect(pinnedIds()).toEqual([laneId]));
   });
 
+  describe('NVTX lanes', () => {
+    const THREAD_ROW_ID = '__nvtx_thread__1__7';
+    const pinButtonNames = (container: HTMLElement) =>
+      within(container)
+        .queryAllByRole('button', { name: /^(Pin|Unpin) / })
+        .map(button => button.getAttribute('aria-label'));
+
+    beforeEach(() => {
+      const domain = {
+        domain_id: '1',
+        source_domain_ids: ['1'],
+        name: 'CCCL',
+        color: '#76b900ff',
+        threads: [{ thread_id: 7, name: 'worker 7' }],
+        categories: [],
+        has_uncategorized: false,
+      };
+      vi.mocked(clientApi.useNvtxStream).mockReturnValue({
+        contextId: 'context-1',
+        catalog: { domains: [domain] } as unknown as NvtxCatalog,
+        viewport: {
+          viewport: { start: 0, end: DURATION_S },
+          domains: [
+            {
+              ...domain,
+              lanes: [
+                {
+                  id: 'thread-7',
+                  label: 'worker 7',
+                  identity: { kind: 'thread', source_domain_id: '1', thread_id: 7, depth: 0 },
+                  ranges: [],
+                  marks: [],
+                },
+              ],
+            },
+          ],
+          statistics: [],
+        } as unknown as NonNullable<ReturnType<typeof clientApi.useNvtxStream>['viewport']>,
+        isLoading: false,
+      });
+    });
+
+    it('shows a pinned NVTX lane with its domain, alongside pinned resources', async () => {
+      renderWithPins([THREAD_ROW_ID, RESOURCE_ID]);
+
+      await waitFor(() => expect(pinnedIds()).toEqual([THREAD_ROW_ID, RESOURCE_ID]));
+      expect(capturedHiddenPinnedCount).toBe(0);
+    });
+
+    it('offers pinning on NVTX lanes but not on the section or domain rows', async () => {
+      const { container } = renderWithQuery(
+        <JotaiProvider store={createStore()}>
+          <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+        </JotaiProvider>
+      );
+
+      await waitFor(() => expect(pinButtonNames(container)).toContain('Pin CCCL · worker 7'));
+      expect(pinButtonNames(container)).not.toContain('Pin NVTX');
+      expect(pinButtonNames(container)).not.toContain('Pin CCCL');
+    });
+  });
+
   it('shows nothing and counts nothing for pinned ids that match no row', async () => {
     renderWithPins(['not-a-row']);
 
@@ -1048,9 +1115,8 @@ describe('QueryResourceTree — pinned rows', () => {
 
     act(() => capturedClearPinned?.());
 
-    await waitFor(() => expect(pinnedIds()).toEqual([]));
-    expect(capturedHiddenPinnedCount).toBe(0);
-    expect(store.get(pinnedIdsAtom).size).toBe(0);
+    // The pinned table goes away once nothing is pinned, so check the store, not the last render.
+    await waitFor(() => expect(store.get(pinnedIdsAtom).size).toBe(0));
   });
 
   it('asks for bulk timeline data for pinned resources but not for pinned sub-rows', async () => {
@@ -1389,6 +1455,8 @@ describe('QueryResourceTree — NVTX pinning', () => {
       </JotaiProvider>
     );
 
-    await waitFor(() => expect(getByRole('button', { name: 'Pin worker 7' })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(getByRole('button', { name: 'Pin Domain 1 · worker 7' })).toBeInTheDocument()
+    );
   });
 });
