@@ -25,6 +25,7 @@ export interface SelectedOperatorData {
   attributes?: Statistic[];
   statistics: Statistic[];
   workerLabel?: string;
+  locationLabel?: string;
 }
 
 export interface SelectedOperatorGroupData extends SelectedOperatorData {

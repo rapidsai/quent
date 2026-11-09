@@ -25,8 +25,18 @@ it('presents operator labels and highlights the matching endpoint on hover and f
   const probe = createPipeInspectionRecorder();
   const store = createStore();
   const nodes = [
-    { id: 'scan', label: 'Parquet scan [6]', type: 'scan' },
-    { id: 'join', label: 'Partitioned join [42]', type: 'join' },
+    {
+      id: 'scan',
+      label: 'Parquet scan [6]',
+      type: 'scan',
+      metadata: { operatorLocationLabels: { scan: 'Plan: Physical · Worker: drone-1' } },
+    },
+    {
+      id: 'join',
+      label: 'Partitioned join [42]',
+      type: 'join',
+      metadata: { operatorLocationLabels: { join: 'Plan: Physical · Worker: drone-1' } },
+    },
   ];
   const pipe = {
     id: 'pipe',
@@ -51,6 +61,7 @@ it('presents operator labels and highlights the matching endpoint on hover and f
   });
   expect(within(header).getByText('Parquet scan [6]')).toBeVisible();
   expect(within(header).getByText('Partitioned join [42]')).toBeVisible();
+  expect(within(header).getByText('Plan: Physical · Worker: drone-1')).toBeVisible();
   expect(screen.getAllByText('Parquet scan [6]')).toHaveLength(2);
   expect(screen.getAllByText('Partitioned join [42]')).toHaveLength(2);
   fireEvent.mouseEnter(screen.getByRole('region', { name: 'Sending port' }));

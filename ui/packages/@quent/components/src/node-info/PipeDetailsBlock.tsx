@@ -13,6 +13,7 @@ import {
 import { toggleOperatorSelection, type DAGEdge, type DAGNode, type Operator } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
 import { OperatorBadge } from '../timeline/OperatorBadge';
+import { DataText } from '../ui/data-text';
 import { DetailsEntry } from './DetailsEntry';
 import { OperatorColorBar } from './OperatorColorBar';
 import { StatisticFields } from './StatisticFields';
@@ -96,6 +97,18 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
   const targetNode = nodes.get(pipe.target);
   const sourceLabel = sourceNode?.label ?? pipe.source;
   const targetLabel = targetNode?.label ?? pipe.target;
+  const sourceLocationLabel = (
+    sourceNode?.metadata as
+      { operatorLocationLabels?: Record<string, string | undefined> } | undefined
+  )?.operatorLocationLabels?.[pipe.source];
+  const targetLocationLabel = (
+    targetNode?.metadata as
+      { operatorLocationLabels?: Record<string, string | undefined> } | undefined
+  )?.operatorLocationLabels?.[pipe.target];
+  const pipeLocationLabel =
+    sourceLocationLabel === targetLocationLabel
+      ? sourceLocationLabel
+      : [sourceLocationLabel, targetLocationLabel].filter(Boolean).join(' → ');
   return (
     <DetailsEntry
       open={open}
@@ -105,10 +118,20 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
       triggerLabel={`Toggle pipe from ${sourceLabel} to ${targetLabel} details`}
       bar={<span aria-hidden className="w-[3px] shrink-0 self-stretch rounded-full bg-border" />}
       header={
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-          <OperatorBadge label={sourceLabel} operationType={sourceNode?.type} />
-          <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <OperatorBadge label={targetLabel} operationType={targetNode?.type} />
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <OperatorBadge label={sourceLabel} operationType={sourceNode?.type} />
+            <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <OperatorBadge label={targetLabel} operationType={targetNode?.type} />
+          </span>
+          {pipeLocationLabel && (
+            <DataText
+              className="truncate text-[10px] text-muted-foreground"
+              title={pipeLocationLabel}
+            >
+              {pipeLocationLabel}
+            </DataText>
+          )}
         </span>
       }
     >

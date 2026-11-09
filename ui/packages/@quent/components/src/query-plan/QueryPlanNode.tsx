@@ -53,6 +53,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
     operatorStatistics?: DAGStatisticSet;
     relatedOperatorStatistics?: DAGStatisticSet[];
     operatorWorkerLabels?: Record<string, string | undefined>;
+    operatorLocationLabels?: Record<string, string | undefined>;
   };
   hasIncoming?: boolean;
   hasOutgoing?: boolean;

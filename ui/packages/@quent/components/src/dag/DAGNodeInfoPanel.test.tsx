@@ -204,6 +204,26 @@ function FilterOnly() {
   return <DAGNodeInfoPanel />;
 }
 
+function LogicalPlanOnly() {
+  const updateFilter = useOperatorSelectionActions();
+  useEffect(() => {
+    updateFilter({
+      type: 'add',
+      selectionId: 'logical',
+      label: 'Logical join',
+      operatorIds: ['logical'],
+      selectedData: {
+        nodeId: 'logical',
+        label: 'Logical join',
+        operationType: 'logicaljoin',
+        statistics: [],
+        locationLabel: 'Plan: Logical',
+      },
+    });
+  }, [updateFilter]);
+  return <DAGNodeInfoPanel />;
+}
+
 function FilterWithoutDetails({
   onExpandedChange,
 }: {
@@ -432,6 +452,21 @@ describe('DAGNodeInfoPanel', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Toggle Table scan (worker-2) details' })
+    ).toBeInTheDocument();
+  });
+
+  it('shows the plan when a logical operator has no worker', async () => {
+    render(
+      <Provider>
+        <LogicalPlanOnly />
+      </Provider>
+    );
+
+    expect(await screen.findByText('Plan: Logical')).toBeVisible();
+    expect(
+      screen.getByRole('button', {
+        name: 'Toggle Logical join (Plan: Logical) details',
+      })
     ).toBeInTheDocument();
   });
 
