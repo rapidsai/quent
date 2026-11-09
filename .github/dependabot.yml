@@ -64,6 +64,8 @@ updates:
       - "/"
       - "/experimental/vibe/codegen"
       - "/experimental/vibe/ui/yaml-wasm"
+    allow:
+      - dependency-type: "all"
     groups:
       cargo:
         applies-to: version-updates
