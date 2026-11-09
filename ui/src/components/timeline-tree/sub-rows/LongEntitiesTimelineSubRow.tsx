@@ -5,7 +5,6 @@ import {
   LONG_ENTITIES_ROW_TYPE,
   longEntitiesRowId,
   resourceIdFromLongEntitiesRowId,
-  type TreeTableItem,
 } from '@quent/components';
 import {
   EntityTypeKey,
@@ -14,7 +13,12 @@ import {
   type QueryBundle,
 } from '@quent/utils';
 import { LongEntitiesRow } from '@/components/LongEntitiesRow';
-import { createSyntheticSubRow, createTimelineSubRow, mapTreeItems } from './subRow';
+import {
+  createSyntheticSubRow,
+  createTimelineSubRow,
+  createTimelineSubRowDisclosure,
+  mapTreeItems,
+} from './subRow';
 
 interface LongEntitiesTimelineSubRowOptions {
   engineId: string;
@@ -39,16 +43,18 @@ export function createLongEntitiesTimelineSubRow({
     id: 'long-entities',
     rowType: LONG_ENTITIES_ROW_TYPE,
     label: 'Entities',
+    expandOwnerByDefault: true,
+    pinsWithOwner: true,
     injectRows: rootItem =>
-      mapTreeItems(rootItem, (_item, children) => {
-        const next: TreeTableItem[] = [];
-        for (const child of children) {
-          next.push(child);
-          if (child.type === EntityTypeKey.Resource && !zeroUtilizationResourceIds?.has(child.id)) {
-            next.push(createSyntheticSubRow(longEntitiesRowId(child.id), LONG_ENTITIES_ROW_TYPE));
-          }
+      mapTreeItems(rootItem, (item, children) => {
+        if (item.type !== EntityTypeKey.Resource || zeroUtilizationResourceIds?.has(item.id)) {
+          return children;
         }
-        return next;
+        const chartRow = createSyntheticSubRow(longEntitiesRowId(item.id), LONG_ENTITIES_ROW_TYPE);
+        return [
+          ...children,
+          createTimelineSubRowDisclosure(item.id, LONG_ENTITIES_ROW_TYPE, chartRow),
+        ];
       }),
     renderTimeline: item => {
       const resourceId = resourceIdFromLongEntitiesRowId(item.id);

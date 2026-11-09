@@ -55,6 +55,21 @@ describe('createTimelineSubRow', () => {
 
     expect(subRow.label).toBe('Demo');
   });
+
+  it('labels the disclosure row but leaves the chart row beneath it unlabeled', () => {
+    const subRow = createTimelineSubRow({
+      id: 'demo',
+      rowType: 'demo-row',
+      label: 'Demo',
+      injectRows: root => root,
+      renderTimeline: () => null,
+    });
+    const disclosure = item('__demo_row_disclosure__owner', 'demo-row-disclosure') as never;
+    const chartRow = item('__demo_row__owner', 'demo-row') as never;
+
+    expect(subRow.renderLabel(disclosure)).not.toBeNull();
+    expect(subRow.renderLabel(chartRow)).toBeNull();
+  });
 });
 
 describe('TimelineSubRowLabel', () => {
