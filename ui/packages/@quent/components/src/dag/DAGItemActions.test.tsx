@@ -23,7 +23,9 @@ describe('DAGItemActions', () => {
 
     await user.click(preview);
     expect(activateItem).not.toHaveBeenCalled();
-    expect(screen.getByText('Scan preview')).toBeVisible();
+    const previewContent = screen.getByText('Scan preview');
+    expect(previewContent).toBeVisible();
+    expect(previewContent.parentElement).toHaveClass('overflow-y-auto', '[scrollbar-width:thin]');
   });
 
   it('offers only preview for edges', async () => {

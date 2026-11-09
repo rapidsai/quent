@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Eye } from 'lucide-react';
 import { cn } from '@quent/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { ThinScroll } from '../ui/thin-scroll';
 
 interface DAGItemActionsProps {
   label: string;
@@ -72,11 +73,11 @@ export function DAGItemActions({
         <PopoverContent
           align="center"
           side="bottom"
-          className="max-h-[min(70vh,32rem)] w-[28rem] max-w-[calc(100vw-2rem)] overflow-auto p-3"
+          className="w-[28rem] max-w-[calc(100vw-2rem)] p-0"
           onPointerDown={event => event.stopPropagation()}
           onClick={event => event.stopPropagation()}
         >
-          {previewContent}
+          <ThinScroll className="max-h-[min(70vh,32rem)] p-3">{previewContent}</ThinScroll>
         </PopoverContent>
       </Popover>
     </div>
