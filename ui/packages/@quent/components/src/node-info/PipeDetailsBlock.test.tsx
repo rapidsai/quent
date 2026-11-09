@@ -10,6 +10,17 @@ import {
 } from '../test-utils/PipeInspectionProbe';
 import { PipeDetailsBlock } from './PipeDetailsBlock';
 
+const scanOperator = {
+  id: 'scan',
+  plan_id: 'physical-plan',
+  parent_operator_ids: ['logical'],
+  instance_name: 'Parquet scan [6]',
+  operator_type_name: 'Scan',
+  custom_attributes: [],
+  statistics: null,
+  active_span: null,
+};
+
 it('presents operator labels and highlights the matching endpoint on hover and focus', () => {
   const probe = createPipeInspectionRecorder();
   const store = createStore();
@@ -153,6 +164,53 @@ it('shows a filter indicator only for filtered endpoint operators', () => {
   expect(probe.latest().selectedOperatorIds).toEqual(new Set());
   expect(
     within(sending).queryByRole('status', { name: 'Parquet scan [6]: filtered' })
+  ).not.toBeInTheDocument();
+});
+
+it('removes an endpoint covered by a parent operator filter', () => {
+  const probe = createPipeInspectionRecorder();
+  const nodes = [
+    {
+      id: 'scan',
+      label: 'Parquet scan [6]',
+      type: 'scan',
+      metadata: { rawNode: scanOperator },
+    },
+    { id: 'join', label: 'Partitioned join [42]', type: 'join' },
+  ];
+  const pipe = {
+    id: 'pipe',
+    source: 'scan',
+    target: 'join',
+    sourcePortId: 'out',
+    targetPortId: 'in',
+  };
+  render(
+    <Provider store={createStore()}>
+      <PipeInspectionProbe nodes={nodes} edges={[pipe]} recorder={probe}>
+        <PipeDetailsBlock pipe={pipe} />
+      </PipeInspectionProbe>
+    </Provider>
+  );
+  act(() =>
+    probe.latest().updateSelection({
+      type: 'replace',
+      selections: [
+        {
+          selectionId: 'logical',
+          label: 'Logical scan',
+          operatorIds: new Set(['logical', 'scan']),
+        },
+        { selectionId: 'other', label: 'Other', operatorIds: new Set(['other']) },
+      ],
+    })
+  );
+
+  fireEvent.click(screen.getByRole('region', { name: 'Sending port' }));
+
+  expect(probe.latest().selectedOperatorIds).toEqual(new Set(['other']));
+  expect(
+    within(screen.getByRole('region', { name: 'Sending port' })).queryByRole('status')
   ).not.toBeInTheDocument();
 });
 

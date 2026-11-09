@@ -13,10 +13,12 @@ import {
   useDisplayedOperatorDetails,
   useInspectedPipes,
   useInspectedPipeNodes,
+  useOperatorSelection,
   useOperatorSelectionActions,
+  useSelectedOperatorIds,
   useToggleInspectedPipe,
 } from '@quent/hooks';
-import { cn, type QuantitySpec } from '@quent/utils';
+import { cn, toggleOperatorSelection, type Operator, type QuantitySpec } from '@quent/utils';
 import {
   DetailItemActions,
   OperatorDataFlowBlock,
@@ -69,17 +71,21 @@ function DetailAttentionEntry({
 
 export const DAGNodeInfoPanel = ({
   quantitySpecs,
+  operators = [],
   fillHeight = false,
   onExpandedChange,
 }: {
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
+  operators?: readonly Operator[];
   fillHeight?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
 }) => {
   const operatorDetails = useDisplayedOperatorDetails();
   const inspectedPipes = useInspectedPipes();
   const inspectedPipeNodes = useInspectedPipeNodes();
+  const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
+  const selectedOperatorIds = useSelectedOperatorIds();
   const toggleInspectedPipe = useToggleInspectedPipe();
   const selectedOperators = operatorDetails.map(detail => detail.data);
   const dataFlowEnabled = useDataFlowEnabled();
@@ -87,6 +93,7 @@ export const DAGNodeInfoPanel = ({
   const dataFlowMeta = useDataFlowMeta();
   const dataFlowFrame = useDataFlowFrame();
   const detailAttention = useDagDetailAttention();
+  const clearDetailAttention = useClearDagDetailAttention();
   const [isExpanded, setIsExpanded] = useState(
     inspectedPipes.length > 0 || selectedOperators.length > 0
   );
@@ -96,10 +103,21 @@ export const DAGNodeInfoPanel = ({
     useState<typeof detailAttention>(null);
   const hasSelection = inspectedPipes.length > 0 || selectedOperators.length > 0;
   const selectedOperatorIdsKey = selectedOperators.map(operator => operator.nodeId).join('\0');
+  const hasDetailAttentionTarget =
+    detailAttention?.kind === 'operator'
+      ? operatorDetails.some(detail => detail.selectionId === detailAttention.id)
+      : detailAttention?.kind === 'pipe'
+        ? inspectedPipes.some(pipe => pipe.id === detailAttention.id)
+        : false;
   // Notify the containing resizable panel after committing local expansion state.
   useLayoutEffect(() => {
     onExpandedChange?.(isExpanded);
   }, [isExpanded, onExpandedChange]);
+  useLayoutEffect(() => {
+    if (detailAttention && !hasDetailAttentionTarget) {
+      clearDetailAttention(detailAttention);
+    }
+  }, [clearDetailAttention, detailAttention, hasDetailAttentionTarget]);
 
   const showStatsTab = selectedOperators.length > 0;
   const showPipesTab = inspectedPipes.length > 0;
@@ -158,7 +176,7 @@ export const DAGNodeInfoPanel = ({
     }
   }
 
-  if (detailAttention && detailAttention !== handledDetailAttention) {
+  if (detailAttention && hasDetailAttentionTarget && detailAttention !== handledDetailAttention) {
     setHandledDetailAttention(detailAttention);
     setIsExpanded(true);
     setActiveTab(detailAttention.kind === 'pipe' ? 'pipes' : 'stats');
@@ -196,6 +214,28 @@ export const DAGNodeInfoPanel = ({
                 }
                 title={'Remove filter'}
               />
+            }
+            relatedActions={
+              operators.length > 0
+                ? related => (
+                    <DetailItemActions
+                      label={`operator ${related.label}`}
+                      title="Remove filter"
+                      onRemove={() =>
+                        updateOperatorSelection({
+                          type: 'replace',
+                          detailAttention: 'none',
+                          selections: toggleOperatorSelection(
+                            operators,
+                            selectedOperatorIds,
+                            operatorSelection.selections,
+                            related.nodeId
+                          ),
+                        })
+                      }
+                    />
+                  )
+                : undefined
             }
           />
         </DetailAttentionEntry>

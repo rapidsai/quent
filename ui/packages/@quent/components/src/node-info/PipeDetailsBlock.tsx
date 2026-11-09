@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Fragment, useEffect, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, type ReactNode } from 'react';
 import { ArrowRight, Filter } from 'lucide-react';
 import {
   useInspectedPipeNodes,
@@ -10,7 +10,7 @@ import {
   useSelectedOperatorIds,
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
-import type { DAGEdge, DAGNode } from '@quent/utils';
+import { toggleOperatorSelection, type DAGEdge, type DAGNode, type Operator } from '@quent/utils';
 import { operatorSelectionFromNode } from '../dag/dagSelection';
 import { OperatorBadge } from '../timeline/OperatorBadge';
 import { DetailsEntry } from './DetailsEntry';
@@ -31,22 +31,37 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
   const selectedOperatorIds = useSelectedOperatorIds();
+  const hierarchyOperators = useMemo(() => {
+    const byId = new Map<string, Operator>();
+    for (const node of nodes.values()) {
+      const metadata = node.metadata as {
+        rawNode?: Operator;
+        relatedOperators?: readonly Operator[];
+      };
+      if (metadata?.rawNode) {
+        byId.set(metadata.rawNode.id, metadata.rawNode);
+      }
+      for (const operator of metadata?.relatedOperators ?? []) {
+        byId.set(operator.id, operator);
+      }
+    }
+    return [...byId.values()];
+  }, [nodes]);
   const selectOperator = (node: DAGNode | undefined) => {
     if (node) {
       const selection = operatorSelectionFromNode(node);
-      const matchingFilterIds = [...operatorSelection.selections]
-        .filter(
-          ([selectionId, current]) =>
-            selectionId === selection.selectionId ||
-            (current.operatorIds.size === selection.operatorIds.size &&
-              [...current.operatorIds].every(id => selection.operatorIds.has(id)))
-        )
-        .map(([selectionId]) => selectionId);
       const filtered = [...selection.operatorIds].every(id => selectedOperatorIds.has(id));
-      if (filtered && matchingFilterIds.length > 0) {
-        for (const selectionId of matchingFilterIds) {
-          updateOperatorSelection({ type: 'remove', selectionId });
-        }
+      if (filtered) {
+        updateOperatorSelection({
+          type: 'replace',
+          detailAttention: 'none',
+          selections: toggleOperatorSelection(
+            hierarchyOperators,
+            selectedOperatorIds,
+            operatorSelection.selections,
+            selection.selectionId
+          ),
+        });
       } else {
         updateOperatorSelection({
           type: 'add',

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
-import type { SelectedOperatorGroupData } from '@quent/hooks';
+import type { SelectedOperatorData, SelectedOperatorGroupData } from '@quent/hooks';
 import type { QuantitySpec } from '@quent/utils';
 import { OperatorAccordion, type OperatorDisclosureState } from './OperatorAccordion';
 import { OperatorStatFields } from './OperatorStatFields';
@@ -13,10 +13,12 @@ export const OperatorDetailsBlock = ({
   isOpen,
   onOpenChange,
   actions,
+  relatedActions,
 }: {
   operator: SelectedOperatorGroupData;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
   actions?: ReactNode;
+  relatedActions?: (operator: SelectedOperatorData) => ReactNode;
 } & OperatorDisclosureState) => (
   <OperatorAccordion
     operator={operator}
@@ -31,6 +33,7 @@ export const OperatorDetailsBlock = ({
           operator={related}
           open={isOpen(related.nodeId)}
           onOpenChange={open => onOpenChange(related.nodeId, open)}
+          actions={relatedActions?.(related)}
         >
           <OperatorStatFields operator={related} quantitySpecs={quantitySpecs} />
         </OperatorAccordion>

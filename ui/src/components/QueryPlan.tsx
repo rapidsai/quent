@@ -306,6 +306,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         >
           <DAGNodeInfoPanel
             quantitySpecs={queryBundle.quantity_specs}
+            operators={operators}
             fillHeight
             onExpandedChange={setOperatorDetailsExpanded}
           />

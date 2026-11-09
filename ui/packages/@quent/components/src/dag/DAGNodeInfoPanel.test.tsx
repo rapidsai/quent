@@ -4,14 +4,40 @@
 import { useEffect, useState } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import { useOperatorSelectionActions } from '@quent/hooks';
+import { useDagDetailAttention, useOperatorSelectionActions } from '@quent/hooks';
 import { getDeterministicColor } from '@quent/utils';
-import type { DAGEdge } from '@quent/utils';
+import type { DAGEdge, Operator } from '@quent/utils';
 import {
   PipeInspectionProbe,
   createPipeInspectionRecorder,
 } from '../test-utils/PipeInspectionProbe';
 import { DAGNodeInfoPanel } from './DAGNodeInfoPanel';
+
+const hierarchyOperators: Operator[] = [
+  {
+    id: 'logical',
+    plan_id: 'logical-plan',
+    parent_operator_ids: [],
+    instance_name: 'Logical join',
+    operator_type_name: 'LogicalJoin',
+    custom_attributes: [],
+    statistics: null,
+    active_span: null,
+  },
+  ...[
+    ['physical-1', 'Build hash table', 'HashBuild'],
+    ['physical-2', 'Probe hash table', 'HashProbe'],
+  ].map(([id, instanceName, operatorType]): Operator => ({
+    id,
+    plan_id: 'physical-plan',
+    parent_operator_ids: ['logical'],
+    instance_name: instanceName,
+    operator_type_name: operatorType,
+    custom_attributes: [],
+    statistics: null,
+    active_span: null,
+  })),
+];
 
 function SelectedNode({ onExpandedChange }: { onExpandedChange?: (expanded: boolean) => void }) {
   const updateOperatorSelection = useOperatorSelectionActions();
@@ -45,7 +71,7 @@ function SelectedNode({ onExpandedChange }: { onExpandedChange?: (expanded: bool
     });
   }, [updateOperatorSelection]);
 
-  return <DAGNodeInfoPanel onExpandedChange={onExpandedChange} />;
+  return <DAGNodeInfoPanel operators={hierarchyOperators} onExpandedChange={onExpandedChange} />;
 }
 
 function SameNameOnDifferentWorkers() {
@@ -178,6 +204,27 @@ function FilterOnly() {
   return <DAGNodeInfoPanel />;
 }
 
+function FilterWithoutDetails({
+  onExpandedChange,
+}: {
+  onExpandedChange?: (expanded: boolean) => void;
+}) {
+  const updateFilter = useOperatorSelectionActions();
+  const attention = useDagDetailAttention();
+  useEffect(() => {
+    updateFilter({
+      type: 'replace',
+      selections: [{ selectionId: 'missing', label: 'Missing', operatorIds: ['missing'] }],
+    });
+  }, [updateFilter]);
+  return (
+    <>
+      <output data-testid="detail-attention">{attention?.id ?? 'none'}</output>
+      <DAGNodeInfoPanel onExpandedChange={onExpandedChange} />
+    </>
+  );
+}
+
 describe('DAGNodeInfoPanel', () => {
   it('scrolls to a newly filtered operator', async () => {
     const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
@@ -264,6 +311,36 @@ describe('DAGNodeInfoPanel', () => {
 
     fireEvent.click(removeDetail);
     expect(screen.queryByTestId('operator-accordion-scan')).not.toBeInTheDocument();
+  });
+
+  it('removes a related physical operator while preserving its sibling', async () => {
+    render(
+      <Provider>
+        <SelectedNode />
+      </Provider>
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Remove operator Build hash table from details',
+      })
+    );
+
+    expect(screen.queryByText('Build hash table')).not.toBeInTheDocument();
+    expect(screen.getByText('Probe hash table')).toBeInTheDocument();
+    expect(screen.queryByText('Logical join')).not.toBeInTheDocument();
+  });
+
+  it('clears detail attention when its operator has no display data', async () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <Provider>
+        <FilterWithoutDetails onExpandedChange={onExpandedChange} />
+      </Provider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('detail-attention')).toHaveTextContent('none'));
+    expect(onExpandedChange).not.toHaveBeenCalledWith(true);
   });
 
   it('shows statistics for every selected operator', async () => {
