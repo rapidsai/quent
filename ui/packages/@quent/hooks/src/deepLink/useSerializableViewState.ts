@@ -172,10 +172,7 @@ export function useSerializableViewState({
       if (state.selection?.operatorNodeIds !== undefined) {
         store.set(operatorSelectionActionAtom, {
           type: 'replace',
-          selections: resolveSelectedOperatorSelections(
-            operators,
-            new Set(state.selection.operatorNodeIds)
-          ),
+          selections: resolveSelectedOperatorSelections(operators, state.selection.operatorNodeIds),
           detailAttention: 'none',
         });
       }
