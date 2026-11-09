@@ -234,6 +234,8 @@ describe('OperatorGanttChart', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Select parent' }));
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
     act(() => {
       mocks.ganttChart.mock.lastCall?.[0].onEvents.click({
         dataIndex: 0,
@@ -248,5 +250,6 @@ describe('OperatorGanttChart', () => {
     expect(screen.getByRole('button', { name: 'Remove right' })).toBeInTheDocument();
     expect(screen.getByTestId('operator-accordion-right')).toBeVisible();
     expect(screen.queryByTestId('operator-accordion-parent')).not.toBeInTheDocument();
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });
