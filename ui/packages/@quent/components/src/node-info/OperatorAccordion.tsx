@@ -25,7 +25,7 @@ export const OperatorAccordion = ({
   actions?: ReactNode;
   children: ReactNode;
 }) => {
-  const locationLabel = operator.locationLabel ?? operator.workerLabel;
+  const secondaryLabel = operator.workerLabel ?? operator.planLabel;
   return (
     <DetailsEntry
       open={open}
@@ -36,8 +36,8 @@ export const OperatorAccordion = ({
         <OperatorColorBar operationType={operator.operationType} className="w-[3px] self-stretch" />
       }
       triggerLabel={
-        locationLabel
-          ? `Toggle ${operator.label} (${locationLabel}) details`
+        secondaryLabel
+          ? `Toggle ${operator.label} (${secondaryLabel}) details`
           : `Toggle ${operator.label} details`
       }
       header={
@@ -48,12 +48,12 @@ export const OperatorAccordion = ({
           <DataText className="shrink-0 rounded bg-muted px-1.5 pt-0.5 pb-px text-xs leading-none capitalize text-muted-foreground">
             {operator.operationType}
           </DataText>
-          {locationLabel && (
+          {secondaryLabel && (
             <DataText
               className="ml-1.5 min-w-0 max-w-[35%] shrink truncate text-[10px] text-muted-foreground"
-              title={locationLabel}
+              title={secondaryLabel}
             >
-              {locationLabel}
+              {secondaryLabel}
             </DataText>
           )}
         </>

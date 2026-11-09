@@ -9,7 +9,7 @@ import {
   buildRelatedOperatorIdsById,
   flattenStatistics,
   isNumericValue,
-  operatorLocationDescription,
+  operatorPlanLabel,
   operatorWorkerLabel,
   statisticFieldLabel,
   workerDisplayName,
@@ -117,12 +117,8 @@ const getNodeEntity = (
           bundle.entities.workers
         ),
       };
-      const operatorLocationLabels: Record<string, string | undefined> = {
-        [operator.id]: operatorLocationDescription(
-          operator,
-          bundle.entities.plans,
-          bundle.entities.workers
-        ),
+      const operatorPlanLabels: Record<string, string | undefined> = {
+        [operator.id]: operatorPlanLabel(operator, bundle.entities.plans),
       };
       for (const relatedOperator of relatedOperators) {
         operatorWorkerLabels[relatedOperator.id] = operatorWorkerLabel(
@@ -130,10 +126,9 @@ const getNodeEntity = (
           bundle.entities.plans,
           bundle.entities.workers
         );
-        operatorLocationLabels[relatedOperator.id] = operatorLocationDescription(
+        operatorPlanLabels[relatedOperator.id] = operatorPlanLabel(
           relatedOperator,
-          bundle.entities.plans,
-          bundle.entities.workers
+          bundle.entities.plans
         );
       }
       const node: DAGNode = {
@@ -151,7 +146,7 @@ const getNodeEntity = (
           relatedOperators,
           relatedOperatorStatistics,
           operatorWorkerLabels,
-          operatorLocationLabels,
+          operatorPlanLabels,
         },
       };
       return node;

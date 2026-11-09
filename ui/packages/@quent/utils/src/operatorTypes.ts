@@ -25,7 +25,7 @@ export interface SelectedOperatorData {
   attributes?: Statistic[];
   statistics: Statistic[];
   workerLabel?: string;
-  locationLabel?: string;
+  planLabel?: string;
 }
 
 export interface SelectedOperatorGroupData extends SelectedOperatorData {
@@ -63,4 +63,12 @@ export function operatorWorkerLabel(
 ): string | undefined {
   const { worker } = resolveOperatorWorker(operator, plans, workers);
   return worker ? workerDisplayName(worker) : undefined;
+}
+
+export function operatorPlanLabel(
+  operator: Operator,
+  plans: Record<string, Plan>
+): string | undefined {
+  const plan = operator.plan_id ? plans[operator.plan_id] : undefined;
+  return plan ? (plan.instance_name ?? plan.id) : undefined;
 }

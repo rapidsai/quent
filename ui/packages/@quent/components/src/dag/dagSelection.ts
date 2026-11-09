@@ -41,7 +41,7 @@ export function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupDat
       ? metadata.aggregatedStatistics
       : (metadata?.operatorStatistics?.statistics ?? []),
     workerLabel: metadata?.operatorWorkerLabels?.[node.id],
-    locationLabel: metadata?.operatorLocationLabels?.[node.id],
+    planLabel: metadata?.operatorPlanLabels?.[node.id],
     relatedOperators: metadata?.relatedOperators?.map((operator, index) => ({
       nodeId: operator.id,
       label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
@@ -49,7 +49,7 @@ export function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupDat
       attributes: parseOperatorAttributes(operator),
       statistics: metadata.relatedOperatorStatistics?.[index]?.statistics ?? [],
       workerLabel: metadata?.operatorWorkerLabels?.[operator.id],
-      locationLabel: metadata?.operatorLocationLabels?.[operator.id],
+      planLabel: metadata?.operatorPlanLabels?.[operator.id],
     })),
   };
 }

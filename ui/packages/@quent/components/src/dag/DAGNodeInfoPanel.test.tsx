@@ -89,6 +89,7 @@ function SameNameOnDifferentWorkers() {
         operationType: 'scan',
         statistics: [{ key: 'output_rows', value: 10 }],
         workerLabel: 'worker-1',
+        planLabel: 'Physical',
         relatedOperators: [
           {
             nodeId: 'scan-2',
@@ -96,6 +97,7 @@ function SameNameOnDifferentWorkers() {
             operationType: 'scan',
             statistics: [{ key: 'output_rows', value: 20 }],
             workerLabel: 'worker-2',
+            planLabel: 'Physical',
           },
         ],
       },
@@ -217,7 +219,7 @@ function LogicalPlanOnly() {
         label: 'Logical join',
         operationType: 'logicaljoin',
         statistics: [],
-        locationLabel: 'Plan: Logical',
+        planLabel: 'Logical',
       },
     });
   }, [updateFilter]);
@@ -444,6 +446,7 @@ describe('DAGNodeInfoPanel', () => {
     await screen.findAllByText('Table scan');
     expect(screen.getByText('worker-1')).toBeInTheDocument();
     expect(screen.getByText('worker-2')).toBeInTheDocument();
+    expect(screen.queryByText('Physical')).not.toBeInTheDocument();
 
     // Each toggle must have a distinct accessible name, otherwise screen readers
     // and role-based queries can't tell same-named operators apart.
@@ -462,10 +465,10 @@ describe('DAGNodeInfoPanel', () => {
       </Provider>
     );
 
-    expect(await screen.findByText('Plan: Logical')).toBeVisible();
+    expect(await screen.findByText('Logical')).toBeVisible();
     expect(
       screen.getByRole('button', {
-        name: 'Toggle Logical join (Plan: Logical) details',
+        name: 'Toggle Logical join (Logical) details',
       })
     ).toBeInTheDocument();
   });

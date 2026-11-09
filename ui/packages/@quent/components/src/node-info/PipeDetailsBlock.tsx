@@ -26,6 +26,16 @@ export interface PipeDetailsBlockProps {
   actions?: ReactNode;
 }
 
+const operatorSecondaryLabel = (node: DAGNode | undefined, operatorId: string) => {
+  const metadata = node?.metadata as
+    | {
+        operatorWorkerLabels?: Record<string, string | undefined>;
+        operatorPlanLabels?: Record<string, string | undefined>;
+      }
+    | undefined;
+  return metadata?.operatorWorkerLabels?.[operatorId] ?? metadata?.operatorPlanLabels?.[operatorId];
+};
+
 export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDetailsBlockProps) {
   const nodes = useInspectedPipeNodes();
   const setHighlight = useSetHighlightedNodeIds();
@@ -97,18 +107,12 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
   const targetNode = nodes.get(pipe.target);
   const sourceLabel = sourceNode?.label ?? pipe.source;
   const targetLabel = targetNode?.label ?? pipe.target;
-  const sourceLocationLabel = (
-    sourceNode?.metadata as
-      { operatorLocationLabels?: Record<string, string | undefined> } | undefined
-  )?.operatorLocationLabels?.[pipe.source];
-  const targetLocationLabel = (
-    targetNode?.metadata as
-      { operatorLocationLabels?: Record<string, string | undefined> } | undefined
-  )?.operatorLocationLabels?.[pipe.target];
-  const pipeLocationLabel =
-    sourceLocationLabel === targetLocationLabel
-      ? sourceLocationLabel
-      : [sourceLocationLabel, targetLocationLabel].filter(Boolean).join(' → ');
+  const sourceSecondaryLabel = operatorSecondaryLabel(sourceNode, pipe.source);
+  const targetSecondaryLabel = operatorSecondaryLabel(targetNode, pipe.target);
+  const pipeSecondaryLabel =
+    sourceSecondaryLabel === targetSecondaryLabel
+      ? sourceSecondaryLabel
+      : [sourceSecondaryLabel, targetSecondaryLabel].filter(Boolean).join(' → ');
   return (
     <DetailsEntry
       open={open}
@@ -124,12 +128,12 @@ export function PipeDetailsBlock({ pipe, open, onOpenChange, actions }: PipeDeta
             <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
             <OperatorBadge label={targetLabel} operationType={targetNode?.type} />
           </span>
-          {pipeLocationLabel && (
+          {pipeSecondaryLabel && (
             <DataText
               className="truncate text-[10px] text-muted-foreground"
-              title={pipeLocationLabel}
+              title={pipeSecondaryLabel}
             >
-              {pipeLocationLabel}
+              {pipeSecondaryLabel}
             </DataText>
           )}
         </span>

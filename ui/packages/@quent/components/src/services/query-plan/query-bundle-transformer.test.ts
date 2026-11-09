@@ -466,8 +466,8 @@ describe('getPlanDAG', () => {
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
       op1: 'drone-1',
     });
-    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorLocationLabels).toEqual({
-      op1: 'Plan: Physical · Worker: drone-1',
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorPlanLabels).toEqual({
+      op1: 'Physical',
     });
   });
 
@@ -482,7 +482,7 @@ describe('getPlanDAG', () => {
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
       op1: undefined,
     });
-    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorLocationLabels).toEqual({
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorPlanLabels).toEqual({
       op1: undefined,
     });
   });
@@ -502,8 +502,8 @@ describe('getPlanDAG', () => {
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
       op1: undefined,
     });
-    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorLocationLabels).toEqual({
-      op1: 'Plan: Logical',
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorPlanLabels).toEqual({
+      op1: 'Logical',
     });
   });
 
