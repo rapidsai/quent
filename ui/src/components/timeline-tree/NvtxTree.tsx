@@ -3,8 +3,7 @@
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { ChartGantt } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useNvtxStream, type NvtxCategoryFilter } from '@quent/client';
 import {
   DEFAULT_TIMELINE_HEIGHT,
@@ -23,7 +22,7 @@ import {
   nvtxLaneLabel,
 } from '@quent/components';
 import { useDebouncedZoomRange, useSetDebouncedZoomRange, useSetZoomRange } from '@quent/hooks';
-import type { EntityRef, NvtxCatalog, QueryBundle } from '@quent/utils';
+import { cn, type EntityRef, type NvtxCatalog, type QueryBundle } from '@quent/utils';
 import {
   expandedIdsAtom,
   resourceFilterAtom,
@@ -36,9 +35,9 @@ import { PinnedRowPath } from './PinnedRowPath';
 import {
   TimelineTreeTable,
   useTimelineTreeSetup,
+  type RowPinning,
   type TimelineTreeControls,
   type TimelineTreeItem,
-  type RowPinning,
   type TimelineTreeModel,
 } from './TimelineTreeTable';
 
@@ -335,7 +334,8 @@ export function useNvtxTreeModel({
   const rowPinning = useMemo<RowPinning>(
     () => ({
       isPinnable: isNvtxRowPinnable,
-      getName: nvtxRowName,
+      getName: item =>
+        isNvtxTreeEntity(item.entity) ? nvtxLaneLabel(item.entity, true) || item.id : item.id,
       getDescription: getPinnedRowDescription,
     }),
     [getPinnedRowDescription]
@@ -349,7 +349,7 @@ export function useNvtxTreeModel({
   );
 
   const renderLabel = useCallback(
-    (item: TimelineTreeItem, description?: ReactNode) => {
+    (item: TimelineTreeItem, description?: ReactNode, isPinned?: boolean) => {
       if (item.type === NVTX_SECTION_ROW_TYPE) {
         return catalog ? (
           <NvtxSectionLabel
@@ -392,16 +392,28 @@ export function useNvtxTreeModel({
       }
       if (item.type === NVTX_LANE_ROW_TYPE) {
         const label = isNvtxTreeEntity(item.entity) ? nvtxLaneLabel(item.entity) : '';
-        const labelElement = (
-          <span className="truncate text-xs leading-none text-muted-foreground">{label}</span>
-        );
-        return description ? (
-          <div className="flex min-w-0 flex-col gap-0.5">
-            {labelElement}
-            <span className="text-[10px] leading-none text-muted-foreground">{description}</span>
-          </div>
-        ) : (
-          labelElement
+        return (
+          <span className="flex min-w-0 items-center">
+            {/* Pinned rows get an icon like resource rows, so the names line up. */}
+            {isPinned && (
+              <ChartGantt aria-hidden className="mr-4 h-4 w-4 shrink-0 text-foreground" />
+            )}
+            <span className="flex min-w-0 flex-col gap-1">
+              <span
+                className={cn(
+                  'truncate text-xs leading-none',
+                  isPinned ? 'font-bold text-foreground' : 'text-muted-foreground'
+                )}
+              >
+                {label}
+              </span>
+              {description != null && (
+                <span className="text-[11px] font-normal leading-none text-muted-foreground">
+                  {description}
+                </span>
+              )}
+            </span>
+          </span>
         );
       }
       return null;

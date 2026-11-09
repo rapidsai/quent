@@ -74,6 +74,12 @@ export { PointerTooltipPortal } from './ui/pointer-tooltip-portal';
 export type { PointerPosition } from './ui/pointer-tooltip-portal';
 export { PositionedTooltip } from './ui/positioned-tooltip';
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
+export { useCollapsiblePanel } from './lib/useCollapsiblePanel';
+export type {
+  CollapsiblePanel,
+  PanelHeights,
+  UseCollapsiblePanelOptions,
+} from './lib/useCollapsiblePanel';
 export { ScrollArea, ScrollBar } from './ui/scroll-area';
 export {
   ThinScroll,
@@ -117,8 +123,8 @@ export { TreeView } from './ui/tree-view';
 export type { TreeDataItem } from './ui/tree-view';
 export { TreeSelect } from './ui/tree-select';
 export type { TreeSelectProps } from './ui/tree-select';
-export { TreeTable } from './ui/tree-table';
-export type { Column, ColumnComponent, IconComponent } from './ui/tree-table';
+export { TreeTable, PinnedSectionToggle, TREE_TABLE_SCROLLER_SELECTOR } from './ui/tree-table';
+export type { Column, ColumnComponent, ColumnWidth, IconComponent } from './ui/tree-table';
 export { Badge, badgeVariants } from './ui/badge';
 export { TruncatedBadgeList } from './ui/truncated-badge-list';
 export type { TruncatedBadgeListProps } from './ui/truncated-badge-list';
