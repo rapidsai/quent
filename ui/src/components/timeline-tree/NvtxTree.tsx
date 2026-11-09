@@ -289,10 +289,26 @@ export function useNvtxTreeModel({
     () => (catalog ? buildNvtxTree(catalog, laneRowIds, selectedNvtxDomain) : null),
     [catalog, laneRowIds, selectedNvtxDomain]
   );
-  const filterResult = useMemo(
-    () => (unfilteredTree ? filterNvtxTree(unfilteredTree, resourceFilter.search) : null),
-    [resourceFilter.search, unfilteredTree]
-  );
+  const filterResult = useMemo(() => {
+    if (!unfilteredTree) {
+      return null;
+    }
+    // NVTX rows have neither resource types nor FSM types.
+    if (resourceFilter.resourceTypes.length > 0 || resourceFilter.fsmTypes.length > 0) {
+      return {
+        directMatchIds: new Set<string>(),
+        filteredTree: null,
+        isActive: true,
+        matchCount: 0,
+      };
+    }
+    return filterNvtxTree(unfilteredTree, resourceFilter.search);
+  }, [
+    resourceFilter.fsmTypes,
+    resourceFilter.resourceTypes,
+    resourceFilter.search,
+    unfilteredTree,
+  ]);
   useAutoExpandMatchingAncestors(
     unfilteredTree,
     filterResult?.directMatchIds ?? new Set(),
