@@ -100,6 +100,7 @@ export interface SiblingPinning {
 interface UseResourceTimelinesTreeModelProps extends ResourceTimelinesTreeProps {
   isDark: boolean;
   siblingPinning?: SiblingPinning;
+  siblingFilterMatchCount?: number;
 }
 
 // QueryResourceTree reuses the model to combine multiple trees in one table.
@@ -111,6 +112,7 @@ export function useResourceTimelinesTreeModel({
   subRows = EMPTY_SUB_ROWS,
   seedRootExpanded = true,
   siblingPinning,
+  siblingFilterMatchCount = 0,
 }: UseResourceTimelinesTreeModelProps): ResourceTimelinesTreeModel {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const durationSeconds = queryBundle.duration_s;
@@ -529,7 +531,7 @@ export function useResourceTimelinesTreeModel({
       <>
         <ResourceFilterSearch
           fsmTypes={fsmTypeOptions}
-          matchCount={resourceFilterResult.matchCount}
+          matchCount={resourceFilterResult.matchCount + siblingFilterMatchCount}
           matchIds={pinnableMatchIds}
           onPinMany={pinMany}
           pinnedIds={pinnedIds}

@@ -108,6 +108,7 @@ export function QueryResourceTree({
     subRows: resourceSubRows ?? defaultResourceSubRows,
     seedRootExpanded,
     siblingPinning: nvtxPinning,
+    siblingFilterMatchCount: nvtxTree.filterMatchCount,
   });
   const highlightedItemIds = new Set([
     ...(resourceTree.highlightedItemIds ?? []),
