@@ -28,7 +28,7 @@ import {
   type EdgeProps,
   type OnMoveStart,
 } from '@xyflow/react';
-import { useAtom } from 'jotai';
+import { useAtom, useSetAtom } from 'jotai';
 import '@xyflow/react/dist/style.css';
 import {
   useSelectedOperatorIds,
@@ -336,7 +336,7 @@ const VariableWidthEdge = ({
           </div>
         </EdgeLabelRenderer>
       )}
-      {pipe?.sourcePortId && pipe.targetPortId && (
+      {pipe && pipeRef && (
         <EdgeLabelRenderer>
           <div
             className="nodrag nopan absolute"
@@ -433,7 +433,7 @@ const FlowLayout = ({
   const updateNodeInternals = useUpdateNodeInternals();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
-  const [, setActivePreviewId] = useAtom(activeDAGPreviewIdAtom);
+  const setActivePreviewId = useSetAtom(activeDAGPreviewIdAtom);
   const [highlightState] = useHighlightedNodeIds();
   const selectedOperatorIds = useSelectedOperatorIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
@@ -728,6 +728,13 @@ const FlowLayout = ({
     () => resolveDagHighlightedNodeIds(highlightState.ids, data.nodes),
     [data.nodes, highlightState.ids]
   );
+  const nodeDetails = useMemo(
+    () =>
+      new Map(
+        data.nodes.map(node => [node.id, operatorSelectionFromNode(node).selectedData] as const)
+      ),
+    [data.nodes]
+  );
   const renderedNodes = useMemo(
     () =>
       nodes.map(node => ({
@@ -740,11 +747,11 @@ const FlowLayout = ({
           highlightedNodeIds,
           actions: {
             filtered: getSelectionIds(node).every(id => selectedOperatorIds.has(id)),
-            details: operatorSelectionFromNode(dagNodeFromFlowNode(node)).selectedData,
+            details: nodeDetails.get(node.id)!,
           },
         },
       })),
-    [dagHeatmap, highlightedNodeIds, getSelectionIds, nodes, selectedOperatorIds]
+    [dagHeatmap, highlightedNodeIds, getSelectionIds, nodeDetails, nodes, selectedOperatorIds]
   );
   const renderedEdges = useMemo(
     () =>
