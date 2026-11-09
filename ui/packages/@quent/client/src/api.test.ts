@@ -7,7 +7,8 @@ import { fetchDataFlow, fetchListEngines, fetchListQueries } from './api';
 
 const CONFIG: TimelineConfig = { start: 0, end: 8, num_bins: 4 };
 
-const BINNED: DataFlowTimelineBinned = {
+// JSON parsing preserves safe integers as numbers despite the generated bigint binding.
+const BINNED = {
   config: { span: { start: 0, end: 8 }, bin_duration: 2, num_bins: 4 },
   decl: {
     entity_type_name: 'Task',
@@ -19,7 +20,7 @@ const BINNED: DataFlowTimelineBinned = {
   operators: {
     'op-1': { values: { tasks: { queueing: { memory: [1, 2, 0, 0] } } } },
   },
-};
+} as unknown as DataFlowTimelineBinned;
 
 function stubFetch(response: Response) {
   const fetchMock = vi.fn().mockResolvedValue(response);

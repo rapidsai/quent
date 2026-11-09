@@ -37,6 +37,11 @@ reviews:
     - "!ui/pnpm-lock.yaml"
 
   path_instructions:
+    - path: "**/*"
+      instructions: |
+        - For major user-visible functionality added or removed, require a corresponding update to `ui/e2e/demo-gif.spec.ts` so the README demo remains representative.
+        - If the Demo GIF CI already passes without exercising new functionality, flag the missing demo-flow coverage; CI success alone is not sufficient.
+        - Remove obsolete demo interactions when functionality is removed.
     - path: "crates/**/*.rs"
       instructions: |
         - Flag unwrap/expect/panic on caller-reachable paths; prefer Result propagation.

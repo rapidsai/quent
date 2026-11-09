@@ -357,7 +357,7 @@ function EntityRow({
 
   return (
     <TableRow
-      className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      className="focus-ring cursor-pointer focus-visible:ring-inset"
       tabIndex={0}
       aria-selected={selected}
       data-state={selected ? 'selected' : undefined}

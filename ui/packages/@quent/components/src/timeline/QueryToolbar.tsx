@@ -53,7 +53,7 @@ export function QueryToolbar({ children }: QueryToolbarProps) {
           <Filter
             className={cn(
               'size-4 transition-colors',
-              hasSelection ? 'text-primary' : 'text-muted-foreground'
+              hasSelection ? 'text-foreground' : 'text-muted-foreground'
             )}
           />
         </span>

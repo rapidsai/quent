@@ -9,6 +9,7 @@ export interface QueryPlanDataItem extends TreeDataItem {
   workerId?: string;
   workerName?: string;
   planType?: string;
+  children?: QueryPlanDataItem[];
 }
 
 // Re-export DAG node/edge/stat types from @quent/utils (canonical location)

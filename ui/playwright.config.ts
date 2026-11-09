@@ -9,6 +9,7 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: '**/demo-gif.spec.ts',
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: isCI,

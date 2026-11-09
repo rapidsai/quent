@@ -37,7 +37,7 @@ export function DAGSettingsPopover({
         <button
           type="button"
           aria-label="Settings"
-          className="mr-1 inline-flex aspect-square min-h-9 self-stretch shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="mr-1 inline-flex aspect-square min-h-9 self-stretch shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2"
           title="Settings"
         >
           <Settings className="size-4" />

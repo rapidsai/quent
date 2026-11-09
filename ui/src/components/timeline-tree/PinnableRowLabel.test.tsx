@@ -4,7 +4,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_PINNED_ROWS } from '@/features/pinned-rows/pinnedRows';
 import { PinnableRowLabel } from './PinnableRowLabel';
 
 function renderLabel(props: Partial<React.ComponentProps<typeof PinnableRowLabel>> = {}) {
@@ -18,7 +17,6 @@ function renderLabel(props: Partial<React.ComponentProps<typeof PinnableRowLabel
         name="GPU 0"
         isPinnable
         isPinned={false}
-        isAtPinLimit={false}
         onTogglePin={onTogglePin}
         {...props}
       />
@@ -65,20 +63,6 @@ describe('PinnableRowLabel', () => {
 
     expect(onTogglePin).toHaveBeenCalledTimes(1);
     expect(onRowClick).not.toHaveBeenCalled();
-  });
-
-  it('disables pinning more rows once the limit is reached', () => {
-    renderLabel({ isAtPinLimit: true });
-
-    const button = screen.getByRole('button', { name: 'Pin GPU 0' });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', `You can pin up to ${MAX_PINNED_ROWS} rows`);
-  });
-
-  it('still lets a pinned row be unpinned at the limit', () => {
-    renderLabel({ isAtPinLimit: true, isPinned: true });
-
-    expect(screen.getByRole('button', { name: 'Unpin GPU 0' })).toBeEnabled();
   });
 
   it('appears when the info area is hovered, not when anywhere else on the row is', () => {

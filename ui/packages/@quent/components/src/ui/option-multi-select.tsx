@@ -165,7 +165,7 @@ export function OptionMultiSelect({
               variant="ghost"
               size="sm"
               onClick={onSelectAllOptions}
-              className="h-6 px-2 text-xs text-primary hover:text-primary"
+              className="h-6 px-2 text-xs text-foreground hover:text-foreground"
             >
               All
             </Button>
@@ -174,7 +174,7 @@ export function OptionMultiSelect({
               variant="ghost"
               size="sm"
               onClick={onSelectNoOptions}
-              className="h-6 px-2 text-xs text-primary hover:text-primary"
+              className="h-6 px-2 text-xs text-foreground hover:text-foreground"
             >
               None
             </Button>
@@ -244,7 +244,7 @@ export function OptionMultiSelect({
                 <Badge
                   variant="outline"
                   className={cn(
-                    'px-1.5 py-0 text-data bg-primary/10 border-primary/40 hover:bg-primary/15',
+                    'px-1.5 py-0 text-data bg-foreground/10 border-foreground/40 hover:bg-primary/15',
                     optionClassName
                   )}
                 >

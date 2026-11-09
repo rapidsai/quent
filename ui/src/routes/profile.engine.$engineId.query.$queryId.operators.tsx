@@ -11,5 +11,9 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/o
 
 function OperatorsTab() {
   const queryBundle = QueryRoute.useLoaderData();
-  return <OperatorTable queryBundle={queryBundle} />;
+  return (
+    <div className="h-full pt-2">
+      <OperatorTable queryBundle={queryBundle} />
+    </div>
+  );
 }

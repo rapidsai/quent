@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { useOperatorSelectionActions } from '@quent/hooks';
 import { getDeterministicColor } from '@quent/utils';
+import type { DAGEdge } from '@quent/utils';
 import {
   PipeInspectionProbe,
   createPipeInspectionRecorder,
@@ -323,7 +324,7 @@ describe('DAGNodeInfoPanel', () => {
 it('shows nested sending and receiving evidence for an inspected pipe without selecting operators', () => {
   const probe = createPipeInspectionRecorder();
   const store = createStore();
-  const edges = [
+  const edges: DAGEdge[] = [
     {
       id: 'pipe',
       source: 'scan',

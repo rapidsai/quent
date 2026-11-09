@@ -446,7 +446,7 @@ fn helpers(options: &Options, runtime: &syn::Path, dynamic: &syn::Path) -> Token
             Ok(#runtime::Uuid::from_u128(value.getattr("int")?.extract()?))
         }
 
-        #[pyclass(name = "DynamicValue", frozen, skip_from_py_object)]
+        #[pyclass(name = "DynamicValue", frozen)]
         #[derive(Clone)]
         pub struct PyDynamicValue { inner: #dynamic::DynamicValue }
 

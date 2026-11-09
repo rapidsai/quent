@@ -15,7 +15,7 @@ function TimelineTab() {
   const queryBundle = QueryRoute.useLoaderData();
   const deepLink = useDeepLink();
   return (
-    <div className="flex min-w-0 w-full h-full min-h-[200px]">
+    <div className="flex min-w-0 w-full h-full min-h-[200px] pt-2">
       <QueryResourceTree
         engineId={engineId}
         queryBundle={queryBundle}

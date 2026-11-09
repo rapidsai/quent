@@ -16,6 +16,7 @@ import {
   DeepLinkStateV2Schema,
   DeepLinkStateV3Schema,
   MAX_EXPANDED_RESOURCE_IDS,
+  MAX_PINNED_ROW_IDS,
   MAX_SELECTED_NODE_IDS,
   OperatorGroupSchema,
   type DeepLinkStateV3,
@@ -30,11 +31,23 @@ import {
 } from '@quent/utils';
 import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
 import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/resourceFilter';
-import { MAX_PINNED_ROWS } from '@/features/pinned-rows/pinnedRows';
+import {
+  DEEP_LINK_COMPATIBILITY_PAYLOAD,
+  DEEP_LINK_COMPATIBILITY_STATE,
+} from '../../../../experimental/vibe/quent-cli/src/deepLink.compatibility';
 
 const RESOURCE_A_ID = '01a025ff-ea8b-7881-9d31-72a275872c9d';
 const RESOURCE_B_ID = '01a025ff-ea8b-7881-9d31-72a275872c9e';
 const NVTX_SECTION_ID = '__nvtx__';
+
+function encodeRawState(version: string, value: unknown): string {
+  const compressed = gzipSync(strToU8(JSON.stringify(value)), { level: 9, mtime: 0 });
+  let binary = '';
+  for (const byte of compressed) {
+    binary += String.fromCharCode(byte);
+  }
+  return `${version}.${btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')}`;
+}
 
 const state: DeepLinkStateV3 = {
   route: {
@@ -172,15 +185,7 @@ describe('deep-link codec', () => {
       timeline: { zoomRange: { start: 12.5, end: 48.75 } },
       selection: { operatorNodeIds: ['operator-a'] },
     });
-    const compressed = gzipSync(strToU8(JSON.stringify(legacyState)), { level: 9, mtime: 0 });
-    let binary = '';
-    for (const byte of compressed) {
-      binary += String.fromCharCode(byte);
-    }
-    const encoded = `v2.${btoa(binary)
-      .replace(/\+/gu, '-')
-      .replace(/\//gu, '_')
-      .replace(/=+$/u, '')}`;
+    const encoded = encodeRawState('v2', legacyState);
 
     expect(decodeDeepLinkState(encoded)).toEqual({
       ok: true,
@@ -202,6 +207,13 @@ describe('deep-link codec', () => {
     expect(new URL(result.value).searchParams.get('s')).toMatch(
       new RegExp(`^${CURRENT_DEEP_LINK_VERSION}\\.`)
     );
+  });
+
+  it('decodes links produced by the experimental CLI', () => {
+    expect(decodeDeepLinkState(DEEP_LINK_COMPATIBILITY_PAYLOAD)).toEqual({
+      ok: true,
+      value: { version: 'v3', data: DEEP_LINK_COMPATIBILITY_STATE },
+    });
   });
 
   it('rejects an absolute URL whose origin and path exhaust the budget', () => {
@@ -234,6 +246,7 @@ describe('deep-link codec', () => {
       ok: false,
       code: 'invalid-state',
       message: `Shared links support at most ${MAX_SELECTED_NODE_IDS} selected operators.`,
+      messages: [`Shared links support at most ${MAX_SELECTED_NODE_IDS} selected operators.`],
     });
   });
 
@@ -252,6 +265,59 @@ describe('deep-link codec', () => {
       ok: false,
       code: 'invalid-state',
       message: `Shared links support at most ${MAX_EXPANDED_RESOURCE_IDS} expanded resources.`,
+      messages: [`Shared links support at most ${MAX_EXPANDED_RESOURCE_IDS} expanded resources.`],
+    });
+  });
+
+  it('reports every limit violation when encoding and decoding', () => {
+    const selectedMessage = `Shared links support at most ${MAX_SELECTED_NODE_IDS} selected operators.`;
+    const expandedMessage = `Shared links support at most ${MAX_EXPANDED_RESOURCE_IDS} expanded resources.`;
+    const invalidState = {
+      route: state.route,
+      selection: {
+        operatorNodeIds: Array.from(
+          { length: MAX_SELECTED_NODE_IDS + 1 },
+          (_, index) => `operator-${index}`
+        ),
+      },
+      resources: {
+        expandedRowIds: Array.from(
+          { length: MAX_EXPANDED_RESOURCE_IDS + 1 },
+          (_, index) => `resource-${index}`
+        ),
+      },
+    };
+    const expected = {
+      ok: false,
+      code: 'invalid-state',
+      message: `${selectedMessage} ${expandedMessage}`,
+      messages: [selectedMessage, expandedMessage],
+    };
+
+    expect(encodeDeepLinkState(invalidState)).toEqual(expected);
+    expect(decodeDeepLinkState(encodeRawState('v3', invalidState))).toEqual(expected);
+  });
+
+  it('includes nested fields and array indexes in validation errors', () => {
+    const invalidState = {
+      ...state,
+      timeline: { zoomRange: { start: -1, end: 0 } },
+      resources: {
+        ...state.resources,
+        resourceTypeSelections: [{ rowId: 'resource-a', resourceType: '' }],
+      },
+      entities: { ...state.entities, window: { start: 20, end: 10 } },
+    };
+
+    expect(encodeDeepLinkState(invalidState)).toMatchObject({
+      ok: false,
+      code: 'invalid-state',
+      messages: [
+        'Too small: expected number to be >=0 (timeline.zoomRange.start)',
+        'Too small: expected number to be >0 (timeline.zoomRange.end)',
+        'Too small: expected string to have >=1 characters (resources.resourceTypeSelections[0].resourceType)',
+        'Entity window end must not precede its start',
+      ],
     });
   });
 });
@@ -435,11 +501,12 @@ describe('deep-link pinned rows', () => {
   it('allows the maximum number of pins and rejects more', () => {
     const ids = (count: number) => Array.from({ length: count }, (_, i) => `row-${i}`);
 
-    expect(DeepLinkStateV3Schema.validate(withPins(ids(MAX_PINNED_ROWS)))).toBe(true);
-    expect(encodeDeepLinkState(withPins(ids(MAX_PINNED_ROWS + 1)))).toEqual({
+    expect(DeepLinkStateV3Schema.validate(withPins(ids(MAX_PINNED_ROW_IDS)))).toBe(true);
+    expect(encodeDeepLinkState(withPins(ids(MAX_PINNED_ROW_IDS + 1)))).toEqual({
       ok: false,
       code: 'invalid-state',
-      message: `Shared links support at most ${MAX_PINNED_ROWS} pinned rows.`,
+      message: `Shared links support at most ${MAX_PINNED_ROW_IDS} pinned rows.`,
+      messages: [`Shared links support at most ${MAX_PINNED_ROW_IDS} pinned rows.`],
     });
   });
 

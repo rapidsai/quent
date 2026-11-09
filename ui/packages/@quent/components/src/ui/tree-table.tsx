@@ -835,6 +835,8 @@ export interface PinnedSectionToggleProps {
   hiddenCount?: number;
   isCollapsed: boolean;
   onToggle?: () => void;
+  /** Shows a "Clear pins" button beside the toggle; leave out to hide it. */
+  onClear?: () => void;
 }
 
 export function PinnedSectionToggle({
@@ -842,22 +844,38 @@ export function PinnedSectionToggle({
   hiddenCount = 0,
   isCollapsed,
   onToggle,
+  onClear,
 }: PinnedSectionToggleProps) {
   return (
-    <Button
-      variant="ghost"
-      size="xs"
-      className="h-7 w-full justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
-      aria-expanded={!isCollapsed}
-      onClick={onToggle}
-    >
-      <ChevronRight
-        aria-hidden="true"
-        className={cn('transition-transform', !isCollapsed && 'rotate-90')}
-      />
-      <span>Pinned ({pinnedCount})</span>
-      {hiddenCount > 0 && <span className="font-normal">{hiddenCount} hidden by filter</span>}
-    </Button>
+    <div className="flex items-center">
+      <Button
+        variant="ghost"
+        size="xs"
+        className={cn(
+          'h-7 justify-start rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent',
+          onClear ? 'min-w-0' : 'w-full'
+        )}
+        aria-expanded={!isCollapsed}
+        onClick={onToggle}
+      >
+        <ChevronRight
+          aria-hidden="true"
+          className={cn('transition-transform', !isCollapsed && 'rotate-90')}
+        />
+        <span>Pinned ({pinnedCount})</span>
+        {hiddenCount > 0 && <span className="font-normal">{hiddenCount} hidden by filter</span>}
+      </Button>
+      {onClear && (
+        <Button
+          variant="ghost"
+          size="xs"
+          className="ml-3 mr-2 h-7 shrink-0 cursor-pointer rounded-none px-2 font-semibold text-muted-foreground hover:bg-transparent"
+          onClick={onClear}
+        >
+          Clear pins
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -871,6 +889,7 @@ export function TreeTable<I extends TreeTableDataItem>({
   isPinnedCollapsed = false,
   onTogglePinnedCollapsed,
   hidePinnedToggle = false,
+  onClearPinned,
   onReorderPinned,
   onColumnWidthsChange,
   ...treeViewProps
@@ -891,6 +910,8 @@ export function TreeTable<I extends TreeTableDataItem>({
   isPinnedCollapsed?: boolean;
   onTogglePinnedCollapsed?: () => void;
   hidePinnedToggle?: boolean;
+  /** Shows a "Clear pins" button in the pinned header; leave out to hide it. */
+  onClearPinned?: () => void;
   /** Called when a pinned row is dragged onto another, with the dragged id then the target id. */
   onReorderPinned?: (activeId: string, overId: string) => void;
 } & TreeViewProps) {
@@ -1215,6 +1236,7 @@ export function TreeTable<I extends TreeTableDataItem>({
                       hiddenCount={hiddenPinnedCount}
                       isCollapsed={isPinnedCollapsed}
                       onToggle={onTogglePinnedCollapsed}
+                      onClear={onClearPinned}
                     />
                   )}
                   {!isPinnedCollapsed && pinnedCount > 0 && (

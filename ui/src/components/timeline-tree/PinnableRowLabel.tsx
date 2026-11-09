@@ -5,7 +5,6 @@ import type { MouseEvent, ReactNode } from 'react';
 import { Pin } from 'lucide-react';
 import { Button } from '@quent/components';
 import { cn } from '@quent/utils';
-import { MAX_PINNED_ROWS } from '@/features/pinned-rows/pinnedRows';
 
 interface PinnableRowLabelProps {
   label: ReactNode;
@@ -13,7 +12,6 @@ interface PinnableRowLabelProps {
   name: string;
   isPinnable: boolean;
   isPinned: boolean;
-  isAtPinLimit: boolean;
   onTogglePin: () => void;
 }
 
@@ -23,11 +21,8 @@ export function PinnableRowLabel({
   name,
   isPinnable,
   isPinned,
-  isAtPinLimit,
   onTogglePin,
 }: PinnableRowLabelProps) {
-  const isBlockedByLimit = isAtPinLimit && !isPinned;
-
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     // The row itself expands and selects on click; pinning should not.
     event.stopPropagation();
@@ -44,8 +39,6 @@ export function PinnableRowLabel({
           size="icon-xs"
           aria-label={`${isPinned ? 'Unpin' : 'Pin'} ${name}`}
           aria-pressed={isPinned}
-          disabled={isBlockedByLimit}
-          title={isBlockedByLimit ? `You can pin up to ${MAX_PINNED_ROWS} rows` : undefined}
           onClick={handleClick}
           // Hidden until the info area is hovered or the button is focused, unless the row is pinned.
           // Hovering the timelines does not show it.

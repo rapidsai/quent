@@ -29,14 +29,12 @@ import {
   selectedNvtxCategoriesAtom,
   selectedNvtxDomainAtom,
 } from '@/atoms/resourceTree';
-import { resolvePinnedRows } from '@/features/pinned-rows/pinnedRows';
+import { findAncestorNames } from '@/features/pinned-rows/pinnedRows';
 import { useAutoExpandMatchingAncestors, useExpandedIds } from '@/hooks/useExpandedIds';
-import { usePinnedCollapsed, usePinnedIds } from '@/hooks/usePinnedIds';
 import { PinnedRowPath } from './PinnedRowPath';
 import {
   TimelineTreeTable,
   useTimelineTreeSetup,
-  type PinningControls,
   type RowPinning,
   type TimelineTreeControls,
   type TimelineTreeItem,
@@ -46,7 +44,6 @@ import {
 const NVTX_ALL_DOMAINS = '__all__';
 const NVTX_ALL_CATEGORIES = '__all__';
 const NVTX_UNCATEGORIZED = '__uncategorized__';
-const NVTX_PATH_ROOT_NAME = 'NVTX';
 
 function nvtxDomainDisplayName(
   domain: NvtxCatalog['domains'][number],
@@ -146,7 +143,24 @@ function NvtxDomainLabel({
 export interface NvtxTreeModel extends TimelineTreeModel, TimelineTreeControls {
   filterMatchCount: number;
   isFilterActive: boolean;
+  // The whole tree before any filter, where pinned rows are looked up.
+  fullTree: TimelineTreeItem | null;
+  // Matching lane rows the user can pin with "pin all", in tree order.
+  pinnableMatchIds: string[];
 }
+
+function nvtxRowName(item: TimelineTreeItem): string {
+  if (item.type === NVTX_SECTION_ROW_TYPE) {
+    return 'NVTX';
+  }
+  if (!isNvtxTreeEntity(item.entity)) {
+    return item.id;
+  }
+  return item.entity.nvtxKind === 'domain' ? item.entity.domain.name : nvtxLaneLabel(item.entity);
+}
+
+// Only lane rows have timeline content of their own, so they are the rows that can be pinned.
+const isNvtxRowPinnable = (item: TimelineTreeItem) => item.type === NVTX_LANE_ROW_TYPE;
 
 interface NvtxTreeProps {
   engineId: string;
@@ -294,45 +308,37 @@ export function useNvtxTreeModel({
         : new Set<string>(),
     [filterResult, resourceFilter.showOthers]
   );
-  const { pinnedIds, togglePin, movePin, isAtPinLimit } = usePinnedIds();
-  const { isPinnedCollapsed, togglePinnedCollapsed } = usePinnedCollapsed();
-  const { shownItems: pinnedItems, hiddenCount: hiddenPinnedCount } = useMemo(
-    () => resolvePinnedRows(pinnedIds, unfilteredTree ? [unfilteredTree] : [], tree ? [tree] : []),
-    [pinnedIds, tree, unfilteredTree]
+  const pinnableMatchIds = useMemo(() => {
+    const ids: string[] = [];
+    const directMatchIds = filterResult?.directMatchIds;
+    const visit = (item: TimelineTreeItem) => {
+      if (directMatchIds?.has(item.id) && isNvtxRowPinnable(item)) {
+        ids.push(item.id);
+      }
+      item.children?.forEach(visit);
+    };
+    if (tree) {
+      visit(tree as TimelineTreeItem);
+    }
+    return ids;
+  }, [filterResult, tree]);
+  const getPinnedRowDescription = useCallback(
+    (item: TimelineTreeItem) => {
+      const names = unfilteredTree
+        ? findAncestorNames([unfilteredTree as TimelineTreeItem], item.id, nvtxRowName)
+        : null;
+      return names?.length ? <PinnedRowPath names={names} /> : undefined;
+    },
+    [unfilteredTree]
   );
   const rowPinning = useMemo<RowPinning>(
     () => ({
-      isPinnable: item => item.type === NVTX_LANE_ROW_TYPE,
+      isPinnable: isNvtxRowPinnable,
       getName: item =>
         isNvtxTreeEntity(item.entity) ? nvtxLaneLabel(item.entity, true) || item.id : item.id,
-      getDescription: item =>
-        isNvtxTreeEntity(item.entity) && item.entity.nvtxKind !== 'section' ? (
-          <PinnedRowPath names={[NVTX_PATH_ROOT_NAME, item.entity.domain.name]} />
-        ) : undefined,
+      getDescription: getPinnedRowDescription,
     }),
-    []
-  );
-  const pinning = useMemo<PinningControls>(
-    () => ({
-      items: pinnedItems as TimelineTreeItem[],
-      hiddenCount: hiddenPinnedCount,
-      ids: pinnedIds,
-      isAtLimit: isAtPinLimit,
-      onToggle: togglePin,
-      isCollapsed: isPinnedCollapsed,
-      onToggleCollapsed: togglePinnedCollapsed,
-      onReorder: movePin,
-    }),
-    [
-      hiddenPinnedCount,
-      isAtPinLimit,
-      isPinnedCollapsed,
-      movePin,
-      pinnedIds,
-      pinnedItems,
-      togglePin,
-      togglePinnedCollapsed,
-    ]
+    [getPinnedRowDescription]
   );
   const onZoomChange = useCallback(
     (range: { start: number; end: number }) => {
@@ -445,6 +451,9 @@ export function useNvtxTreeModel({
     filterMatchCount: filterResult?.matchCount ?? 0,
     isFilterActive: filterResult?.isActive ?? false,
     trees: tree ? [tree as TimelineTreeItem] : [],
+    fullTree: unfilteredTree as TimelineTreeItem | null,
+    pinnableMatchIds,
+    rowPinning,
     initialSelectedItemId: tree?.id,
     expandedIds,
     highlightedItemIds,
@@ -452,8 +461,6 @@ export function useNvtxTreeModel({
     onZoomChange,
     renderLabel,
     renderTimeline,
-    pinning,
-    rowPinning,
   };
 }
 

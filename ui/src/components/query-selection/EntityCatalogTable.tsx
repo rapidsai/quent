@@ -34,7 +34,7 @@ import {
 const NO_GROUPING = '__none__';
 const LOADING_DELAY_MS = 200;
 const linkedCellClassName =
-  'p-0 [&>a]:block [&>a]:px-2 [&>a]:py-2 [&>a]:focus-visible:outline-none [&>a]:focus-visible:ring-2 [&>a]:focus-visible:ring-inset [&>a]:focus-visible:ring-ring';
+  'p-0 [&>a]:block [&>a]:px-2 [&>a]:py-2 [&>a]:focus-visible:outline-none [&>a]:focus-visible:ring-1 [&>a]:focus-visible:ring-inset [&>a]:focus-visible:ring-ring';
 
 export interface CatalogMetadataColumn<T> {
   id: string;

@@ -74,6 +74,9 @@ Dependency direction (do not invert):
 @quent/utils → @quent/client → @quent/hooks → @quent/components
 ```
 
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) defines the finer-grained UI zones.
+  `pnpm boundaries:check` enforces package direction, generic UI isolation,
+  application isolation, and circular dependencies.
 - Put reusable code in the lowest package that fits; keep app-specific wiring in
   `ui/src/`.
 - Import from package roots only (`@quent/components`), never deep paths.
