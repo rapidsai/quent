@@ -72,6 +72,10 @@ function stableChoices(choices: SelectionChoice[]): SelectionChoice[] {
   );
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export async function selectEngine(
   api: DiscoveryApi,
   select: SelectFromList,
@@ -119,14 +123,23 @@ export async function discoverQueryTreeChoices(
   engineIds?: ReadonlySet<string>
 ): Promise<QueryTreeChoice[]> {
   const { items: engines } = await api.fetchListEngines();
+  const selectedEngines = engines.filter(engine => !engineIds || engineIds.has(engine.id));
   const branchResults = await Promise.allSettled(
-    engines
-      .filter(engine => !engineIds || engineIds.has(engine.id))
-      .map(async engine => ({ engine, queries: (await api.fetchListQueries(engine.id)).items }))
+    selectedEngines.map(async engine => ({
+      engine,
+      queries: (await api.fetchListQueries(engine.id)).items,
+    }))
   );
   const engineBranches = branchResults.flatMap(result =>
     result.status === 'fulfilled' ? [result.value] : []
   );
+  branchResults.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      process.stderr.write(
+        `Warning: unable to list queries for engine "${selectedEngines[index]!.id}": ${errorMessage(result.reason)}\n`
+      );
+    }
+  });
   if (engineBranches.length === 0) {
     const firstFailure = branchResults.find(
       (result): result is PromiseRejectedResult => result.status === 'rejected'

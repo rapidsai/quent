@@ -139,6 +139,7 @@ describe('query diff selections', () => {
       .mockResolvedValueOnce(['engine-1\0query-1'])
       .mockResolvedValueOnce(['engine-1\0query-2']);
     const selectMetrics = vi.fn().mockResolvedValue(['all']);
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     await runQueryDiffCommand([], {
@@ -403,6 +404,58 @@ describe('query diff selections', () => {
         }),
       ])
     );
+  });
+
+  it('keeps healthy sources available and reports failed source discovery', async () => {
+    const api = discoveryApi();
+    const unavailableApi = {
+      ...discoveryApi(),
+      fetchListEngines: vi.fn().mockRejectedValue(new Error('source unavailable')),
+    };
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const selectTree = vi
+      .fn<SelectFromQueryTree>()
+      .mockResolvedValueOnce(['local\0engine-1\0query-1'])
+      .mockResolvedValueOnce(['local\0engine-2\0query-2']);
+
+    await expect(
+      resolveSourcedQueryDiffSelections(
+        {},
+        [
+          { id: 'local', label: 'local', api },
+          { id: 'broken', label: 'db broken', api: unavailableApi },
+        ],
+        vi.fn<SelectFromList>(),
+        selectTree
+      )
+    ).resolves.toMatchObject({
+      baseline: { sourceId: 'local', engineId: 'engine-1', queryId: 'query-1' },
+      candidates: [{ sourceId: 'local', engineId: 'engine-2', queryId: 'query-2' }],
+    });
+    expect(write).toHaveBeenCalledWith(
+      'Warning: unable to discover queries from source "db broken": source unavailable\n'
+    );
+  });
+
+  it('surfaces discovery failures for an explicitly selected source', async () => {
+    const api = discoveryApi();
+    const unavailableApi = {
+      ...discoveryApi(),
+      fetchListEngines: vi.fn().mockRejectedValue(new Error('selected source unavailable')),
+    };
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    await expect(
+      resolveSourcedQueryDiffSelections(
+        { 'baseline-source': 'broken' },
+        [
+          { id: 'local', label: 'local', api },
+          { id: 'broken', label: 'db broken', api: unavailableApi },
+        ],
+        vi.fn<SelectFromList>(),
+        vi.fn<SelectFromQueryTree>()
+      )
+    ).rejects.toThrow('selected source unavailable');
   });
 
   it('resolves explicit DB-to-DB sources', async () => {

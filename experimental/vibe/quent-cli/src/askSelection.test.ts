@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { PassThrough } from 'node:stream';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ApiClient } from '@quent/client';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import {
@@ -37,6 +37,10 @@ const queryBundle = {
     },
   },
 } as unknown as QueryBundle<EntityRef>;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function discoveryApi() {
   return {
@@ -258,6 +262,7 @@ describe('ask CLI selections', () => {
 
   it('keeps healthy engines available when another engine query list fails', async () => {
     const api = discoveryApi();
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     api.fetchListQueries.mockImplementation(async engineId => {
       if (engineId === 'engine-2') {
         throw new Error('API Error: 500 Internal Server Error');
@@ -289,10 +294,14 @@ describe('ask CLI selections', () => {
       [expect.objectContaining({ engineId: 'engine-1', queryId: 'query-1' })],
       true
     );
+    expect(write).toHaveBeenCalledWith(
+      'Warning: unable to list queries for engine "engine-2": API Error: 500 Internal Server Error\n'
+    );
   });
 
   it('reports the API error when every engine query list fails', async () => {
     const api = discoveryApi();
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     api.fetchListQueries.mockRejectedValue(new Error('API Error: 500 Internal Server Error'));
 
     await expect(
