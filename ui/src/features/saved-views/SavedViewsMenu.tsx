@@ -33,16 +33,13 @@ function showWriteError(result: Exclude<SavedViewsWriteResult, { ok: true }>) {
 interface SavedViewRowProps {
   view: SavedViewV1;
   editing: boolean;
-  confirmingUpdate: boolean;
   confirmingDelete: boolean;
   editName: string;
   canLoad: boolean;
   canUpdate: boolean;
   onEditName: (name: string) => void;
   onLoad: () => void;
-  onBeginUpdate: () => void;
   onUpdate: () => void;
-  onCancelUpdate: () => void;
   onBeginRename: () => void;
   onCommitRename: () => void;
   onCancelRename: () => void;
@@ -54,16 +51,13 @@ interface SavedViewRowProps {
 function SavedViewRow({
   view,
   editing,
-  confirmingUpdate,
   confirmingDelete,
   editName,
   canLoad,
   canUpdate,
   onEditName,
   onLoad,
-  onBeginUpdate,
   onUpdate,
-  onCancelUpdate,
   onBeginRename,
   onCommitRename,
   onCancelRename,
@@ -112,18 +106,6 @@ function SavedViewRow({
             <X className="size-3.5" />
           </Button>
         </>
-      ) : confirmingUpdate ? (
-        <div role="alert" className="flex min-w-0 flex-1 items-center gap-1">
-          <span className="min-w-0 flex-1 truncate px-1 text-xs">
-            Update “{view.name}” with the current view?
-          </span>
-          <Button autoFocus type="button" size="xs" onClick={onUpdate}>
-            Update
-          </Button>
-          <Button type="button" variant="ghost" size="xs" onClick={onCancelUpdate}>
-            Cancel
-          </Button>
-        </div>
       ) : confirmingDelete ? (
         <div role="alert" className="flex min-w-0 flex-1 items-center gap-1">
           <span className="min-w-0 flex-1 truncate px-1 text-xs">Delete “{view.name}”?</span>
@@ -153,22 +135,22 @@ function SavedViewRow({
             variant="ghost"
             size="icon"
             className="size-7"
-            aria-label={`Update ${view.name}`}
-            title="Update with current view"
-            disabled={!canUpdate}
-            onClick={onBeginUpdate}
+            aria-label={`Rename ${view.name}`}
+            onClick={onBeginRename}
           >
-            <SaveIcon className="size-3.5" />
+            <Pencil className="size-3.5" />
           </Button>
           <Button
             type="button"
             variant="ghost"
             size="icon"
             className="size-7"
-            aria-label={`Rename ${view.name}`}
-            onClick={onBeginRename}
+            aria-label={`Update ${view.name}`}
+            title="Update with current view"
+            disabled={!canUpdate}
+            onClick={onUpdate}
           >
-            <Pencil className="size-3.5" />
+            <SaveIcon className="size-3.5" />
           </Button>
           <Button
             type="button"
@@ -193,7 +175,6 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
   const [name, setName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [confirmUpdateId, setConfirmUpdateId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const views = useMemo(
     () => (result.ok ? [...result.value.views].sort((a, b) => b.updatedAt - a.updatedAt) : []),
@@ -214,7 +195,6 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
       );
     } else {
       setEditingId(null);
-      setConfirmUpdateId(null);
       setConfirmDeleteId(null);
     }
   };
@@ -279,7 +259,6 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
     if (!write.ok) {
       showWriteError(write);
     } else {
-      setConfirmUpdateId(null);
       toast.add({ type: 'success', title: 'View updated', description: view.name });
     }
   };
@@ -373,7 +352,6 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
                     key={view.id}
                     view={view}
                     editing={editingId === view.id}
-                    confirmingUpdate={confirmUpdateId === view.id}
                     confirmingDelete={confirmDeleteId === view.id}
                     editName={editName}
                     canLoad={deepLink?.loadSavedView !== undefined}
@@ -383,17 +361,10 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
                       deepLink?.loadSavedView?.(view);
                       setOpen(false);
                     }}
-                    onBeginUpdate={() => {
-                      setConfirmUpdateId(view.id);
-                      setEditingId(null);
-                      setConfirmDeleteId(null);
-                    }}
                     onUpdate={() => updateCurrentView(view)}
-                    onCancelUpdate={() => setConfirmUpdateId(null)}
                     onBeginRename={() => {
                       setEditingId(view.id);
                       setEditName(view.name);
-                      setConfirmUpdateId(null);
                       setConfirmDeleteId(null);
                     }}
                     onCommitRename={() => commitRename(view)}
@@ -401,7 +372,6 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
                     onBeginDelete={() => {
                       setConfirmDeleteId(view.id);
                       setEditingId(null);
-                      setConfirmUpdateId(null);
                     }}
                     onDelete={() => deleteView(view)}
                     onCancelDelete={() => setConfirmDeleteId(null)}

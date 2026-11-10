@@ -86,7 +86,7 @@ describe('SavedViewsMenu', () => {
     expect(onLoad).toHaveBeenCalledWith(expect.objectContaining({ name: 'Investigation' }));
   });
 
-  it('updates an existing view with confirmation while preserving its identity', async () => {
+  it('updates an existing view while preserving its identity', async () => {
     let now = 100;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     renderMenu();
@@ -112,9 +112,17 @@ describe('SavedViewsMenu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
     await userEvent.click(screen.getByRole('button', { name: 'Modify current view' }));
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    const row = screen.getByRole('button', { name: 'Load Investigation (Timeline)' }).parentElement;
+    expect(row?.querySelectorAll('button')).toHaveLength(4);
+    expect(
+      [...(row?.querySelectorAll('button') ?? [])].map(button => button.getAttribute('aria-label'))
+    ).toEqual([
+      'Load Investigation (Timeline)',
+      'Rename Investigation',
+      'Update Investigation',
+      'Delete Investigation',
+    ]);
     await userEvent.click(screen.getByRole('button', { name: 'Update Investigation' }));
-    expect(screen.getByText('Update “Investigation” with the current view?')).toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: 'Update' }));
 
     const updated = readSavedViews(localStorage, scope);
     expect(updated).toMatchObject({
