@@ -277,26 +277,9 @@ async function httpFetchDataFlow(
   return parseJsonWithBigInt<DataFlowTimelineBinned>(await response.text());
 }
 
-const httpClient: ApiClient = {
-  fetchQueryBundle: (engineId, queryId) => httpFetchQueryBundle(engineId, queryId),
-  fetchListEngines: () => httpFetchListEngines(),
-  fetchEngineContexts: engineId => httpFetchEngineContexts(engineId),
-  fetchNvtxCatalog: (contextId, queryStartUnixNs) =>
-    httpFetchNvtxCatalog(contextId, queryStartUnixNs),
-  fetchNvtxViewport: (contextId, queryStartUnixNs, request) =>
-    httpFetchNvtxViewport(contextId, queryStartUnixNs, request),
-  fetchListQueries: engineId => httpFetchListQueries(engineId),
-  fetchSingleTimeline: (engineId, request, durationSeconds) =>
-    httpFetchSingleTimeline(engineId, request, durationSeconds),
-  fetchBulkTimelines: (engineId, request) => httpFetchBulkTimelines(engineId, request),
-  fetchEntityList: (engineId, request) => httpFetchEntityList(engineId, request),
-  fetchDataFlow: (engineId, queryId, config, measures) =>
-    httpFetchDataFlow(engineId, queryId, config, measures),
-};
-
-/** Creates an HTTP client pinned to one API base without mutating global config. */
-export function createHttpApiClient(baseUrl: string): ApiClient {
-  const normalized = baseUrl.replace(/\/+$/u, '');
+/** Creates an HTTP client using global config or pinned to one API base. */
+export function createHttpApiClient(baseUrl?: string): ApiClient {
+  const normalized = baseUrl?.replace(/\/+$/u, '');
   return {
     fetchQueryBundle: (engineId, queryId) => httpFetchQueryBundle(engineId, queryId, normalized),
     fetchListEngines: () => httpFetchListEngines(normalized),
@@ -315,6 +298,8 @@ export function createHttpApiClient(baseUrl: string): ApiClient {
       httpFetchDataFlow(engineId, queryId, config, measures, normalized),
   };
 }
+
+const httpClient = createHttpApiClient();
 
 export const { getApiClient, setApiClient } = (() => {
   let activeClient: ApiClient = httpClient;
