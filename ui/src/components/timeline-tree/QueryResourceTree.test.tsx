@@ -1448,6 +1448,44 @@ describe('QueryResourceTree — NVTX pinning', () => {
     expect([...store.get(pinnedIdsAtom)].sort()).toEqual([NVTX_THREAD_ROW_ID, RESOURCE_ID].sort());
   });
 
+  it.each([
+    ['worker 7', '1 match'],
+    ['GPU 0, worker 7', '2 matches'],
+  ])('counts all matching rows for %s', async (search, count) => {
+    const store = createStore();
+    store.set(resourceFilterAtom, { ...EMPTY_RESOURCE_FILTER, search });
+    const { getByRole, getByText } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await userEvent.click(getByRole('button', { name: 'Resource filters, 1 selected filter' }));
+    expect(getByText(count)).toBeInTheDocument();
+  });
+
+  it.each([
+    { resourceTypes: ['GPU'], fsmTypes: [] },
+    { resourceTypes: [], fsmTypes: ['task'] },
+  ])('excludes NVTX matches with resource-specific filters: %j', async filters => {
+    const store = createStore();
+    store.set(resourceFilterAtom, {
+      ...EMPTY_RESOURCE_FILTER,
+      ...filters,
+      search: 'worker 7',
+    });
+    const { getByRole, getByText, queryByRole } = renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    await userEvent.click(getByRole('button', { name: 'Resource filters, 2 selected filters' }));
+    expect(getByText('0 matches')).toBeInTheDocument();
+    expect(collectRowTypes(capturedTreeData)).not.toContain(NVTX_LANE_ROW_TYPE);
+    expect(queryByRole('button', { name: /^Pin all/ })).not.toBeInTheDocument();
+  });
+
   it('offers a pin button on NVTX lane rows', async () => {
     const { getByRole } = renderWithQuery(
       <JotaiProvider store={createStore()}>
