@@ -220,6 +220,83 @@ describe('query bundle diff', () => {
     });
   });
 
+  it('preserves exact totals and deltas for mixed bigint and safe integer values', () => {
+    const baseline = bundle('baseline', 1, [
+      operator('baseline-big', 'logical', 'Scan', null, {
+        output_rows: { value: 9_007_199_254_740_993n, quantity: 'rows' },
+      }),
+      operator('baseline-small', 'logical', 'Scan', null, {
+        output_rows: { value: 1, quantity: 'rows' },
+      }),
+    ]);
+    const candidate = bundle('candidate', 1, [
+      operator('candidate-big', 'logical', 'Scan', null, {
+        output_rows: { value: 9_007_199_254_740_994n, quantity: 'rows' },
+      }),
+      operator('candidate-small', 'logical', 'Scan', null, {
+        output_rows: { value: 2, quantity: 'rows' },
+      }),
+    ]);
+
+    const row = diffQueryBundles({ bundle: baseline }, [
+      { bundle: candidate },
+    ]).comparisons[0]!.rows.find(
+      item =>
+        item.scope === 'logical' && item.operatorType === 'Scan' && item.metric === 'output_rows'
+    );
+
+    expect(row).toMatchObject({
+      baseline: '9007199254740994',
+      candidate: '9007199254740996',
+      delta: '2',
+    });
+    expect(row?.deltaPercent).toBeGreaterThan(0);
+  });
+
+  it('keeps direct metrics for logical parents without physical children', () => {
+    const baseline = bundle('baseline', 1, [
+      operator('logical-parent', 'logical', 'Join', null, {
+        output_rows: { value: 10n, quantity: 'rows' },
+      }),
+      operator(
+        'logical-child',
+        'logical',
+        'Filter',
+        null,
+        { output_rows: { value: 5n, quantity: 'rows' } },
+        ['logical-parent']
+      ),
+    ]);
+    const candidate = bundle('candidate', 1, [
+      operator('candidate-parent', 'logical', 'Join', null, {
+        output_rows: { value: 12n, quantity: 'rows' },
+      }),
+      operator(
+        'candidate-child',
+        'logical',
+        'Filter',
+        null,
+        { output_rows: { value: 6n, quantity: 'rows' } },
+        ['candidate-parent']
+      ),
+    ]);
+
+    const comparison = diffQueryBundles({ bundle: baseline }, [{ bundle: candidate }])
+      .comparisons[0]!;
+
+    expect(
+      comparison.rows
+        .filter(row => row.scope === 'logical' && row.metric === 'output_rows')
+        .map(row => [row.operatorType, row.baseline, row.candidate])
+    ).toEqual([
+      ['Filter', '5', '6'],
+      ['Join', '10', '12'],
+    ]);
+    expect(
+      comparison.summary.find(row => row.scope === 'logical' && row.metric === 'output_rows')
+    ).toMatchObject({ baseline: '15', candidate: '18', delta: '3' });
+  });
+
   it('shows unavailable values without manufacturing a delta', () => {
     const result = diffQueryBundles({ bundle: bundle('baseline', 10, []) }, [
       {

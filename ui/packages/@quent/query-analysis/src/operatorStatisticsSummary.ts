@@ -92,9 +92,12 @@ function groupOperators(bundle: QueryBundle<EntityRef>): {
   const rolledUpLogicalOperatorIds = new Set(
     orderedOperators.flatMap(operator =>
       operator.parent_operator_ids.filter(parentId => {
+        const childPlan = operator.plan_id ? plans[operator.plan_id] : undefined;
         const parent = operators[parentId];
         const parentPlan = parent?.plan_id ? plans[parent.plan_id] : undefined;
-        return parentPlan?.worker_id === null;
+        return (
+          childPlan !== undefined && childPlan.worker_id !== null && parentPlan?.worker_id === null
+        );
       })
     )
   );
