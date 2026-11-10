@@ -15,6 +15,7 @@ import {
   useSetZoomRange,
   useZoomRange,
 } from '@quent/hooks';
+import { longEntityDensityAtom } from '@quent/hooks/testing';
 import { NVTX_SECTION_ID, toast, Toaster } from '@quent/components';
 import type { Operator } from '@quent/utils';
 import { render, screen, waitFor, userEvent } from '@/test/test-utils';
@@ -778,6 +779,35 @@ describe('DeepLinkBoundary', () => {
           density: 5,
         })
       )
+    );
+  });
+
+  it('restores the default density when the saved view omits it', async () => {
+    const encoded = encodeDeepLinkState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 20, end: 60 } },
+    });
+    if (!encoded.ok) {
+      throw new Error(encoded.message);
+    }
+    const store = createStore();
+    store.set(longEntityDensityAtom, 5);
+
+    render(
+      <JotaiProvider store={store}>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          encodedState={encoded.value}
+          restoreKind="saved"
+          savedViewExtras={{}}
+        >
+          <SavedViewExtrasProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('saved-view-extras')).toHaveTextContent('"density":4')
     );
   });
 

@@ -16,6 +16,7 @@ const SavedViewNameSchema = z.string().trim().min(1).max(MAX_SAVED_VIEW_NAME_LEN
 export const SavedViewExtrasV1Schema = z
   .object({
     pinnedCollapsed: z.literal(true).optional(),
+    // LONG_ENTITY_DENSITY_DEFAULT is omitted so default-valued extras stay compact.
     longEntityDensity: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(5)]).optional(),
     nvtx: z
       .object({

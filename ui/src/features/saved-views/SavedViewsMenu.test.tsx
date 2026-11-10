@@ -7,7 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSetDebouncedZoomRange, useSetZoomRange } from '@quent/hooks';
 import { render, screen, userEvent, waitFor } from '@/test/test-utils';
 import { DeepLinkBoundary } from '@/features/deep-link';
-import { readSavedViews } from './savedViews.storage';
+import { encodeDeepLinkState } from '@/features/deep-link/deepLink.codec';
+import { readSavedViews, savedViewsStorageKey, writeSavedViews } from './savedViews.storage';
 import { SavedViewsMenu } from './SavedViewsMenu';
 
 const scope = { engineId: 'engine-a', queryId: 'query-a' };
@@ -89,5 +90,43 @@ describe('SavedViewsMenu', () => {
     expect(screen.getByText('Delete “Renamed”?')).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(screen.getByText('No saved views for this query.')).toBeVisible();
+  });
+
+  it('refreshes when another browser tab changes the query scope', async () => {
+    renderMenu();
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    expect(screen.getByText('No saved views for this query.')).toBeVisible();
+    const payload = encodeDeepLinkState({
+      route: { ...scope, tab: 'timeline' },
+      timeline: { zoomRange: { start: 10, end: 20 } },
+    });
+    if (!payload.ok) {
+      throw new Error(payload.message);
+    }
+    expect(
+      writeSavedViews(localStorage, scope, {
+        views: [
+          {
+            id: '99a8834d-768a-4eb4-9b72-1e7987f8cbda',
+            name: 'From another tab',
+            createdAt: 1,
+            updatedAt: 1,
+            tab: 'timeline',
+            payload: payload.value,
+          },
+        ],
+        invalidEntries: [],
+      })
+    ).toEqual({ ok: true });
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: savedViewsStorageKey(scope),
+        storageArea: localStorage,
+      })
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Load From another tab (Timeline)' })
+    ).toBeVisible();
   });
 });

@@ -73,12 +73,18 @@ function ProfileLayout() {
         : undefined;
   const [savedViewRestore, setSavedViewRestore] = useState<{
     token: string;
+    queryId: string;
     view: SavedViewV1;
   } | null>(null);
   const activeSavedViewRestore =
-    savedViewRestore?.view.tab === activeTab ? savedViewRestore : undefined;
+    savedViewRestore &&
+    savedViewRestore.queryId === queryId &&
+    savedViewRestore.view.tab === activeTab
+      ? savedViewRestore
+      : undefined;
   const restorePayload =
-    activeSavedViewRestore?.view.payload ?? (savedViewRestore ? undefined : encodedState);
+    activeSavedViewRestore?.view.payload ??
+    (savedViewRestore?.queryId === queryId ? undefined : encodedState);
   const hasQuery = queryId !== undefined;
   const isQueryReady = !hasQuery || queryMatch?.status === 'success';
   // Stripping a consumed `s` keeps the store; a different payload resets it.
@@ -92,7 +98,10 @@ function ProfileLayout() {
 
   const loadSavedView = useCallback(
     (view: SavedViewV1) => {
-      setSavedViewRestore({ token: crypto.randomUUID(), view });
+      if (!queryId) {
+        return;
+      }
+      setSavedViewRestore({ token: crypto.randomUUID(), queryId, view });
       const to =
         view.tab === 'timeline'
           ? '/profile/engine/$engineId/query/$queryId/timeline'
@@ -101,7 +110,7 @@ function ProfileLayout() {
             : '/profile/engine/$engineId/query/$queryId/entities';
       void navigate({
         to,
-        params: { engineId, queryId: queryId ?? '' },
+        params: { engineId, queryId },
         search: {},
       });
     },

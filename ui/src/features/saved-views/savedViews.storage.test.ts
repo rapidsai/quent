@@ -113,6 +113,24 @@ describe('saved view storage', () => {
     });
   });
 
+  it('reports older document versions distinctly from scope mismatches', () => {
+    localStorage.setItem(
+      savedViewsStorageKey(scope),
+      JSON.stringify({
+        schema: SAVED_VIEWS_SCHEMA,
+        version: SAVED_VIEWS_VERSION - 1,
+        ...scope,
+        views: [],
+      })
+    );
+
+    expect(readSavedViews(localStorage, scope)).toMatchObject({
+      ok: false,
+      kind: 'corrupt',
+      message: expect.stringContaining('older unsupported format'),
+    });
+  });
+
   it('reports unavailable storage and quota errors', () => {
     const unavailable = {
       getItem: () => {

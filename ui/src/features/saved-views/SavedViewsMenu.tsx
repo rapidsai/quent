@@ -7,7 +7,7 @@ import { Button, Input, Popover, PopoverContent, PopoverTrigger, toast } from '@
 import type { DeepLinkTab } from '@/features/deep-link/deepLink.schema';
 import { useDeepLink } from '@/features/deep-link';
 import { showDeepLinkErrorToasts } from '@/features/deep-link/deepLink.toasts';
-import { defaultSavedViewName } from './savedViews.names';
+import { defaultSavedViewName, SAVED_VIEW_TAB_LABELS } from './savedViews.names';
 import {
   MAX_SAVED_VIEW_NAME_LENGTH,
   MAX_SAVED_VIEWS_PER_QUERY,
@@ -28,10 +28,6 @@ function showWriteError(result: Exclude<SavedViewsWriteResult, { ok: true }>) {
     title: 'Could not update saved views',
     description: result.message,
   });
-}
-
-function tabLabel(tab: DeepLinkTab): string {
-  return tab === 'timeline' ? 'Timeline' : tab === 'operators' ? 'Operators' : 'Entities';
 }
 
 interface SavedViewRowProps {
@@ -107,26 +103,28 @@ function SavedViewRow({
           </Button>
         </>
       ) : confirmingDelete ? (
-        <>
+        <div role="alert" className="flex min-w-0 flex-1 items-center gap-1">
           <span className="min-w-0 flex-1 truncate px-1 text-xs">Delete “{view.name}”?</span>
-          <Button type="button" variant="destructive" size="xs" onClick={onDelete}>
+          <Button autoFocus type="button" variant="destructive" size="xs" onClick={onDelete}>
             Delete
           </Button>
           <Button type="button" variant="ghost" size="xs" onClick={onCancelDelete}>
             Cancel
           </Button>
-        </>
+        </div>
       ) : (
         <>
           <button
             type="button"
             className="min-w-0 flex-1 rounded-sm px-1.5 py-1 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={`Load ${view.name} (${tabLabel(view.tab)})`}
+            aria-label={`Load ${view.name} (${SAVED_VIEW_TAB_LABELS[view.tab]})`}
             disabled={!canLoad}
             onClick={onLoad}
           >
             <span className="block truncate text-sm">{view.name}</span>
-            <span className="block text-xs text-muted-foreground">{tabLabel(view.tab)}</span>
+            <span className="block text-xs text-muted-foreground">
+              {SAVED_VIEW_TAB_LABELS[view.tab]}
+            </span>
           </button>
           <Button
             type="button"
@@ -269,6 +267,7 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
                 type="button"
                 size="sm"
                 disabled={atLimit || !name.trim()}
+                aria-describedby={atLimit ? 'saved-views-limit-message' : undefined}
                 onClick={saveCurrentView}
               >
                 Save
@@ -296,7 +295,9 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
             </div>
           )}
           {atLimit && (
-            <p className="text-xs text-muted-foreground">Delete a view to save another.</p>
+            <p id="saved-views-limit-message" className="text-xs text-muted-foreground">
+              Delete a view to save another.
+            </p>
           )}
           {result.ok && (
             <div className="max-h-64 space-y-1 overflow-y-auto">

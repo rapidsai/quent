@@ -89,11 +89,14 @@ export function readSavedViews(storage: Storage, scope: SavedViewsScope): SavedV
       message: 'Saved views were created by a newer Quent version.',
     };
   }
-  if (
-    document.version !== SAVED_VIEWS_VERSION ||
-    document.engineId !== scope.engineId ||
-    document.queryId !== scope.queryId
-  ) {
+  if (document.version < SAVED_VIEWS_VERSION) {
+    return {
+      ok: false,
+      kind: 'corrupt',
+      message: 'Saved views use an older unsupported format.',
+    };
+  }
+  if (document.engineId !== scope.engineId || document.queryId !== scope.queryId) {
     return {
       ok: false,
       kind: 'corrupt',

@@ -3,7 +3,7 @@
 
 import type { DeepLinkTab } from '@/features/deep-link/deepLink.schema';
 
-const TAB_LABELS: Record<DeepLinkTab, string> = {
+export const SAVED_VIEW_TAB_LABELS: Record<DeepLinkTab, string> = {
   timeline: 'Timeline',
   operators: 'Operators',
   entities: 'Entities',
@@ -21,7 +21,7 @@ export function defaultSavedViewName(
   now: Date,
   existingNames: readonly string[]
 ): string {
-  const base = `${TAB_LABELS[tab]} · ${DEFAULT_NAME_FORMAT.format(now)}`;
+  const base = `${SAVED_VIEW_TAB_LABELS[tab]} · ${DEFAULT_NAME_FORMAT.format(now)}`;
   const names = new Set(existingNames.map(name => name.toLocaleLowerCase()));
   if (!names.has(base.toLocaleLowerCase())) {
     return base;

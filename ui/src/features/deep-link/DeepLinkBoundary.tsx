@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { useStore } from 'jotai';
 import {
+  LONG_ENTITY_DENSITY_DEFAULT,
   useHydrateSelectedPlanId,
   useReadZoomRange,
   useSerializableViewState,
@@ -412,9 +413,11 @@ export function DeepLinkBoundary({
           : undefined,
         operatorTable: intake.fields.operatorTable,
         timeline:
-          savedViewExtras?.longEntityDensity === undefined
+          savedViewExtras === undefined
             ? undefined
-            : { longEntityDensity: savedViewExtras.longEntityDensity },
+            : {
+                longEntityDensity: savedViewExtras.longEntityDensity ?? LONG_ENTITY_DENSITY_DEFAULT,
+              },
       });
       if (intake.fields.entities) {
         store.set(
@@ -676,7 +679,7 @@ export function DeepLinkBoundary({
       };
     }
     const density = readSerializableViewState().timeline.longEntityDensity;
-    if (density !== 4) {
+    if (density !== LONG_ENTITY_DENSITY_DEFAULT) {
       extras.longEntityDensity = density;
     }
 
