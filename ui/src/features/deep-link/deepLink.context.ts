@@ -3,7 +3,7 @@
 
 import { createContext, useContext } from 'react';
 import type { ZoomRange } from '@quent/utils';
-import type { SavedViewExtrasV1 } from '@/features/saved-views/savedViews.schema';
+import type { SavedViewExtrasV1, SavedViewV1 } from '@/features/saved-views/savedViews.schema';
 import type { DeepLinkTab } from './deepLink.schema';
 
 export type DeepLinkIntakeStatus =
@@ -22,6 +22,7 @@ export type CaptureSavedViewResult =
 export interface DeepLinkContextValue {
   copyLink(): Promise<CopyLinkResult>;
   captureSavedView(): CaptureSavedViewResult;
+  loadSavedView?: (view: SavedViewV1) => void;
   initialExpandedResourceIds: readonly string[] | null;
   initialZoomRange: ZoomRange | null;
   intakeStatus: DeepLinkIntakeStatus;

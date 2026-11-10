@@ -36,7 +36,7 @@ import {
   selectedNvtxDomainAtom,
   selectedTypesAtom,
 } from '@/atoms/resourceTree';
-import type { SavedViewExtrasV1 } from '@/features/saved-views/savedViews.schema';
+import type { SavedViewExtrasV1, SavedViewV1 } from '@/features/saved-views/savedViews.schema';
 import {
   EMPTY_RESOURCE_FILTER,
   isResourceFilterActive,
@@ -90,6 +90,7 @@ interface DeepLinkBoundaryProps {
   isQueryReady: boolean;
   savedViewExtras?: SavedViewExtrasV1;
   restoreKind?: 'shared' | 'saved';
+  onLoadSavedView?: (view: SavedViewV1) => void;
 }
 
 type IntakeState = {
@@ -195,6 +196,7 @@ export function DeepLinkBoundary({
   isQueryReady,
   savedViewExtras,
   restoreKind = 'shared',
+  onLoadSavedView,
 }: DeepLinkBoundaryProps) {
   useHydrateSelectedPlanId(initialPlanId);
   const store = useStore();
@@ -690,6 +692,7 @@ export function DeepLinkBoundary({
     () => ({
       copyLink,
       captureSavedView,
+      loadSavedView: onLoadSavedView,
       initialExpandedResourceIds: intake.initialExpandedResourceIds,
       initialZoomRange: intake.initialZoomRange,
       intakeStatus: intake.status,
@@ -700,6 +703,7 @@ export function DeepLinkBoundary({
       intake.initialExpandedResourceIds,
       intake.initialZoomRange,
       intake.status,
+      onLoadSavedView,
     ]
   );
 
