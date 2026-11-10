@@ -8,6 +8,7 @@ import { MultiSelectionPrompt } from './inkMultiSelectionPrompt';
 import { QueryTreePrompt } from './inkQueryTreePrompt';
 import { SelectionPrompt } from './inkSelectionPrompt';
 import { TextPrompt } from './inkTextPrompt';
+import { selectManyWithInk } from './inkSelectorRunner';
 import {
   filterQueryTreeChoices,
   filterSelectionChoices,
@@ -84,6 +85,22 @@ describe('Ink selector', () => {
     expect(output).toContain('○ All metrics (2)');
     expect(output).toContain('○ output_rows');
     expect(output).toContain('space toggle');
+    expect(output).toContain('Select at least one item with space');
+  });
+
+  it('explains how to select metrics when no interactive terminal is available', async () => {
+    const input = { isTTY: false } as NodeJS.ReadStream;
+    const output = { isTTY: false } as NodeJS.WriteStream;
+
+    await expect(
+      selectManyWithInk(
+        'Select metrics to compare',
+        [{ value: 'output_rows', label: 'output_rows' }],
+        undefined,
+        input,
+        output
+      )
+    ).rejects.toThrow('requires an interactive terminal; pass --metric');
   });
 
   it('renders a database run text prompt', async () => {

@@ -72,6 +72,9 @@ export async function selectManyWithInk(
   input: NodeJS.ReadStream = process.stdin,
   output: NodeJS.WriteStream = process.stderr
 ): Promise<string[]> {
+  if (!input.isTTY || !output.isTTY) {
+    throw new Error(`${prompt} requires an interactive terminal; pass --metric.`);
+  }
   const instance = render(createElement(MultiSelectionPrompt, { prompt, choices, allValue }), {
     stdin: input,
     stdout: output,
