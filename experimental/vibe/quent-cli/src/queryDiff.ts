@@ -2,13 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseArgs } from 'node:util';
-import {
-  createHttpApiClient,
-  fetchListEngines,
-  fetchListQueries,
-  fetchQueryBundle,
-  setApiBaseUrl,
-} from '@quent/client';
+import { createHttpApiClient } from '@quent/client';
 import { commonQueryMetrics, diffQueryBundles } from '@quent/query-analysis';
 import {
   parseJsonWithBigInt,
@@ -23,7 +17,6 @@ import {
   createTerminalSelector,
   discoverQueryTreeChoices,
   selectEngine,
-  selectQueriesFromTree,
   selectQuery,
   type DiscoveryApi,
   type QuerySelection,
@@ -76,11 +69,6 @@ function ids(value: QueryDiffCliValue): string[] {
   return id ? [id] : [];
 }
 
-export interface QueryDiffSelections {
-  baseline: QuerySelection;
-  candidates: QuerySelection[];
-}
-
 export interface QueryDiffSource {
   id: string;
   label: string;
@@ -112,6 +100,10 @@ export interface QueryDiffInteraction {
   selectTree: SelectFromQueryTree;
   selectMetrics: SelectMetrics;
   inputText: InputText;
+}
+
+export interface QueryDiffRuntime {
+  createDiscoveryApi(baseUrl: string): DiscoveryApi;
 }
 
 export async function resolveQueryDiffMetrics(
@@ -181,25 +173,6 @@ function candidateEngineIds(
   );
 }
 
-function uniqueCandidates(
-  baseline: QuerySelection,
-  candidates: QuerySelection[]
-): QuerySelection[] {
-  const baselineKey = `${baseline.engineId}\0${baseline.queryId}`;
-  const seen = new Set<string>();
-  return candidates.filter(candidate => {
-    const key = `${candidate.engineId}\0${candidate.queryId}`;
-    if (key === baselineKey) {
-      throw new Error('The baseline query cannot also be a candidate.');
-    }
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-}
-
 function findSource(sources: readonly QueryDiffSource[], id: string): QueryDiffSource {
   const source = sources.find(candidate => candidate.id === id);
   if (!source) {
@@ -237,6 +210,7 @@ function errorMessage(error: unknown): string {
 async function discoverSourcedQueryTreeChoices(
   sources: readonly QueryDiffSource[]
 ): Promise<SourcedQueryDiscovery> {
+  const includeSourceLabel = sources.length !== 1 || sources[0]?.id !== 'local';
   const results = await Promise.allSettled(
     sources.map(async source => ({
       source,
@@ -245,7 +219,9 @@ async function discoverSourcedQueryTreeChoices(
         sourceId: source.id,
         sourceLabel: source.label,
         value: `${source.id}\0${choice.value}`,
-        engineLabel: `${source.label} · ${choice.engineLabel}`,
+        engineLabel: includeSourceLabel
+          ? `${source.label} · ${choice.engineLabel}`
+          : choice.engineLabel,
       })),
     }))
   );
@@ -345,31 +321,6 @@ export async function resolveSourcedQueryDiffSelections(
   if (sources.length === 0) {
     throw new Error('No query sources are available.');
   }
-  if (
-    sources.length === 1 &&
-    sources[0]!.id === 'local' &&
-    !values['baseline-source'] &&
-    !values['candidate-source']
-  ) {
-    const selections = await resolveQueryDiffSelections(
-      values,
-      sources[0]!.api,
-      select,
-      selectTree
-    );
-    return {
-      baseline: {
-        ...selections.baseline,
-        sourceId: 'local',
-        sourceLabel: 'local',
-      },
-      candidates: selections.candidates.map(candidate => ({
-        ...candidate,
-        sourceId: 'local',
-        sourceLabel: 'local',
-      })),
-    };
-  }
   const commonEngineId = optionalId(values.engine);
   const baselineSourceId = optionalId(values['baseline-source']);
   const explicitBaselineEngineId = optionalId(values['baseline-engine']) ?? commonEngineId;
@@ -441,11 +392,19 @@ export async function resolveSourcedQueryDiffSelections(
     );
     if (!resolvedEngines) {
       resolvedEngines = [];
+      const selectedEngineBySource = new Map<string, string>();
       for (let index = 0; index < queryIds.length; index += 1) {
         const source = candidateSources[qualified.length + index]!;
-        resolvedEngines.push(
-          await selectEngine(source.api, select, `Select the candidate engine from ${source.label}`)
-        );
+        let engineId = selectedEngineBySource.get(source.id);
+        if (!engineId) {
+          engineId = await selectEngine(
+            source.api,
+            select,
+            `Select the candidate engine from ${source.label}`
+          );
+          selectedEngineBySource.set(source.id, engineId);
+        }
+        resolvedEngines.push(engineId);
       }
     }
     candidates.push(
@@ -488,70 +447,6 @@ export async function resolveSourcedQueryDiffSelections(
   };
 }
 
-export async function resolveQueryDiffSelections(
-  values: QueryDiffCliValues,
-  api: DiscoveryApi,
-  select: SelectFromList,
-  selectTree: SelectFromQueryTree = selectFromQueryTreeWithInk
-): Promise<QueryDiffSelections> {
-  const commonEngineId = optionalId(values.engine);
-  let treeChoices: Awaited<ReturnType<typeof discoverQueryTreeChoices>> | undefined;
-  const getTreeChoices = async () => {
-    treeChoices ??= await discoverQueryTreeChoices(api);
-    return treeChoices;
-  };
-  const explicitBaselineEngineId = optionalId(values['baseline-engine']) ?? commonEngineId;
-  const explicitBaselineQueryId = optionalId(values['baseline-query']);
-  let baseline: QuerySelection;
-  if (!explicitBaselineEngineId && !explicitBaselineQueryId) {
-    [baseline] = await selectQueriesFromTree(
-      api,
-      selectTree,
-      'Select the baseline query',
-      false,
-      new Set(),
-      await getTreeChoices()
-    );
-  } else {
-    const engineId =
-      explicitBaselineEngineId ?? (await selectEngine(api, select, 'Select the baseline engine'));
-    const queryId =
-      explicitBaselineQueryId ??
-      (await selectQuery(api, select, engineId, 'Select the baseline query'));
-    baseline = { engineId, queryId };
-  }
-
-  const qualified = ids(values.candidate).map(parseQualifiedCandidate);
-  const queryIds = ids(values['candidate-query']);
-  const engines = ids(values['candidate-engine']);
-  let candidates = qualified;
-  if (queryIds.length > 0) {
-    let resolvedEngines = candidateEngineIds(queryIds, engines, commonEngineId);
-    if (!resolvedEngines) {
-      const engineId = await selectEngine(api, select, 'Select the candidate engine');
-      resolvedEngines = queryIds.map(() => engineId);
-    }
-    candidates = [
-      ...candidates,
-      ...queryIds.map((queryId, index) => ({
-        engineId: resolvedEngines[index]!,
-        queryId,
-      })),
-    ];
-  }
-  if (candidates.length === 0) {
-    candidates = await selectQueriesFromTree(
-      api,
-      selectTree,
-      'Select candidate queries',
-      true,
-      new Set([`${baseline.engineId}\0${baseline.queryId}`]),
-      await getTreeChoices()
-    );
-  }
-  return { baseline, candidates: uniqueCandidates(baseline, candidates) };
-}
-
 async function inputDatabaseRunIds(prompt: string, placeholder?: string): Promise<string> {
   if (!process.stdin.isTTY || !process.stderr.isTTY) {
     throw new Error('Database run selection requires an interactive terminal; pass --db-run.');
@@ -579,14 +474,6 @@ export async function resolveDatabaseRunIds(
     throw new Error('Enter at least one database run ID.');
   }
   return [...new Set(runs)];
-}
-
-function globalDiscoveryApi(): DiscoveryApi {
-  return {
-    fetchListEngines,
-    fetchListQueries,
-    fetchQueryBundle,
-  };
 }
 
 type CatalogResponse<T> = {
@@ -667,6 +554,10 @@ export function createHttpDiscoveryApi(baseUrl: string): DiscoveryApi {
   };
 }
 
+const defaultQueryDiffRuntime: QueryDiffRuntime = {
+  createDiscoveryApi: createHttpDiscoveryApi,
+};
+
 export async function runQueryDiffCommand(
   args: string[],
   interaction: QueryDiffInteraction = {
@@ -674,7 +565,8 @@ export async function runQueryDiffCommand(
     selectTree: selectFromQueryTreeWithInk,
     selectMetrics: selectManyWithInk,
     inputText: inputDatabaseRunIds,
-  }
+  },
+  runtime: QueryDiffRuntime = defaultQueryDiffRuntime
 ): Promise<void> {
   const { values } = parseArgs({
     args,
@@ -704,7 +596,6 @@ export async function runQueryDiffCommand(
 
   const configuredLocalApiBase = values['api-base'] ?? process.env.QUENT_API_BASE_URL;
   const apiBase = configuredLocalApiBase ?? 'http://localhost:8080/api';
-  setApiBaseUrl(apiBase.replace(/\/+$/u, ''));
   const databaseRuns = await resolveDatabaseRunIds(values, interaction.inputText);
   const databaseMode = Boolean(values.db) || databaseRuns.length > 0;
   const includeLocal = !databaseMode || configuredLocalApiBase !== undefined;
@@ -741,9 +632,7 @@ export async function runQueryDiffCommand(
             {
               id: 'local',
               label: 'local',
-              api: databaseMode
-                ? createHttpDiscoveryApi(apiBase.replace(/\/+$/u, ''))
-                : globalDiscoveryApi(),
+              api: runtime.createDiscoveryApi(apiBase),
             },
           ]
         : []),
@@ -752,7 +641,7 @@ export async function runQueryDiffCommand(
           id: handle.viewers.length === 1 ? handle.run : `${handle.run}#${index + 1}`,
           label:
             handle.viewers.length === 1 ? `db ${handle.run}` : `db ${handle.run} · ${viewer.label}`,
-          api: createHttpDiscoveryApi(viewer.apiBaseUrl),
+          api: runtime.createDiscoveryApi(viewer.apiBaseUrl),
         }))
       ),
     ];

@@ -2,24 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getApiClient, setApiClient, type ApiClient } from '@quent/client';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import type { DiscoveryApi, SelectFromList, SelectFromQueryTree } from './askSelection';
 import {
   createHttpDiscoveryApi,
-  queryDiffCommand,
   resolveDatabaseRunIds,
   resolveQueryDiffMetrics,
-  resolveQueryDiffSelections,
   resolveSourcedQueryDiffSelections,
   runQueryDiffCommand,
   type QueryDiffSource,
 } from './queryDiff';
 
-const originalClient = getApiClient();
-
 afterEach(() => {
-  setApiClient(originalClient);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -78,20 +72,25 @@ describe('query diff selections', () => {
     api.fetchQueryBundle = vi.fn(async (_engineId, queryId) =>
       metricBundle(queryId, ['output_rows'])
     );
-    setApiClient(api as unknown as ApiClient);
     const selectTree = vi
       .fn<SelectFromQueryTree>()
-      .mockResolvedValueOnce(['engine-1\0query-1'])
-      .mockResolvedValueOnce(['engine-2\0query-2']);
+      .mockResolvedValueOnce(['local\0engine-1\0query-1'])
+      .mockResolvedValueOnce(['local\0engine-2\0query-2']);
     const selectMetrics = vi.fn().mockResolvedValue(['all']);
     const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-    await runQueryDiffCommand(['--json'], {
-      select: vi.fn<SelectFromList>(),
-      selectTree,
-      selectMetrics,
-      inputText: vi.fn(),
-    });
+    await runQueryDiffCommand(
+      ['--json'],
+      {
+        select: vi.fn<SelectFromList>(),
+        selectTree,
+        selectMetrics,
+        inputText: vi.fn(),
+      },
+      {
+        createDiscoveryApi: () => api,
+      }
+    );
 
     expect(selectTree).toHaveBeenCalledTimes(2);
     expect(selectMetrics).toHaveBeenCalledOnce();
@@ -133,21 +132,26 @@ describe('query diff selections', () => {
     api.fetchQueryBundle = vi.fn(async (_engineId, queryId) =>
       metricBundle(queryId, ['output_rows'])
     );
-    setApiClient(api as unknown as ApiClient);
     const selectTree = vi
       .fn<SelectFromQueryTree>()
-      .mockResolvedValueOnce(['engine-1\0query-1'])
-      .mockResolvedValueOnce(['engine-1\0query-2']);
+      .mockResolvedValueOnce(['local\0engine-1\0query-1'])
+      .mockResolvedValueOnce(['local\0engine-1\0query-2']);
     const selectMetrics = vi.fn().mockResolvedValue(['all']);
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-    await runQueryDiffCommand([], {
-      select: vi.fn<SelectFromList>(),
-      selectTree,
-      selectMetrics,
-      inputText: vi.fn(),
-    });
+    await runQueryDiffCommand(
+      [],
+      {
+        select: vi.fn<SelectFromList>(),
+        selectTree,
+        selectMetrics,
+        inputText: vi.fn(),
+      },
+      {
+        createDiscoveryApi: () => api,
+      }
+    );
 
     expect(selectTree).toHaveBeenCalledTimes(2);
     expect(selectMetrics).toHaveBeenCalledOnce();
@@ -159,12 +163,31 @@ describe('query diff selections', () => {
     const select = vi.fn<SelectFromList>();
     const selectTree = vi
       .fn<SelectFromQueryTree>()
-      .mockResolvedValueOnce(['engine-1\0query-1'])
-      .mockResolvedValueOnce(['engine-2\0query-2']);
+      .mockResolvedValueOnce(['local\0engine-1\0query-1'])
+      .mockResolvedValueOnce(['local\0engine-2\0query-2']);
 
-    await expect(resolveQueryDiffSelections({}, api, select, selectTree)).resolves.toEqual({
-      baseline: { engineId: 'engine-1', queryId: 'query-1' },
-      candidates: [{ engineId: 'engine-2', queryId: 'query-2' }],
+    await expect(
+      resolveSourcedQueryDiffSelections(
+        {},
+        [{ id: 'local', label: 'local', api }],
+        select,
+        selectTree
+      )
+    ).resolves.toEqual({
+      baseline: {
+        sourceId: 'local',
+        sourceLabel: 'local',
+        engineId: 'engine-1',
+        queryId: 'query-1',
+      },
+      candidates: [
+        {
+          sourceId: 'local',
+          sourceLabel: 'local',
+          engineId: 'engine-2',
+          queryId: 'query-2',
+        },
+      ],
     });
     expect(select).not.toHaveBeenCalled();
     expect(selectTree).toHaveBeenNthCalledWith(
@@ -187,22 +210,42 @@ describe('query diff selections', () => {
     const selectTree = vi.fn<SelectFromQueryTree>();
 
     await expect(
-      resolveQueryDiffSelections(
+      resolveSourcedQueryDiffSelections(
         {
           engine: 'engine-1',
           'baseline-query': 'query-1',
           'candidate-query': ['query-2', 'query-3', 'query-4'],
         },
-        api,
+        [{ id: 'local', label: 'local', api }],
         select,
         selectTree
       )
     ).resolves.toEqual({
-      baseline: { engineId: 'engine-1', queryId: 'query-1' },
+      baseline: {
+        sourceId: 'local',
+        sourceLabel: 'local',
+        engineId: 'engine-1',
+        queryId: 'query-1',
+      },
       candidates: [
-        { engineId: 'engine-1', queryId: 'query-2' },
-        { engineId: 'engine-1', queryId: 'query-3' },
-        { engineId: 'engine-1', queryId: 'query-4' },
+        {
+          sourceId: 'local',
+          sourceLabel: 'local',
+          engineId: 'engine-1',
+          queryId: 'query-2',
+        },
+        {
+          sourceId: 'local',
+          sourceLabel: 'local',
+          engineId: 'engine-1',
+          queryId: 'query-3',
+        },
+        {
+          sourceId: 'local',
+          sourceLabel: 'local',
+          engineId: 'engine-1',
+          queryId: 'query-4',
+        },
       ],
     });
     expect(api.fetchListEngines).not.toHaveBeenCalled();
@@ -210,25 +253,68 @@ describe('query diff selections', () => {
     expect(selectTree).not.toHaveBeenCalled();
   });
 
+  it('selects one engine for same-source candidate query IDs', async () => {
+    const api = discoveryApi();
+    const select = vi.fn<SelectFromList>().mockResolvedValue('engine-2');
+
+    await expect(
+      resolveSourcedQueryDiffSelections(
+        {
+          'baseline-engine': 'engine-1',
+          'baseline-query': 'query-1',
+          'candidate-query': ['query-2', 'query-3'],
+        },
+        [{ id: 'local', label: 'local', api }],
+        select,
+        vi.fn<SelectFromQueryTree>()
+      )
+    ).resolves.toMatchObject({
+      candidates: [
+        { sourceId: 'local', engineId: 'engine-2', queryId: 'query-2' },
+        { sourceId: 'local', engineId: 'engine-2', queryId: 'query-3' },
+      ],
+    });
+    expect(select).toHaveBeenCalledOnce();
+    expect(select).toHaveBeenCalledWith(
+      'Select the candidate engine from local',
+      expect.any(Array)
+    );
+  });
+
   it('accepts repeatable qualified candidates across engines', async () => {
     const api = discoveryApi();
 
     await expect(
-      resolveQueryDiffSelections(
+      resolveSourcedQueryDiffSelections(
         {
           'baseline-engine': 'engine-1',
           'baseline-query': 'query-1',
           candidate: ['engine-2:query-2', 'engine-3:query-3'],
         },
-        api,
+        [{ id: 'local', label: 'local', api }],
         vi.fn<SelectFromList>(),
         vi.fn<SelectFromQueryTree>()
       )
     ).resolves.toEqual({
-      baseline: { engineId: 'engine-1', queryId: 'query-1' },
+      baseline: {
+        sourceId: 'local',
+        sourceLabel: 'local',
+        engineId: 'engine-1',
+        queryId: 'query-1',
+      },
       candidates: [
-        { engineId: 'engine-2', queryId: 'query-2' },
-        { engineId: 'engine-3', queryId: 'query-3' },
+        {
+          sourceId: 'local',
+          sourceLabel: 'local',
+          engineId: 'engine-2',
+          queryId: 'query-2',
+        },
+        {
+          sourceId: 'local',
+          sourceLabel: 'local',
+          engineId: 'engine-3',
+          queryId: 'query-3',
+        },
       ],
     });
   });
@@ -255,22 +341,26 @@ describe('query diff selections', () => {
         },
       } as unknown as QueryBundle<EntityRef>;
     });
-    setApiClient({ fetchQueryBundle: fetch } as unknown as ApiClient);
+    const api = { ...discoveryApi(), fetchQueryBundle: fetch };
     const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-    await queryDiffCommand.run([
-      '--engine',
-      'engine-1',
-      '--baseline-query',
-      'query-1',
-      '--candidate-query',
-      'query-2',
-      '--candidate-query',
-      'query-3',
-      '--metric',
-      'all',
-      '--json',
-    ]);
+    await runQueryDiffCommand(
+      [
+        '--engine',
+        'engine-1',
+        '--baseline-query',
+        'query-1',
+        '--candidate-query',
+        'query-2',
+        '--candidate-query',
+        'query-3',
+        '--metric',
+        'all',
+        '--json',
+      ],
+      undefined,
+      { createDiscoveryApi: () => api }
+    );
 
     expect(fetch.mock.calls).toEqual([
       ['engine-1', 'query-1'],
@@ -284,11 +374,12 @@ describe('query diff selections', () => {
   });
 
   it('uses a combined operator table by default and allows grouped output', async () => {
-    setApiClient({
+    const api = {
+      ...discoveryApi(),
       fetchQueryBundle: vi.fn(async (_engineId: string, queryId: string) =>
         metricBundle(queryId, ['output_rows'])
       ),
-    } as unknown as ApiClient);
+    };
     const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     const args = [
       '--engine',
@@ -301,25 +392,27 @@ describe('query diff selections', () => {
       'output_rows',
     ];
 
-    await queryDiffCommand.run(args);
+    await runQueryDiffCommand(args, undefined, { createDiscoveryApi: () => api });
     expect(String(write.mock.calls[0]![0])).toContain('│ Plan');
     expect(String(write.mock.calls[0]![0])).toContain('│ Operator');
 
     write.mockClear();
-    await queryDiffCommand.run([...args, '--no-combined-table']);
+    await runQueryDiffCommand([...args, '--no-combined-table'], undefined, {
+      createDiscoveryApi: () => api,
+    });
     expect(String(write.mock.calls[0]![0])).toContain('Logical · Scan\n┌');
   });
 
   it('requires candidate engine counts to be unambiguous', async () => {
     await expect(
-      resolveQueryDiffSelections(
+      resolveSourcedQueryDiffSelections(
         {
           'baseline-engine': 'engine-1',
           'baseline-query': 'query-1',
           'candidate-engine': ['engine-2', 'engine-3'],
           'candidate-query': ['query-2', 'query-3', 'query-4'],
         },
-        discoveryApi(),
+        [{ id: 'local', label: 'local', api: discoveryApi() }],
         vi.fn<SelectFromList>(),
         vi.fn<SelectFromQueryTree>()
       )
@@ -521,8 +614,8 @@ describe('query diff selections', () => {
     const api = discoveryApi();
     const selectTree = vi
       .fn<SelectFromQueryTree>()
-      .mockResolvedValueOnce(['engine-1\0query-1'])
-      .mockResolvedValueOnce(['engine-2\0query-2']);
+      .mockResolvedValueOnce(['local\0engine-1\0query-1'])
+      .mockResolvedValueOnce(['local\0engine-2\0query-2']);
 
     await resolveSourcedQueryDiffSelections(
       {},
@@ -532,7 +625,7 @@ describe('query diff selections', () => {
     );
 
     expect(selectTree.mock.calls[0]![1][0]!.engineLabel).toBe('Baseline (engine-1)');
-    expect(selectTree.mock.calls[0]![1][0]!.sourceId).toBeUndefined();
+    expect(selectTree.mock.calls[0]![1][0]!.sourceId).toBe('local');
   });
 });
 
