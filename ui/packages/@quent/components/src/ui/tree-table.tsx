@@ -32,6 +32,11 @@ interface TreeTableDataItem {
   actions?: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
+  /**
+   * The row is not drawn on its own. Its parent draws its content, in the parent's own row, while
+   * the parent is open. Virtualized trees and pinned rows honor this.
+   */
+  rendersInParent?: boolean;
 }
 
 type TreeTableRenderItemParams = {
@@ -553,6 +558,9 @@ function flattenVisibleRows(items: TreeTableDataItem[], expandedIds: Set<string>
   const rows: FlatTreeRow[] = [];
   const walk = (nodes: TreeTableDataItem[], level: number) => {
     for (const node of nodes) {
+      if (node.rendersInParent) {
+        continue;
+      }
       const hasChildren = !!node.children?.length;
       const isOpen = hasChildren && expandedIds.has(node.id);
       rows.push({ item: node, level, hasChildren, isOpen });
@@ -634,10 +642,34 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       getItemKey: index => visibleRows[index]?.item.id ?? index,
     });
 
+    // A row that is already on screen is only re-measured when the browser reports a resize,
+    // which is a frame late, so the rows below would sit in the wrong place for that frame. When
+    // a row's height is about to change, read its real height now, before anything is painted.
+    const containerRef = useRef<HTMLDivElement>(null);
+    const expectedHeightsRef = useRef(new Map<string, number>());
+    useLayoutEffect(() => {
+      const previous = expectedHeightsRef.current;
+      const next = new Map<string, number>();
+      visibleRows.forEach(({ item }, index) => {
+        const expected = getRowHeight ? getRowHeight(item) : rowHeight;
+        next.set(item.id, expected);
+        const before = previous.get(item.id);
+        if (before === undefined || before === expected) {
+          return;
+        }
+        const element = containerRef.current?.querySelector<HTMLElement>(`[data-index="${index}"]`);
+        rowVirtualizer.resizeItem(index, element?.offsetHeight ?? expected);
+      });
+      expectedHeightsRef.current = next;
+    }, [visibleRows, getRowHeight, rowHeight, rowVirtualizer]);
+
     const virtualItems = rowVirtualizer.getVirtualItems();
 
     return (
-      <div className={cn('overflow-hidden relative bg-transparent w-full min-w-0', className)}>
+      <div
+        ref={containerRef}
+        className={cn('overflow-hidden relative bg-transparent w-full min-w-0', className)}
+      >
         {/* Total-height sentinel tells the scroll container the real content height */}
         <div
           ref={ref}
@@ -1116,6 +1148,9 @@ export function TreeTable<I extends TreeTableDataItem>({
   const pinnedRowHeight = treeViewProps.rowHeight ?? DEFAULT_TREE_ROW_HEIGHT;
 
   const renderPinnedChild = (child: TreeTableDataItem, level: number): React.ReactNode => {
+    if (child.rendersInParent) {
+      return null;
+    }
     const hasChildren = !!child.children?.length;
     const isOpen = hasChildren && (treeViewProps.controlledExpandedIds?.has(child.id) ?? false);
     const chevronLeft = Math.min(level * indentPerLevel, Math.max(firstColumnBodyWidth - 12, 0));

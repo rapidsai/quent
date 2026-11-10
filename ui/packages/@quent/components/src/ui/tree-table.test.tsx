@@ -9,6 +9,7 @@ import { TREE_TABLE_SCROLLER_SELECTOR, TreeTable, type Column } from './tree-tab
 interface Row {
   id: string;
   name: string;
+  rendersInParent?: boolean;
   children?: Row[];
 }
 
@@ -79,6 +80,48 @@ function restoreLayout() {
     Object.defineProperty(Element.prototype, 'clientHeight', originalClientHeight);
   }
 }
+
+describe('TreeTable rows drawn by their parent', () => {
+  beforeEach(mockLayout);
+  afterEach(restoreLayout);
+
+  const parent: Row = {
+    ...row('a'),
+    children: [{ ...row('a-chart'), rendersInParent: true }, row('a-next')],
+  };
+
+  it('does not give an open parent a separate row for a child its parent draws', () => {
+    render(
+      <TreeTable<Row>
+        data={[parent]}
+        columns={columns}
+        virtualized
+        rowHeight={ROW_HEIGHT}
+        controlledExpandedIds={new Set(['a'])}
+      />
+    );
+
+    expect(screen.getByText('Row a')).toBeInTheDocument();
+    expect(screen.getByText('Row a-next')).toBeInTheDocument();
+    expect(screen.queryByText('Row a-chart')).not.toBeInTheDocument();
+  });
+
+  it('does not give a pinned parent a separate row for it either', () => {
+    render(
+      <TreeTable<Row>
+        data={[]}
+        columns={columns}
+        virtualized
+        rowHeight={ROW_HEIGHT}
+        pinnedItems={[{ ...row('x'), children: [{ ...row('x-chart'), rendersInParent: true }] }]}
+        controlledExpandedIds={new Set(['x'])}
+      />
+    );
+
+    expect(screen.getByText('Row x')).toBeInTheDocument();
+    expect(screen.queryByText('Row x-chart')).not.toBeInTheDocument();
+  });
+});
 
 describe('TreeTable pinned section', () => {
   beforeEach(mockLayout);
@@ -440,6 +483,66 @@ describe('TreeTable variable row heights', () => {
     expect(getRowHeight.mock.calls.map(([item]) => item.id)).toEqual(
       expect.arrayContaining(['parent', 'child'])
     );
+  });
+});
+
+describe('TreeTable rows that change height', () => {
+  const CHART_HEIGHT = 128;
+
+  beforeEach(() => {
+    Object.defineProperty(Element.prototype, 'clientHeight', {
+      configurable: true,
+      get(this: Element) {
+        return this.hasAttribute('data-tree-table-scroller') ? 600 : 0;
+      },
+    });
+    // Like a browser, a row is as tall as its minimum height or its content, whichever is more.
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (!this.hasAttribute('data-index')) {
+          return 0;
+        }
+        const chart = this.querySelector<HTMLElement>('[data-chart]');
+        return Math.max(parseFloat(this.style.minHeight) || 0, chart ? CHART_HEIGHT : 0);
+      },
+    });
+  });
+  afterEach(restoreLayout);
+
+  it('moves the rows below right away when a row grows to fit new content', () => {
+    const parent = { ...row('parent'), children: [row('child')] };
+    const treeTable = (isChartShown: boolean) => (
+      <TreeTable<Row>
+        data={[parent]}
+        columns={[
+          {
+            ...columns[0]!,
+            render: ({ item }) =>
+              item.id === 'parent' && isChartShown ? (
+                <div data-chart style={{ height: CHART_HEIGHT }} />
+              ) : (
+                <span>{item.name}</span>
+              ),
+          },
+        ]}
+        controlledExpandedIds={new Set(['parent'])}
+        // The row's minimum height is less than its chart, as the Operators chart's is.
+        getRowHeight={item => (item.id === 'parent' && isChartShown ? 45 : 28)}
+        rowHeight={ROW_HEIGHT}
+        virtualized
+      />
+    );
+    const { rerender, container } = render(treeTable(false));
+    expect(screen.getByRole('tree')).toHaveStyle({ height: `${28 + 28}px` });
+
+    rerender(treeTable(true));
+
+    // jsdom never reports a resize, so the table has to measure the row itself.
+    expect(screen.getByRole('tree')).toHaveStyle({ height: `${CHART_HEIGHT + 28}px` });
+    expect(container.querySelector('[data-index="1"]')).toHaveStyle({
+      transform: `translateY(${CHART_HEIGHT}px)`,
+    });
   });
 });
 

@@ -477,7 +477,7 @@ export function useResourceTimelinesTreeModel({
     (item: TimelineTreeItem) => {
       const subRow = subRows.find(candidate => candidate.matches(item));
       if (subRow) {
-        return subRow.renderTimeline(item);
+        return subRow.renderTimeline(item, expandedIds.has(item.id));
       }
 
       return (
@@ -502,14 +502,17 @@ export function useResourceTimelinesTreeModel({
       selectedFsmTypes,
       selectedTypes,
       subRows,
+      expandedIds,
     ]
   );
+  // A disclosure row is a thin header while closed. While open it draws the chart, so it is as
+  // tall as one.
   const getRowHeight = useCallback(
     (item: TimelineTreeItem) =>
-      subRows.some(subRow => subRow.disclosureRowType === item.type)
+      subRows.some(subRow => subRow.disclosureRowType === item.type) && !expandedIds.has(item.id)
         ? TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT
         : DEFAULT_TIMELINE_HEIGHT,
-    [subRows]
+    [expandedIds, subRows]
   );
 
   return {

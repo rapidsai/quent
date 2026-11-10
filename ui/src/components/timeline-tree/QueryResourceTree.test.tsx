@@ -676,6 +676,26 @@ describe('QueryResourceTree — configurable resource subrows', () => {
     expect(capturedGetRowHeight?.(disclosure!)).toBe(TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT);
   });
 
+  it('makes an open disclosure row as tall as its chart, since the chart is drawn in it', async () => {
+    const store = createStore();
+    store.set(showNestedChartRowsAtom, true);
+    renderWithQuery(
+      <JotaiProvider store={store}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    const entitiesDisclosureId = '__long_entities_disclosure__res-1';
+    await waitFor(() => expect(capturedExpandedIds).toContain(entitiesDisclosureId));
+    const disclosure = capturedTreeData[0]?.children?.[0]?.children?.[0];
+    expect(disclosure?.id).toBe(entitiesDisclosureId);
+    expect(capturedGetRowHeight?.(disclosure!)).toBe(DEFAULT_TIMELINE_HEIGHT);
+
+    act(() => capturedOnExpandChange?.(entitiesDisclosureId, false));
+    await waitFor(() => expect(capturedExpandedIds).not.toContain(entitiesDisclosureId));
+    expect(capturedGetRowHeight?.(disclosure!)).toBe(TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT);
+  });
+
   it('shows the Entities row but keeps its chart closed by default', async () => {
     renderWithQuery(
       <JotaiProvider store={createStore()}>

@@ -8,6 +8,7 @@ import { render, screen } from '@testing-library/react';
 import {
   createSyntheticSubRow,
   createTimelineSubRow,
+  createTimelineSubRowDisclosure,
   mapTreeItems,
   TimelineSubRowLabel,
 } from './subRow';
@@ -69,6 +70,40 @@ describe('createTimelineSubRow', () => {
 
     expect(subRow.renderLabel(disclosure)).not.toBeNull();
     expect(subRow.renderLabel(chartRow)).toBeNull();
+  });
+});
+
+describe('createTimelineSubRowDisclosure', () => {
+  it('leaves the chart row to be drawn by its disclosure row', () => {
+    const chartRow = createSyntheticSubRow('__demo_row__owner', 'demo-row');
+    const disclosure = createTimelineSubRowDisclosure('owner', 'demo-row', chartRow);
+
+    expect(disclosure.children?.[0]?.id).toBe('__demo_row__owner');
+    expect(disclosure.children?.[0]?.rendersInParent).toBe(true);
+  });
+});
+
+describe('createTimelineSubRow timelines', () => {
+  const subRow = createTimelineSubRow({
+    id: 'demo',
+    rowType: 'demo-row',
+    label: 'Demo',
+    injectRows: root => root,
+    renderTimeline: chartRow => `chart for ${chartRow.id}`,
+  });
+  const disclosure = createTimelineSubRowDisclosure(
+    'owner',
+    'demo-row',
+    createSyntheticSubRow('__demo_row__owner', 'demo-row')
+  ) as never;
+
+  it('shows the chart in the disclosure row while it is open', () => {
+    expect(subRow.renderTimeline(disclosure, true)).toBe('chart for __demo_row__owner');
+  });
+
+  it('shows nothing in the disclosure row while it is closed', () => {
+    expect(subRow.renderTimeline(disclosure, false)).toBeNull();
+    expect(subRow.renderTimeline(disclosure)).toBeNull();
   });
 });
 

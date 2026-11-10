@@ -23,7 +23,8 @@ export interface ResourceTimelineSubRow {
   injectRows: (rootItem: TreeTableItem) => TreeTableItem;
   matches: (item: TimelineTreeItem) => boolean;
   renderLabel: (item: TimelineTreeItem, description?: ReactNode) => ReactNode;
-  renderTimeline: (item: TimelineTreeItem) => ReactNode;
+  /** `isOpen` is whether the item is expanded; an open disclosure row draws its chart itself. */
+  renderTimeline: (item: TimelineTreeItem, isOpen?: boolean) => ReactNode;
 }
 
 export function TimelineSubRowLabel({
@@ -60,7 +61,9 @@ export function createTimelineSubRowDisclosure(
   const idType = rowType.replace(/-/g, '_');
   return {
     ...createSyntheticSubRow(`__${idType}_disclosure__${ownerId}`, `${rowType}-disclosure`),
-    children: [chartRow],
+    // The disclosure row draws the chart in its own row while it is open, so the chart row never
+    // gets a separate row. It is kept as a child so the disclosure row can be opened and closed.
+    children: [{ ...chartRow, rendersInParent: true }],
   };
 }
 
@@ -104,6 +107,12 @@ export function createTimelineSubRow({
       item.type === disclosureRowType || description != null ? (
         <TimelineSubRowLabel description={description}>{label}</TimelineSubRowLabel>
       ) : null,
-    renderTimeline: item => (item.type === disclosureRowType ? null : renderTimeline(item)),
+    renderTimeline: (item, isOpen = false) => {
+      if (item.type !== disclosureRowType) {
+        return renderTimeline(item);
+      }
+      const chartRow = item.children?.[0];
+      return isOpen && chartRow ? renderTimeline(chartRow as TimelineTreeItem) : null;
+    },
   };
 }
