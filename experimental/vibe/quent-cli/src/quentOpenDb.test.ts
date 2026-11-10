@@ -57,6 +57,21 @@ describe('quent-open database launcher', () => {
     ]);
   });
 
+  it('settles after startup failures reduce the serving viewer count', () => {
+    const tracker = createQuentOpenReadyTracker();
+
+    expect(tracker.consume('discovered 3 context(s) -> 2 viewer(s)')).toBeUndefined();
+    expect(
+      tracker.consume('ready: query-engine-a — 2 context(s)  http://127.0.0.1:49152/')
+    ).toBeUndefined();
+    expect(tracker.consume('serving 1 viewer(s)')).toEqual([
+      {
+        label: 'query-engine-a — 2 context(s)',
+        apiBaseUrl: 'http://127.0.0.1:49152/api',
+      },
+    ]);
+  });
+
   it('keeps credentials out of spawned arguments', () => {
     const args = quentOpenDbArguments('6647', options);
 
