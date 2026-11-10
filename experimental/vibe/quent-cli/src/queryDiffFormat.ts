@@ -27,7 +27,7 @@ function formatNumeric(value: SerializedQueryDiffValue | null, metric: string): 
   if (metric === ACTIVE_SPAN_METRIC) {
     return value.toFixed(6).replace(/\.?0+$/u, '');
   }
-  return value.toLocaleString('en-US', { maximumSignificantDigits: 10 });
+  return value.toLocaleString('en-US', { maximumSignificantDigits: 17 });
 }
 
 function deltaSign(value: SerializedQueryDiffValue | null): DeltaSign {
