@@ -71,6 +71,11 @@ describe('SavedViewsMenu', () => {
     await userEvent.clear(name);
     await userEvent.type(name, 'Investigation');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Load Investigation (Timeline)' })).toBeVisible()
@@ -109,7 +114,6 @@ describe('SavedViewsMenu', () => {
     ).toEqual({ ok: true });
 
     now = 200;
-    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
     await userEvent.click(screen.getByRole('button', { name: 'Modify current view' }));
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
     const row = screen.getByRole('button', { name: 'Load Investigation (Timeline)' }).parentElement;
@@ -123,6 +127,10 @@ describe('SavedViewsMenu', () => {
       'Delete Investigation',
     ]);
     await userEvent.click(screen.getByRole('button', { name: 'Update Investigation' }));
+    expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
 
     const updated = readSavedViews(localStorage, scope);
     expect(updated).toMatchObject({
@@ -160,6 +168,7 @@ describe('SavedViewsMenu', () => {
     await userEvent.clear(name);
     await userEvent.type(name, 'Original');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
 
     await userEvent.click(await screen.findByRole('button', { name: 'Rename Original' }));
     const rename = screen.getByRole('textbox', { name: 'Rename Original' });

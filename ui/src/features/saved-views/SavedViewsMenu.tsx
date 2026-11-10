@@ -223,7 +223,7 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
       return;
     }
     toast.add({ type: 'success', title: 'View saved', description: name.trim() });
-    setName(defaultSavedViewName(activeTab, new Date(), [...views.map(view => view.name), name]));
+    onOpenChange(false);
   };
 
   const commitRename = (view: SavedViewV1) => {
@@ -260,6 +260,7 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
       showWriteError(write);
     } else {
       toast.add({ type: 'success', title: 'View updated', description: view.name });
+      onOpenChange(false);
     }
   };
 
@@ -359,7 +360,7 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
                     onEditName={setEditName}
                     onLoad={() => {
                       deepLink?.loadSavedView?.(view);
-                      setOpen(false);
+                      onOpenChange(false);
                     }}
                     onUpdate={() => updateCurrentView(view)}
                     onBeginRename={() => {
