@@ -121,5 +121,29 @@ describe('query diff terminal formatter', () => {
     });
     expect(sourced).toContain('Baseline: local / engine-1 / query-1');
     expect(sourced).toContain('Candidate 1: db 6647 / engine-2 / query-2');
+
+    const precise = formatQueryDiff({
+      ...result,
+      comparisons: [
+        {
+          ...result.comparisons[0]!,
+          summary: [
+            {
+              ...result.comparisons[0]!.summary[0]!,
+              baseline: 10_000_000_001,
+            },
+            {
+              ...result.comparisons[0]!.summary[0]!,
+              metric: 'selectivity',
+              quantity: null,
+              baseline: 1.2345678901234567,
+            },
+          ],
+          rows: [],
+        },
+      ],
+    });
+    expect(precise).toContain('10,000,000,001');
+    expect(precise).toContain('1.2345678901234567');
   });
 });
