@@ -225,21 +225,52 @@ async function selectSource(
   return findSource(sources, id);
 }
 
+interface SourcedQueryDiscovery {
+  choices: Array<QueryTreeChoice & { sourceId: string; sourceLabel: string }>;
+  failures: ReadonlyMap<string, unknown>;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function discoverSourcedQueryTreeChoices(
   sources: readonly QueryDiffSource[]
-): Promise<Array<QueryTreeChoice & { sourceId: string; sourceLabel: string }>> {
-  const choices = await Promise.all(
-    sources.map(async source =>
-      (await discoverQueryTreeChoices(source.api)).map(choice => ({
+): Promise<SourcedQueryDiscovery> {
+  const results = await Promise.allSettled(
+    sources.map(async source => ({
+      source,
+      choices: (await discoverQueryTreeChoices(source.api)).map(choice => ({
         ...choice,
         sourceId: source.id,
         sourceLabel: source.label,
         value: `${source.id}\0${choice.value}`,
         engineLabel: `${source.label} · ${choice.engineLabel}`,
-      }))
-    )
+      })),
+    }))
   );
-  return choices.flat();
+  const choices = results.flatMap(result =>
+    result.status === 'fulfilled' ? result.value.choices : []
+  );
+  const failures = new Map<string, unknown>();
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      const source = sources[index]!;
+      failures.set(source.id, result.reason);
+      process.stderr.write(
+        `Warning: unable to discover queries from source "${source.label}": ${errorMessage(result.reason)}\n`
+      );
+    }
+  });
+  if (choices.length === 0) {
+    const firstFailure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    );
+    if (firstFailure) {
+      throw firstFailure.reason;
+    }
+  }
+  return { choices, failures };
 }
 
 function selectedFromTree(
@@ -343,11 +374,10 @@ export async function resolveSourcedQueryDiffSelections(
   const baselineSourceId = optionalId(values['baseline-source']);
   const explicitBaselineEngineId = optionalId(values['baseline-engine']) ?? commonEngineId;
   const explicitBaselineQueryId = optionalId(values['baseline-query']);
-  let combinedChoices:
-    Array<QueryTreeChoice & { sourceId: string; sourceLabel: string }> | undefined;
-  const getCombinedChoices = async () => {
-    combinedChoices ??= await discoverSourcedQueryTreeChoices(sources);
-    return combinedChoices;
+  let combinedDiscovery: SourcedQueryDiscovery | undefined;
+  const getCombinedDiscovery = async () => {
+    combinedDiscovery ??= await discoverSourcedQueryTreeChoices(sources);
+    return combinedDiscovery;
   };
 
   let baseline: SourcedQuerySelection;
@@ -355,7 +385,11 @@ export async function resolveSourcedQueryDiffSelections(
     if (baselineSourceId) {
       findSource(sources, baselineSourceId);
     }
-    const choices = (await getCombinedChoices()).filter(
+    const discovery = await getCombinedDiscovery();
+    if (baselineSourceId && discovery.failures.has(baselineSourceId)) {
+      throw discovery.failures.get(baselineSourceId);
+    }
+    const choices = discovery.choices.filter(
       choice => !baselineSourceId || choice.sourceId === baselineSourceId
     );
     if (choices.length === 0) {
@@ -428,7 +462,12 @@ export async function resolveSourcedQueryDiffSelections(
   } else {
     const requestedSources = ids(values['candidate-source']);
     requestedSources.forEach(id => findSource(sources, id));
-    const choices = (await getCombinedChoices()).filter(
+    const discovery = await getCombinedDiscovery();
+    const failedRequestedSource = requestedSources.find(id => discovery.failures.has(id));
+    if (failedRequestedSource) {
+      throw discovery.failures.get(failedRequestedSource);
+    }
+    const choices = discovery.choices.filter(
       choice =>
         (requestedSources.length === 0 || requestedSources.includes(choice.sourceId)) &&
         !(
