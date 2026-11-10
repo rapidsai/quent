@@ -47,6 +47,7 @@ import {
   type AggMode,
 } from '../atoms/pivotTable';
 import { inspectedPipeRefsAtom } from '../atoms/pipeInspection';
+import { longEntityDensityAtom, type LongEntityDensity } from '../atoms/timeline';
 
 export interface SerializableDagControls {
   nodeColorField: string | null;
@@ -75,6 +76,10 @@ export interface SerializableOperatorTableState {
   sort?: SortingState;
 }
 
+export interface SerializableTimelineState {
+  longEntityDensity: LongEntityDensity;
+}
+
 export interface SerializableViewState {
   selection: {
     planId: string;
@@ -84,6 +89,7 @@ export interface SerializableViewState {
   dag: SerializableDagControls;
   dataFlow: SerializableDataFlowState;
   operatorTable: SerializableOperatorTableState;
+  timeline: SerializableTimelineState;
 }
 
 export interface HydratableViewState {
@@ -95,6 +101,7 @@ export interface HydratableViewState {
   dag?: Partial<SerializableDagControls>;
   dataFlow?: Partial<SerializableDataFlowState>;
   operatorTable?: SerializableOperatorTableState;
+  timeline?: Partial<SerializableTimelineState>;
 }
 
 interface SerializableViewStateOptions {
@@ -160,6 +167,9 @@ export function useSerializableViewState({
         ...(store.get(sortingAtomFamily(operatorTablePersistKey)) && {
           sort: store.get(sortingAtomFamily(operatorTablePersistKey))!,
         }),
+      },
+      timeline: {
+        longEntityDensity: store.get(longEntityDensityAtom),
       },
     };
   }, [operatorTableGroupKeys, operatorTablePersistKey, store]);
@@ -247,6 +257,10 @@ export function useSerializableViewState({
       }
       if (table?.sort !== undefined) {
         store.set(sortingAtomFamily(operatorTablePersistKey), table.sort);
+      }
+
+      if (state.timeline?.longEntityDensity !== undefined) {
+        store.set(longEntityDensityAtom, state.timeline.longEntityDensity);
       }
     },
     [operatorTableGroupKeys, operatorTablePersistKey, operators, store]

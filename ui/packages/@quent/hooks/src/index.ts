@@ -152,6 +152,7 @@ export type {
   SerializableDagControls,
   SerializableDataFlowState,
   SerializableOperatorTableState,
+  SerializableTimelineState,
   SerializableViewState,
 } from './deepLink/useSerializableViewState';
 
