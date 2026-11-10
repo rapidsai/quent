@@ -35,6 +35,11 @@ After fetching the bundles, the CLI offers a metric multiselect containing only
 numeric metrics present in every selected query. Choose individual metrics or
 the **All metrics** option.
 
+When `--candidate-source` is repeated with both candidate forms, sources map to
+all `--candidate ENGINE:QUERY` entries first and then to all
+`--candidate-query` entries. Pass one source to use it for every candidate, or
+one source per candidate in that order.
+
 The comparison algorithm is part of the pure TypeScript `@quent/query-analysis`
 workspace package. It has no terminal, React, transport, or Node.js dependency,
 so the browser app can consume the same result model. The CLI owns API
@@ -118,9 +123,12 @@ pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \
 
 ## Agent usage
 
-`--json` is the primary automation interface. It disables Ink and
-`quent-open` trust prompts regardless of TTY detection and requires engine,
-query, metric, and any ambiguous source IDs:
+`--json` is the primary automation interface, but it changes only the output
+format. When a terminal is available, omitted selections and `quent-open` trust
+decisions can still prompt interactively. For non-interactive use, pass engine,
+query, metric, and any ambiguous source IDs explicitly. Use `--db-run` instead
+of the interactive `--db` prompt, and pass `--db-trust` or `--db-trust-all` when
+opening an untrusted remote:
 
 ```sh
 pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \

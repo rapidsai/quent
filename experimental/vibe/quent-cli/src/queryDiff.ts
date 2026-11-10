@@ -52,6 +52,7 @@ Options:
   --db-trust-all          Trust every source opened from the database
   --baseline-source ID    "local" or a registered database run
   --candidate-source ID   Candidate source; one for all or one per candidate
+                          Maps --candidate entries before --candidate-query entries
   --json                  Emit versioned JSON output (selection may still be interactive)`;
 
 type QueryDiffCliValue = string | string[] | boolean | undefined;
