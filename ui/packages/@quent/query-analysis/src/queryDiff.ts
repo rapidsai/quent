@@ -71,15 +71,23 @@ interface OperatorGroup {
 export const ACTIVE_SPAN_METRIC = 'active_span_s';
 
 function addNumeric(left: NumericValue, right: NumericValue): NumericValue {
-  if (typeof left === 'bigint' && typeof right === 'bigint') {
-    return left + right;
+  if (
+    (typeof left === 'bigint' || typeof right === 'bigint') &&
+    (typeof left === 'bigint' || Number.isSafeInteger(left)) &&
+    (typeof right === 'bigint' || Number.isSafeInteger(right))
+  ) {
+    return BigInt(left) + BigInt(right);
   }
   return Number(left) + Number(right);
 }
 
 function subtractNumeric(left: NumericValue, right: NumericValue): NumericValue {
-  if (typeof left === 'bigint' && typeof right === 'bigint') {
-    return left - right;
+  if (
+    (typeof left === 'bigint' || typeof right === 'bigint') &&
+    (typeof left === 'bigint' || Number.isSafeInteger(left)) &&
+    (typeof right === 'bigint' || Number.isSafeInteger(right))
+  ) {
+    return BigInt(left) - BigInt(right);
   }
   return Number(left) - Number(right);
 }
@@ -123,9 +131,12 @@ function aggregateBundle(bundle: QueryBundle<EntityRef>): Map<string, Aggregated
   const rolledUpLogicalOperatorIds = new Set(
     operators.flatMap(operator =>
       operator.parent_operator_ids.filter(parentId => {
+        const childPlan = operator.plan_id ? bundle.entities.plans[operator.plan_id] : undefined;
         const parent = bundle.entities.operators[parentId];
         const parentPlan = parent?.plan_id ? bundle.entities.plans[parent.plan_id] : undefined;
-        return parentPlan?.worker_id === null;
+        return (
+          childPlan !== undefined && childPlan.worker_id !== null && parentPlan?.worker_id === null
+        );
       })
     )
   );
@@ -210,16 +221,25 @@ export function commonQueryMetrics(bundles: readonly QueryBundle<EntityRef>[]): 
     });
 }
 
-function deltaPercent(baseline: NumericValue, candidate: NumericValue): number | null {
+function deltaPercent(
+  baseline: NumericValue,
+  candidate: NumericValue,
+  delta: NumericValue
+): number | null {
   const baselineNumber = Number(baseline);
   const candidateNumber = Number(candidate);
-  if (!Number.isFinite(baselineNumber) || !Number.isFinite(candidateNumber)) {
+  const deltaNumber = Number(delta);
+  if (
+    !Number.isFinite(baselineNumber) ||
+    !Number.isFinite(candidateNumber) ||
+    !Number.isFinite(deltaNumber)
+  ) {
     return null;
   }
   if (baselineNumber === 0) {
     return candidateNumber === 0 ? 0 : null;
   }
-  return ((candidateNumber - baselineNumber) / Math.abs(baselineNumber)) * 100;
+  return (deltaNumber / Math.abs(baselineNumber)) * 100;
 }
 
 function compareAggregates(
@@ -249,9 +269,9 @@ function compareAggregates(
         candidate: candidateValue === null ? null : serializeNumeric(candidateValue),
         delta: delta === null ? null : serializeNumeric(delta),
         deltaPercent:
-          baselineValue === null || candidateValue === null
+          baselineValue === null || candidateValue === null || delta === null
             ? null
-            : deltaPercent(baselineValue, candidateValue),
+            : deltaPercent(baselineValue, candidateValue, delta),
       } satisfies QueryDiffRow;
     })
     .filter(row => !metrics || metrics.has(row.metric))
