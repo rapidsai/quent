@@ -16,6 +16,8 @@ export type { ColorRegistry, ColorRegistryKey } from './colors/colorRegistry';
 // DAG hooks
 export { useSelectedOperatorIds } from './dag/useSelectedOperatorIds';
 export { useOperatorSelection, useOperatorSelectionActions } from './dag/useOperatorSelection';
+export { useDisplayedOperatorDetails } from './dag/useOperatorDetails';
+export { useClearDagDetailAttention, useDagDetailAttention } from './dag/useDagDetailAttention';
 export {
   useHydrateSelectedPlanId,
   useSelectedPlanId,
@@ -168,7 +170,6 @@ export {
   useClearInspectedPipes,
   useSyncDisplayedPipes,
   useDisplayedPipes,
-  useDisplayedDagNodes,
   useInspectedPipeNodes,
   useHoveredPipeId,
   useSetHoveredPipeId,

@@ -47,7 +47,7 @@ import {
 import { DataText } from '@quent/components';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
-// Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
+// Keep the visualization dependencies out of the initial query-page chunk.
 const DAGChart = lazy(() => import('@quent/components').then(mod => ({ default: mod.DAGChart })));
 
 const OPERATOR_DETAILS_COLLAPSED_HEIGHT = 32;
@@ -306,6 +306,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         >
           <DAGNodeInfoPanel
             quantitySpecs={queryBundle.quantity_specs}
+            operators={operators}
             fillHeight
             onExpandedChange={setOperatorDetailsExpanded}
           />

@@ -6,7 +6,7 @@ import { shouldDimEdgeFromInteraction } from './edgeOpacity';
 
 const idle = {
   edgeId: 'edge',
-  selectedNodeIds: new Set<string>(),
+  selectedOperatorIds: new Set<string>(),
   highlightedNodeIds: null,
 };
 
@@ -22,9 +22,9 @@ describe('shouldDimEdgeFromInteraction', () => {
   });
 
   it('dims every edge while an operator is selected', () => {
-    expect(shouldDimEdgeFromInteraction({ ...idle, selectedNodeIds: new Set(['selected']) })).toBe(
-      true
-    );
+    expect(
+      shouldDimEdgeFromInteraction({ ...idle, selectedOperatorIds: new Set(['selected']) })
+    ).toBe(true);
   });
 });
 
@@ -40,7 +40,7 @@ describe('inspected pipes', () => {
   it('keeps an inspected pipe undimmed while an operator is selected or highlighted', () => {
     const busy = {
       ...common,
-      selectedNodeIds: new Set(['selected']),
+      selectedOperatorIds: new Set(['selected']),
       highlightedNodeIds: new Set(['highlighted']),
     };
     expect(shouldDimEdgeFromInteraction({ ...busy, edgeId: 'one' })).toBe(false);

@@ -177,8 +177,15 @@ export function toggleOperatorSelection(
   const selectedGroup = selections.get(operatorId);
 
   if (selectedGroup) {
+    const retainedOperatorIds = new Set(
+      [...selections]
+        .filter(([selectionId]) => selectionId !== operatorId)
+        .flatMap(([, selection]) => [...selection.operatorIds])
+    );
     for (const id of selectedGroup.operatorIds) {
-      nextIds.delete(id);
+      if (!retainedOperatorIds.has(id)) {
+        nextIds.delete(id);
+      }
     }
   } else if (nextIds.has(operatorId)) {
     nextIds.delete(operatorId);

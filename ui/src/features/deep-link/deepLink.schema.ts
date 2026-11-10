@@ -118,8 +118,31 @@ const SelectionSchema = z
       .max(MAX_SELECTED_NODE_IDS, limitMessage('selected operators', MAX_SELECTED_NODE_IDS))
       .transform(uniqueSorted)
       .optional(),
+    operatorDetailsNodeIds: z
+      .array(IdSchema)
+      .max(MAX_SELECTED_NODE_IDS, limitMessage('legacy operator details', MAX_SELECTED_NODE_IDS))
+      .transform(uniqueSorted)
+      .optional(),
   })
-  .strip();
+  .strip()
+  .transform(({ operatorNodeIds, operatorDetailsNodeIds, ...selection }, context) => {
+    const mergedOperatorNodeIds = uniqueSorted([
+      ...(operatorNodeIds ?? []),
+      ...(operatorDetailsNodeIds ?? []),
+    ]);
+    if (mergedOperatorNodeIds.length > MAX_SELECTED_NODE_IDS) {
+      context.addIssue({
+        code: 'custom',
+        path: ['operatorNodeIds'],
+        message: limitMessage('selected operators', MAX_SELECTED_NODE_IDS),
+      });
+      return z.NEVER;
+    }
+    return {
+      ...selection,
+      ...(mergedOperatorNodeIds.length > 0 ? { operatorNodeIds: mergedOperatorNodeIds } : {}),
+    };
+  });
 
 const ResourceSelectionSchema = z
   .object({

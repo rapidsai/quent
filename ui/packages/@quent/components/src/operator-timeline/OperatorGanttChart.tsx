@@ -198,6 +198,7 @@ export function OperatorGanttChart({
         if (selectedOperatorIds.has(op.operatorId)) {
           updateOperatorSelection({
             type: 'replace',
+            detailAttention: 'none',
             selections: toggleOperatorSelection(
               allOperators,
               selectedOperatorIds,
