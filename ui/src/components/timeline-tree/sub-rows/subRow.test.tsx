@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { TreeTableItem } from '@quent/components';
 import { EntityTypeKey } from '@quent/utils';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import {
   createSyntheticSubRow,
   createTimelineSubRow,
@@ -98,7 +98,25 @@ describe('createTimelineSubRow timelines', () => {
   ) as never;
 
   it('shows the chart in the disclosure row while it is open', () => {
-    expect(subRow.renderTimeline(disclosure, true)).toBe('chart for __demo_row__owner');
+    render(<>{subRow.renderTimeline(disclosure, true)}</>);
+
+    expect(screen.getByText('chart for __demo_row__owner')).toBeInTheDocument();
+  });
+
+  it('keeps a click on the chart from opening or closing the disclosure row', () => {
+    const toggle = vi.fn();
+    const chartSubRow = createTimelineSubRow({
+      id: 'demo',
+      rowType: 'demo-row',
+      label: 'Demo',
+      injectRows: root => root,
+      renderTimeline: () => <button type="button">bar</button>,
+    });
+    render(<div onClick={toggle}>{chartSubRow.renderTimeline(disclosure, true)}</div>);
+
+    fireEvent.click(screen.getByText('bar'));
+
+    expect(toggle).not.toHaveBeenCalled();
   });
 
   it('shows nothing in the disclosure row while it is closed', () => {

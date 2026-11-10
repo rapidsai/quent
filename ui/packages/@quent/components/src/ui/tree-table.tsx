@@ -1113,8 +1113,7 @@ export function TreeTable<I extends TreeTableDataItem>({
                 {...dragArea?.listeners}
                 className={cn(
                   'group/info flex min-w-0 items-center overflow-hidden pr-1',
-                  // Dragging starts here, so show the grab cursor; elsewhere nothing is clickable.
-                  !dragArea && 'cursor-default',
+                  !dragArea && (item.children?.length ? 'cursor-pointer' : 'cursor-default'),
                   dragArea && (dragArea.isDragging ? 'cursor-grabbing' : 'cursor-grab')
                 )}
                 style={{

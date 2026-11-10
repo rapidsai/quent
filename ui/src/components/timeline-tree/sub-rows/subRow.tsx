@@ -112,7 +112,15 @@ export function createTimelineSubRow({
         return renderTimeline(item);
       }
       const chartRow = item.children?.[0];
-      return isOpen && chartRow ? renderTimeline(chartRow as TimelineTreeItem) : null;
+      if (!isOpen || !chartRow) {
+        return null;
+      }
+      // Clicking the chart selects things in it; only the label should open and close the row.
+      return (
+        <div className="h-full cursor-default" onClick={event => event.stopPropagation()}>
+          {renderTimeline(chartRow as TimelineTreeItem)}
+        </div>
+      );
     },
   };
 }

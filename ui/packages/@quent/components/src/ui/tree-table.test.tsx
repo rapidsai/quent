@@ -486,6 +486,30 @@ describe('TreeTable variable row heights', () => {
   });
 });
 
+describe('TreeTable info cell cursor', () => {
+  beforeEach(mockLayout);
+  afterEach(restoreLayout);
+
+  it('shows a pointer on a row that opens and closes, and the default on one that does not', () => {
+    render(
+      <TreeTable<Row>
+        data={[]}
+        columns={columns}
+        virtualized
+        rowHeight={ROW_HEIGHT}
+        pinnedItems={[
+          { ...row('x'), children: [{ ...row('toggle'), children: [row('inner')] }, row('plain')] },
+        ]}
+        controlledExpandedIds={new Set(['x'])}
+      />
+    );
+
+    const infoCellOf = (name: string) => screen.getByText(name).closest('.group\\/info');
+    expect(infoCellOf('Row toggle')).toHaveClass('cursor-pointer');
+    expect(infoCellOf('Row plain')).toHaveClass('cursor-default');
+  });
+});
+
 describe('TreeTable rows that change height', () => {
   const CHART_HEIGHT = 128;
 
