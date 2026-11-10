@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { DataText } from '../ui/data-text';
+import { DataText } from '../../ui/data-text';
 
 export interface FsmCapacityTooltipItem {
   id: string;

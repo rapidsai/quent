@@ -20,7 +20,7 @@ import type {
   SingleTimelineRequest,
   SingleTimelineResponse,
   TimelineConfig,
-} from '@quent/utils';
+} from '@quent/utils/query-engine';
 
 /** Typed operations consumed by the UI, independent of their transport. */
 export interface ApiClient {

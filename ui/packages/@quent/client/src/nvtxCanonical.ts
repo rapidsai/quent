@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { NvtxDomainSelection, NvtxViewportRequest } from '@quent/utils';
+import type { NvtxDomainSelection, NvtxViewportRequest } from '@quent/utils/query-engine';
 
 export function canonicalizeNvtxSelections(
   selections: readonly NvtxDomainSelection[]

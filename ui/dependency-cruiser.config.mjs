@@ -51,7 +51,22 @@ export default {
           '^(src|simulator)/',
           '^generated/ts-bindings/',
           '^packages/@quent/(client|hooks)/',
+          '^packages/@quent/utils/src/query-engine[.]ts$',
           '^packages/@quent/components/src/(?!ui/|lib/sliderField[.]utils[.]ts$)',
+        ],
+      },
+    },
+    {
+      // Keep reusable Quent views below query-engine integration adapters.
+      name: 'quent-views-cannot-import-query-engine',
+      severity: 'error',
+      from: { path: '^packages/@quent/components/src/quent-views/' },
+      to: {
+        path: [
+          '^generated/ts-bindings/',
+          '^packages/@quent/(client|hooks)/',
+          '^packages/@quent/utils/src/query-engine[.]ts$',
+          '^packages/@quent/components/src/query-engine/',
         ],
       },
     },
@@ -77,6 +92,9 @@ export default {
       '^generated/ts-bindings/',
     ],
     moduleSystems: ['es6', 'cjs'],
+    tsConfig: {
+      fileName: 'tsconfig.json',
+    },
     parser: 'tsc',
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {

@@ -51,7 +51,7 @@ import {
   useColorResolver,
 } from '@quent/hooks';
 import { calculateLayout, NODE_LAYOUT_WIDTH, NODE_LAYOUT_HEIGHT, FLOW_BAR_HEIGHT } from './layout';
-import type { DAGData } from '../services/query-plan/types';
+import type { DAGData } from '../query-engine/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGClearSelection } from './DAGClearSelection';
 import { DAGLegend } from './DAGLegend';

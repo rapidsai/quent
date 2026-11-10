@@ -8,7 +8,7 @@ import type {
   NvtxDomainSelection,
   NvtxViewportRequest,
   NvtxViewportWindow,
-} from '@quent/utils';
+} from '@quent/utils/query-engine';
 import { fetchEngineContexts, fetchNvtxCatalog, fetchNvtxViewport } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 export { canonicalizeNvtxRequest, canonicalizeNvtxSelections } from './nvtxCanonical';
