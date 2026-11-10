@@ -328,6 +328,7 @@ describe('ask CLI selections', () => {
         'Select a query',
         [],
         false,
+        undefined,
         input as unknown as NodeJS.ReadStream,
         output as unknown as NodeJS.WriteStream
       )

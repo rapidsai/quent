@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseArgs } from 'node:util';
-import { createHttpApiClient } from '@quent/client';
 import { commonQueryMetrics, diffQueryBundles } from '@quent/query-analysis';
 import {
   parseJsonWithBigInt,
@@ -89,12 +88,13 @@ export interface SourcedQueryDiffSelections {
 type SelectMetrics = (
   prompt: string,
   choices: readonly { value: string; label: string }[],
-  allValue?: string
+  allValue?: string,
+  signal?: AbortSignal
 ) => Promise<string[]>;
 
 const ALL_METRICS = '\0all-metrics';
 
-type InputText = (prompt: string, placeholder?: string) => Promise<string>;
+type InputText = (prompt: string, placeholder?: string, signal?: AbortSignal) => Promise<string>;
 
 export interface QueryDiffInteraction {
   select: SelectFromList;
@@ -104,13 +104,16 @@ export interface QueryDiffInteraction {
 }
 
 export interface QueryDiffRuntime {
-  createDiscoveryApi(baseUrl: string): DiscoveryApi;
+  createDiscoveryApi(baseUrl: string, signal?: AbortSignal): DiscoveryApi;
+  launchDatabaseRuns: typeof launchQuentOpenDbRuns;
+  stopDatabaseRuns: typeof stopQuentOpenDbRuns;
 }
 
 export async function resolveQueryDiffMetrics(
   values: QueryDiffCliValues,
   bundles: readonly QueryBundle<EntityRef>[],
-  selectMetrics: SelectMetrics = selectManyWithInk
+  selectMetrics: SelectMetrics = selectManyWithInk,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const commonMetrics = commonQueryMetrics(bundles);
   if (commonMetrics.length === 0) {
@@ -118,14 +121,13 @@ export async function resolveQueryDiffMetrics(
   }
   let requested = ids(values.metric);
   if (requested.length === 0) {
-    requested = await selectMetrics(
-      'Select metrics to compare',
-      [
-        { value: ALL_METRICS, label: `All metrics (${commonMetrics.length})` },
-        ...commonMetrics.map(metric => ({ value: metric, label: metric })),
-      ],
-      ALL_METRICS
-    );
+    const choices = [
+      { value: ALL_METRICS, label: `All metrics (${commonMetrics.length})` },
+      ...commonMetrics.map(metric => ({ value: metric, label: metric })),
+    ];
+    requested = await (signal
+      ? selectMetrics('Select metrics to compare', choices, ALL_METRICS, signal)
+      : selectMetrics('Select metrics to compare', choices, ALL_METRICS));
   }
   if (
     requested.includes(ALL_METRICS) ||
@@ -187,15 +189,14 @@ function findSource(sources: readonly QueryDiffSource[], id: string): QueryDiffS
 async function selectSource(
   sources: readonly QueryDiffSource[],
   select: SelectFromList,
-  prompt: string
+  prompt: string,
+  signal?: AbortSignal
 ): Promise<QueryDiffSource> {
   if (sources.length === 1) {
     return sources[0]!;
   }
-  const id = await select(
-    prompt,
-    sources.map(source => ({ value: source.id, label: source.label }))
-  );
+  const choices = sources.map(source => ({ value: source.id, label: source.label }));
+  const id = await (signal ? select(prompt, choices, signal) : select(prompt, choices));
   return findSource(sources, id);
 }
 
@@ -317,7 +318,8 @@ export async function resolveSourcedQueryDiffSelections(
   values: QueryDiffCliValues,
   sources: readonly QueryDiffSource[],
   select: SelectFromList,
-  selectTree: SelectFromQueryTree = selectFromQueryTreeWithInk
+  selectTree: SelectFromQueryTree = selectFromQueryTreeWithInk,
+  signal?: AbortSignal
 ): Promise<SourcedQueryDiffSelections> {
   if (sources.length === 0) {
     throw new Error('No query sources are available.');
@@ -347,18 +349,27 @@ export async function resolveSourcedQueryDiffSelections(
     if (choices.length === 0) {
       throw new Error('The selected query sources returned no available queries.');
     }
-    const selected = await selectTree('Select the baseline query', choices, false);
+    const selected = await (signal
+      ? selectTree('Select the baseline query', choices, false, signal)
+      : selectTree('Select the baseline query', choices, false));
     [baseline] = selectedFromTree(selected, choices);
   } else {
     const source = baselineSourceId
       ? findSource(sources, baselineSourceId)
-      : await selectSource(sources, select, 'Select the baseline source');
+      : await selectSource(sources, select, 'Select the baseline source', signal);
     const engineId =
       explicitBaselineEngineId ??
-      (await selectEngine(source.api, select, 'Select the baseline engine'));
+      (await selectEngine(source.api, select, 'Select the baseline engine', signal));
     const queryId =
       explicitBaselineQueryId ??
-      (await selectQuery(source.api, select, engineId, 'Select the baseline query'));
+      (await selectQuery(
+        source.api,
+        select,
+        engineId,
+        'Select the baseline query',
+        new Set(),
+        signal
+      ));
     baseline = {
       sourceId: source.id,
       sourceLabel: source.label,
@@ -378,7 +389,7 @@ export async function resolveSourcedQueryDiffSelections(
       sources
     );
     if (!candidateSources) {
-      const source = await selectSource(sources, select, 'Select the candidate source');
+      const source = await selectSource(sources, select, 'Select the candidate source', signal);
       candidateSources = Array.from({ length: candidateCount }, () => source);
     }
     candidates = qualified.map((candidate, index) => ({
@@ -401,7 +412,8 @@ export async function resolveSourcedQueryDiffSelections(
           engineId = await selectEngine(
             source.api,
             select,
-            `Select the candidate engine from ${source.label}`
+            `Select the candidate engine from ${source.label}`,
+            signal
           );
           selectedEngineBySource.set(source.id, engineId);
         }
@@ -439,7 +451,9 @@ export async function resolveSourcedQueryDiffSelections(
     if (choices.length === 0) {
       throw new Error('The selected query sources returned no available candidate queries.');
     }
-    const selected = await selectTree('Select candidate queries', choices, true);
+    const selected = await (signal
+      ? selectTree('Select candidate queries', choices, true, signal)
+      : selectTree('Select candidate queries', choices, true));
     candidates = selectedFromTree(selected, choices);
   }
   return {
@@ -448,16 +462,21 @@ export async function resolveSourcedQueryDiffSelections(
   };
 }
 
-async function inputDatabaseRunIds(prompt: string, placeholder?: string): Promise<string> {
+async function inputDatabaseRunIds(
+  prompt: string,
+  placeholder?: string,
+  signal?: AbortSignal
+): Promise<string> {
   if (!process.stdin.isTTY || !process.stderr.isTTY) {
     throw new Error('Database run selection requires an interactive terminal; pass --db-run.');
   }
-  return inputWithInk(prompt, placeholder);
+  return inputWithInk(prompt, placeholder, signal);
 }
 
 export async function resolveDatabaseRunIds(
   values: QueryDiffCliValues,
-  inputText: InputText = inputDatabaseRunIds
+  inputText: InputText = inputDatabaseRunIds,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const explicit = ids(values['db-run']);
   if (explicit.length > 0) {
@@ -466,7 +485,11 @@ export async function resolveDatabaseRunIds(
   if (!values.db) {
     return [];
   }
-  const entered = await inputText('Enter database run IDs', 'comma-separated, e.g. 6647, 6650');
+  const prompt = 'Enter database run IDs';
+  const placeholder = 'comma-separated, e.g. 6647, 6650';
+  const entered = await (signal
+    ? inputText(prompt, placeholder, signal)
+    : inputText(prompt, placeholder));
   const runs = entered
     .split(',')
     .map(run => run.trim())
@@ -509,10 +532,9 @@ async function parseApiResponse<T>(response: Response): Promise<T> {
   return parseApiText<T>(await response.text(), response);
 }
 
-export function createHttpDiscoveryApi(baseUrl: string): DiscoveryApi {
+export function createHttpDiscoveryApi(baseUrl: string, signal?: AbortSignal): DiscoveryApi {
   const normalizedBaseUrl = baseUrl.replace(/\/+$/u, '');
-  const client = createHttpApiClient(normalizedBaseUrl);
-  const get = (path: string) => fetch(`${normalizedBaseUrl}${path}`);
+  const get = (path: string) => fetch(`${normalizedBaseUrl}${path}`, { signal });
   return {
     fetchListEngines: async (): Promise<EngineListResponse> =>
       normalizeCatalogResponse<Engine>(
@@ -551,12 +573,17 @@ export function createHttpDiscoveryApi(baseUrl: string): DiscoveryApi {
         initial_group_by_attribute: null,
       };
     },
-    fetchQueryBundle: client.fetchQueryBundle,
+    fetchQueryBundle: async (engineId: string, queryId: string): Promise<QueryBundle<EntityRef>> =>
+      parseApiResponse<QueryBundle<EntityRef>>(
+        await get(`/engines/${encodeURIComponent(engineId)}/query/${encodeURIComponent(queryId)}`)
+      ),
   };
 }
 
 const defaultQueryDiffRuntime: QueryDiffRuntime = {
   createDiscoveryApi: createHttpDiscoveryApi,
+  launchDatabaseRuns: launchQuentOpenDbRuns,
+  stopDatabaseRuns: stopQuentOpenDbRuns,
 };
 
 export async function runQueryDiffCommand(
@@ -567,8 +594,9 @@ export async function runQueryDiffCommand(
     selectMetrics: selectManyWithInk,
     inputText: inputDatabaseRunIds,
   },
-  runtime: QueryDiffRuntime = defaultQueryDiffRuntime
+  runtimeOverrides: Partial<QueryDiffRuntime> = {}
 ): Promise<void> {
+  const runtime = { ...defaultQueryDiffRuntime, ...runtimeOverrides };
   const { values } = parseArgs({
     args,
     allowNegative: true,
@@ -597,43 +625,46 @@ export async function runQueryDiffCommand(
 
   const configuredLocalApiBase = values['api-base'] ?? process.env.QUENT_API_BASE_URL;
   const apiBase = configuredLocalApiBase ?? 'http://localhost:8080/api';
-  const databaseRuns = await resolveDatabaseRunIds(values, interaction.inputText);
-  const databaseMode = Boolean(values.db) || databaseRuns.length > 0;
-  const includeLocal = !databaseMode || configuredLocalApiBase !== undefined;
-
+  const databaseRequested = Boolean(values.db) || ids(values['db-run']).length > 0;
+  const abortController = new AbortController();
   let handles: QuentOpenDbHandle[] = [];
-  let interrupted = false;
-  const stopOnSignal = (exitCode: number) => {
-    interrupted = true;
+  const stopOnSignal = (exitCode: number, signalName: string) => {
     process.exitCode = exitCode;
-    void stopQuentOpenDbRuns(handles);
+    abortController.abort(new DOMException(`Interrupted by ${signalName}.`, 'AbortError'));
+    void runtime.stopDatabaseRuns(handles);
   };
-  const onInterrupt = () => stopOnSignal(130);
-  const onTerminate = () => stopOnSignal(143);
-  if (databaseMode) {
+  const onInterrupt = () => stopOnSignal(130, 'SIGINT');
+  const onTerminate = () => stopOnSignal(143, 'SIGTERM');
+  if (databaseRequested) {
     process.once('SIGINT', onInterrupt);
     process.once('SIGTERM', onTerminate);
   }
   try {
+    const databaseRuns = await resolveDatabaseRunIds(
+      values,
+      interaction.inputText,
+      abortController.signal
+    );
+    const databaseMode = Boolean(values.db) || databaseRuns.length > 0;
+    const includeLocal = !databaseMode || configuredLocalApiBase !== undefined;
     if (databaseMode) {
-      handles = await launchQuentOpenDbRuns(databaseRuns, {
+      handles = await runtime.launchDatabaseRuns(databaseRuns, {
         apiBaseUrl: optionalId(values['db-api-base-url']),
         interactive: Boolean(process.stdin.isTTY && process.stderr.isTTY),
+        signal: abortController.signal,
         token: optionalId(values['db-token']),
         trust: ids(values['db-trust']),
         trustAll: Boolean(values['db-trust-all']),
       });
     }
-    if (interrupted) {
-      return;
-    }
+    abortController.signal.throwIfAborted();
     const sources: QueryDiffSource[] = [
       ...(includeLocal
         ? [
             {
               id: 'local',
               label: 'local',
-              api: runtime.createDiscoveryApi(apiBase),
+              api: runtime.createDiscoveryApi(apiBase, abortController.signal),
             },
           ]
         : []),
@@ -642,7 +673,7 @@ export async function runQueryDiffCommand(
           id: handle.viewers.length === 1 ? handle.run : `${handle.run}#${index + 1}`,
           label:
             handle.viewers.length === 1 ? `db ${handle.run}` : `db ${handle.run} · ${viewer.label}`,
-          api: runtime.createDiscoveryApi(viewer.apiBaseUrl),
+          api: runtime.createDiscoveryApi(viewer.apiBaseUrl, abortController.signal),
         }))
       ),
     ];
@@ -650,8 +681,10 @@ export async function runQueryDiffCommand(
       values,
       sources,
       interaction.select,
-      interaction.selectTree
+      interaction.selectTree,
+      abortController.signal
     );
+    abortController.signal.throwIfAborted();
     const baselineApi = findSource(sources, baseline.sourceId).api;
     const baselineBundle = await baselineApi.fetchQueryBundle(baseline.engineId, baseline.queryId);
     const candidateBundles = await Promise.all(
@@ -662,11 +695,14 @@ export async function runQueryDiffCommand(
         )
       )
     );
+    abortController.signal.throwIfAborted();
     const metrics = await resolveQueryDiffMetrics(
       values,
       [baselineBundle, ...candidateBundles],
-      interaction.selectMetrics
+      interaction.selectMetrics,
+      abortController.signal
     );
+    abortController.signal.throwIfAborted();
     const result = diffQueryBundles(
       {
         ...(databaseMode ? { source: baseline.sourceLabel } : {}),
@@ -688,11 +724,15 @@ export async function runQueryDiffCommand(
             combinedTable: values['combined-table'],
           })}\n`
     );
+  } catch (error) {
+    if (!abortController.signal.aborted) {
+      throw error;
+    }
   } finally {
-    if (databaseMode) {
+    if (databaseRequested) {
       process.removeListener('SIGINT', onInterrupt);
       process.removeListener('SIGTERM', onTerminate);
-      await stopQuentOpenDbRuns(handles);
+      await runtime.stopDatabaseRuns(handles);
     }
   }
 }

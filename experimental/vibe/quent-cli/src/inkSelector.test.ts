@@ -97,6 +97,7 @@ describe('Ink selector', () => {
         'Select metrics to compare',
         [{ value: 'output_rows', label: 'output_rows' }],
         undefined,
+        undefined,
         input,
         output
       )
