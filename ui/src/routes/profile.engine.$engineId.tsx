@@ -14,6 +14,7 @@ import {
   transformResourceTree,
 } from '@quent/components';
 import { CopyLinkButton, DeepLinkBoundary } from '@/features/deep-link';
+import { SavedViewsMenu } from '@/features/saved-views';
 import type { SavedViewV1 } from '@/features/saved-views/savedViews.schema';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import { type EntityRef, type PaletteTheme, type QueryBundle } from '@quent/utils';
@@ -133,6 +134,9 @@ function ProfileLayout() {
       <div className="flex h-full min-w-0 flex-col">
         {queryId && (
           <QueryToolbar>
+            {activeTab && (
+              <SavedViewsMenu engineId={engineId} queryId={queryId} activeTab={activeTab} />
+            )}
             <CopyLinkButton />
           </QueryToolbar>
         )}

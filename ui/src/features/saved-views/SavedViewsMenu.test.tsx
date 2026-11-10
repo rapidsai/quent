@@ -1,0 +1,93 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { useLayoutEffect } from 'react';
+import { Provider as JotaiProvider } from 'jotai';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useSetDebouncedZoomRange, useSetZoomRange } from '@quent/hooks';
+import { render, screen, userEvent, waitFor } from '@/test/test-utils';
+import { DeepLinkBoundary } from '@/features/deep-link';
+import { readSavedViews } from './savedViews.storage';
+import { SavedViewsMenu } from './SavedViewsMenu';
+
+const scope = { engineId: 'engine-a', queryId: 'query-a' };
+
+function SeedViewport() {
+  const setZoom = useSetZoomRange();
+  const setDebouncedZoom = useSetDebouncedZoomRange();
+  useLayoutEffect(() => {
+    setZoom({ start: 10, end: 20 });
+    setDebouncedZoom({ start: 10, end: 20 });
+  }, [setDebouncedZoom, setZoom]);
+  return null;
+}
+
+function renderMenu(onLoadSavedView = vi.fn()) {
+  render(
+    <JotaiProvider>
+      <DeepLinkBoundary
+        {...scope}
+        activeTab="timeline"
+        initialPlanId=""
+        durationSeconds={100}
+        operators={[]}
+        isQueryReady
+        onLoadSavedView={onLoadSavedView}
+      >
+        <SeedViewport />
+        <SavedViewsMenu {...scope} activeTab="timeline" />
+      </DeepLinkBoundary>
+    </JotaiProvider>
+  );
+  return onLoadSavedView;
+}
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
+describe('SavedViewsMenu', () => {
+  it('creates a view with an editable generated name and loads it', async () => {
+    const onLoad = renderMenu();
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    const name = screen.getByRole('textbox', { name: 'Saved view name' });
+    expect((name as HTMLInputElement).value).toMatch(/^Timeline · /u);
+
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Investigation');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Load Investigation (Timeline)' })).toBeVisible()
+    );
+    const stored = readSavedViews(localStorage, scope);
+    expect(stored).toMatchObject({
+      ok: true,
+      value: { views: [{ name: 'Investigation', tab: 'timeline' }] },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load Investigation (Timeline)' }));
+    expect(onLoad).toHaveBeenCalledOnce();
+    expect(onLoad).toHaveBeenCalledWith(expect.objectContaining({ name: 'Investigation' }));
+  });
+
+  it('renames and confirms deletion of a saved view', async () => {
+    renderMenu();
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    const name = screen.getByRole('textbox', { name: 'Saved view name' });
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Original');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename Original' }));
+    const rename = screen.getByRole('textbox', { name: 'Rename Original' });
+    await userEvent.clear(rename);
+    await userEvent.type(rename, 'Renamed{Enter}');
+    expect(await screen.findByRole('button', { name: 'Load Renamed (Timeline)' })).toBeVisible();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Renamed' }));
+    expect(screen.getByText('Delete “Renamed”?')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(screen.getByText('No saved views for this query.')).toBeVisible();
+  });
+});
