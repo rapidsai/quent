@@ -50,7 +50,40 @@ function renderTable(pinned: PinnedProps = {}, tableColumns: Column<Row>[] = col
   );
 }
 
+// jsdom has no layout, so the virtualizer would see a scroller with no height and draw no rows.
+// Give the scroller a height and each row its minimum height, the way a browser would.
+const SCROLLER_HEIGHT = 600;
+const originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+const originalClientHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight');
+
+function mockLayout() {
+  Object.defineProperty(Element.prototype, 'clientHeight', {
+    configurable: true,
+    get(this: Element) {
+      return this.hasAttribute('data-tree-table-scroller') ? SCROLLER_HEIGHT : 0;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.getAttribute('role') === 'listitem' ? ROW_HEIGHT : 0;
+    },
+  });
+}
+
+function restoreLayout() {
+  if (originalOffsetHeight) {
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', originalOffsetHeight);
+  }
+  if (originalClientHeight) {
+    Object.defineProperty(Element.prototype, 'clientHeight', originalClientHeight);
+  }
+}
+
 describe('TreeTable pinned section', () => {
+  beforeEach(mockLayout);
+  afterEach(restoreLayout);
+
   it('renders nothing extra when no rows are pinned', () => {
     renderTable();
 
@@ -199,13 +232,28 @@ describe('TreeTable pinned section', () => {
     expect(screen.getByText('2 hidden by filter')).toBeInTheDocument();
   });
 
-  it('shows every pinned row, with no height cap', () => {
-    const pinnedItems = Array.from({ length: 8 }, (_, i) => row(`p${i}`));
+  it('shows a small set of pinned rows in full, with no height cap', () => {
+    const pinnedItems = Array.from({ length: 4 }, (_, i) => row(`p${i}`));
     renderTable({ pinnedItems });
 
     const list = screen.getByRole('list', { name: 'Pinned rows list' });
     expect(list.style.maxHeight).toBe('');
-    expect(within(list).getAllByRole('listitem')).toHaveLength(8);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(4);
+  });
+
+  it('renders only a window of the pinned rows when there are many', () => {
+    const pinnedItems = Array.from({ length: 200 }, (_, i) => row(`p${i}`));
+    renderTable({ pinnedItems });
+
+    const list = screen.getByRole('list', { name: 'Pinned rows list' });
+    const rendered = within(list).getAllByRole('listitem');
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(rendered.length).toBeLessThan(50);
+    // The list is still as tall as every row, so the scrollbar is the right size.
+    expect(list.style.height).toBe(`${200 * ROW_HEIGHT}px`);
+    // Rows know where they sit in the whole list, not just in the rendered window.
+    expect(rendered[0]).toHaveAttribute('aria-posinset', '1');
+    expect(rendered[0]).toHaveAttribute('aria-setsize', '200');
   });
 
   it('pads the bottom of the pinned section so the last row does not sit on the divider', () => {
@@ -223,6 +271,9 @@ describe('TreeTable pinned section', () => {
 });
 
 describe('TreeTable pinned row reordering', () => {
+  beforeEach(mockLayout);
+  afterEach(restoreLayout);
+
   const controlColumns: Column<Row>[] = [
     {
       key: 'name',
@@ -356,6 +407,9 @@ describe('TreeTable pinned row reordering', () => {
 });
 
 describe('TreeTable info cell', () => {
+  beforeEach(mockLayout);
+  afterEach(restoreLayout);
+
   it('is a named hover group so controls in it can ignore hovering the other columns', () => {
     renderTable({ pinnedItems: [row('x')] });
 

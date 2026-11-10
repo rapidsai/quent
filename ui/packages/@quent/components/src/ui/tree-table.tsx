@@ -1286,6 +1286,7 @@ export function TreeTable<I extends TreeTableDataItem>({
                       items={pinnedItems ?? []}
                       rowMinHeight={pinnedRowHeight}
                       rowPaddingLeft={totalLeftSpacing}
+                      scrollRef={scrollContainerRef}
                       renderRow={(item, dragArea) =>
                         item.children?.length ? (
                           <div className="flex min-w-0 flex-col">

@@ -15,9 +15,13 @@ function withHeight<T extends HTMLElement>(element: T, height: number): T {
   return element;
 }
 
-// Mirrors the pinned table: a scroller whose first child holds the rows.
-function buildPanel(rowCount: number, options: { header?: boolean; scroller?: boolean } = {}) {
-  const { header = true, scroller = true } = options;
+// Mirrors the pinned table: a scroller whose first child holds the list of rows. `rendered` is how
+// many of them are in the page, which is fewer than `rowCount` once the list is virtualized.
+function buildPanel(
+  rowCount: number,
+  options: { header?: boolean; scroller?: boolean; rendered?: number; firstIndex?: number } = {}
+) {
+  const { header = true, scroller = true, rendered = rowCount, firstIndex = 0 } = options;
   const panel = document.createElement('div');
   const headerElement = withHeight(document.createElement('div'), HEADER_HEIGHT);
   if (header) {
@@ -29,11 +33,16 @@ function buildPanel(rowCount: number, options: { header?: boolean; scroller?: bo
     scrollerElement.setAttribute('data-tree-table-scroller', '');
   }
   const table = withHeight(document.createElement('div'), TABLE_PADDING + rowCount * ROW_HEIGHT);
-  for (let index = 0; index < rowCount; index += 1) {
+  const list = withHeight(document.createElement('div'), rowCount * ROW_HEIGHT);
+  list.setAttribute('role', 'list');
+  for (let index = firstIndex; index < firstIndex + rendered; index += 1) {
     const row = withHeight(document.createElement('div'), ROW_HEIGHT);
     row.setAttribute('role', 'listitem');
-    table.append(row);
+    row.setAttribute('data-index', String(index));
+    row.setAttribute('aria-setsize', String(rowCount));
+    list.append(row);
   }
+  table.append(list);
   scrollerElement.append(table);
   panel.append(scrollerElement);
 
@@ -74,6 +83,23 @@ describe('measurePinnedPanelHeights', () => {
       content: HEADER_HEIGHT + TABLE_PADDING + 2 * ROW_HEIGHT,
       fit: HEADER_HEIGHT + TABLE_PADDING + 2 * ROW_HEIGHT,
     });
+  });
+
+  it('fits the first six rows when only a window of a long list is rendered', () => {
+    const { panel, header } = buildPanel(500, { rendered: 12 });
+
+    expect(measurePinnedPanelHeights(panel, header)).toEqual({
+      content: HEADER_HEIGHT + TABLE_PADDING + 500 * ROW_HEIGHT,
+      fit: HEADER_HEIGHT + TABLE_PADDING + 6 * ROW_HEIGHT,
+    });
+  });
+
+  it('does not mistake rows far down a scrolled list for the first rows', () => {
+    const { panel, header } = buildPanel(500, { rendered: 12, firstIndex: 200 });
+
+    expect(measurePinnedPanelHeights(panel, header)?.fit).toBe(
+      HEADER_HEIGHT + TABLE_PADDING + 6 * ROW_HEIGHT
+    );
   });
 
   it('fits to the content when no rows are rendered, as when collapsed', () => {
@@ -121,7 +147,15 @@ describe('measurePinnedPanelHeights on a real TreeTable', () => {
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (
       this: HTMLElement
     ) {
-      return this.getAttribute('role') === 'listitem' ? ROW_HEIGHT : 400;
+      const role = this.getAttribute('role');
+      if (role === 'list') {
+        return 7 * ROW_HEIGHT;
+      }
+      return role === 'listitem' ? ROW_HEIGHT : 400;
+    });
+    // The list only draws the rows in the scroller's viewport, so the scroller needs one.
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(function (this: Element) {
+      return this.hasAttribute('data-tree-table-scroller') ? 600 : 0;
     });
     const pinnedItems: Row[] = Array.from({ length: 7 }, (_, index) => ({
       id: `row-${index}`,
