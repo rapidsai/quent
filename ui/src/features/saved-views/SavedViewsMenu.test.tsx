@@ -3,11 +3,11 @@
 
 import { useLayoutEffect } from 'react';
 import { Provider as JotaiProvider } from 'jotai';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSetDebouncedZoomRange, useSetZoomRange } from '@quent/hooks';
 import { render, screen, userEvent, waitFor } from '@/test/test-utils';
 import { DeepLinkBoundary } from '@/features/deep-link';
-import { encodeDeepLinkState } from '@/features/deep-link/deepLink.codec';
+import { decodeDeepLinkState, encodeDeepLinkState } from '@/features/deep-link/deepLink.codec';
 import { readSavedViews, savedViewsStorageKey, writeSavedViews } from './savedViews.storage';
 import { SavedViewsMenu } from './SavedViewsMenu';
 
@@ -20,7 +20,17 @@ function SeedViewport() {
     setZoom({ start: 10, end: 20 });
     setDebouncedZoom({ start: 10, end: 20 });
   }, [setDebouncedZoom, setZoom]);
-  return null;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setZoom({ start: 30, end: 40 });
+        setDebouncedZoom({ start: 30, end: 40 });
+      }}
+    >
+      Modify current view
+    </button>
+  );
 }
 
 function renderMenu(onLoadSavedView = vi.fn()) {
@@ -47,6 +57,10 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('SavedViewsMenu', () => {
   it('creates a view with an editable generated name and loads it', async () => {
     const onLoad = renderMenu();
@@ -70,6 +84,65 @@ describe('SavedViewsMenu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Load Investigation (Timeline)' }));
     expect(onLoad).toHaveBeenCalledOnce();
     expect(onLoad).toHaveBeenCalledWith(expect.objectContaining({ name: 'Investigation' }));
+  });
+
+  it('updates an existing view with confirmation while preserving its identity', async () => {
+    let now = 100;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    renderMenu();
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    const name = screen.getByRole('textbox', { name: 'Saved view name' });
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Investigation');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const stored = readSavedViews(localStorage, scope);
+    if (!stored.ok) {
+      throw new Error(stored.message);
+    }
+    const original = stored.value.views[0];
+    expect(
+      writeSavedViews(localStorage, scope, {
+        views: [{ ...original, extras: { pinnedCollapsed: true } }],
+        invalidEntries: [],
+      })
+    ).toEqual({ ok: true });
+
+    now = 200;
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Modify current view' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Update Investigation' }));
+    expect(screen.getByText('Update “Investigation” with the current view?')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Update' }));
+
+    const updated = readSavedViews(localStorage, scope);
+    expect(updated).toMatchObject({
+      ok: true,
+      value: {
+        views: [
+          {
+            id: original.id,
+            name: 'Investigation',
+            createdAt: original.createdAt,
+            updatedAt: 200,
+          },
+        ],
+      },
+    });
+    if (!updated.ok) {
+      throw new Error(updated.message);
+    }
+    expect(updated.value.views).toHaveLength(1);
+    expect(updated.value.views[0].extras).toBeUndefined();
+    expect(decodeDeepLinkState(updated.value.views[0].payload)).toMatchObject({
+      ok: true,
+      value: {
+        data: {
+          timeline: { zoomRange: { start: 30, end: 40 } },
+        },
+      },
+    });
   });
 
   it('renames and confirms deletion of a saved view', async () => {

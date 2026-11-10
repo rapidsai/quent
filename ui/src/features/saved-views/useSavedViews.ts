@@ -21,6 +21,8 @@ export interface NewSavedView {
   extras?: SavedViewExtrasV1;
 }
 
+export type SavedViewSnapshot = Omit<NewSavedView, 'name'>;
+
 const unavailableStorage = {
   getItem() {
     throw new DOMException('Storage unavailable', 'SecurityError');
@@ -98,6 +100,37 @@ function createSavedViewsStore(storage: Storage, scope: SavedViewsScope) {
       }
       return result;
     },
+    update(id: string, input: SavedViewSnapshot): SavedViewsWriteResult {
+      const current = readSavedViews(storage, scope);
+      if (!current.ok) {
+        return readFailureToWrite(current);
+      }
+      const index = current.value.views.findIndex(view => view.id === id);
+      if (index === -1) {
+        return { ok: false, kind: 'corrupt', message: 'The saved view no longer exists.' };
+      }
+      const views = [...current.value.views];
+      const updatedView: SavedViewV1 = {
+        ...views[index],
+        tab: input.tab,
+        payload: input.payload,
+        updatedAt: Date.now(),
+      };
+      if (input.extras) {
+        updatedView.extras = input.extras;
+      } else {
+        delete updatedView.extras;
+      }
+      views[index] = updatedView;
+      const result = writeSavedViews(storage, scope, {
+        views,
+        invalidEntries: current.value.invalidEntries,
+      });
+      if (result.ok) {
+        refresh();
+      }
+      return result;
+    },
     rename(id: string, name: string): SavedViewsWriteResult {
       const current = readSavedViews(storage, scope);
       if (!current.ok) {
@@ -159,6 +192,7 @@ export function useSavedViews({
   return {
     result,
     save: store.save,
+    update: store.update,
     rename: store.rename,
     remove: store.remove,
     reset: store.reset,
