@@ -12,6 +12,7 @@ const STOP_TIMEOUT_MS = 5_000;
 export interface QuentOpenDbOptions {
   apiBaseUrl?: string;
   interactive: boolean;
+  signal?: AbortSignal;
   token?: string;
   trust: readonly string[];
   trustAll: boolean;
@@ -110,17 +111,29 @@ function captureOutput(output: string, chunk: string): string {
   return `${output}${chunk}`.slice(-MAX_CAPTURED_OUTPUT);
 }
 
+function abortError(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException('The operation was aborted.', 'AbortError');
+}
+
 async function stopChild(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) {
     return;
   }
   child.kill('SIGINT');
-  await Promise.race([
-    once(child, 'exit'),
-    new Promise(resolve => {
-      setTimeout(resolve, STOP_TIMEOUT_MS);
-    }),
-  ]);
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      once(child, 'exit'),
+      new Promise(resolve => {
+        timeout = setTimeout(resolve, STOP_TIMEOUT_MS);
+        timeout.unref();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
   if (child.exitCode === null && child.signalCode === null) {
     child.kill('SIGKILL');
     await once(child, 'exit');
@@ -131,6 +144,7 @@ export async function launchQuentOpenDb(
   run: string,
   options: QuentOpenDbOptions
 ): Promise<QuentOpenDbHandle> {
+  options.signal?.throwIfAborted();
   const child = spawn('pixi', quentOpenDbArguments(run, options), {
     cwd: REPOSITORY_ROOT,
     env: childEnvironment(options),
@@ -148,7 +162,18 @@ export async function launchQuentOpenDb(
     process.stderr.write(text);
   });
 
+  let onAbort: (() => void) | undefined;
   const ready = new Promise<QuentOpenDbViewer[]>((resolve, reject) => {
+    if (options.signal) {
+      onAbort = () => {
+        void stopChild(child);
+        reject(abortError(options.signal!));
+      };
+      options.signal.addEventListener('abort', onAbort, { once: true });
+      if (options.signal.aborted) {
+        onAbort();
+      }
+    }
     child.once('error', reject);
     child.once('exit', (code, signal) => {
       reject(
@@ -188,6 +213,10 @@ export async function launchQuentOpenDb(
   } catch (error) {
     await stopChild(child);
     throw error;
+  } finally {
+    if (options.signal && onAbort) {
+      options.signal.removeEventListener('abort', onAbort);
+    }
   }
 }
 
@@ -199,6 +228,7 @@ export async function launchQuentOpenDbRuns(
   const handles: QuentOpenDbHandle[] = [];
   try {
     for (const run of [...new Set(runs)]) {
+      options.signal?.throwIfAborted();
       handles.push(await launch(run, options));
     }
     return handles;

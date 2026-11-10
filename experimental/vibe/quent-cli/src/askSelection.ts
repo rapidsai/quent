@@ -17,7 +17,8 @@ export interface SelectionChoice {
 
 export type SelectFromList = (
   prompt: string,
-  choices: readonly SelectionChoice[]
+  choices: readonly SelectionChoice[],
+  signal?: AbortSignal
 ) => Promise<string>;
 
 export interface QuerySelection {
@@ -35,7 +36,8 @@ export interface QueryTreeChoice extends SelectionChoice {
 export type SelectFromQueryTree = (
   prompt: string,
   choices: readonly QueryTreeChoice[],
-  multiple: boolean
+  multiple: boolean,
+  signal?: AbortSignal
 ) => Promise<string[]>;
 
 export type DiscoveryApi = Pick<
@@ -79,7 +81,8 @@ function errorMessage(error: unknown): string {
 export async function selectEngine(
   api: DiscoveryApi,
   select: SelectFromList,
-  prompt = 'Select an engine'
+  prompt = 'Select an engine',
+  signal?: AbortSignal
 ): Promise<string> {
   const { items: engines } = await api.fetchListEngines();
   const choices = stableChoices(
@@ -91,7 +94,7 @@ export async function selectEngine(
   if (choices.length === 0) {
     throw new Error('The Quent API returned no available engines.');
   }
-  return select(prompt, choices);
+  return signal ? select(prompt, choices, signal) : select(prompt, choices);
 }
 
 export async function selectQuery(
@@ -99,7 +102,8 @@ export async function selectQuery(
   select: SelectFromList,
   engineId: string,
   prompt = 'Select a query',
-  excludedQueryIds: ReadonlySet<string> = new Set()
+  excludedQueryIds: ReadonlySet<string> = new Set(),
+  signal?: AbortSignal
 ): Promise<string> {
   const queryChoices = stableChoices(
     (await api.fetchListQueries(engineId)).items
@@ -112,7 +116,7 @@ export async function selectQuery(
   if (queryChoices.length === 0) {
     throw new Error(`The Quent API returned no available queries for engine "${engineId}".`);
   }
-  return select(prompt, queryChoices);
+  return signal ? select(prompt, queryChoices, signal) : select(prompt, queryChoices);
 }
 export function querySelectionKey(engineId: string, queryId: string): string {
   return `${engineId}\0${queryId}`;
@@ -172,7 +176,8 @@ export async function selectQueriesFromTree(
   prompt: string,
   multiple: boolean,
   excluded: ReadonlySet<string> = new Set(),
-  discoveredChoices?: readonly QueryTreeChoice[]
+  discoveredChoices?: readonly QueryTreeChoice[],
+  signal?: AbortSignal
 ): Promise<QuerySelection[]> {
   const choices = (discoveredChoices ?? (await discoverQueryTreeChoices(api))).filter(
     choice => !excluded.has(choice.value)
@@ -180,7 +185,9 @@ export async function selectQueriesFromTree(
   if (choices.length === 0) {
     throw new Error('The Quent API returned no available queries.');
   }
-  const selected = await select(prompt, choices, multiple);
+  const selected = await (signal
+    ? select(prompt, choices, multiple, signal)
+    : select(prompt, choices, multiple));
   const byValue = new Map(choices.map(choice => [choice.value, choice]));
   return selected.map(value => {
     const choice = byValue.get(value);
@@ -269,7 +276,7 @@ export function createTerminalSelector(
   input: TerminalReadable = process.stdin,
   output: TerminalWritable = process.stderr
 ): SelectFromList {
-  return async (prompt, choices) => {
+  return async (prompt, choices, signal) => {
     if (!input.isTTY || !output.isTTY) {
       throw new Error(`${prompt} requires an interactive terminal; pass the corresponding ID.`);
     }
@@ -277,7 +284,8 @@ export function createTerminalSelector(
       prompt,
       choices,
       input as NodeJS.ReadStream,
-      output as NodeJS.WriteStream
+      output as NodeJS.WriteStream,
+      signal
     );
   };
 }

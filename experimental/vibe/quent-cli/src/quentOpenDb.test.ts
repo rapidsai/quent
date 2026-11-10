@@ -122,4 +122,39 @@ describe('quent-open database launcher', () => {
     );
     expect(stop).toHaveBeenCalledOnce();
   });
+
+  it('stops started runs and skips later runs when startup is aborted', async () => {
+    const abortController = new AbortController();
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const launch = vi.fn(
+      async (run: string, launchOptions: QuentOpenDbOptions): Promise<QuentOpenDbHandle> => {
+        if (run === '6647') {
+          return {
+            run,
+            viewers: [{ label: run, apiBaseUrl: `http://${run}/api` }],
+            stop,
+          };
+        }
+        return await new Promise((_, reject) => {
+          launchOptions.signal?.addEventListener(
+            'abort',
+            () => reject(launchOptions.signal?.reason),
+            { once: true }
+          );
+        });
+      }
+    );
+    const launched = launchQuentOpenDbRuns(
+      ['6647', '6650', '6651'],
+      { ...options, signal: abortController.signal },
+      launch
+    );
+    await vi.waitFor(() => expect(launch).toHaveBeenCalledTimes(2));
+
+    abortController.abort(new DOMException('test abort', 'AbortError'));
+
+    await expect(launched).rejects.toMatchObject({ name: 'AbortError' });
+    expect(stop).toHaveBeenCalledOnce();
+    expect(launch).toHaveBeenCalledTimes(2);
+  });
 });

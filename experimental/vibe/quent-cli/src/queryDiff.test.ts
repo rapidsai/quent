@@ -656,7 +656,136 @@ describe('database run selection', () => {
   });
 });
 
+describe('query diff cancellation', () => {
+  it('aborts database viewer startup on SIGINT', async () => {
+    const previousExitCode = process.exitCode;
+    const previousListeners = new Set(process.listeners('SIGINT'));
+    const stopDatabaseRuns = vi.fn().mockResolvedValue(undefined);
+    let startupSignal: AbortSignal | undefined;
+    const launchDatabaseRuns = vi.fn(
+      async (_runs: readonly string[], options: { signal?: AbortSignal }): Promise<never> => {
+        startupSignal = options.signal;
+        return await new Promise((_, reject) => {
+          options.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+            once: true,
+          });
+        });
+      }
+    );
+
+    try {
+      const running = runQueryDiffCommand(['--db-run', '6647'], undefined, {
+        launchDatabaseRuns,
+        stopDatabaseRuns,
+      });
+      await vi.waitFor(() => expect(launchDatabaseRuns).toHaveBeenCalledOnce());
+      const interrupt = process
+        .listeners('SIGINT')
+        .find(listener => !previousListeners.has(listener));
+
+      expect(interrupt).toBeDefined();
+      interrupt!('SIGINT');
+      await running;
+
+      expect(startupSignal?.aborted).toBe(true);
+      expect(process.exitCode).toBe(130);
+      expect(stopDatabaseRuns).toHaveBeenCalled();
+      expect(
+        process.listeners('SIGINT').filter(listener => !previousListeners.has(listener))
+      ).toEqual([]);
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
+
+  it('aborts an in-flight bundle fetch and emits no result', async () => {
+    const previousExitCode = process.exitCode;
+    const previousListeners = new Set(process.listeners('SIGINT'));
+    let apiSignal: AbortSignal | undefined;
+    const fetchQueryBundle = vi.fn(
+      async (_engineId: string, _queryId: string, signal?: AbortSignal): Promise<never> =>
+        await new Promise((_, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+        })
+    );
+    const api = {
+      ...discoveryApi(),
+      fetchQueryBundle: (engineId: string, queryId: string) =>
+        fetchQueryBundle(engineId, queryId, apiSignal),
+    };
+    const handle = {
+      run: '6647',
+      viewers: [{ label: 'viewer', apiBaseUrl: 'http://viewer.test/api' }],
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    const stopDatabaseRuns = vi.fn().mockResolvedValue(undefined);
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    try {
+      const running = runQueryDiffCommand(
+        [
+          '--db-run',
+          '6647',
+          '--engine',
+          'engine-1',
+          '--baseline-query',
+          'query-1',
+          '--candidate-query',
+          'query-2',
+          '--metric',
+          'all',
+        ],
+        undefined,
+        {
+          createDiscoveryApi: (_baseUrl, signal) => {
+            apiSignal = signal;
+            return api;
+          },
+          launchDatabaseRuns: vi.fn().mockResolvedValue([handle]),
+          stopDatabaseRuns,
+        }
+      );
+      await vi.waitFor(() => expect(fetchQueryBundle).toHaveBeenCalledOnce());
+      const interrupt = process
+        .listeners('SIGINT')
+        .find(listener => !previousListeners.has(listener));
+
+      expect(interrupt).toBeDefined();
+      interrupt!('SIGINT');
+      await running;
+
+      expect(apiSignal?.aborted).toBe(true);
+      expect(fetchQueryBundle).toHaveBeenCalledTimes(1);
+      expect(write).not.toHaveBeenCalled();
+      expect(stopDatabaseRuns).toHaveBeenCalledWith([handle]);
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
+});
+
 describe('quent-open discovery compatibility', () => {
+  it('passes cancellation to HTTP discovery requests', async () => {
+    const abortController = new AbortController();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async (_input, init): Promise<never> =>
+          await new Promise((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+              once: true,
+            });
+          })
+      )
+    );
+    const api = createHttpDiscoveryApi('http://viewer.test/api', abortController.signal);
+    const request = api.fetchListEngines();
+
+    abortController.abort(new DOMException('test abort', 'AbortError'));
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   it('normalizes current catalog responses', async () => {
     vi.stubGlobal(
       'fetch',
