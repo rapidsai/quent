@@ -134,6 +134,9 @@ export function MultiSelectionPrompt({ prompt, choices, allValue }: MultiSelecti
           })}
           {filtered.length === 0 && <Text color="red"> No matching metrics</Text>}
         </Box>
+        {selectedValues.size === 0 && (
+          <Text color="yellow">Select at least one item with space before confirming.</Text>
+        )}
       </Box>
       <Text dimColor>
         ↑/↓ navigate · space toggle · enter confirm · ctrl+a select all · esc{' '}
