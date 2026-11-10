@@ -15,6 +15,7 @@ use std::time::Duration;
 use backon::{ConstantBuilder, Retryable};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
+use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 
 use crate::compatibility::WrapperCompatibility;
@@ -62,9 +63,13 @@ pub async fn open_all(groups: Vec<ViewerGroup>, no_browser: bool, host: IpAddr) 
     }
 
     let mut set = JoinSet::new();
+    let mut startups = Vec::new();
     for viewer in built {
-        set.spawn(async move { serve_one(viewer, open_browser, host).await });
+        let (startup_tx, startup_rx) = oneshot::channel();
+        startups.push(startup_rx);
+        set.spawn(async move { serve_one(viewer, open_browser, host, startup_tx).await });
     }
+    println!("serving {} viewer(s)", completed_startups(startups).await);
     while let Some(joined) = set.join_next().await {
         match joined {
             Ok(Ok(())) => {}
@@ -83,6 +88,16 @@ pub async fn open_all(groups: Vec<ViewerGroup>, no_browser: bool, host: IpAddr) 
     } else {
         Ok(())
     }
+}
+
+async fn completed_startups(startups: Vec<oneshot::Receiver<()>>) -> usize {
+    let mut completed = 0;
+    for startup in startups {
+        if startup.await.is_ok() {
+            completed += 1;
+        }
+    }
+    completed
 }
 
 /// Generate and build one group's viewer crate.
@@ -113,7 +128,12 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
 }
 
 /// Serve one built viewer over all its contexts.
-async fn serve_one(viewer: BuiltViewer, open_browser: bool, host: IpAddr) -> Result<()> {
+async fn serve_one(
+    viewer: BuiltViewer,
+    open_browser: bool,
+    host: IpAddr,
+    startup: oneshot::Sender<()>,
+) -> Result<()> {
     let BuiltViewer {
         bin,
         has_mcp_routes,
@@ -129,6 +149,7 @@ async fn serve_one(viewer: BuiltViewer, open_browser: bool, host: IpAddr) -> Res
         &label,
         open_browser,
         host,
+        startup,
     )
     .await;
     // Best-effort cleanup of this run's staged root; keep the cached build.
@@ -296,6 +317,7 @@ async fn serve(
     label: &str,
     open_browser: bool,
     host: IpAddr,
+    startup: oneshot::Sender<()>,
 ) -> Result<()> {
     let addr = free_port(host)?;
     // An unspecified host (`0.0.0.0`/`::`) is not browseable; show and probe the
@@ -324,6 +346,7 @@ async fn serve(
 
     if wait_until_ready(reachable).await {
         println!("ready: {label}  {url}");
+        let _ = startup.send(());
         if has_mcp_routes {
             println!("mcp: {label}  {url}mcp");
         }
@@ -331,7 +354,14 @@ async fn serve(
             eprintln!("could not open a browser ({e}); open {url} manually");
         }
     } else {
-        eprintln!("warning: {label} did not start listening at {url} within the timeout");
+        if let Some(status) = child.try_wait()? {
+            return Err(OpenError::ViewerExited {
+                status: status.to_string(),
+            });
+        }
+        child.kill().await?;
+        let _ = child.wait().await;
+        return Err(OpenError::ViewerStartupTimeout { url });
     }
 
     let status = child.wait().await?;
@@ -382,6 +412,16 @@ async fn wait_until_ready(addr: SocketAddr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn counts_only_viewers_that_complete_startup() {
+        let (ready_tx, ready_rx) = oneshot::channel();
+        let (failed_tx, failed_rx) = oneshot::channel();
+        ready_tx.send(()).unwrap();
+        drop(failed_tx);
+
+        assert_eq!(completed_startups(vec![ready_rx, failed_rx]).await, 1);
+    }
 
     /// Compatibility gate, run explicitly in CI (the `open-compat` job in
     /// `rust.yml`): the quent-open being built must still open artifacts

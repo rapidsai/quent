@@ -66,6 +66,10 @@ pub enum OpenError {
     #[error("the viewer exited unexpectedly (status {status})")]
     ViewerExited { status: String },
 
+    /// The viewer process did not start listening before the startup timeout.
+    #[error("the viewer did not start listening at {url} before the timeout")]
+    ViewerStartupTimeout { url: String },
+
     /// No context directories with `model.qmi` were found under the paths.
     #[error("no Quent context directories (with a model.qmi) found under the given paths")]
     NoContexts,

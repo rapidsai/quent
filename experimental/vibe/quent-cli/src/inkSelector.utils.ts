@@ -46,3 +46,23 @@ export function selectionWindow<T extends SelectionChoice>(
   const offset = Math.max(0, Math.min(centered, choices.length - maximum));
   return { choices: choices.slice(offset, offset + maximum), offset };
 }
+
+export function toggleMultiSelection(
+  current: ReadonlySet<string>,
+  value: string,
+  allValue?: string
+): ReadonlySet<string> {
+  if (value === allValue) {
+    return current.has(value) ? new Set() : new Set([value]);
+  }
+  const next = new Set(current);
+  if (allValue) {
+    next.delete(allValue);
+  }
+  if (next.has(value)) {
+    next.delete(value);
+  } else {
+    next.add(value);
+  }
+  return next;
+}

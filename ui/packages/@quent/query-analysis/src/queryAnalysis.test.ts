@@ -229,6 +229,36 @@ describe('@quent/query-analysis', () => {
     ).toEqual(['10', '20']);
   });
 
+  it('keeps direct statistics for logical parents without physical children', () => {
+    const queryBundle = bundle();
+    const logicalParent = queryBundle.entities.operators['logical-join']!;
+    logicalParent.statistics = {
+      custom_statistics: [{ value: { key: 'rows', value: 10n }, quantity: 'rows' }],
+    };
+    queryBundle.entities.operators['logical-filter'] = {
+      ...logicalParent,
+      id: 'logical-filter',
+      instance_name: 'Logical filter',
+      operator_type_name: 'Filter',
+      parent_operator_ids: ['logical-join'],
+      statistics: {
+        custom_statistics: [{ value: { key: 'rows', value: 5n }, quantity: 'rows' }],
+      },
+    };
+    delete queryBundle.entities.operators['physical-join'];
+
+    const analysis = summarizeOperatorStatistics(queryBundle);
+
+    expect(
+      analysis.aggregates
+        .filter(aggregate => aggregate.scope === 'logical')
+        .map(aggregate => [aggregate.operatorType, aggregate.sum])
+    ).toEqual([
+      ['Filter', '5'],
+      ['Join', '10'],
+    ]);
+  });
+
   it('reports missing plans without discarding valid operator statistics', () => {
     const queryBundle = bundle();
     queryBundle.entities.operators['logical-join']!.plan_id = 'missing-plan';
