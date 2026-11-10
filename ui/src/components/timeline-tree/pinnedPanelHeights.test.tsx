@@ -35,11 +35,12 @@ function buildPanel(
   const table = withHeight(document.createElement('div'), TABLE_PADDING + rowCount * ROW_HEIGHT);
   const list = withHeight(document.createElement('div'), rowCount * ROW_HEIGHT);
   list.setAttribute('role', 'list');
+  list.setAttribute('data-count', String(rowCount));
+  list.setAttribute('data-row-height', String(ROW_HEIGHT));
   for (let index = firstIndex; index < firstIndex + rendered; index += 1) {
     const row = withHeight(document.createElement('div'), ROW_HEIGHT);
     row.setAttribute('role', 'listitem');
     row.setAttribute('data-index', String(index));
-    row.setAttribute('aria-setsize', String(rowCount));
     list.append(row);
   }
   table.append(list);
@@ -87,6 +88,15 @@ describe('measurePinnedPanelHeights', () => {
 
   it('fits the first six rows when only a window of a long list is rendered', () => {
     const { panel, header } = buildPanel(500, { rendered: 12 });
+
+    expect(measurePinnedPanelHeights(panel, header)).toEqual({
+      content: HEADER_HEIGHT + TABLE_PADDING + 500 * ROW_HEIGHT,
+      fit: HEADER_HEIGHT + TABLE_PADDING + 6 * ROW_HEIGHT,
+    });
+  });
+
+  it('fits the first six rows even before any row has been drawn', () => {
+    const { panel, header } = buildPanel(500, { rendered: 0 });
 
     expect(measurePinnedPanelHeights(panel, header)).toEqual({
       content: HEADER_HEIGHT + TABLE_PADDING + 500 * ROW_HEIGHT,

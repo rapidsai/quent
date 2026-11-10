@@ -228,6 +228,9 @@ export function PinnedRowList<T extends { id: string }>({
           ref={listRef}
           role="list"
           aria-label="Pinned rows list"
+          // Lets the panel size itself to the rows before they have all been drawn.
+          data-count={items.length}
+          data-row-height={rowMinHeight}
           style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}
         >
           {virtualizer.getVirtualItems().map(virtualRow => {

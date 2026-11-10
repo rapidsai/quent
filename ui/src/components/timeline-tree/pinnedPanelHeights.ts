@@ -10,14 +10,18 @@ const sum = (heights: readonly number[]) => heights.reduce((total, height) => to
 
 /**
  * Height of the first `limit` rows. A long list only has the rows near the viewport in the page,
- * so any of the first rows that are not there are guessed from the ones that are.
+ * and right after the panel appears it may have none, so any of the first rows that are not there
+ * are guessed from the ones that are, or from the list's own row height estimate.
  */
-function heightOfFirstRows(rows: readonly HTMLElement[], limit: number): number {
-  const total = Number(rows[0]?.getAttribute('aria-setsize') ?? rows.length);
+function heightOfFirstRows(list: HTMLElement | null, rows: readonly HTMLElement[], limit: number) {
+  const total = Number(list?.dataset.count ?? rows.length);
   const wanted = Math.min(limit, total);
   const first = rows.filter(row => Number(row.dataset.index) < wanted);
   const measured = sum(first.map(row => row.offsetHeight));
-  const average = rows.length > 0 ? sum(rows.map(row => row.offsetHeight)) / rows.length : 0;
+  const average =
+    rows.length > 0
+      ? sum(rows.map(row => row.offsetHeight)) / rows.length
+      : Number(list?.dataset.rowHeight ?? 0);
   return measured + (wanted - first.length) * average;
 }
 
@@ -36,9 +40,10 @@ export function measurePinnedPanelHeights(
   }
   const content = table.offsetHeight + (header?.offsetHeight ?? 0);
   // The list is as tall as every pinned row, even the ones that are not in the page.
-  const listHeight = panelContent.querySelector<HTMLElement>('[role="list"]')?.offsetHeight ?? 0;
+  const list = panelContent.querySelector<HTMLElement>('[role="list"]');
+  const listHeight = list?.offsetHeight ?? 0;
   const rows = Array.from(panelContent.querySelectorAll<HTMLElement>('[role="listitem"]'));
   // Everything that is not a row: the headers and the spacing around the rows.
   const chrome = Math.max(content - listHeight, 0);
-  return { content, fit: chrome + heightOfFirstRows(rows, INITIAL_VISIBLE_PINNED_ROWS) };
+  return { content, fit: chrome + heightOfFirstRows(list, rows, INITIAL_VISIBLE_PINNED_ROWS) };
 }
