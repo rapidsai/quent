@@ -90,6 +90,26 @@ export async function selectEngine(
   return select(prompt, choices);
 }
 
+export async function selectQuery(
+  api: DiscoveryApi,
+  select: SelectFromList,
+  engineId: string,
+  prompt = 'Select a query',
+  excludedQueryIds: ReadonlySet<string> = new Set()
+): Promise<string> {
+  const queryChoices = stableChoices(
+    (await api.fetchListQueries(engineId)).items
+      .filter(query => !excludedQueryIds.has(query.id))
+      .map(query => ({
+        value: query.id,
+        label: label(query.instance_name, query.id),
+      }))
+  );
+  if (queryChoices.length === 0) {
+    throw new Error(`The Quent API returned no available queries for engine "${engineId}".`);
+  }
+  return select(prompt, queryChoices);
+}
 export function querySelectionKey(engineId: string, queryId: string): string {
   return `${engineId}\0${queryId}`;
 }
@@ -99,11 +119,22 @@ export async function discoverQueryTreeChoices(
   engineIds?: ReadonlySet<string>
 ): Promise<QueryTreeChoice[]> {
   const { items: engines } = await api.fetchListEngines();
-  const engineBranches = await Promise.all(
+  const branchResults = await Promise.allSettled(
     engines
       .filter(engine => !engineIds || engineIds.has(engine.id))
       .map(async engine => ({ engine, queries: (await api.fetchListQueries(engine.id)).items }))
   );
+  const engineBranches = branchResults.flatMap(result =>
+    result.status === 'fulfilled' ? [result.value] : []
+  );
+  if (engineBranches.length === 0) {
+    const firstFailure = branchResults.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    );
+    if (firstFailure) {
+      throw firstFailure.reason;
+    }
+  }
   return engineBranches
     .flatMap(({ engine, queries }) =>
       queries.map(query => ({

@@ -24,7 +24,9 @@ The tools mirror REST operations and return raw JSON facts:
 attribute for grouping when one is available; the simulator uses `workload`.
 
 Deterministic summaries, rankings, joins, and comparisons belong in
-`quent-cli`; interpretation belongs in the calling agent.
+`quent-cli`; interpretation belongs in the calling agent. Every CLI command can
+start `quent-open` viewers for benchmark database runs and can mix those runs
+with an explicitly configured local API.
 
 ## Stdio
 
