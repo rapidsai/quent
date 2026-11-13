@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, Check, Pencil, Save as SaveIcon, Trash2, X } from 'lucide-react';
 import { Button, Input, Popover, PopoverContent, PopoverTrigger, toast } from '@quent/components';
 import type { DeepLinkTab } from '@/features/deep-link/deepLink.schema';
@@ -172,10 +172,13 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
   const deepLink = useDeepLink();
   const { result, save, update, rename, remove, reset } = useSavedViews({ engineId, queryId });
   const [open, setOpen] = useState(false);
+  const [savingNewView, setSavingNewView] = useState(false);
   const [name, setName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const saveActionRef = useRef<HTMLButtonElement>(null);
+  const restoreSaveActionFocusRef = useRef(false);
   const views = useMemo(
     () => (result.ok ? [...result.value.views].sort((a, b) => b.updatedAt - a.updatedAt) : []),
     [result]
@@ -183,24 +186,44 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
   const atLimit = views.length >= MAX_SAVED_VIEWS_PER_QUERY;
   const unavailable = !result.ok && result.kind === 'unavailable';
 
+  useEffect(() => {
+    if (!savingNewView && restoreSaveActionFocusRef.current) {
+      restoreSaveActionFocusRef.current = false;
+      saveActionRef.current?.focus();
+    }
+  }, [savingNewView]);
+
   const onOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) {
-      setName(
-        defaultSavedViewName(
-          activeTab,
-          new Date(),
-          views.map(view => view.name)
-        )
-      );
-    } else {
+    if (!next) {
+      setSavingNewView(false);
+      setName('');
       setEditingId(null);
       setConfirmDeleteId(null);
     }
   };
 
+  const beginSavingNewView = () => {
+    setName(
+      defaultSavedViewName(
+        activeTab,
+        new Date(),
+        views.map(view => view.name)
+      )
+    );
+    setSavingNewView(true);
+    setEditingId(null);
+    setConfirmDeleteId(null);
+  };
+
+  const cancelSavingNewView = (restoreFocus = false) => {
+    restoreSaveActionFocusRef.current = restoreFocus;
+    setSavingNewView(false);
+    setName('');
+  };
+
   const saveCurrentView = () => {
-    if (!result.ok || atLimit || !name.trim() || !deepLink) {
+    if (!savingNewView || !result.ok || atLimit || !name.trim() || !deepLink) {
       return;
     }
     const captured = deepLink.captureSavedView();
@@ -289,32 +312,71 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
           <span className="hidden sm:inline">Views</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(24rem,calc(100vw-2rem))] p-3">
+      <PopoverContent
+        className="w-[min(24rem,calc(100vw-2rem))] p-3"
+        onEscapeKeyDown={event => {
+          if (savingNewView) {
+            event.preventDefault();
+            cancelSavingNewView(true);
+          }
+        }}
+      >
         <div className="space-y-3">
           <header>
             <h2 className="text-sm font-medium">Saved views</h2>
             <p className="text-xs text-muted-foreground">Saved in this browser for this query.</p>
           </header>
           {result.ok ? (
-            <div className="flex gap-2">
-              <Input
-                value={name}
-                maxLength={MAX_SAVED_VIEW_NAME_LENGTH}
-                aria-label="Saved view name"
-                onChange={event => setName(event.target.value)}
-                onFocus={event => event.currentTarget.select()}
-                onKeyDown={event => event.key === 'Enter' && saveCurrentView()}
-              />
+            savingNewView ? (
+              <div className="flex gap-2">
+                <Input
+                  autoFocus
+                  value={name}
+                  maxLength={MAX_SAVED_VIEW_NAME_LENGTH}
+                  aria-label="Saved view name"
+                  onChange={event => setName(event.target.value)}
+                  onFocus={event => event.currentTarget.select()}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      saveCurrentView();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={atLimit || !name.trim()}
+                  aria-describedby={atLimit ? 'saved-views-limit-message' : undefined}
+                  onClick={saveCurrentView}
+                >
+                  Save
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0"
+                  aria-label="Cancel saving view"
+                  onClick={() => cancelSavingNewView(true)}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ) : (
               <Button
+                ref={saveActionRef}
                 type="button"
+                variant="ghost"
                 size="sm"
-                disabled={atLimit || !name.trim()}
+                className="w-full"
+                disabled={atLimit}
                 aria-describedby={atLimit ? 'saved-views-limit-message' : undefined}
-                onClick={saveCurrentView}
+                onClick={beginSavingNewView}
               >
-                Save
+                <SaveIcon className="size-4" />
+                Save current view
               </Button>
-            </div>
+            )
           ) : (
             <div role="alert" className="rounded-sm border p-2 text-xs text-muted-foreground">
               <p>{result.message}</p>
@@ -364,6 +426,7 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
                     }}
                     onUpdate={() => updateCurrentView(view)}
                     onBeginRename={() => {
+                      cancelSavingNewView();
                       setEditingId(view.id);
                       setEditName(view.name);
                       setConfirmDeleteId(null);
@@ -371,6 +434,7 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
                     onCommitRename={() => commitRename(view)}
                     onCancelRename={() => setEditingId(null)}
                     onBeginDelete={() => {
+                      cancelSavingNewView();
                       setConfirmDeleteId(view.id);
                       setEditingId(null);
                     }}

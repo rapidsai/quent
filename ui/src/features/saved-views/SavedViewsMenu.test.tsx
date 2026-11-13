@@ -65,6 +65,9 @@ describe('SavedViewsMenu', () => {
   it('creates a view with an editable generated name and loads it', async () => {
     const onLoad = renderMenu();
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    expect(screen.queryByRole('textbox', { name: 'Saved view name' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save current view' }));
     const name = screen.getByRole('textbox', { name: 'Saved view name' });
     expect((name as HTMLInputElement).value).toMatch(/^Timeline · /u);
 
@@ -96,6 +99,7 @@ describe('SavedViewsMenu', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     renderMenu();
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save current view' }));
     const name = screen.getByRole('textbox', { name: 'Saved view name' });
     await userEvent.clear(name);
     await userEvent.type(name, 'Investigation');
@@ -164,6 +168,7 @@ describe('SavedViewsMenu', () => {
   it('renames and confirms deletion of a saved view', async () => {
     renderMenu();
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save current view' }));
     const name = screen.getByRole('textbox', { name: 'Saved view name' });
     await userEvent.clear(name);
     await userEvent.type(name, 'Original');
@@ -180,6 +185,55 @@ describe('SavedViewsMenu', () => {
     expect(screen.getByText('Delete “Renamed”?')).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(screen.getByText('No saved views for this query.')).toBeVisible();
+  });
+
+  it('cancels creating a saved view without closing the menu', async () => {
+    renderMenu();
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save current view' }));
+    expect(screen.getByRole('textbox', { name: 'Saved view name' })).toBeVisible();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel saving view' }));
+
+    expect(screen.queryByRole('textbox', { name: 'Saved view name' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save current view' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+  });
+
+  it('returns to the saved-view list when escape is pressed while naming a view', async () => {
+    renderMenu();
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save current view' }));
+    await userEvent.tab();
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.queryByRole('textbox', { name: 'Saved view name' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save current view' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+  });
+
+  it('exits save mode before renaming an existing view', async () => {
+    renderMenu();
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save current view' }));
+    const name = screen.getByRole('textbox', { name: 'Saved view name' });
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Investigation');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save current view' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rename Investigation' }));
+
+    expect(screen.queryByRole('textbox', { name: 'Saved view name' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Rename Investigation' })).toBeVisible();
   });
 
   it('refreshes when another browser tab changes the query scope', async () => {
