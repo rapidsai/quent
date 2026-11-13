@@ -71,6 +71,19 @@ function ProfileLayout() {
       : entitiesMatch
         ? 'entities'
         : undefined;
+  const savedViewsScopeKey = `${engineId}:${queryId ?? ''}`;
+  const [savedViewsMenuState, setSavedViewsMenuState] = useState({
+    scopeKey: savedViewsScopeKey,
+    open: false,
+  });
+  if (savedViewsMenuState.scopeKey !== savedViewsScopeKey) {
+    setSavedViewsMenuState({ scopeKey: savedViewsScopeKey, open: false });
+  }
+  const savedViewsOpen = savedViewsMenuState.open;
+  const setSavedViewsOpen = useCallback(
+    (open: boolean) => setSavedViewsMenuState({ scopeKey: savedViewsScopeKey, open }),
+    [savedViewsScopeKey]
+  );
   // Tracks the last explicitly loaded saved view; subsequent viewport edits do not deselect it.
   const [savedViewRestore, setSavedViewRestore] = useState<{
     token: string;
@@ -150,6 +163,8 @@ function ProfileLayout() {
                 queryId={queryId}
                 activeTab={activeTab}
                 selectedViewId={activeSavedViewRestore?.view.id}
+                open={savedViewsOpen}
+                onOpenChange={setSavedViewsOpen}
               />
             )}
             <CopyLinkButton />

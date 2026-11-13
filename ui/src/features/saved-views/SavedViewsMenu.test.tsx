@@ -36,6 +36,7 @@ function SeedViewport() {
 
 function TestMenu({ onLoadSavedView }: { onLoadSavedView: (view: SavedViewV1) => void }) {
   const [selectedViewId, setSelectedViewId] = useState<string>();
+  const [open, setOpen] = useState(false);
   const loadSavedView = useCallback(
     (view: SavedViewV1) => {
       setSelectedViewId(view.id);
@@ -55,7 +56,13 @@ function TestMenu({ onLoadSavedView }: { onLoadSavedView: (view: SavedViewV1) =>
         onLoadSavedView={loadSavedView}
       >
         <SeedViewport />
-        <SavedViewsMenu {...scope} activeTab="timeline" selectedViewId={selectedViewId} />
+        <SavedViewsMenu
+          {...scope}
+          activeTab="timeline"
+          selectedViewId={selectedViewId}
+          open={open}
+          onOpenChange={setOpen}
+        />
       </DeepLinkBoundary>
     </JotaiProvider>
   );
@@ -89,9 +96,8 @@ describe('SavedViewsMenu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
       'aria-expanded',
-      'false'
+      'true'
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Load Investigation (Timeline)' })).toBeVisible()
@@ -105,8 +111,11 @@ describe('SavedViewsMenu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Load Investigation (Timeline)' }));
     expect(onLoad).toHaveBeenCalledOnce();
     expect(onLoad).toHaveBeenCalledWith(expect.objectContaining({ name: 'Investigation' }));
+    expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
     const selectedView = screen.getByRole('button', {
       name: 'Load Investigation (Timeline)',
     });
@@ -157,7 +166,7 @@ describe('SavedViewsMenu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Update Investigation' }));
     expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
       'aria-expanded',
-      'false'
+      'true'
     );
 
     const updated = readSavedViews(localStorage, scope);
@@ -197,7 +206,6 @@ describe('SavedViewsMenu', () => {
     await userEvent.clear(name);
     await userEvent.type(name, 'Original');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
 
     await userEvent.click(await screen.findByRole('button', { name: 'Rename Original' }));
     const rename = screen.getByRole('textbox', { name: 'Rename Original' });
@@ -252,7 +260,6 @@ describe('SavedViewsMenu', () => {
     await userEvent.type(name, 'Investigation');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save current view' }));
     await userEvent.click(screen.getByRole('button', { name: 'Rename Investigation' }));
 

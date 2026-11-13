@@ -140,12 +140,16 @@ describe('saved view route restore', () => {
       })
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
     const selectedView = screen.getByRole('button', {
       name: 'Load Timeline investigation (Timeline)',
     });
     expect(selectedView).toHaveAccessibleDescription('Currently selected');
     expect(selectedView.closest('[role="listitem"]')).toHaveAttribute('aria-current', 'true');
+    expect(selectedView).toHaveFocus();
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
 
     await userEvent.click(screen.getByRole('button', { name: 'Change view' }));
@@ -157,6 +161,10 @@ describe('saved view route restore', () => {
     await waitFor(() =>
       expect(screen.getByTestId('restored-view')).toHaveTextContent('"start":20')
     );
+    expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
 
     await router.navigate({
       to: '/profile/engine/$engineId/query/$queryId/operators',
@@ -166,6 +174,10 @@ describe('saved view route restore', () => {
     expect(await screen.findByText('Operators content')).toBeVisible();
     expect(router.state.location.pathname).toBe(
       `/profile/engine/${scope.engineId}/query/query-b/operators`
+    );
+    expect(screen.getByRole('button', { name: 'Saved views' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
     );
     expect(screen.queryByText('Could not restore saved view')).not.toBeInTheDocument();
   });

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { Bookmark, Check, Pencil, Save as SaveIcon, Trash2, X } from 'lucide-react';
 import { Button, Input, Popover, PopoverContent, PopoverTrigger, toast } from '@quent/components';
 import { cn } from '@quent/utils';
@@ -22,6 +22,8 @@ interface SavedViewsMenuProps {
   queryId: string;
   activeTab: DeepLinkTab;
   selectedViewId?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 function showWriteError(result: Exclude<SavedViewsWriteResult, { ok: true }>) {
@@ -40,6 +42,7 @@ interface SavedViewRowProps {
   editName: string;
   canLoad: boolean;
   canUpdate: boolean;
+  loadButtonRef?: Ref<HTMLButtonElement>;
   onEditName: (name: string) => void;
   onLoad: () => void;
   onUpdate: () => void;
@@ -59,6 +62,7 @@ function SavedViewRow({
   editName,
   canLoad,
   canUpdate,
+  loadButtonRef,
   onEditName,
   onLoad,
   onUpdate,
@@ -138,8 +142,9 @@ function SavedViewRow({
             </span>
           )}
           <button
+            ref={loadButtonRef}
             type="button"
-            className="min-w-0 flex-1 rounded-sm px-1.5 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-w-0 flex-1 cursor-pointer rounded-sm px-1.5 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
             aria-label={`Load ${view.name} (${SAVED_VIEW_TAB_LABELS[view.tab]})`}
             aria-describedby={selected ? `saved-view-${view.id}-selection` : undefined}
             disabled={!canLoad}
@@ -193,16 +198,21 @@ export function SavedViewsMenu({
   queryId,
   activeTab,
   selectedViewId,
+  open,
+  onOpenChange,
 }: SavedViewsMenuProps) {
   const deepLink = useDeepLink();
   const { result, save, update, rename, remove, reset } = useSavedViews({ engineId, queryId });
-  const [open, setOpen] = useState(false);
+  // Loading a view remounts this menu (the route re-keys its store provider). If we
+  // mount already open, skip the open animation so the menu doesn't flash.
+  const [mountedOpen, setMountedOpen] = useState(open);
   const [savingNewView, setSavingNewView] = useState(false);
   const [name, setName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const saveActionRef = useRef<HTMLButtonElement>(null);
+  const selectedViewButtonRef = useRef<HTMLButtonElement>(null);
   const restoreSaveActionFocusRef = useRef(false);
   const views = useMemo(
     () => (result.ok ? [...result.value.views].sort((a, b) => b.updatedAt - a.updatedAt) : []),
@@ -218,9 +228,10 @@ export function SavedViewsMenu({
     }
   }, [savingNewView]);
 
-  const onOpenChange = (next: boolean) => {
-    setOpen(next);
+  const handleOpenChange = (next: boolean) => {
+    onOpenChange(next);
     if (!next) {
+      setMountedOpen(false);
       setSavingNewView(false);
       setName('');
       setEditingId(null);
@@ -271,7 +282,7 @@ export function SavedViewsMenu({
       return;
     }
     toast.add({ type: 'success', title: 'View saved', description: name.trim() });
-    onOpenChange(false);
+    cancelSavingNewView(true);
   };
 
   const commitRename = (view: SavedViewV1) => {
@@ -308,7 +319,6 @@ export function SavedViewsMenu({
       showWriteError(write);
     } else {
       toast.add({ type: 'success', title: 'View updated', description: view.name });
-      onOpenChange(false);
     }
   };
 
@@ -322,7 +332,7 @@ export function SavedViewsMenu({
   };
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -338,7 +348,16 @@ export function SavedViewsMenu({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[min(24rem,calc(100vw-2rem))] p-3"
+        className={cn(
+          'w-[min(24rem,calc(100vw-2rem))] p-3',
+          mountedOpen && 'data-[state=open]:animate-none!'
+        )}
+        onOpenAutoFocus={event => {
+          if (selectedViewButtonRef.current) {
+            event.preventDefault();
+            selectedViewButtonRef.current.focus();
+          }
+        }}
         onEscapeKeyDown={event => {
           if (savingNewView) {
             event.preventDefault();
@@ -448,10 +467,10 @@ export function SavedViewsMenu({
                     editName={editName}
                     canLoad={deepLink?.loadSavedView !== undefined}
                     canUpdate={deepLink !== null}
+                    loadButtonRef={selectedViewId === view.id ? selectedViewButtonRef : undefined}
                     onEditName={setEditName}
                     onLoad={() => {
                       deepLink?.loadSavedView?.(view);
-                      onOpenChange(false);
                     }}
                     onUpdate={() => updateCurrentView(view)}
                     onBeginRename={() => {
