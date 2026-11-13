@@ -95,6 +95,7 @@ describe('saved view route restore', () => {
   it('navigates to the saved tab and restores the same view repeatedly', async () => {
     const encoded = encodeDeepLinkState({
       route: { ...scope, tab: 'timeline' },
+      selection: { planId: 'plan-a' },
       timeline: { zoomRange: { start: 20, end: 60 } },
     });
     if (!encoded.ok) {
@@ -155,6 +156,10 @@ describe('saved view route restore', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Change view' }));
     expect(screen.getByTestId('restored-view')).toHaveTextContent('"start":1');
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    // The edit keeps the view selected and marks it as modified.
+    expect(
+      screen.getByRole('button', { name: 'Load Timeline investigation (Timeline)' })
+    ).toHaveAccessibleDescription('Currently selected, modified since loaded');
     await userEvent.click(
       screen.getByRole('button', { name: 'Load Timeline investigation (Timeline)' })
     );

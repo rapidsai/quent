@@ -3,11 +3,20 @@
 
 import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { Bookmark, Check, Pencil, Save as SaveIcon, Trash2, X } from 'lucide-react';
-import { Button, Input, Popover, PopoverContent, PopoverTrigger, toast } from '@quent/components';
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  ThinScroll,
+  toast,
+} from '@quent/components';
 import { cn } from '@quent/utils';
 import type { DeepLinkTab } from '@/features/deep-link/deepLink.schema';
 import { useDeepLink } from '@/features/deep-link';
 import { showDeepLinkErrorToasts } from '@/features/deep-link/deepLink.toasts';
+import { isSavedViewModified } from './savedViews.modified';
 import { defaultSavedViewName, SAVED_VIEW_TAB_LABELS } from './savedViews.names';
 import {
   MAX_SAVED_VIEW_NAME_LENGTH,
@@ -22,6 +31,7 @@ interface SavedViewsMenuProps {
   queryId: string;
   activeTab: DeepLinkTab;
   selectedViewId?: string;
+  onSelectView: (viewId: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -37,6 +47,7 @@ function showWriteError(result: Exclude<SavedViewsWriteResult, { ok: true }>) {
 interface SavedViewRowProps {
   view: SavedViewV1;
   selected: boolean;
+  modified: boolean;
   editing: boolean;
   confirmingDelete: boolean;
   editName: string;
@@ -57,6 +68,7 @@ interface SavedViewRowProps {
 function SavedViewRow({
   view,
   selected,
+  modified,
   editing,
   confirmingDelete,
   editName,
@@ -138,7 +150,7 @@ function SavedViewRow({
           </span>
           {selected && (
             <span id={`saved-view-${view.id}-selection`} className="sr-only">
-              Currently selected
+              {modified ? 'Currently selected, modified since loaded' : 'Currently selected'}
             </span>
           )}
           <button
@@ -150,7 +162,14 @@ function SavedViewRow({
             disabled={!canLoad}
             onClick={onLoad}
           >
-            <span className="block truncate text-sm">{view.name}</span>
+            <span className="block truncate text-sm">
+              {view.name}
+              {modified && (
+                <span aria-hidden="true" title="Modified since loaded">
+                  *
+                </span>
+              )}
+            </span>
             <span className="block text-xs text-muted-foreground">
               {SAVED_VIEW_TAB_LABELS[view.tab]}
             </span>
@@ -198,6 +217,7 @@ export function SavedViewsMenu({
   queryId,
   activeTab,
   selectedViewId,
+  onSelectView,
   open,
   onOpenChange,
 }: SavedViewsMenuProps) {
@@ -217,6 +237,15 @@ export function SavedViewsMenu({
   const views = useMemo(
     () => (result.ok ? [...result.value.views].sort((a, b) => b.updatedAt - a.updatedAt) : []),
     [result]
+  );
+  const selectedView = views.find(view => view.id === selectedViewId);
+  // Only compared while the menu is open; the capture is skipped otherwise.
+  const selectedViewModified = useMemo(
+    () =>
+      open && selectedView && deepLink
+        ? isSavedViewModified(selectedView, deepLink.captureSavedView())
+        : false,
+    [open, selectedView, deepLink]
   );
   const atLimit = views.length >= MAX_SAVED_VIEWS_PER_QUERY;
   const unavailable = !result.ok && result.kind === 'unavailable';
@@ -281,6 +310,7 @@ export function SavedViewsMenu({
       showWriteError(write);
       return;
     }
+    onSelectView(write.id);
     toast.add({ type: 'success', title: 'View saved', description: name.trim() });
     cancelSavingNewView(true);
   };
@@ -318,6 +348,7 @@ export function SavedViewsMenu({
     if (!write.ok) {
       showWriteError(write);
     } else {
+      onSelectView(view.id);
       toast.add({ type: 'success', title: 'View updated', description: view.name });
     }
   };
@@ -382,6 +413,9 @@ export function SavedViewsMenu({
                   onFocus={event => event.currentTarget.select()}
                   onKeyDown={event => {
                     if (event.key === 'Enter') {
+                      // Focus moves to "Save current view" after saving; without this the
+                      // same Enter press would click it and reopen the form.
+                      event.preventDefault();
                       saveCurrentView();
                     }
                   }}
@@ -448,10 +482,7 @@ export function SavedViewsMenu({
             </p>
           )}
           {result.ok && (
-            <div
-              role={views.length > 0 ? 'list' : undefined}
-              className="max-h-64 space-y-1 overflow-y-auto"
-            >
+            <ThinScroll role={views.length > 0 ? 'list' : undefined} className="max-h-64 space-y-1">
               {views.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">
                   No saved views for this query.
@@ -462,6 +493,7 @@ export function SavedViewsMenu({
                     key={view.id}
                     view={view}
                     selected={selectedViewId === view.id}
+                    modified={selectedViewId === view.id && selectedViewModified}
                     editing={editingId === view.id}
                     confirmingDelete={confirmDeleteId === view.id}
                     editName={editName}
@@ -491,7 +523,7 @@ export function SavedViewsMenu({
                   />
                 ))
               )}
-            </div>
+            </ThinScroll>
           )}
         </div>
       </PopoverContent>

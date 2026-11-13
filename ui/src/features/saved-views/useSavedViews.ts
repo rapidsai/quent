@@ -21,6 +21,9 @@ export interface NewSavedView {
   extras?: SavedViewExtrasV1;
 }
 
+export type SavedViewsSaveResult =
+  Exclude<SavedViewsWriteResult, { ok: true }> | { ok: true; id: string };
+
 export type SavedViewSnapshot = Omit<NewSavedView, 'name'>;
 
 const unavailableStorage = {
@@ -45,7 +48,7 @@ function browserStorage(): Storage {
 
 function readFailureToWrite(
   result: Exclude<SavedViewsReadResult, { ok: true }>
-): SavedViewsWriteResult {
+): Exclude<SavedViewsWriteResult, { ok: true }> {
   return result;
 }
 
@@ -76,7 +79,7 @@ function createSavedViewsStore(storage: Storage, scope: SavedViewsScope) {
         window.removeEventListener('storage', onStorage);
       };
     },
-    save(input: NewSavedView): SavedViewsWriteResult {
+    save(input: NewSavedView): SavedViewsSaveResult {
       const current = readSavedViews(storage, scope);
       if (!current.ok) {
         return readFailureToWrite(current);
@@ -97,6 +100,7 @@ function createSavedViewsStore(storage: Storage, scope: SavedViewsScope) {
       });
       if (result.ok) {
         refresh();
+        return { ok: true, id: view.id };
       }
       return result;
     },

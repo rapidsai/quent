@@ -90,6 +90,20 @@ function ProfileLayout() {
     queryId: string;
     view: SavedViewV1;
   } | null>(null);
+  // The view the user started from. It stays selected across tab switches and edits.
+  const [selectedView, setSelectedView] = useState<{ queryId: string; viewId: string } | null>(
+    null
+  );
+  const selectedViewId =
+    selectedView && selectedView.queryId === queryId ? selectedView.viewId : undefined;
+  const selectView = useCallback(
+    (viewId: string) => {
+      if (queryId) {
+        setSelectedView({ queryId, viewId });
+      }
+    },
+    [queryId]
+  );
   const activeSavedViewRestore =
     savedViewRestore &&
     savedViewRestore.queryId === queryId &&
@@ -116,6 +130,7 @@ function ProfileLayout() {
         return;
       }
       setSavedViewRestore({ token: crypto.randomUUID(), queryId, view });
+      setSelectedView({ queryId, viewId: view.id });
       const to =
         view.tab === 'timeline'
           ? '/profile/engine/$engineId/query/$queryId/timeline'
@@ -162,7 +177,8 @@ function ProfileLayout() {
                 engineId={engineId}
                 queryId={queryId}
                 activeTab={activeTab}
-                selectedViewId={activeSavedViewRestore?.view.id}
+                selectedViewId={selectedViewId}
+                onSelectView={selectView}
                 open={savedViewsOpen}
                 onOpenChange={setSavedViewsOpen}
               />

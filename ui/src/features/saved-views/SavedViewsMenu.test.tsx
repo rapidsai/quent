@@ -60,6 +60,7 @@ function TestMenu({ onLoadSavedView }: { onLoadSavedView: (view: SavedViewV1) =>
           {...scope}
           activeTab="timeline"
           selectedViewId={selectedViewId}
+          onSelectView={setSelectedViewId}
           open={open}
           onOpenChange={setOpen}
         />
