@@ -140,6 +140,14 @@ describe('saved view route restore', () => {
       })
     );
 
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    const selectedView = screen.getByRole('button', {
+      name: 'Load Timeline investigation (Timeline)',
+    });
+    expect(selectedView).toHaveAccessibleDescription('Currently selected');
+    expect(selectedView.closest('[role="listitem"]')).toHaveAttribute('aria-current', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+
     await userEvent.click(screen.getByRole('button', { name: 'Change view' }));
     expect(screen.getByTestId('restored-view')).toHaveTextContent('"start":1');
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));

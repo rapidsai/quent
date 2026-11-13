@@ -71,6 +71,7 @@ function ProfileLayout() {
       : entitiesMatch
         ? 'entities'
         : undefined;
+  // Tracks the last explicitly loaded saved view; subsequent viewport edits do not deselect it.
   const [savedViewRestore, setSavedViewRestore] = useState<{
     token: string;
     queryId: string;
@@ -144,7 +145,12 @@ function ProfileLayout() {
         {queryId && (
           <QueryToolbar>
             {activeTab && (
-              <SavedViewsMenu engineId={engineId} queryId={queryId} activeTab={activeTab} />
+              <SavedViewsMenu
+                engineId={engineId}
+                queryId={queryId}
+                activeTab={activeTab}
+                selectedViewId={activeSavedViewRestore?.view.id}
+              />
             )}
             <CopyLinkButton />
           </QueryToolbar>

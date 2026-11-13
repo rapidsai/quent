@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, Check, Pencil, Save as SaveIcon, Trash2, X } from 'lucide-react';
 import { Button, Input, Popover, PopoverContent, PopoverTrigger, toast } from '@quent/components';
+import { cn } from '@quent/utils';
 import type { DeepLinkTab } from '@/features/deep-link/deepLink.schema';
 import { useDeepLink } from '@/features/deep-link';
 import { showDeepLinkErrorToasts } from '@/features/deep-link/deepLink.toasts';
@@ -20,6 +21,7 @@ interface SavedViewsMenuProps {
   engineId: string;
   queryId: string;
   activeTab: DeepLinkTab;
+  selectedViewId?: string;
 }
 
 function showWriteError(result: Exclude<SavedViewsWriteResult, { ok: true }>) {
@@ -32,6 +34,7 @@ function showWriteError(result: Exclude<SavedViewsWriteResult, { ok: true }>) {
 
 interface SavedViewRowProps {
   view: SavedViewV1;
+  selected: boolean;
   editing: boolean;
   confirmingDelete: boolean;
   editName: string;
@@ -50,6 +53,7 @@ interface SavedViewRowProps {
 
 function SavedViewRow({
   view,
+  selected,
   editing,
   confirmingDelete,
   editName,
@@ -66,7 +70,14 @@ function SavedViewRow({
   onCancelDelete,
 }: SavedViewRowProps) {
   return (
-    <div className="flex min-w-0 items-center gap-1 rounded-sm border px-1 py-1">
+    <div
+      role="listitem"
+      aria-current={selected ? 'true' : undefined}
+      className={cn(
+        'flex min-w-0 items-center gap-1 rounded-sm border px-1 py-1 hover:bg-accent',
+        selected && 'bg-accent'
+      )}
+    >
       {editing ? (
         <>
           <Input
@@ -118,10 +129,19 @@ function SavedViewRow({
         </div>
       ) : (
         <>
+          <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden="true">
+            {selected && <Check className="size-3.5" />}
+          </span>
+          {selected && (
+            <span id={`saved-view-${view.id}-selection`} className="sr-only">
+              Currently selected
+            </span>
+          )}
           <button
             type="button"
-            className="min-w-0 flex-1 rounded-sm px-1.5 py-1 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-w-0 flex-1 rounded-sm px-1.5 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
             aria-label={`Load ${view.name} (${SAVED_VIEW_TAB_LABELS[view.tab]})`}
+            aria-describedby={selected ? `saved-view-${view.id}-selection` : undefined}
             disabled={!canLoad}
             onClick={onLoad}
           >
@@ -168,7 +188,12 @@ function SavedViewRow({
   );
 }
 
-export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuProps) {
+export function SavedViewsMenu({
+  engineId,
+  queryId,
+  activeTab,
+  selectedViewId,
+}: SavedViewsMenuProps) {
   const deepLink = useDeepLink();
   const { result, save, update, rename, remove, reset } = useSavedViews({ engineId, queryId });
   const [open, setOpen] = useState(false);
@@ -404,7 +429,10 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
             </p>
           )}
           {result.ok && (
-            <div className="max-h-64 space-y-1 overflow-y-auto">
+            <div
+              role={views.length > 0 ? 'list' : undefined}
+              className="max-h-64 space-y-1 overflow-y-auto"
+            >
               {views.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">
                   No saved views for this query.
@@ -414,6 +442,7 @@ export function SavedViewsMenu({ engineId, queryId, activeTab }: SavedViewsMenuP
                   <SavedViewRow
                     key={view.id}
                     view={view}
+                    selected={selectedViewId === view.id}
                     editing={editingId === view.id}
                     confirmingDelete={confirmDeleteId === view.id}
                     editName={editName}

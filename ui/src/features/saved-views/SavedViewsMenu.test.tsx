@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useLayoutEffect } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 import { Provider as JotaiProvider } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSetDebouncedZoomRange, useSetZoomRange } from '@quent/hooks';
 import { render, screen, userEvent, waitFor } from '@/test/test-utils';
 import { DeepLinkBoundary } from '@/features/deep-link';
 import { decodeDeepLinkState, encodeDeepLinkState } from '@/features/deep-link/deepLink.codec';
+import type { SavedViewV1 } from './savedViews.schema';
 import { readSavedViews, savedViewsStorageKey, writeSavedViews } from './savedViews.storage';
 import { SavedViewsMenu } from './SavedViewsMenu';
 
@@ -33,8 +34,16 @@ function SeedViewport() {
   );
 }
 
-function renderMenu(onLoadSavedView = vi.fn()) {
-  render(
+function TestMenu({ onLoadSavedView }: { onLoadSavedView: (view: SavedViewV1) => void }) {
+  const [selectedViewId, setSelectedViewId] = useState<string>();
+  const loadSavedView = useCallback(
+    (view: SavedViewV1) => {
+      setSelectedViewId(view.id);
+      onLoadSavedView(view);
+    },
+    [onLoadSavedView]
+  );
+  return (
     <JotaiProvider>
       <DeepLinkBoundary
         {...scope}
@@ -43,13 +52,17 @@ function renderMenu(onLoadSavedView = vi.fn()) {
         durationSeconds={100}
         operators={[]}
         isQueryReady
-        onLoadSavedView={onLoadSavedView}
+        onLoadSavedView={loadSavedView}
       >
         <SeedViewport />
-        <SavedViewsMenu {...scope} activeTab="timeline" />
+        <SavedViewsMenu {...scope} activeTab="timeline" selectedViewId={selectedViewId} />
       </DeepLinkBoundary>
     </JotaiProvider>
   );
+}
+
+function renderMenu(onLoadSavedView = vi.fn()) {
+  render(<TestMenu onLoadSavedView={onLoadSavedView} />);
   return onLoadSavedView;
 }
 
@@ -92,6 +105,14 @@ describe('SavedViewsMenu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Load Investigation (Timeline)' }));
     expect(onLoad).toHaveBeenCalledOnce();
     expect(onLoad).toHaveBeenCalledWith(expect.objectContaining({ name: 'Investigation' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
+    const selectedView = screen.getByRole('button', {
+      name: 'Load Investigation (Timeline)',
+    });
+    expect(selectedView).toHaveAccessibleDescription('Currently selected');
+    expect(selectedView.closest('[role="listitem"]')).toHaveAttribute('aria-current', 'true');
+    expect(selectedView.closest('[role="listitem"]')).toHaveClass('bg-accent');
   });
 
   it('updates an existing view while preserving its identity', async () => {
@@ -120,7 +141,10 @@ describe('SavedViewsMenu', () => {
     now = 200;
     await userEvent.click(screen.getByRole('button', { name: 'Modify current view' }));
     await userEvent.click(screen.getByRole('button', { name: 'Saved views' }));
-    const row = screen.getByRole('button', { name: 'Load Investigation (Timeline)' }).parentElement;
+    const loadButton = screen.getByRole('button', { name: 'Load Investigation (Timeline)' });
+    const row = loadButton.parentElement;
+    expect(row).toHaveClass('hover:bg-accent');
+    expect(loadButton).not.toHaveClass('hover:bg-accent');
     expect(row?.querySelectorAll('button')).toHaveLength(4);
     expect(
       [...(row?.querySelectorAll('button') ?? [])].map(button => button.getAttribute('aria-label'))
