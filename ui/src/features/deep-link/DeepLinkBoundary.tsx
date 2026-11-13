@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { useStore } from 'jotai';
 import {
+  LONG_ENTITY_DENSITY_DEFAULT,
   useHydrateSelectedPlanId,
   useReadZoomRange,
   useSerializableViewState,
@@ -27,12 +28,16 @@ import {
 } from '@/atoms/entitiesTable';
 import {
   expandedIdsAtom,
+  pinnedCollapsedAtom,
   pinnedIdsAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
+  selectedNvtxCategoriesAtom,
+  selectedNvtxDomainAtom,
   selectedTypesAtom,
 } from '@/atoms/resourceTree';
+import type { SavedViewExtrasV1, SavedViewV1 } from '@/features/saved-views/savedViews.schema';
 import {
   EMPTY_RESOURCE_FILTER,
   isResourceFilterActive,
@@ -50,9 +55,15 @@ import {
   parseOptionalNumber,
   validateEntityFilters,
 } from '@/components/entities-table/utils';
-import { buildDeepLinkUrl, decodeDeepLinkState, DEEP_LINK_SEARCH_KEY } from './deepLink.codec';
+import {
+  buildDeepLinkUrl,
+  decodeDeepLinkState,
+  DEEP_LINK_SEARCH_KEY,
+  encodeDeepLinkState,
+} from './deepLink.codec';
 import {
   DeepLinkContext,
+  type CaptureSavedViewResult,
   type CopyLinkResult,
   type DeepLinkContextValue,
   type DeepLinkIntakeStatus,
@@ -78,6 +89,9 @@ interface DeepLinkBoundaryProps {
   operators: readonly Operator[];
   encodedState?: string;
   isQueryReady: boolean;
+  savedViewExtras?: SavedViewExtrasV1;
+  restoreKind?: 'shared' | 'saved';
+  onLoadSavedView?: (view: SavedViewV1) => void;
 }
 
 type IntakeState = {
@@ -88,11 +102,16 @@ type IntakeState = {
   status: DeepLinkIntakeStatus;
 };
 
+type CaptureStateResult =
+  | { ok: true; value: DeepLinkStateV3 }
+  | { ok: false; message: string; messages: readonly string[] };
+type ViewFailure = Extract<CaptureStateResult, { ok: false }>;
+
 function hasKeys(value: object): boolean {
   return Object.keys(value).length > 0;
 }
 
-function copyFailure(message: string): CopyLinkResult {
+function copyFailure(message: string): ViewFailure {
   return { ok: false, message, messages: [message] };
 }
 
@@ -176,6 +195,9 @@ export function DeepLinkBoundary({
   operators,
   encodedState,
   isQueryReady,
+  savedViewExtras,
+  restoreKind = 'shared',
+  onLoadSavedView,
 }: DeepLinkBoundaryProps) {
   useHydrateSelectedPlanId(initialPlanId);
   const store = useStore();
@@ -297,14 +319,17 @@ export function DeepLinkBoundary({
       if (intake.status.kind === 'error') {
         showDeepLinkErrorToasts({
           id: 'deep-link-intake',
-          title: 'Could not restore shared view',
+          title:
+            restoreKind === 'saved'
+              ? 'Could not restore saved view'
+              : 'Could not restore shared view',
           messages: intake.status.messages,
         });
       } else if (intake.status.kind === 'warning') {
         toast.add({
           id: 'deep-link-intake',
           type: 'warning',
-          title: 'Shared view adjusted',
+          title: restoreKind === 'saved' ? 'Saved view adjusted' : 'Shared view adjusted',
           description: intake.status.message,
         });
       }
@@ -313,7 +338,7 @@ export function DeepLinkBoundary({
     return () => {
       cancelled = true;
     };
-  }, [intake.status]);
+  }, [intake.status, restoreKind]);
 
   useLayoutEffect(() => {
     if (!intake.isResolved) {
@@ -360,6 +385,19 @@ export function DeepLinkBoundary({
         );
       }
     }
+    if (intake.fields && savedViewExtras) {
+      store.set(pinnedCollapsedAtom, savedViewExtras.pinnedCollapsed ?? false);
+      store.set(selectedNvtxDomainAtom, savedViewExtras.nvtx?.domainId ?? null);
+      store.set(
+        selectedNvtxCategoriesAtom,
+        new Map(
+          savedViewExtras.nvtx?.categories?.map(({ domainId, categoryId }) => [
+            domainId,
+            categoryId,
+          ]) ?? []
+        )
+      );
+    }
     if (intake.fields) {
       hydrateSerializableViewState({
         selection: intake.fields.selection,
@@ -374,6 +412,12 @@ export function DeepLinkBoundary({
             }
           : undefined,
         operatorTable: intake.fields.operatorTable,
+        timeline:
+          savedViewExtras === undefined
+            ? undefined
+            : {
+                longEntityDensity: savedViewExtras.longEntityDensity ?? LONG_ENTITY_DENSITY_DEFAULT,
+              },
       });
       if (intake.fields.entities) {
         store.set(
@@ -400,13 +444,14 @@ export function DeepLinkBoundary({
     intake.initialZoomRange,
     intake.isResolved,
     intake.fields,
+    savedViewExtras,
     hydrateSerializableViewState,
     setDebouncedZoomRange,
     setZoomRange,
     store,
   ]);
 
-  const copyLink = useCallback(async (): Promise<CopyLinkResult> => {
+  const captureState = useCallback((): CaptureStateResult => {
     if (!queryId || !activeTab) {
       return copyFailure('Select a query tab before copying a shared link.');
     }
@@ -572,8 +617,25 @@ export function DeepLinkBoundary({
       state.entities = entitiesState;
     }
 
+    return { ok: true, value: state };
+  }, [
+    activeTab,
+    defaultRootResourceType,
+    durationSeconds,
+    engineId,
+    queryId,
+    readSerializableViewState,
+    readZoomRange,
+    store,
+  ]);
+
+  const copyLink = useCallback(async (): Promise<CopyLinkResult> => {
+    const captured = captureState();
+    if (!captured.ok) {
+      return captured;
+    }
     const canonicalPageUrl = `${window.location.origin}${window.location.pathname}`;
-    const result = buildDeepLinkUrl(canonicalPageUrl, state);
+    const result = buildDeepLinkUrl(canonicalPageUrl, captured.value);
     if (!result.ok) {
       return { ok: false, message: result.message, messages: result.messages };
     }
@@ -587,25 +649,65 @@ export function DeepLinkBoundary({
     } catch {
       return copyFailure('Could not copy the link to the clipboard.');
     }
-  }, [
-    activeTab,
-    defaultRootResourceType,
-    durationSeconds,
-    engineId,
-    queryId,
-    readSerializableViewState,
-    readZoomRange,
-    store,
-  ]);
+  }, [captureState]);
+
+  const captureSavedView = useCallback((): CaptureSavedViewResult => {
+    const captured = captureState();
+    if (!captured.ok) {
+      return captured;
+    }
+    const encoded = encodeDeepLinkState(captured.value);
+    if (!encoded.ok) {
+      return { ok: false, message: encoded.message, messages: encoded.messages };
+    }
+
+    const extras: SavedViewExtrasV1 = {};
+    if (store.get(pinnedCollapsedAtom)) {
+      extras.pinnedCollapsed = true;
+    }
+    const domainId = store.get(selectedNvtxDomainAtom);
+    const categories = [...store.get(selectedNvtxCategoriesAtom)]
+      .map(([categoryDomainId, categoryId]) => ({
+        domainId: categoryDomainId,
+        categoryId,
+      }))
+      .sort((a, b) => a.domainId.localeCompare(b.domainId));
+    if (domainId || categories.length > 0) {
+      extras.nvtx = {
+        ...(domainId ? { domainId } : {}),
+        ...(categories.length > 0 ? { categories } : {}),
+      };
+    }
+    const density = readSerializableViewState().timeline.longEntityDensity;
+    if (density !== LONG_ENTITY_DENSITY_DEFAULT) {
+      extras.longEntityDensity = density;
+    }
+
+    return {
+      ok: true,
+      payload: encoded.value,
+      tab: captured.value.route.tab,
+      ...(hasKeys(extras) ? { extras } : {}),
+    };
+  }, [captureState, readSerializableViewState, store]);
 
   const value = useMemo<DeepLinkContextValue>(
     () => ({
       copyLink,
+      captureSavedView,
+      loadSavedView: onLoadSavedView,
       initialExpandedResourceIds: intake.initialExpandedResourceIds,
       initialZoomRange: intake.initialZoomRange,
       intakeStatus: intake.status,
     }),
-    [copyLink, intake.initialExpandedResourceIds, intake.initialZoomRange, intake.status]
+    [
+      captureSavedView,
+      copyLink,
+      intake.initialExpandedResourceIds,
+      intake.initialZoomRange,
+      intake.status,
+      onLoadSavedView,
+    ]
   );
 
   return (

@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useMatch, useNavigate } from '@tanstack/react-router';
 import { Provider } from 'jotai';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { QueryPlan } from '@/components/QueryPlan';
 import { QueryColorRegistry } from '@/components/QueryColorRegistry';
 import {
@@ -14,6 +14,8 @@ import {
   transformResourceTree,
 } from '@quent/components';
 import { CopyLinkButton, DeepLinkBoundary } from '@/features/deep-link';
+import { SavedViewsMenu } from '@/features/saved-views';
+import type { SavedViewV1 } from '@/features/saved-views/savedViews.schema';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import { type EntityRef, type PaletteTheme, type QueryBundle } from '@quent/utils';
 
@@ -34,6 +36,7 @@ function defaultRootResourceType(queryBundle: QueryBundle<EntityRef> | undefined
 
 function ProfileLayout() {
   const { engineId } = Route.useParams();
+  const navigate = useNavigate();
   const { theme } = useTheme();
   const paletteTheme: PaletteTheme = theme === THEME_DARK ? 'dark' : 'light';
 
@@ -68,13 +71,80 @@ function ProfileLayout() {
       : entitiesMatch
         ? 'entities'
         : undefined;
+  const savedViewsScopeKey = `${engineId}:${queryId ?? ''}`;
+  const [savedViewsMenuState, setSavedViewsMenuState] = useState({
+    scopeKey: savedViewsScopeKey,
+    open: false,
+  });
+  if (savedViewsMenuState.scopeKey !== savedViewsScopeKey) {
+    setSavedViewsMenuState({ scopeKey: savedViewsScopeKey, open: false });
+  }
+  const savedViewsOpen = savedViewsMenuState.open;
+  const setSavedViewsOpen = useCallback(
+    (open: boolean) => setSavedViewsMenuState({ scopeKey: savedViewsScopeKey, open }),
+    [savedViewsScopeKey]
+  );
+  // Tracks the last explicitly loaded saved view; subsequent viewport edits do not deselect it.
+  const [savedViewRestore, setSavedViewRestore] = useState<{
+    token: string;
+    queryId: string;
+    view: SavedViewV1;
+  } | null>(null);
+  // The view the user started from. It stays selected across tab switches and edits.
+  const [selectedView, setSelectedView] = useState<{ queryId: string; viewId: string } | null>(
+    null
+  );
+  const selectedViewId =
+    selectedView && selectedView.queryId === queryId ? selectedView.viewId : undefined;
+  const selectView = useCallback(
+    (viewId: string) => {
+      if (queryId) {
+        setSelectedView({ queryId, viewId });
+      }
+    },
+    [queryId]
+  );
+  const activeSavedViewRestore =
+    savedViewRestore &&
+    savedViewRestore.queryId === queryId &&
+    savedViewRestore.view.tab === activeTab
+      ? savedViewRestore
+      : undefined;
+  const restorePayload =
+    activeSavedViewRestore?.view.payload ??
+    (savedViewRestore?.queryId === queryId ? undefined : encodedState);
   const hasQuery = queryId !== undefined;
   const isQueryReady = !hasQuery || queryMatch?.status === 'success';
   // Stripping a consumed `s` keeps the store; a different payload resets it.
-  const [providerPayload, setProviderPayload] = useState(encodedState);
-  if (encodedState !== undefined && encodedState !== providerPayload) {
-    setProviderPayload(encodedState);
+  const incomingProviderPayload = activeSavedViewRestore
+    ? `saved:${activeSavedViewRestore.token}`
+    : restorePayload;
+  const [providerPayload, setProviderPayload] = useState(incomingProviderPayload);
+  if (incomingProviderPayload !== undefined && incomingProviderPayload !== providerPayload) {
+    setProviderPayload(incomingProviderPayload);
   }
+
+  const loadSavedView = useCallback(
+    (view: SavedViewV1) => {
+      if (!queryId) {
+        return;
+      }
+      setSavedViewRestore({ token: crypto.randomUUID(), queryId, view });
+      setSelectedView({ queryId, viewId: view.id });
+      const to =
+        view.tab === 'timeline'
+          ? '/profile/engine/$engineId/query/$queryId/timeline'
+          : view.tab === 'operators'
+            ? '/profile/engine/$engineId/query/$queryId/operators'
+            : '/profile/engine/$engineId/query/$queryId/entities';
+      void navigate({
+        to,
+        params: { engineId, queryId },
+        search: {},
+      });
+    },
+    [engineId, navigate, queryId]
+  );
 
   if (!hasQuery) {
     return <Outlet />;
@@ -93,12 +163,26 @@ function ProfileLayout() {
       durationSeconds={queryBundle?.duration_s ?? 0}
       defaultRootResourceType={defaultRootResourceType(queryBundle)}
       operators={operators}
-      encodedState={encodedState}
+      encodedState={restorePayload}
       isQueryReady={isQueryReady}
+      savedViewExtras={activeSavedViewRestore?.view.extras}
+      restoreKind={activeSavedViewRestore ? 'saved' : 'shared'}
+      onLoadSavedView={loadSavedView}
     >
       <div className="flex h-full min-w-0 flex-col">
         {queryId && (
           <QueryToolbar>
+            {activeTab && (
+              <SavedViewsMenu
+                engineId={engineId}
+                queryId={queryId}
+                activeTab={activeTab}
+                selectedViewId={selectedViewId}
+                onSelectView={selectView}
+                open={savedViewsOpen}
+                onOpenChange={setSavedViewsOpen}
+              />
+            )}
             <CopyLinkButton />
           </QueryToolbar>
         )}
