@@ -3,6 +3,7 @@
 
 //! Browser-hosted API facade for the simulator analyzer.
 
+use quent_analyzer::AnalyzerError;
 use quent_events::Event;
 use quent_query_engine_analyzer::{EngineEntity, QueryEngineModel, QueryEntity, ui::UiAnalyzer};
 use quent_query_engine_ui::{
@@ -23,17 +24,32 @@ use wasm_bindgen::prelude::*;
 
 /// An in-browser implementation of the simulator's typed analyzer API.
 #[wasm_bindgen]
-pub struct DemoServer {
+pub struct BrowserServer {
     analyzer: SimulatorUiAnalyzer,
     engine_id: Uuid,
+    context_ids: Vec<Uuid>,
 }
 
 #[wasm_bindgen]
-impl DemoServer {
+impl BrowserServer {
     /// Load a Postcard-encoded simulator event recording.
     #[wasm_bindgen(constructor)]
-    pub fn new(bytes: &[u8]) -> Result<DemoServer, JsValue> {
-        let events: Vec<Event<SimulatorEvent>> = postcard::from_bytes(bytes)
+    pub fn new(bytes: &[u8]) -> Result<BrowserServer, JsValue> {
+        let bundle = quent_browser_bundle::decode(bytes)
+            .map_err(|error| js_error(format!("unable to decode browser bundle: {error}")))?;
+        if bundle.metadata.model_name != "quent-simulator" {
+            return Err(js_error(format!(
+                "browser bundle model mismatch: expected quent-simulator, got {}",
+                bundle.metadata.model_name
+            )));
+        }
+        if bundle.metadata.codec != "postcard" {
+            return Err(js_error(format!(
+                "unsupported simulator event codec: {}",
+                bundle.metadata.codec
+            )));
+        }
+        let events: Vec<Event<SimulatorEvent>> = postcard::from_bytes(bundle.payload)
             .map_err(|error| js_error(format!("unable to decode simulator events: {error}")))?;
         let engine_id = events
             .iter()
@@ -41,9 +57,15 @@ impl DemoServer {
             .ok_or_else(|| js_error("simulator demo contains no engine events"))?;
         let analyzer = SimulatorUiAnalyzer::try_new(engine_id, events.into_iter())
             .map_err(|error| js_error(format!("unable to analyze simulator demo: {error}")))?;
+        if engine_id != bundle.metadata.engine_id {
+            return Err(js_error(
+                "browser bundle engine ID does not match its events",
+            ));
+        }
         Ok(Self {
             analyzer,
             engine_id,
+            context_ids: bundle.metadata.context_ids,
         })
     }
 
@@ -112,7 +134,7 @@ impl DemoServer {
     }
 }
 
-impl DemoServer {
+impl BrowserServer {
     fn analyzer(&self, engine_id: Uuid) -> Result<&SimulatorUiAnalyzer, ApiError> {
         (engine_id == self.engine_id)
             .then_some(&self.analyzer)
@@ -121,7 +143,7 @@ impl DemoServer {
 }
 
 #[async_trait::async_trait]
-impl ServerContract for DemoServer {
+impl ServerContract for BrowserServer {
     type Error = ApiError;
 
     async fn list_engines(&self, with_metadata: bool) -> Result<ui::EngineListResponse, ApiError> {
@@ -148,7 +170,7 @@ impl ServerContract for DemoServer {
         self.analyzer(engine_id)?;
         Ok(EngineContexts {
             engine_id,
-            context_ids: Vec::new(),
+            context_ids: self.context_ids.clone(),
         })
     }
 
@@ -198,7 +220,7 @@ impl ServerContract for DemoServer {
     ) -> Result<ui::DataFlowTimelineBinned, ApiError> {
         self.analyzer(engine_id)?
             .data_flow_timeline(request)
-            .map_err(Into::into)
+            .map_err(analyzer_error)
     }
 
     async fn entities(
@@ -213,7 +235,9 @@ impl ServerContract for DemoServer {
 }
 
 pub enum ApiError {
+    InvalidRequest(String),
     NotFound,
+    Unsupported(String),
     Other(String),
 }
 
@@ -224,11 +248,11 @@ impl<E: std::fmt::Display> From<E> for ApiError {
 }
 
 fn parse_uuid(value: &str) -> Result<Uuid, ApiError> {
-    Uuid::parse_str(value).map_err(Into::into)
+    Uuid::parse_str(value).map_err(|error| ApiError::InvalidRequest(error.to_string()))
 }
 
 fn parse<T: serde::de::DeserializeOwned>(body: &str) -> Result<T, ApiError> {
-    serde_json::from_str(body).map_err(Into::into)
+    serde_json::from_str(body).map_err(|error| ApiError::InvalidRequest(error.to_string()))
 }
 
 fn json_result<T: Serialize>(result: Result<T, ApiError>) -> Result<String, JsValue> {
@@ -237,8 +261,17 @@ fn json_result<T: Serialize>(result: Result<T, ApiError>) -> Result<String, JsVa
 
 fn api_error(error: ApiError) -> JsValue {
     match error {
-        ApiError::NotFound => js_error("not found"),
+        ApiError::InvalidRequest(message) => js_error(format!("QUENT_INVALID_REQUEST:{message}")),
+        ApiError::NotFound => js_error("QUENT_NOT_FOUND:not found"),
+        ApiError::Unsupported(message) => js_error(format!("QUENT_UNSUPPORTED:{message}")),
         ApiError::Other(message) => js_error(message),
+    }
+}
+
+fn analyzer_error(error: AnalyzerError) -> ApiError {
+    match error {
+        error @ AnalyzerError::Unsupported => ApiError::Unsupported(error.to_string()),
+        error => ApiError::Other(error.to_string()),
     }
 }
 

@@ -67,6 +67,10 @@ jobs:
         run: pixi run --frozen pnpm --dir ui demo:build
         env:
           VITE_BASE_PATH: /quent/simulator/
+      - name: Test simulator static build
+        run: pixi run --frozen pnpm --dir ui test:e2e:simulator
+        env:
+          VITE_BASE_PATH: /quent/simulator/
       - name: Build YAML tutorial
         run: pixi run --frozen bash docs/tutorial/build.sh
       - name: Download benchmark plot

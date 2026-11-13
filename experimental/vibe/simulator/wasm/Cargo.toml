@@ -25,6 +25,8 @@ required-features = ["generate"]
 [dependencies]
 async-trait.workspace = true
 postcard.workspace = true
+quent-analyzer = { path = "../../../../crates/analyzer" }
+quent-browser-bundle.workspace = true
 quent-events = { path = "../../../../crates/events", features = ["serde"] }
 quent-instrumentation = { path = "../../../../crates/instrumentation", optional = true }
 quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyzer" }

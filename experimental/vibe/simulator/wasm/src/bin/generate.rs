@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 
+use quent_browser_bundle::{Capabilities, FORMAT_VERSION, Metadata};
 use quent_events::Event;
 use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
 use quent_simulator_instrumentation as instrumentation;
@@ -32,13 +33,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .combined_events()?
     .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()?;
+    let engine_id = events
+        .iter()
+        .find_map(|event| matches!(event.data, SimulatorEvent::Engine(_)).then_some(event.id))
+        .ok_or("simulator demo contains no engine events")?;
+    let payload = postcard::to_allocvec(&events)?;
+    let bytes = quent_browser_bundle::encode(
+        &Metadata {
+            format_version: FORMAT_VERSION,
+            model_name: "quent-simulator".into(),
+            schema_digest: "quent-simulator-v1".into(),
+            model_provenance: None,
+            analyzer_revision: env!("CARGO_PKG_VERSION").into(),
+            quent_revision: env!("CARGO_PKG_VERSION").into(),
+            codec: "postcard".into(),
+            engine_id,
+            context_ids: vec![context_id],
+            capabilities: Capabilities {
+                data_flow: true,
+                nvtx: false,
+            },
+        },
+        &payload,
+    )?;
     if let Some(parent) = output
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
     {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&output, postcard::to_allocvec(&events)?)?;
+    std::fs::write(&output, bytes)?;
     println!("wrote {} events to {}", events.len(), output.display());
     Ok(())
 }

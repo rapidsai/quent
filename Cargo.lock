@@ -2283,6 +2283,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-browser-bundle"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "quent-build-info"
 version = "0.2.0"
 dependencies = [
@@ -2953,6 +2963,8 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "postcard",
+ "quent-analyzer",
+ "quent-browser-bundle",
  "quent-events",
  "quent-instrumentation",
  "quent-query-engine-analyzer",

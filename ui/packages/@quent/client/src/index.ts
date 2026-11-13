@@ -6,6 +6,21 @@ export { DEFAULT_STALE_TIME } from './constants';
 export { getApiBaseUrl, setApiBaseUrl } from './config';
 export { createHttpApiClient, getApiClient, setApiClient } from './api';
 export type { ApiClient } from './client';
+export {
+  BrowserAnalyzerError,
+  browserAnalyzerErrorReply,
+  createBrowserAnalyzerClient,
+  createBrowserAnalyzerWorker,
+} from './browserAnalyzer';
+export type {
+  BrowserAnalyzerClientOptions,
+  BrowserAnalyzerErrorCode,
+  BrowserAnalyzerErrorReply,
+  BrowserAnalyzerOperation,
+  BrowserAnalyzerWorkerMessage,
+  BrowserAnalyzerWorkerReply,
+  BrowserAnalyzerWorkerRequest,
+} from './browserAnalyzer';
 
 // Fetch functions
 export {

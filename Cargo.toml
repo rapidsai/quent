@@ -5,6 +5,7 @@ members = [
     "crates/analyzer",
     "crates/dynamic-attributes",
     "crates/build-info",
+    "crates/browser-bundle",
     "crates/collector/server",
     "crates/collector/python",
     "crates/collector/client",
@@ -82,6 +83,7 @@ default-members = [
     "crates/analyzer",
     "crates/dynamic-attributes",
     "crates/build-info",
+    "crates/browser-bundle",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
@@ -137,6 +139,7 @@ pyo3 = "0.30"
 quanta = "0.13.0"
 rmcp = { version = "3.5.0", default-features = false }
 quent-collector = { path = "crates/collector/server" }
+quent-browser-bundle = { path = "crates/browser-bundle" }
 quent-collector-client = { path = "crates/collector/client" }
 quent-collector-proto = { path = "crates/collector/proto" }
 quent-constraints = { path = "crates/constraints" }
