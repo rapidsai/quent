@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "ui/**"
+      - "experimental/vibe/quent-cli/src/deepLink.compatibility.ts"
       - "**/*.rs"
       - "**/Cargo.toml"
       - "**/Cargo.lock"
@@ -15,6 +16,7 @@ on:
   pull_request:
     paths:
       - "ui/**"
+      - "experimental/vibe/quent-cli/src/deepLink.compatibility.ts"
       - "**/*.rs"
       - "**/Cargo.toml"
       - "**/Cargo.lock"
