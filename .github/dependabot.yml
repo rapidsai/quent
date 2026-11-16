@@ -43,7 +43,10 @@ updates:
       prefix-development: "chore(deps-dev)"
     cooldown:
       default-days: 14
-    directory: "/experimental/vibe/ui"
+    directories:
+      - "/experimental/vibe/ui"
+      - "/experimental/vibe/quent-cli"
+      - "/experimental/vibe/bench-plot"
     groups:
       npm-experimental:
         applies-to: version-updates
