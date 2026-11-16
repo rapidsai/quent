@@ -69,23 +69,28 @@ pub(crate) fn properties() -> BenchResult<SystemProperties> {
         RefreshKind::nothing()
             .with_cpu(CpuRefreshKind::everything())
             .with_memory(MemoryRefreshKind::nothing().with_ram()),
-    );
+    )
+    .ok();
 
     Ok(SystemProperties {
         captured_at_unix_seconds: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         os: std::env::consts::OS,
-        os_version: System::long_os_version(),
-        kernel_version: System::kernel_version(),
+        os_version: System::long_os_version().ok(),
+        kernel_version: System::kernel_version().ok(),
         architecture: std::env::consts::ARCH,
         cpu_model: system
-            .cpus()
-            .first()
+            .as_ref()
+            .and_then(|system| system.cpus().first())
             .map(|cpu| cpu.brand().to_owned())
             .filter(|brand| !brand.is_empty()),
-        logical_cpu_count: (!system.cpus().is_empty()).then_some(system.cpus().len()),
-        physical_core_count: System::physical_core_count(),
+        logical_cpu_count: system
+            .as_ref()
+            .and_then(|system| (!system.cpus().is_empty()).then_some(system.cpus().len())),
+        physical_core_count: System::physical_core_count().ok(),
         available_cpu_count: std::thread::available_parallelism().ok().map(usize::from),
-        total_memory_bytes: (system.total_memory() > 0).then_some(system.total_memory()),
+        total_memory_bytes: system
+            .as_ref()
+            .and_then(|system| (system.total_memory() > 0).then_some(system.total_memory())),
         rustc_version: command_output("rustc", &["--version"]),
         target_triple: command_output("rustc", &["-vV"]).and_then(|text| {
             text.lines()
