@@ -21,12 +21,16 @@ export interface ResolvedOperatorSelections {
   unresolvedOperatorIds: ReadonlySet<string>;
 }
 
-function getOperatorIds(node: DAGNode): Set<string> {
+export function getRelatedOperatorIds(node: DAGNode): readonly string[] {
   const metadata = node.metadata as QueryPlanNodeData['metadata'];
-  return new Set([node.id, ...(metadata?.relatedOperatorIds ?? [])]);
+  return metadata?.relatedOperatorIds ?? [];
 }
 
-function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
+export function getOperatorIds(node: DAGNode): Set<string> {
+  return new Set([node.id, ...getRelatedOperatorIds(node)]);
+}
+
+export function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
   const metadata = node.metadata as QueryPlanNodeData['metadata'];
   return {
     nodeId: node.id,
@@ -37,6 +41,7 @@ function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
       ? metadata.aggregatedStatistics
       : (metadata?.operatorStatistics?.statistics ?? []),
     workerLabel: metadata?.operatorWorkerLabels?.[node.id],
+    planLabel: metadata?.operatorPlanLabels?.[node.id],
     relatedOperators: metadata?.relatedOperators?.map((operator, index) => ({
       nodeId: operator.id,
       label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
@@ -44,6 +49,7 @@ function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
       attributes: parseOperatorAttributes(operator),
       statistics: metadata.relatedOperatorStatistics?.[index]?.statistics ?? [],
       workerLabel: metadata?.operatorWorkerLabels?.[operator.id],
+      planLabel: metadata?.operatorPlanLabels?.[operator.id],
     })),
   };
 }

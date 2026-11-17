@@ -86,6 +86,9 @@ impl GitPin {
                 if url.serialize_alternative_form && matches!(url.scheme, gix_url::Scheme::Ssh) =>
             {
                 url.serialize_alternative_form = false;
+                if !url.path.starts_with(b"/") {
+                    url.path.insert(0, b'/');
+                }
                 url.to_bstring().to_string()
             }
             _ => self.remote.clone(),

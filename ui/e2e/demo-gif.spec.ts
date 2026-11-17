@@ -283,7 +283,9 @@ async function selectOperatorType(page: Page, type: string) {
     .first();
   await expect(node).toBeAttached();
   await humanClick(page, node, { force: true });
-  const removeFilter = page.getByRole('button', { name: new RegExp(`Remove .*${type}`, 'i') });
+  const removeFilter = page.getByRole('button', {
+    name: new RegExp(`^Remove \\d+:${type}$`, 'i'),
+  });
   if (!(await removeFilter.isVisible())) {
     await node.dispatchEvent('click');
   }

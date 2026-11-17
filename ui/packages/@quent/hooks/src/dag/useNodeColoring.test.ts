@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { continuousColor } from '@quent/utils';
 import { hoveredPipeIdAtom, inspectedPipeRefsAtom } from '../atoms/pipeInspection';
 import { nodeColoringAtom, selectedScaleTypeAtom } from '../atoms/dagControls';
+import { operatorSelectionActionAtom } from '../atoms/dag';
 import { isOperatorGroupSelected, useNodeColoring } from './useNodeColoring';
 
 describe('isOperatorGroupSelected', () => {
@@ -74,7 +75,7 @@ describe('useNodeColoring with pipes', () => {
     expect(render('scan', store).result.current.isDimmed).toBe(false);
     store.set(inspectedPipeRefsAtom, [{ sourcePortId: 'out', targetPortId: 'in' }]);
     expect(render('scan', store).result.current.isDimmed).toBe(true);
-    expect(render('scan', store).result.current.isSelected).toBe(false);
+    expect(render('scan', store).result.current.isFiltered).toBe(false);
   });
 
   it('dims every unselected operator while a pipe is hovered', () => {
@@ -83,5 +84,29 @@ describe('useNodeColoring with pipes', () => {
     expect(render('scan', store).result.current.isDimmed).toBe(true);
     store.set(hoveredPipeIdAtom, null);
     expect(render('scan', store).result.current.isDimmed).toBe(false);
+  });
+
+  it('keeps filtered operators at full opacity', () => {
+    const store = createStore();
+    store.set(operatorSelectionActionAtom, {
+      type: 'add',
+      selectionId: 'filtered',
+      label: 'Filtered',
+      operatorIds: ['filtered'],
+      selectedData: {
+        nodeId: 'filtered',
+        label: 'Filtered',
+        operationType: 'scan',
+        statistics: [],
+      },
+    });
+    expect(render('filtered', store).result.current).toMatchObject({
+      isFiltered: true,
+      isDimmed: false,
+    });
+    expect(render('other', store).result.current).toMatchObject({
+      isFiltered: false,
+      isDimmed: true,
+    });
   });
 });

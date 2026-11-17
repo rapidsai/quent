@@ -10,7 +10,7 @@ import {
   useSelectedOperatorIds,
 } from '@quent/hooks';
 
-/** Floating top-right button that clears every selected operator and pipe. Hidden when nothing is selected. */
+/** Clears every DAG filter and pipe selection. */
 export const DAGClearSelection = () => {
   const selectedOperatorIds = useSelectedOperatorIds();
   const inspectedPipes = useInspectedPipes();
@@ -31,11 +31,11 @@ export const DAGClearSelection = () => {
       <button
         type="button"
         onClick={clearSelection}
-        aria-label="Clear selection"
+        aria-label="Clear all selections"
         className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border bg-card/90 px-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="size-3" />
-        Clear selection
+        Clear all selections
       </button>
     </Panel>
   );

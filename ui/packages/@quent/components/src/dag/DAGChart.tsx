@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   MouseEvent,
   type RefObject,
 } from 'react';
@@ -27,6 +28,7 @@ import {
   type EdgeProps,
   type OnMoveStart,
 } from '@xyflow/react';
+import { useAtom, useSetAtom } from 'jotai';
 import '@xyflow/react/dist/style.css';
 import {
   useSelectedOperatorIds,
@@ -55,10 +57,17 @@ import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGClearSelection } from './DAGClearSelection';
 import { DAGLegend } from './DAGLegend';
-import { resolveSelectedOperatorsFromNodes } from './dagSelection';
+import { DAGItemActions } from './DAGItemActions';
+import { DAGItemStatus } from './DAGItemStatus';
+import { activeDAGPreviewIdAtom } from './dagPreviewState';
+import { PipeDetailsBlock } from '../node-info/PipeDetailsBlock';
+import {
+  getOperatorIds,
+  operatorSelectionFromNode,
+  resolveSelectedOperatorsFromNodes,
+} from './dagSelection';
 import { shouldDimEdgeFromInteraction } from './edgeOpacity';
 import { resolveDagHeatmap, resolveDagHighlightedNodeIds } from './dagInteraction';
-import { parseOperatorAttributes } from '../lib/queryBundle.utils';
 import {
   scaleColor,
   inferFieldFormatter,
@@ -66,10 +75,10 @@ import {
   toggleOperatorSelection,
   isSamePipe,
   type DAGEdge,
+  type DAGNode,
   type Operator,
   type StatisticField,
   type QuantitySpec,
-  type SelectedOperatorGroupData,
   normalizeScaleValue,
 } from '@quent/utils';
 
@@ -82,6 +91,15 @@ const EDGE_TRANSITION_MS = 150;
 const ARROW_WIDTH_MULTIPLIER = 1.5;
 const ARROW_WIDTH_BASE = 8;
 const ARROW_DEPTH_RATIO = 0.6;
+// Keep edge action/status overlays clear of metric labels and variable-width strokes.
+const EDGE_ACTIONS_Y_OFFSET_WITHOUT_LABEL = -18;
+const EDGE_ACTIONS_Y_OFFSET_WITH_LABEL = -26;
+const EDGE_STATUS_Y_OFFSET_WITHOUT_LABEL = 14;
+const EDGE_STATUS_Y_OFFSET_WITH_LABEL = 22;
+const EDGE_STATUS_X_OFFSET = 14;
+const EDGE_STATUS_ICON_HALF_SIZE = 7;
+const EDGE_STATUS_GAP = 4;
+const VERTICAL_EDGE_EPSILON = 1;
 
 // Layout constants
 const FIT_VIEW_PADDING = 0.1;
@@ -108,7 +126,17 @@ const VariableWidthEdge = ({
   const hoveredPipeId = useHoveredPipeId();
   const setHoveredPipeId = useSetHoveredPipeId();
   const toggleInspectedPipe = useToggleInspectedPipe();
+  const [isFocused, setIsFocused] = useState(false);
+  const [activePreviewId, setActivePreviewId] = useAtom(activeDAGPreviewIdAtom);
+  const previewId = `edge:${id}`;
   const pipe = (data as { pipe?: DAGEdge })?.pipe;
+  const pipeLabel = pipe
+    ? `${pipe.sourcePortName ?? pipe.sourcePortId} to ${pipe.targetPortName ?? pipe.targetPortId}`
+    : id;
+  const pipeRef =
+    pipe?.sourcePortId && pipe.targetPortId
+      ? { sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId }
+      : null;
   const isHovered = hoveredPipeId === id;
   const isInspected = inspectedPipes.some(inspected => isSamePipe(inspected, pipe));
   const isEmphasized = isHovered || isInspected;
@@ -117,8 +145,9 @@ const VariableWidthEdge = ({
     [inspectedPipes]
   );
   const inspect = () => {
-    if (pipe?.sourcePortId && pipe.targetPortId) {
-      toggleInspectedPipe({ sourcePortId: pipe.sourcePortId, targetPortId: pipe.targetPortId });
+    if (pipeRef) {
+      setActivePreviewId(null);
+      toggleInspectedPipe(pipeRef);
     }
   };
   const edgeWidthConfig = useEdgeWidthConfig();
@@ -165,12 +194,14 @@ const VariableWidthEdge = ({
       }
     }
   }
+  const emphasizedEdgeColor = edgeColor ?? 'hsl(var(--foreground))';
+  const renderedEdgeColor = edgeColor ?? (isEmphasized ? emphasizedEdgeColor : 'currentColor');
 
   const dimFromInteraction = shouldDimEdgeFromInteraction({
     hoveredEdgeId: hoveredPipeId ?? undefined,
     inspectedEdgeIds: inspectedPipeIds,
     edgeId: id,
-    selectedNodeIds: selectedOperatorIds,
+    selectedOperatorIds,
     highlightedNodeIds,
   });
   const isEdgeDimmed = (edgeDimmed && !isEmphasized) || dimFromInteraction;
@@ -195,6 +226,21 @@ const VariableWidthEdge = ({
       edgeLabelValue = inferFieldFormatter(statisticFieldName(edgeWidthField, fields))(v);
     }
   }
+  const edgeActionsYOffset =
+    edgeLabelValue === undefined
+      ? EDGE_ACTIONS_Y_OFFSET_WITHOUT_LABEL
+      : EDGE_ACTIONS_Y_OFFSET_WITH_LABEL;
+  const edgeStatusYOffset =
+    edgeLabelValue === undefined
+      ? EDGE_STATUS_Y_OFFSET_WITHOUT_LABEL
+      : EDGE_STATUS_Y_OFFSET_WITH_LABEL;
+  const edgeStatusXOffset =
+    Math.abs(sourceX - targetX) < VERTICAL_EDGE_EPSILON
+      ? Math.max(
+          EDGE_STATUS_X_OFFSET,
+          strokeWidth / 2 + EDGE_STATUS_ICON_HALF_SIZE + EDGE_STATUS_GAP
+        )
+      : EDGE_STATUS_X_OFFSET;
 
   const arrowWidth = strokeWidth * ARROW_WIDTH_MULTIPLIER + ARROW_WIDTH_BASE;
   const arrowDepth = arrowWidth * ARROW_DEPTH_RATIO;
@@ -223,11 +269,11 @@ const VariableWidthEdge = ({
         >
           <path
             d={`M0,0 L0,${arrowWidth} L${arrowDepth},${arrowWidth / 2} z`}
-            fill={isEmphasized ? 'hsl(var(--primary))' : (edgeColor ?? 'currentColor')}
+            fill={renderedEdgeColor}
           />
         </marker>
       </defs>
-      {pipe?.sourcePortId && pipe.targetPortId && (
+      {pipe && pipeRef && (
         <path
           d={edgePath}
           fill="none"
@@ -240,9 +286,13 @@ const VariableWidthEdge = ({
           aria-pressed={isInspected}
           onMouseEnter={() => setHoveredPipeId(id)}
           onMouseLeave={() => setHoveredPipeId(null)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           onClick={event => {
             event.stopPropagation();
             inspect();
+            setIsFocused(false);
+            event.currentTarget.blur();
           }}
           onKeyDown={event => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -262,8 +312,8 @@ const VariableWidthEdge = ({
         markerEnd={`url(#${markerId})`}
         style={{
           pointerEvents: 'none',
-          stroke: isEmphasized ? 'hsl(var(--primary))' : (edgeColor ?? 'currentColor'),
-          filter: isEmphasized ? 'drop-shadow(0 0 3px hsl(var(--primary)))' : undefined,
+          stroke: renderedEdgeColor,
+          filter: isEmphasized ? `drop-shadow(0 0 3px ${emphasizedEdgeColor})` : undefined,
           strokeWidth,
           fill: 'none',
           opacity: isEdgeDimmed ? EDGE_DIMMED_OPACITY : 1,
@@ -286,34 +336,60 @@ const VariableWidthEdge = ({
           </div>
         </EdgeLabelRenderer>
       )}
+      {pipe && pipeRef && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan absolute"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + edgeActionsYOffset}px)`,
+              pointerEvents: 'all',
+            }}
+            onMouseEnter={() => setHoveredPipeId(id)}
+            onMouseLeave={() => {
+              setIsFocused(false);
+              if (activePreviewId !== previewId) {
+                setHoveredPipeId(null);
+              }
+            }}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+          >
+            <DAGItemActions
+              label={pipeLabel}
+              visible={isHovered || isFocused || activePreviewId === previewId}
+              className="overflow-hidden rounded-md border border-border/70"
+              previewOpen={activePreviewId === previewId}
+              onOpenChange={open => {
+                setActivePreviewId(open ? previewId : null);
+                setHoveredPipeId(open ? id : null);
+              }}
+              previewContent={<PipeDetailsBlock pipe={pipe} />}
+            />
+          </div>
+        </EdgeLabelRenderer>
+      )}
+      {pipe && isInspected && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan absolute"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX + edgeStatusXOffset}px,${labelY + edgeStatusYOffset}px)`,
+              pointerEvents: 'none',
+            }}
+          >
+            <DAGItemStatus label={pipeLabel} status="pinned" />
+          </div>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 };
 
 const edgeTypes = {
   smoothstep: VariableWidthEdge,
-  default: VariableWidthEdge,
 };
 
-// Custom node types for different operations
 const nodeTypes = {
-  source: QueryPlanNode,
-  scan: QueryPlanNode,
-  join: QueryPlanNode,
-  joinlocal: QueryPlanNode,
-  joinpartition: QueryPlanNode,
-  filesystemscan: QueryPlanNode,
-  aggregate: QueryPlanNode,
-  exchange: QueryPlanNode,
-  output: QueryPlanNode,
-  stage: QueryPlanNode,
-  local: QueryPlanNode,
-  project: QueryPlanNode,
-  filter: QueryPlanNode,
-  sort: QueryPlanNode,
-  limit: QueryPlanNode,
-  union: QueryPlanNode,
-  other: QueryPlanNode,
   default: QueryPlanNode,
 };
 
@@ -322,34 +398,18 @@ interface DAGProps {
   height?: string;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
-  /** Controlled selected node IDs. When provided, overrides internal selection state. */
-  selectedNodeIds?: string[];
-  /** Called when node selection changes. */
-  onSelectionChange?: (nodeIds: string[]) => void;
   /** Called when the empty chart background is clicked. */
   onBackgroundClick?: () => void;
   /** Complete operator hierarchy used to split grouped selections. */
   operators?: readonly Operator[];
 }
 
-function selectedOperatorDataFromFlowNode(
-  node: Node<QueryPlanNodeData>
-): SelectedOperatorGroupData {
+function dagNodeFromFlowNode(node: Node<QueryPlanNodeData>): DAGNode {
   return {
-    nodeId: node.id,
+    id: node.id,
     label: node.data.label,
-    operationType: node.data.operationType,
-    attributes: parseOperatorAttributes(node.data.metadata?.rawNode),
-    statistics: node.data.metadata?.aggregatedStatistics?.length
-      ? node.data.metadata.aggregatedStatistics
-      : (node.data.metadata?.operatorStatistics?.statistics ?? []),
-    relatedOperators: node.data.metadata?.relatedOperators?.map((operator, index) => ({
-      nodeId: operator.id,
-      label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
-      operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
-      attributes: parseOperatorAttributes(operator),
-      statistics: node.data.metadata?.relatedOperatorStatistics?.[index]?.statistics ?? [],
-    })),
+    type: node.data.operationType,
+    metadata: node.data.metadata,
   };
 }
 
@@ -358,25 +418,22 @@ const FlowLayout = ({
   containerRef,
   isDark,
   operators,
-  selectedNodeIds: controlledSelectedNodeIds,
-  onSelectionChange,
   onBackgroundClick,
 }: {
   data: DAGData;
   containerRef: RefObject<HTMLDivElement | null>;
   isDark: boolean;
   operators?: readonly Operator[];
-  selectedNodeIds?: string[];
-  onSelectionChange?: (nodeIds: string[]) => void;
   onBackgroundClick?: () => void;
 }) => {
   useSyncDisplayedPipes(data.edges, data.nodes);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const { fitView } = useReactFlow();
+  const { fitView, getEdges, getNodes } = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
   const operatorSelection = useOperatorSelection();
   const updateOperatorSelection = useOperatorSelectionActions();
+  const setActivePreviewId = useSetAtom(activeDAGPreviewIdAtom);
   const [highlightState] = useHighlightedNodeIds();
   const selectedOperatorIds = useSelectedOperatorIds();
   const [layoutDirection] = useSelectedDagLayoutDirection();
@@ -387,6 +444,32 @@ const FlowLayout = ({
   // so toggling the overlay relayouts exactly once.
   const flowBarVisible = dataFlowEnabled && dataFlowMeta != null;
   const hasUserInteracted = useRef(false);
+  const estimatedNodeHeight = NODE_LAYOUT_HEIGHT + (flowBarVisible ? FLOW_BAR_HEIGHT : 0);
+  const measuredNodeSizesKey = useMemo(() => {
+    if (nodes.length === 0 || nodes.some(node => !node.measured?.width || !node.measured?.height)) {
+      return null;
+    }
+    return [...nodes]
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map(node => `${node.id}:${node.measured!.width}x${node.measured!.height}`)
+      .join('|');
+  }, [nodes]);
+  const edgeTopologyKey = useMemo(
+    () =>
+      edges
+        .map(edge => `${edge.id}:${edge.source}>${edge.target}`)
+        .sort()
+        .join('|'),
+    [edges]
+  );
+  // This key triggers one relayout when measured geometry or topology changes.
+  const measuredLayoutKey = useMemo(
+    () =>
+      measuredNodeSizesKey
+        ? `${layoutDirection}|${estimatedNodeHeight}|${edgeTopologyKey}|${measuredNodeSizesKey}`
+        : null,
+    [edgeTopologyKey, estimatedNodeHeight, layoutDirection, measuredNodeSizesKey]
+  );
   const hierarchyOperators = useMemo(() => {
     if (operators) {
       return operators;
@@ -404,62 +487,51 @@ const FlowLayout = ({
     return [...byId.values()];
   }, [data.nodes, operators]);
   const hydratedNodeIdsKey = useMemo(
-    () =>
-      [
-        ...(controlledSelectedNodeIds === undefined
-          ? selectedOperatorIds
-          : controlledSelectedNodeIds),
-      ]
-        .sort()
-        .join('\0'),
-    [controlledSelectedNodeIds, selectedOperatorIds]
+    () => [...selectedOperatorIds].sort().join('\0'),
+    [selectedOperatorIds]
   );
 
   useEffect(() => {
     const operatorIds = new Set(hydratedNodeIdsKey === '' ? [] : hydratedNodeIdsKey.split('\0'));
     const resolved = resolveSelectedOperatorsFromNodes(data.nodes, operatorIds);
-    if (controlledSelectedNodeIds !== undefined) {
-      updateOperatorSelection({
-        type: 'replace',
-        selections: [
-          ...resolved.selections,
-          ...[...resolved.unresolvedOperatorIds].map(selectionId => ({
-            selectionId,
-            label: data.nodes.find(node => node.id === selectionId)?.label ?? selectionId,
-            operatorIds: new Set([selectionId]),
-          })),
-        ],
-      });
-      return;
-    }
-    updateOperatorSelection({ type: 'hydrate', selections: resolved.selections });
-  }, [controlledSelectedNodeIds, data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
+    updateOperatorSelection({
+      type: 'hydrate',
+      selections: resolved.selections,
+    });
+  }, [data.nodes, hydratedNodeIdsKey, updateOperatorSelection]);
 
-  const handleMoveStart = useCallback<OnMoveStart>(event => {
-    if (event !== null) {
-      hasUserInteracted.current = true;
-    }
-  }, []);
+  const handleMoveStart = useCallback<OnMoveStart>(
+    event => {
+      if (event !== null) {
+        hasUserInteracted.current = true;
+        setActivePreviewId(null);
+      }
+    },
+    [setActivePreviewId]
+  );
 
-  const getSelectionIds = useCallback((node: Node<QueryPlanNodeData>): string[] => {
-    const relatedOperatorIds = node.data.metadata?.relatedOperatorIds ?? [];
-    return relatedOperatorIds.length > 0 ? [...relatedOperatorIds, node.id] : [node.id];
-  }, []);
+  const getSelectionIds = useCallback(
+    (node: Node<QueryPlanNodeData>): string[] => [...getOperatorIds(dagNodeFromFlowNode(node))],
+    []
+  );
 
+  const nodeStatisticFields = useMemo(
+    () =>
+      data.nodes.flatMap(node => [
+        ...(node.metadata?.operatorStatistics?.fields ?? []),
+        ...(node.metadata?.relatedOperatorStatistics?.flatMap(statistics => statistics.fields) ??
+          []),
+      ]),
+    [data.nodes]
+  );
   const statisticFields = useMemo(
     () =>
       new Map(
-        [
-          ...data.nodes.flatMap(node => node.metadata?.operatorStatistics?.fields ?? []),
-          ...data.nodes.flatMap(
-            node =>
-              node.metadata?.relatedOperatorStatistics?.flatMap(statistics => statistics.fields) ??
-              []
-          ),
-          ...data.edges.flatMap(edge => edge.statisticFields ?? []),
-        ].map(field => [field.key, field] as const)
+        [...nodeStatisticFields, ...data.edges.flatMap(edge => edge.statisticFields ?? [])].map(
+          field => [field.key, field] as const
+        )
       ),
-    [data.nodes, data.edges]
+    [data.edges, nodeStatisticFields]
   );
 
   const statQuantitySpecs = useMemo((): Record<string, QuantitySpec> => {
@@ -467,23 +539,16 @@ const FlowLayout = ({
       return {};
     }
     const result: Record<string, QuantitySpec> = {};
-    for (const node of data.nodes) {
-      const fields = [
-        ...(node.metadata?.operatorStatistics?.fields ?? []),
-        ...(node.metadata?.relatedOperatorStatistics?.flatMap(statistics => statistics.fields) ??
-          []),
-      ];
-      for (const stat of fields) {
-        if (stat.quantity && !(stat.key in result)) {
-          const spec = data.quantitySpecs[stat.quantity];
-          if (spec) {
-            result[stat.key] = spec;
-          }
+    for (const stat of nodeStatisticFields) {
+      if (stat.quantity && !(stat.key in result)) {
+        const spec = data.quantitySpecs[stat.quantity];
+        if (spec) {
+          result[stat.key] = spec;
         }
       }
     }
     return result;
-  }, [data.nodes, data.quantitySpecs]);
+  }, [data.quantitySpecs, nodeStatisticFields]);
 
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
@@ -494,7 +559,7 @@ const FlowLayout = ({
     const flowNodes: Node<QueryPlanNodeData>[] = data.nodes.map(node => {
       return {
         id: node.id,
-        type: node.type,
+        type: 'default',
         data: {
           nodeId: node.id,
           label: node.label,
@@ -523,6 +588,7 @@ const FlowLayout = ({
       source: edge.source,
       target: edge.target,
       type: 'smoothstep',
+      selectable: true,
       // Selection is shown by the edge's own emphasis, not the browser focus box.
       className: 'outline-none focus:outline-none',
       // Pass isDark down to edge components via data
@@ -536,11 +602,10 @@ const FlowLayout = ({
     return { flowNodes, flowEdges };
   }, [data, isDark, layoutDirection, flowBarVisible]);
 
-  const handleNodeClick = useCallback(
-    (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
-      let nextSelectedIds: Set<string>;
+  const toggleOperatorFilter = useCallback(
+    (node: Node<QueryPlanNodeData>) => {
       if (selectedOperatorIds.has(node.id)) {
-        nextSelectedIds = updateOperatorSelection({
+        updateOperatorSelection({
           type: 'replace',
           selections: toggleOperatorSelection(
             hierarchyOperators,
@@ -550,29 +615,28 @@ const FlowLayout = ({
           ),
         });
       } else {
-        nextSelectedIds = updateOperatorSelection({
+        const selection = operatorSelectionFromNode(dagNodeFromFlowNode(node));
+        updateOperatorSelection({
           type: 'add',
-          selectionId: node.id,
-          label: node.data.label,
-          operatorIds: getSelectionIds(node),
-          selectedData: selectedOperatorDataFromFlowNode(node),
+          ...selection,
         });
       }
-      onSelectionChange?.([...nextSelectedIds]);
     },
-    [
-      getSelectionIds,
-      hierarchyOperators,
-      onSelectionChange,
-      operatorSelection.selections,
-      selectedOperatorIds,
-      updateOperatorSelection,
-    ]
+    [hierarchyOperators, operatorSelection.selections, selectedOperatorIds, updateOperatorSelection]
+  );
+
+  const handleNodeClick = useCallback(
+    (_event: MouseEvent, node: Node<QueryPlanNodeData>): void => {
+      setActivePreviewId(null);
+      toggleOperatorFilter(node);
+    },
+    [setActivePreviewId, toggleOperatorFilter]
   );
 
   const handlePaneClick = useCallback(() => {
+    setActivePreviewId(null);
     onBackgroundClick?.();
-  }, [onBackgroundClick]);
+  }, [onBackgroundClick, setActivePreviewId]);
 
   // Re-fit view when the react-flow container is resized, but only if the user
   // hasn't interacted with the chart (to maintain any focus states applied)
@@ -599,35 +663,62 @@ const FlowLayout = ({
   // Calculate and apply layout
   useLayoutEffect(() => {
     hasUserInteracted.current = false;
-    // calculateLayout is async: rapid dependency changes (e.g. flowBarVisible
-    // toggles) can interleave calls, so discard results from stale runs
-    // instead of letting them overwrite a newer layout.
-    let cancelled = false;
+    const { flowNodes, flowEdges } = convertToReactFlow();
+    const layoutResult = calculateLayout(
+      flowNodes,
+      flowEdges,
+      layoutDirection,
+      estimatedNodeHeight
+    );
+    setNodes(layoutResult.nodes);
+    setEdges(layoutResult.edges);
 
-    const applyLayout = async () => {
-      const { flowNodes, flowEdges } = convertToReactFlow();
-      const layoutResult = await calculateLayout(
-        flowNodes,
-        flowEdges,
-        layoutDirection,
-        NODE_LAYOUT_HEIGHT + (flowBarVisible ? FLOW_BAR_HEIGHT : 0)
-      );
-      if (cancelled) {
-        return;
+    const fitFrame = requestAnimationFrame(() => {
+      if (!hasUserInteracted.current) {
+        fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM });
       }
-
-      setNodes(layoutResult.nodes);
-      setEdges(layoutResult.edges);
-
-      // Fit view after layout
-      setTimeout(() => fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM }), 0);
-    };
-
-    applyLayout();
+    });
     return () => {
-      cancelled = true;
+      cancelAnimationFrame(fitFrame);
     };
-  }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection, flowBarVisible]);
+  }, [data, convertToReactFlow, estimatedNodeHeight, fitView, setNodes, setEdges, layoutDirection]);
+
+  useLayoutEffect(() => {
+    if (!measuredLayoutKey) {
+      return;
+    }
+
+    const layoutResult = calculateLayout(
+      getNodes(),
+      getEdges(),
+      layoutDirection,
+      estimatedNodeHeight
+    );
+    const positions = new Map(layoutResult.nodes.map(node => [node.id, node.position]));
+    setNodes(current =>
+      current.map(node => ({
+        ...node,
+        position: positions.get(node.id) ?? node.position,
+      }))
+    );
+
+    const fitFrame = requestAnimationFrame(() => {
+      if (!hasUserInteracted.current) {
+        fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM });
+      }
+    });
+    return () => {
+      cancelAnimationFrame(fitFrame);
+    };
+  }, [
+    estimatedNodeHeight,
+    fitView,
+    getEdges,
+    getNodes,
+    layoutDirection,
+    measuredLayoutKey,
+    setNodes,
+  ]);
 
   const dagHeatmap = useMemo(
     () => resolveDagHeatmap(highlightState.hoveredStat, data.nodes),
@@ -636,6 +727,13 @@ const FlowLayout = ({
   const highlightedNodeIds = useMemo(
     () => resolveDagHighlightedNodeIds(highlightState.ids, data.nodes),
     [data.nodes, highlightState.ids]
+  );
+  const nodeDetails = useMemo(
+    () =>
+      new Map(
+        data.nodes.map(node => [node.id, operatorSelectionFromNode(node).selectedData] as const)
+      ),
+    [data.nodes]
   );
   const renderedNodes = useMemo(
     () =>
@@ -647,9 +745,13 @@ const FlowLayout = ({
           hoveredStatValue: dagHeatmap?.values.get(node.id),
           heatmapRange: dagHeatmap?.range,
           highlightedNodeIds,
+          actions: {
+            filtered: getSelectionIds(node).every(id => selectedOperatorIds.has(id)),
+            details: nodeDetails.get(node.id)!,
+          },
         },
       })),
-    [dagHeatmap, highlightedNodeIds, nodes]
+    [dagHeatmap, highlightedNodeIds, getSelectionIds, nodeDetails, nodes, selectedOperatorIds]
   );
   const renderedEdges = useMemo(
     () =>
@@ -673,6 +775,8 @@ const FlowLayout = ({
       onNodeClick={handleNodeClick}
       onPaneClick={handlePaneClick}
       onMoveStart={handleMoveStart}
+      selectionKeyCode={null}
+      multiSelectionKeyCode={null}
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
@@ -691,6 +795,7 @@ const FlowLayout = ({
       <MiniMap
         pannable
         zoomable
+        className="overflow-hidden rounded-md shadow-md"
         nodeStrokeWidth={MINIMAP_NODE_STROKE_WIDTH}
         style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE, background: 'hsl(var(--card))' }}
         maskColor="hsl(var(--muted) / 0.7)"
@@ -702,14 +807,12 @@ const FlowLayout = ({
   );
 };
 
-/** ReactFlow-based DAG visualization with ELK layout, edge styling, and node selection. */
+/** React Flow DAG visualization with automatic layout, edge styling, and operator filtering. */
 export const DAGChart = ({
   data,
   height = '100%',
   isDark,
   operators,
-  selectedNodeIds,
-  onSelectionChange,
   onBackgroundClick,
 }: DAGProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -721,8 +824,6 @@ export const DAGChart = ({
           containerRef={containerRef}
           isDark={isDark}
           operators={operators}
-          selectedNodeIds={selectedNodeIds}
-          onSelectionChange={onSelectionChange}
           onBackgroundClick={onBackgroundClick}
         />
       </ReactFlowProvider>

@@ -40,7 +40,7 @@ export interface HighlightedNodeIdsState {
   primaryOperatorId: string | null;
 }
 
-/** Details for every selected operator group, keyed by selection id. */
+/** Details for every filtered operator group, keyed by selection id. */
 export const selectedOperatorsDataAtom = atom<ReadonlyMap<string, SelectedOperatorGroupData>>(
   new Map()
 );

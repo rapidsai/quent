@@ -433,7 +433,7 @@ describe('deep-link state validation', () => {
   });
 });
 
-it('round trips structural pipe inspection independently of operator selection and nested metric paths', () => {
+it('round trips pipe inspection independently of operator selection and nested metric paths', () => {
   const shared: DeepLinkStateV3 = {
     ...state,
     selection: {
@@ -498,6 +498,38 @@ describe('deep-link nested chart rows', () => {
       value: { version: 'v3', data: shared },
     });
   });
+});
+
+it('normalizes legacy detail IDs into filters and preserves nested metric paths', () => {
+  const shared = {
+    ...state,
+    selection: {
+      planId: 'p',
+      operatorNodeIds: ['old'],
+      operatorDetailsNodeIds: ['details-a', 'details-b'],
+      pipes: [
+        { sourcePortId: 'out-1', targetPortId: 'in-1' },
+        { sourcePortId: 'out-2', targetPortId: 'in-2' },
+      ],
+    },
+    dag: { edgeWidthField: '[["Volume",0],["bytes",0]]' },
+  };
+  const decoded = decodeDeepLinkState(encodeRawState('v3', shared));
+  expect(decoded.ok).toBe(true);
+  if (!decoded.ok) {
+    return;
+  }
+  expect(decoded.value.version).toBe('v3');
+  if (decoded.value.version !== 'v3') {
+    return;
+  }
+  const restored = DeepLinkStateV3Schema.parse(decoded.value.data);
+  expect(restored.selection).toEqual({
+    planId: 'p',
+    operatorNodeIds: ['details-a', 'details-b', 'old'],
+    pipes: shared.selection.pipes,
+  });
+  expect(restored.dag?.edgeWidthField).toBe(shared.dag.edgeWidthField);
 });
 
 describe('deep-link pinned rows', () => {

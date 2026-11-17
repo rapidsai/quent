@@ -452,7 +452,11 @@ describe('getPlanDAG', () => {
     const op2 = makeOperator('op2', { typeName: 'Join' });
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
-    const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }], workerId: 'w1' });
+    const plan = makePlan('p1', {
+      instanceName: 'Physical',
+      edges: [{ source: 'port1', target: 'port2' }],
+      workerId: 'w1',
+    });
     const worker = makeWorker('w1', 'drone-1');
     const bundle = makeBundle(
       { p1: plan },
@@ -461,6 +465,9 @@ describe('getPlanDAG', () => {
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
       op1: 'drone-1',
+    });
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorPlanLabels).toEqual({
+      op1: 'Physical',
     });
   });
 
@@ -475,6 +482,9 @@ describe('getPlanDAG', () => {
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
       op1: undefined,
     });
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorPlanLabels).toEqual({
+      op1: undefined,
+    });
   });
 
   it('sets the worker label to undefined when the operator has a plan with no matching worker', () => {
@@ -483,11 +493,17 @@ describe('getPlanDAG', () => {
     const port1 = makePort('port1', 'op1');
     const port2 = makePort('port2', 'op2');
     // Plan has no worker_id, and no worker is present in the bundle either.
-    const plan = makePlan('p1', { edges: [{ source: 'port1', target: 'port2' }] });
+    const plan = makePlan('p1', {
+      instanceName: 'Logical',
+      edges: [{ source: 'port1', target: 'port2' }],
+    });
     const bundle = makeBundle({ p1: plan }, { operators: { op1, op2 }, ports: { port1, port2 } });
     const result = getPlanDAG(bundle, 'p1');
     expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorWorkerLabels).toEqual({
       op1: undefined,
+    });
+    expect(result.nodes.find(n => n.id === 'op1')!.metadata!.operatorPlanLabels).toEqual({
+      op1: 'Logical',
     });
   });
 

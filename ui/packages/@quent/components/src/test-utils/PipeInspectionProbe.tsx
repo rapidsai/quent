@@ -6,9 +6,9 @@ import {
   useHighlightedNodeIds,
   useHoveredPipeId,
   useInspectedPipes,
+  useDisplayedOperatorDetails,
   useOperatorSelectionActions,
   useSelectedOperatorIds,
-  useSelectedOperatorsData,
   useAddInspectedPipe,
   useSyncDisplayedPipes,
 } from '@quent/hooks';
@@ -25,7 +25,7 @@ export type PipeInspectionSnapshot = Actions & {
   hoveredPipeId: ReturnType<typeof useHoveredPipeId>;
   highlight: ReturnType<typeof useHighlightedNodeIds>[0];
   selectedOperatorIds: ReturnType<typeof useSelectedOperatorIds>;
-  selectedOperatorsData: ReturnType<typeof useSelectedOperatorsData>;
+  displayedOperatorDetails: ReturnType<typeof useDisplayedOperatorDetails>;
 };
 
 /** Holds the latest snapshot the probe reported. */
@@ -76,7 +76,7 @@ export function PipeInspectionProbe({
     hoveredPipeId: useHoveredPipeId(),
     highlight,
     selectedOperatorIds: useSelectedOperatorIds(),
-    selectedOperatorsData: useSelectedOperatorsData(),
+    displayedOperatorDetails: useDisplayedOperatorDetails(),
     addInspectedPipe: useAddInspectedPipe(),
     updateSelection: useOperatorSelectionActions(),
   };

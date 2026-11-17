@@ -9,6 +9,7 @@ import {
   buildRelatedOperatorIdsById,
   flattenStatistics,
   isNumericValue,
+  operatorPlanLabel,
   operatorWorkerLabel,
   statisticFieldLabel,
   workerDisplayName,
@@ -116,11 +117,18 @@ const getNodeEntity = (
           bundle.entities.workers
         ),
       };
+      const operatorPlanLabels: Record<string, string | undefined> = {
+        [operator.id]: operatorPlanLabel(operator, bundle.entities.plans),
+      };
       for (const relatedOperator of relatedOperators) {
         operatorWorkerLabels[relatedOperator.id] = operatorWorkerLabel(
           relatedOperator,
           bundle.entities.plans,
           bundle.entities.workers
+        );
+        operatorPlanLabels[relatedOperator.id] = operatorPlanLabel(
+          relatedOperator,
+          bundle.entities.plans
         );
       }
       const node: DAGNode = {
@@ -138,6 +146,7 @@ const getNodeEntity = (
           relatedOperators,
           relatedOperatorStatistics,
           operatorWorkerLabels,
+          operatorPlanLabels,
         },
       };
       return node;

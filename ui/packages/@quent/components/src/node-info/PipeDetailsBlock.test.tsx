@@ -10,12 +10,39 @@ import {
 } from '../test-utils/PipeInspectionProbe';
 import { PipeDetailsBlock } from './PipeDetailsBlock';
 
+const scanOperator = {
+  id: 'scan',
+  plan_id: 'physical-plan',
+  parent_operator_ids: ['logical'],
+  instance_name: 'Parquet scan [6]',
+  operator_type_name: 'Scan',
+  custom_attributes: [],
+  statistics: null,
+  active_span: null,
+};
+
 it('presents operator labels and highlights the matching endpoint on hover and focus', () => {
   const probe = createPipeInspectionRecorder();
   const store = createStore();
   const nodes = [
-    { id: 'scan', label: 'Parquet scan [6]', type: 'scan' },
-    { id: 'join', label: 'Partitioned join [42]', type: 'join' },
+    {
+      id: 'scan',
+      label: 'Parquet scan [6]',
+      type: 'scan',
+      metadata: {
+        operatorWorkerLabels: { scan: 'drone-1' },
+        operatorPlanLabels: { scan: 'Physical' },
+      },
+    },
+    {
+      id: 'join',
+      label: 'Partitioned join [42]',
+      type: 'join',
+      metadata: {
+        operatorWorkerLabels: { join: 'drone-1' },
+        operatorPlanLabels: { join: 'Physical' },
+      },
+    },
   ];
   const pipe = {
     id: 'pipe',
@@ -40,6 +67,8 @@ it('presents operator labels and highlights the matching endpoint on hover and f
   });
   expect(within(header).getByText('Parquet scan [6]')).toBeVisible();
   expect(within(header).getByText('Partitioned join [42]')).toBeVisible();
+  expect(within(header).getByText('drone-1')).toBeVisible();
+  expect(within(header).queryByText('Physical')).not.toBeInTheDocument();
   expect(screen.getAllByText('Parquet scan [6]')).toHaveLength(2);
   expect(screen.getAllByText('Partitioned join [42]')).toHaveLength(2);
   fireEvent.mouseEnter(screen.getByRole('region', { name: 'Sending port' }));
@@ -56,7 +85,7 @@ it('presents operator labels and highlights the matching endpoint on hover and f
   expect(probe.latest().highlight.ids).toBeNull();
 });
 
-it('navigates from either endpoint to its operator, adding to the filters and keeping pipe inspection', () => {
+it('shows filtered endpoints in details without changing pipe inspection', () => {
   const probe = createPipeInspectionRecorder();
   const store = createStore();
   const nodes = [
@@ -95,18 +124,112 @@ it('navigates from either endpoint to its operator, adding to the filters and ke
   fireEvent.click(sending);
   expect(probe.latest().inspectedPipes).toHaveLength(1);
   expect(probe.latest().selectedOperatorIds).toEqual(new Set(['other', 'scan', 'scan-worker']));
-  expect(probe.latest().selectedOperatorsData.find(data => data.nodeId === 'scan')?.label).toBe(
-    'Parquet scan [6]'
+  expect(probe.latest().displayedOperatorDetails[0]?.data.label).toBe('Parquet scan [6]');
+  fireEvent.click(sending);
+  expect(probe.latest().selectedOperatorIds).toEqual(new Set(['other']));
+  expect(probe.latest().displayedOperatorDetails).toEqual([]);
+  fireEvent.click(screen.getByRole('button', { name: 'Filter by Partitioned join [42] operator' }));
+  expect(probe.latest().selectedOperatorIds).toEqual(new Set(['other', 'join']));
+  expect(probe.latest().displayedOperatorDetails[0]?.data.label).toBe('Partitioned join [42]');
+});
+
+it('shows a filter indicator only for filtered endpoint operators', () => {
+  const probe = createPipeInspectionRecorder();
+  const nodes = [
+    { id: 'scan', label: 'Parquet scan [6]', type: 'scan' },
+    { id: 'join', label: 'Partitioned join [42]', type: 'join' },
+  ];
+  const pipe = {
+    id: 'pipe',
+    source: 'scan',
+    target: 'join',
+    sourcePortId: 'out',
+    targetPortId: 'in',
+  };
+  render(
+    <Provider store={createStore()}>
+      <PipeInspectionProbe nodes={nodes} edges={[pipe]} recorder={probe}>
+        <PipeDetailsBlock pipe={pipe} />
+      </PipeInspectionProbe>
+    </Provider>
   );
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Show Partitioned join [42] operator details' })
+  act(() => probe.latest().addInspectedPipe({ sourcePortId: 'out', targetPortId: 'in' }));
+
+  const sending = screen.getByRole('region', { name: 'Sending port' });
+  const receiving = screen.getByRole('region', { name: 'Receiving port' });
+  expect(
+    within(sending).queryByRole('status', { name: 'Parquet scan [6]: filtered' })
+  ).not.toBeInTheDocument();
+  expect(
+    within(receiving).queryByRole('status', { name: 'Partitioned join [42]: filtered' })
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(sending);
+  expect(probe.latest().selectedOperatorIds).toEqual(new Set(['scan']));
+  expect(probe.latest().displayedOperatorDetails[0]?.data.label).toBe('Parquet scan [6]');
+  const filterStatus = within(sending).getByRole('status', {
+    name: 'Parquet scan [6]: filtered',
+  });
+  expect(filterStatus).toBeVisible();
+  expect(filterStatus).toHaveClass('absolute', 'text-foreground');
+  expect(filterStatus).toHaveAttribute('title', 'Filtered by operator');
+  expect(filterStatus.querySelector('svg')).toHaveClass('opacity-40');
+  expect(
+    within(receiving).queryByRole('status', { name: 'Partitioned join [42]: filtered' })
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(sending);
+  expect(probe.latest().selectedOperatorIds).toEqual(new Set());
+  expect(
+    within(sending).queryByRole('status', { name: 'Parquet scan [6]: filtered' })
+  ).not.toBeInTheDocument();
+});
+
+it('removes an endpoint covered by a parent operator filter', () => {
+  const probe = createPipeInspectionRecorder();
+  const nodes = [
+    {
+      id: 'scan',
+      label: 'Parquet scan [6]',
+      type: 'scan',
+      metadata: { rawNode: scanOperator },
+    },
+    { id: 'join', label: 'Partitioned join [42]', type: 'join' },
+  ];
+  const pipe = {
+    id: 'pipe',
+    source: 'scan',
+    target: 'join',
+    sourcePortId: 'out',
+    targetPortId: 'in',
+  };
+  render(
+    <Provider store={createStore()}>
+      <PipeInspectionProbe nodes={nodes} edges={[pipe]} recorder={probe}>
+        <PipeDetailsBlock pipe={pipe} />
+      </PipeInspectionProbe>
+    </Provider>
   );
-  expect(probe.latest().selectedOperatorIds).toEqual(
-    new Set(['other', 'scan', 'scan-worker', 'join'])
+  act(() =>
+    probe.latest().updateSelection({
+      type: 'replace',
+      selections: [
+        {
+          selectionId: 'logical',
+          label: 'Logical scan',
+          operatorIds: new Set(['logical', 'scan']),
+        },
+        { selectionId: 'other', label: 'Other', operatorIds: new Set(['other']) },
+      ],
+    })
   );
-  expect(probe.latest().selectedOperatorsData.find(data => data.nodeId === 'join')?.label).toBe(
-    'Partitioned join [42]'
-  );
+
+  fireEvent.click(screen.getByRole('region', { name: 'Sending port' }));
+
+  expect(probe.latest().selectedOperatorIds).toEqual(new Set(['other']));
+  expect(
+    within(screen.getByRole('region', { name: 'Sending port' })).queryByRole('status')
+  ).not.toBeInTheDocument();
 });
 
 it('collapses and expands its ports from the header', () => {
