@@ -15,7 +15,6 @@ use std::time::Duration;
 use backon::{ConstantBuilder, Retryable};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
-use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 
 use crate::compatibility::WrapperCompatibility;
@@ -36,6 +35,41 @@ struct BuiltViewer {
     crate_dir: PathBuf,
     contexts: Vec<PathBuf>,
     label: String,
+}
+
+struct RunningViewer {
+    child: tokio::process::Child,
+    _output_root: StagedOutputRoot,
+}
+
+struct StagedOutputRoot(PathBuf);
+
+impl StagedOutputRoot {
+    fn new(path: PathBuf) -> Self {
+        Self(path)
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for StagedOutputRoot {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+impl RunningViewer {
+    async fn wait(mut self) -> Result<()> {
+        let status = self.child.wait().await?;
+        if !status.success() {
+            return Err(OpenError::ViewerExited {
+                status: status.to_string(),
+            });
+        }
+        Ok(())
+    }
 }
 
 /// Build each group's viewer (serially, see module docs), then serve the built
@@ -62,14 +96,31 @@ pub async fn open_all(groups: Vec<ViewerGroup>, no_browser: bool, host: IpAddr) 
         }
     }
 
-    let mut set = JoinSet::new();
-    let mut startups = Vec::new();
+    let mut startups = JoinSet::new();
     for viewer in built {
-        let (startup_tx, startup_rx) = oneshot::channel();
-        startups.push(startup_rx);
-        set.spawn(async move { serve_one(viewer, open_browser, host, startup_tx).await });
+        startups.spawn(async move { start(viewer, open_browser, host).await });
     }
-    println!("serving {} viewer(s)", completed_startups(startups).await);
+    let mut running = Vec::new();
+    while let Some(joined) = startups.join_next().await {
+        match joined {
+            Ok(Ok(viewer)) => running.push(viewer),
+            Ok(Err(e)) => {
+                failures += 1;
+                eprintln!("viewer startup failed: {e}");
+            }
+            Err(e) => {
+                failures += 1;
+                eprintln!("viewer startup task error: {e}");
+            }
+        }
+    }
+    // Parsed by experimental/vibe/quent-cli/src/quentOpenDb.ts; keep this format stable.
+    println!("serving {} viewer(s)", running.len());
+
+    let mut set = JoinSet::new();
+    for viewer in running {
+        set.spawn(viewer.wait());
+    }
     while let Some(joined) = set.join_next().await {
         match joined {
             Ok(Ok(())) => {}
@@ -88,16 +139,6 @@ pub async fn open_all(groups: Vec<ViewerGroup>, no_browser: bool, host: IpAddr) 
     } else {
         Ok(())
     }
-}
-
-async fn completed_startups(startups: Vec<oneshot::Receiver<()>>) -> usize {
-    let mut completed = 0;
-    for startup in startups {
-        if startup.await.is_ok() {
-            completed += 1;
-        }
-    }
-    completed
 }
 
 /// Generate and build one group's viewer crate.
@@ -127,13 +168,8 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
     })
 }
 
-/// Serve one built viewer over all its contexts.
-async fn serve_one(
-    viewer: BuiltViewer,
-    open_browser: bool,
-    host: IpAddr,
-    startup: oneshot::Sender<()>,
-) -> Result<()> {
+/// Start one built viewer over all its contexts.
+async fn start(viewer: BuiltViewer, open_browser: bool, host: IpAddr) -> Result<RunningViewer> {
     let BuiltViewer {
         bin,
         has_mcp_routes,
@@ -141,20 +177,47 @@ async fn serve_one(
         contexts,
         label,
     } = viewer;
-    let output_root = stage_output_root(&crate_dir, &contexts)?;
-    let result = serve(
-        &output_root,
-        &bin,
-        has_mcp_routes,
-        &label,
-        open_browser,
-        host,
-        startup,
-    )
-    .await;
-    // Best-effort cleanup of this run's staged root; keep the cached build.
-    let _ = std::fs::remove_dir_all(&output_root);
-    result
+    let output_root = StagedOutputRoot::new(stage_output_root(&crate_dir, &contexts)?);
+    let addr = free_port(host)?;
+    // An unspecified host (`0.0.0.0`/`::`) is not browseable; show and probe the
+    // matching loopback instead (the server may be bound v6-only on `::`).
+    let reachable = match addr.ip() {
+        IpAddr::V4(ip) if ip.is_unspecified() => (Ipv4Addr::LOCALHOST, addr.port()).into(),
+        IpAddr::V6(ip) if ip.is_unspecified() => (Ipv6Addr::LOCALHOST, addr.port()).into(),
+        _ => addr,
+    };
+    let url = format!("http://{reachable}/");
+
+    let mut child = Command::new(bin)
+        .env(ROOT_ENV, output_root.path())
+        .env(ADDR_ENV, addr.to_string())
+        // Don't leak the db-mode API token into the viewer we build and run from an
+        // untrusted source. Keep in sync with the `db` subcommand's `--token` env.
+        .env_remove("QUENT_OPEN_TOKEN")
+        // Don't orphan the viewer (holding its port) if the caller drops us:
+        // Ctrl-C on the CLI, or a cancelled `run`/`open` in a library embedding.
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|source| OpenError::Spawn {
+            what: "viewer".into(),
+            source,
+        })?;
+
+    wait_for_startup(&mut child, reachable, &url).await?;
+
+    // Parsed by experimental/vibe/quent-cli/src/quentOpenDb.ts; keep this format stable.
+    println!("ready: {label}  {url}");
+    if has_mcp_routes {
+        println!("mcp: {label}  {url}mcp");
+    }
+    if open_browser && let Err(e) = open_browser_without_token(&url) {
+        eprintln!("could not open a browser ({e}); open {url} manually");
+    }
+
+    Ok(RunningViewer {
+        child,
+        _output_root: output_root,
+    })
 }
 
 /// Cache dir for this viewer's generated crate/build, keyed by
@@ -308,67 +371,25 @@ fn symlink_dir(_src: &Path, _link: &Path) -> Result<()> {
     )))
 }
 
-/// Spawn the viewer for `output_root` bound on `host`, announce its URL once it
-/// accepts connections, and run until exit.
-async fn serve(
-    output_root: &Path,
-    bin: &Path,
-    has_mcp_routes: bool,
-    label: &str,
-    open_browser: bool,
-    host: IpAddr,
-    startup: oneshot::Sender<()>,
+async fn wait_for_startup(
+    child: &mut tokio::process::Child,
+    reachable: SocketAddr,
+    url: &str,
 ) -> Result<()> {
-    let addr = free_port(host)?;
-    // An unspecified host (`0.0.0.0`/`::`) is not browseable; show and probe the
-    // matching loopback instead (the server may be bound v6-only on `::`).
-    let reachable = match addr.ip() {
-        IpAddr::V4(ip) if ip.is_unspecified() => (Ipv4Addr::LOCALHOST, addr.port()).into(),
-        IpAddr::V6(ip) if ip.is_unspecified() => (Ipv6Addr::LOCALHOST, addr.port()).into(),
-        _ => addr,
-    };
-    let url = format!("http://{reachable}/");
-
-    let mut child = Command::new(bin)
-        .env(ROOT_ENV, output_root)
-        .env(ADDR_ENV, addr.to_string())
-        // Don't leak the db-mode API token into the viewer we build and run from an
-        // untrusted source. Keep in sync with the `db` subcommand's `--token` env.
-        .env_remove("QUENT_OPEN_TOKEN")
-        // Don't orphan the viewer (holding its port) if the caller drops us:
-        // Ctrl-C on the CLI, or a cancelled `run`/`open` in a library embedding.
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|source| OpenError::Spawn {
-            what: "viewer".into(),
-            source,
-        })?;
-
-    if wait_until_ready(reachable).await {
-        println!("ready: {label}  {url}");
-        let _ = startup.send(());
-        if has_mcp_routes {
-            println!("mcp: {label}  {url}mcp");
-        }
-        if open_browser && let Err(e) = open_browser_without_token(&url) {
-            eprintln!("could not open a browser ({e}); open {url} manually");
-        }
-    } else {
-        if let Some(status) = child.try_wait()? {
+    tokio::select! {
+        status = child.wait() => {
             return Err(OpenError::ViewerExited {
-                status: status.to_string(),
+                status: status?.to_string(),
             });
         }
-        child.kill().await?;
-        let _ = child.wait().await;
-        return Err(OpenError::ViewerStartupTimeout { url });
-    }
-
-    let status = child.wait().await?;
-    if !status.success() {
-        return Err(OpenError::ViewerExited {
-            status: status.to_string(),
-        });
+        ready = wait_until_ready(reachable) => {
+            if !ready {
+                child.kill().await?;
+                return Err(OpenError::ViewerStartupTimeout {
+                    url: url.to_owned(),
+                });
+            }
+        }
     }
     Ok(())
 }
@@ -413,14 +434,25 @@ async fn wait_until_ready(addr: SocketAddr) -> bool {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[tokio::test]
-    async fn counts_only_viewers_that_complete_startup() {
-        let (ready_tx, ready_rx) = oneshot::channel();
-        let (failed_tx, failed_rx) = oneshot::channel();
-        ready_tx.send(()).unwrap();
-        drop(failed_tx);
+    async fn reports_viewer_exit_during_startup() {
+        let mut child = Command::new("sh")
+            .args(["-c", "exit 7"])
+            .spawn()
+            .expect("test child should spawn");
+        let error = wait_for_startup(
+            &mut child,
+            (Ipv4Addr::LOCALHOST, 0).into(),
+            "http://127.0.0.1:0/",
+        )
+        .await
+        .expect_err("exiting before readiness should fail");
 
-        assert_eq!(completed_startups(vec![ready_rx, failed_rx]).await, 1);
+        assert!(matches!(
+            error,
+            OpenError::ViewerExited { status } if status.contains('7')
+        ));
     }
 
     /// Compatibility gate, run explicitly in CI (the `open-compat` job in
