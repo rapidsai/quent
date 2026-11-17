@@ -38,7 +38,7 @@ const ROW_CONTROL_SELECTOR =
   'button, a, input, select, textarea, [role="button"], [role="combobox"], [role="listbox"], [role="option"], [role="menuitem"], [data-radix-popper-content-wrapper]';
 
 // Rows drawn above and below the visible ones, so scrolling does not show blank space.
-const OVERSCAN_ROWS = 8;
+const OVERSCAN_ROWS = 4;
 
 // How far the pointer must move before a press becomes a drag, so plain clicks stay clicks.
 const DRAG_START_DISTANCE_PX = 5;
