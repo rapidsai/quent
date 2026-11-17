@@ -1445,6 +1445,8 @@ export function TreeTable<I extends TreeTableDataItem>({
                       rowMinHeight={pinnedRowHeight}
                       rowPaddingLeft={totalLeftSpacing}
                       scrollRef={scrollContainerRef}
+                      virtualized={treeViewProps.virtualized}
+                      overscanRows={treeViewProps.overscanRows}
                       renderRow={(item, dragArea) => (
                         <PinnedTreeRows
                           item={item}
