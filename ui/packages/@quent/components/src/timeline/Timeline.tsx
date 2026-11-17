@@ -233,6 +233,7 @@ export function Timeline({
 
   const minZoomSpanPct = useMinZoomSpanPct(durationSeconds);
   const attachWheelNavigation = useTimelineWheelNavigation(minZoomSpanPct);
+  const wheelTargetRef = useRef<HTMLDivElement | null>(null);
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
@@ -260,7 +261,7 @@ export function Timeline({
         },
         {
           type: 'inside',
-          zoomOnMouseWheel: 'shift',
+          zoomOnMouseWheel: true,
           moveOnMouseMove: false,
           moveOnMouseWheel: false,
           throttle: 30,
@@ -360,7 +361,7 @@ export function Timeline({
       isDraggingRef.current = false;
     });
 
-    attachWheelNavigation(instance);
+    attachWheelNavigation(instance, wheelTargetRef.current ?? undefined);
     onReady?.(instance);
   };
 
@@ -384,7 +385,7 @@ export function Timeline({
   });
 
   return (
-    <TimelinePointerArea className="h-full w-full">
+    <TimelinePointerArea ref={wheelTargetRef} className="h-full w-full">
       {(yAxisLabel != null || maxValue != null) && (
         <div
           className="absolute z-[8] pointer-events-none flex flex-col items-start gap-px text-[10px] leading-none"
