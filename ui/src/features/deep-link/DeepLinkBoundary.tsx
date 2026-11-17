@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { useStore } from 'jotai';
 import {
+  LONG_ENTITY_DENSITY_DEFAULT,
   useHydrateSelectedPlanId,
   useReadZoomRange,
   useSerializableViewState,
@@ -50,7 +51,21 @@ import {
   parseOptionalNumber,
   validateEntityFilters,
 } from '@/components/entities-table/utils';
-import { buildDeepLinkUrl, decodeDeepLinkState, DEEP_LINK_SEARCH_KEY } from './deepLink.codec';
+import {
+  clearViewAutosave,
+  browserStorage,
+  captureViewExtras,
+  hydrateViewExtras,
+  useViewAutosave,
+  type ViewAutosaveSnapshot,
+  type ViewExtras,
+} from '@/features/view-autosave';
+import {
+  buildDeepLinkUrl,
+  decodeDeepLinkState,
+  DEEP_LINK_SEARCH_KEY,
+  encodeDeepLinkState,
+} from './deepLink.codec';
 import {
   DeepLinkContext,
   type CopyLinkResult,
@@ -77,8 +92,17 @@ interface DeepLinkBoundaryProps {
   defaultRootResourceType?: string | null;
   operators: readonly Operator[];
   encodedState?: string;
+  /** 'stored' means encodedState came from the autosaved view, not the URL. */
+  restoreSource?: 'url' | 'stored';
+  /** Extras saved next to a stored view; present only with restoreSource 'stored'. */
+  storedExtras?: ViewExtras;
   isQueryReady: boolean;
 }
+
+type CaptureStateResult =
+  | { ok: true; value: DeepLinkStateV3 }
+  | { ok: false; message: string; messages: readonly string[] };
+type ViewFailure = Extract<CaptureStateResult, { ok: false }>;
 
 type IntakeState = {
   initialExpandedResourceIds: readonly string[] | null;
@@ -92,7 +116,7 @@ function hasKeys(value: object): boolean {
   return Object.keys(value).length > 0;
 }
 
-function copyFailure(message: string): CopyLinkResult {
+function copyFailure(message: string): ViewFailure {
   return { ok: false, message, messages: [message] };
 }
 
@@ -175,6 +199,8 @@ export function DeepLinkBoundary({
   defaultRootResourceType = null,
   operators,
   encodedState,
+  restoreSource = 'url',
+  storedExtras,
   isQueryReady,
 }: DeepLinkBoundaryProps) {
   useHydrateSelectedPlanId(initialPlanId);
@@ -288,6 +314,13 @@ export function DeepLinkBoundary({
     if (intake.status.kind !== 'error' && intake.status.kind !== 'warning') {
       return;
     }
+    if (restoreSource === 'stored') {
+      // A remembered view that no longer fits is dropped without bothering the user.
+      if (intake.status.kind === 'error' && queryId) {
+        clearViewAutosave(browserStorage(), { engineId, queryId });
+      }
+      return;
+    }
 
     let cancelled = false;
     queueMicrotask(() => {
@@ -313,7 +346,7 @@ export function DeepLinkBoundary({
     return () => {
       cancelled = true;
     };
-  }, [intake.status]);
+  }, [engineId, intake.status, queryId, restoreSource]);
 
   useLayoutEffect(() => {
     if (!intake.isResolved) {
@@ -360,6 +393,9 @@ export function DeepLinkBoundary({
         );
       }
     }
+    if (intake.fields && storedExtras) {
+      hydrateViewExtras(store, storedExtras);
+    }
     if (intake.fields) {
       hydrateSerializableViewState({
         selection: intake.fields.selection,
@@ -374,6 +410,9 @@ export function DeepLinkBoundary({
             }
           : undefined,
         operatorTable: intake.fields.operatorTable,
+        timeline: storedExtras
+          ? { longEntityDensity: storedExtras.longEntityDensity ?? LONG_ENTITY_DENSITY_DEFAULT }
+          : undefined,
       });
       if (intake.fields.entities) {
         store.set(
@@ -400,13 +439,14 @@ export function DeepLinkBoundary({
     intake.initialZoomRange,
     intake.isResolved,
     intake.fields,
+    storedExtras,
     hydrateSerializableViewState,
     setDebouncedZoomRange,
     setZoomRange,
     store,
   ]);
 
-  const copyLink = useCallback(async (): Promise<CopyLinkResult> => {
+  const captureState = useCallback((): CaptureStateResult => {
     if (!queryId || !activeTab) {
       return copyFailure('Select a query tab before copying a shared link.');
     }
@@ -572,8 +612,25 @@ export function DeepLinkBoundary({
       state.entities = entitiesState;
     }
 
+    return { ok: true, value: state };
+  }, [
+    activeTab,
+    defaultRootResourceType,
+    durationSeconds,
+    engineId,
+    queryId,
+    readSerializableViewState,
+    readZoomRange,
+    store,
+  ]);
+
+  const copyLink = useCallback(async (): Promise<CopyLinkResult> => {
+    const captured = captureState();
+    if (!captured.ok) {
+      return captured;
+    }
     const canonicalPageUrl = `${window.location.origin}${window.location.pathname}`;
-    const result = buildDeepLinkUrl(canonicalPageUrl, state);
+    const result = buildDeepLinkUrl(canonicalPageUrl, captured.value);
     if (!result.ok) {
       return { ok: false, message: result.message, messages: result.messages };
     }
@@ -587,16 +644,31 @@ export function DeepLinkBoundary({
     } catch {
       return copyFailure('Could not copy the link to the clipboard.');
     }
-  }, [
-    activeTab,
-    defaultRootResourceType,
-    durationSeconds,
-    engineId,
-    queryId,
-    readSerializableViewState,
-    readZoomRange,
-    store,
-  ]);
+  }, [captureState]);
+
+  const captureAutosave = useCallback((): ViewAutosaveSnapshot | null => {
+    const captured = captureState();
+    if (!captured.ok) {
+      return null;
+    }
+    const encoded = encodeDeepLinkState(captured.value);
+    if (!encoded.ok) {
+      return null;
+    }
+    const extras = captureViewExtras(store, readSerializableViewState().timeline.longEntityDensity);
+    return {
+      tab: captured.value.route.tab,
+      payload: encoded.value,
+      ...(hasKeys(extras) ? { extras } : {}),
+    };
+  }, [captureState, readSerializableViewState, store]);
+
+  useViewAutosave({
+    scope: { engineId, queryId: queryId ?? '' },
+    tab: activeTab,
+    enabled: isHydrated && isQueryReady && queryId !== undefined && activeTab !== undefined,
+    capture: captureAutosave,
+  });
 
   const value = useMemo<DeepLinkContextValue>(
     () => ({
