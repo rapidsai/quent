@@ -6,6 +6,8 @@ all-features = true
 [advisories]
 # The lint level for security vulnerabilities.
 version = 2
+# No safe upgrade exists; rmcp and schemars still depend on chrono.
+ignore = ["RUSTSEC-2026-0543"]
 
 [licenses]
 # Workspace-private crates (publish = false) are excluded from license checks.
