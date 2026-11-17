@@ -33,7 +33,8 @@ export interface PinnedRowsResult<T> {
 export function resolvePinnedRows<T extends TreeNode<T>>(
   pinnedIds: ReadonlySet<string>,
   fullRoots: readonly T[],
-  displayedRoots: readonly T[]
+  displayedRoots: readonly T[],
+  isPinnable: (row: T) => boolean = () => true
 ): PinnedRowsResult<T> {
   if (pinnedIds.size === 0) {
     return { shownItems: [], hiddenCount: 0 };
@@ -41,7 +42,7 @@ export function resolvePinnedRows<T extends TreeNode<T>>(
 
   const shownById = new Map<string, T>();
   walkRows(displayedRoots, row => {
-    if (pinnedIds.has(row.id) && !shownById.has(row.id)) {
+    if (isPinnable(row) && pinnedIds.has(row.id) && !shownById.has(row.id)) {
       shownById.set(row.id, row);
     }
   });
@@ -57,7 +58,12 @@ export function resolvePinnedRows<T extends TreeNode<T>>(
   let hiddenCount = 0;
   const countedIds = new Set<string>();
   walkRows(fullRoots, row => {
-    if (pinnedIds.has(row.id) && !shownById.has(row.id) && !countedIds.has(row.id)) {
+    if (
+      isPinnable(row) &&
+      pinnedIds.has(row.id) &&
+      !shownById.has(row.id) &&
+      !countedIds.has(row.id)
+    ) {
       countedIds.add(row.id);
       hiddenCount += 1;
     }

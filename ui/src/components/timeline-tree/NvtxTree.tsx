@@ -32,6 +32,10 @@ import {
 import { findAncestorNames } from '@/features/pinned-rows/pinnedRows';
 import { useAutoExpandMatchingAncestors, useExpandedIds } from '@/hooks/useExpandedIds';
 import { PinnedRowPath } from './PinnedRowPath';
+import type {
+  TimelineTreeFilterSummary,
+  TimelineTreePinningSource,
+} from './timelineTreeComposition';
 import {
   TimelineTreeTable,
   useTimelineTreeSetup,
@@ -140,13 +144,10 @@ function NvtxDomainLabel({
   );
 }
 
-export interface NvtxTreeModel extends TimelineTreeModel, TimelineTreeControls {
-  filterMatchCount: number;
-  isFilterActive: boolean;
-  // The whole tree before any filter, where pinned rows are looked up.
-  fullTree: TimelineTreeItem | null;
-  // Matching lane rows the user can pin with "pin all", in tree order.
-  pinnableMatchIds: string[];
+export interface NvtxTreeModel
+  extends TimelineTreeModel, Omit<TimelineTreeControls, 'filters' | 'pinning'> {
+  filter: TimelineTreeFilterSummary;
+  pinningSource: TimelineTreePinningSource;
 }
 
 function nvtxRowName(item: TimelineTreeItem): string {
@@ -462,13 +463,23 @@ export function useNvtxTreeModel({
     },
     [durationSeconds, isDark, lanesByRowId]
   );
+  const pinningSource = useMemo<TimelineTreePinningSource>(
+    () => ({
+      fullRoots: unfilteredTree ? [unfilteredTree as TimelineTreeItem] : [],
+      displayedRoots: tree ? [tree as TimelineTreeItem] : [],
+      isPinnable: isNvtxRowPinnable,
+    }),
+    [tree, unfilteredTree]
+  );
 
   return {
-    filterMatchCount: filterResult?.matchCount ?? 0,
-    isFilterActive: filterResult?.isActive ?? false,
+    filter: {
+      isActive: filterResult?.isActive ?? false,
+      matchCount: filterResult?.matchCount ?? 0,
+      pinnableMatchIds,
+    },
+    pinningSource,
     trees: tree ? [tree as TimelineTreeItem] : [],
-    fullTree: unfilteredTree as TimelineTreeItem | null,
-    pinnableMatchIds,
     rowPinning,
     initialSelectedItemId: tree?.id,
     expandedIds,

@@ -9,9 +9,13 @@ import { createLongEntitiesTimelineSubRow, createOperatorGanttTimelineSubRow } f
 import {
   useResourceTimelinesTreeModel,
   type ResourceTimelineSubRow,
-  type SiblingPinning,
 } from './ResourceTimelinesTree';
+import { TimelineTreeFilterControls } from './TimelineTreeFilterControls';
 import { TimelineTreeTable, useTimelineTreeSetup } from './TimelineTreeTable';
+import {
+  combineTimelineTreeFilters,
+  useCombinedTimelineTreePinning,
+} from './timelineTreeComposition';
 import { useFullDurationZeroUtilizationResourceIds } from './useFullDurationZeroUtilizationResourceIds';
 
 export interface QueryResourceTreeProps {
@@ -92,24 +96,28 @@ export function QueryResourceTree({
     [longEntitiesSubRow, operatorGanttSubRow]
   );
   const nvtxTree = useNvtxTreeModel({ engineId, queryBundle, isDark });
-  // NVTX rows share the resource tree's pinned section and "pin all" button.
-  const nvtxPinning = useMemo<SiblingPinning>(
-    () => ({
-      fullRoots: nvtxTree.fullTree ? [nvtxTree.fullTree] : [],
-      displayedRoots: nvtxTree.trees,
-      matchIds: nvtxTree.pinnableMatchIds,
-    }),
-    [nvtxTree.fullTree, nvtxTree.pinnableMatchIds, nvtxTree.trees]
-  );
   const resourceTree = useResourceTimelinesTreeModel({
     engineId,
     queryBundle,
     isDark,
     subRows: resourceSubRows ?? defaultResourceSubRows,
     seedRootExpanded,
-    siblingPinning: nvtxPinning,
-    siblingFilterMatchCount: nvtxTree.filterMatchCount,
   });
+  const combinedFilter = combineTimelineTreeFilters([resourceTree.filter, nvtxTree.filter]);
+  const pinningSources = useMemo(
+    () => [resourceTree.pinningSource, nvtxTree.pinningSource],
+    [nvtxTree.pinningSource, resourceTree.pinningSource]
+  );
+  const { pinning, pinMany } = useCombinedTimelineTreePinning(pinningSources);
+  const filters = (
+    <TimelineTreeFilterControls
+      {...resourceTree.filterOptions}
+      matchCount={combinedFilter.matchCount}
+      matchIds={combinedFilter.pinnableMatchIds}
+      onPinMany={pinMany}
+      pinnedIds={pinning.ids}
+    />
+  );
   const highlightedItemIds = new Set([
     ...(resourceTree.highlightedItemIds ?? []),
     ...(nvtxTree.highlightedItemIds ?? []),
@@ -118,9 +126,8 @@ export function QueryResourceTree({
     ...(resourceTree.indicatorItemIds ?? []),
     ...(nvtxTree.indicatorItemIds ?? []),
   ]);
-  const hasFilterMatches = resourceTree.filterMatchCount + nvtxTree.filterMatchCount > 0;
   const trees =
-    resourceTree.isFilterActive && resourceTree.showOthers && !hasFilterMatches
+    combinedFilter.isActive && resourceTree.showOthers && combinedFilter.matchCount === 0
       ? []
       : [resourceTree, nvtxTree];
 
@@ -129,7 +136,7 @@ export function QueryResourceTree({
       durationSeconds={durationSeconds}
       isDark={isDark}
       trees={trees}
-      controls={{ ...resourceTree, highlightedItemIds, indicatorItemIds }}
+      controls={{ ...resourceTree, filters, pinning, highlightedItemIds, indicatorItemIds }}
     >
       <EntityDetailDrawer
         fsm={drawerFsm}
