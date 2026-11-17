@@ -4,7 +4,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const basePath = process.env.VITE_BASE_PATH || '/';
-const baseURL = new URL(basePath, 'http://127.0.0.1:4173').href;
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? new URL(basePath, 'http://127.0.0.1:4173').href;
 
 export default defineConfig({
   testDir: './e2e-simulator',
@@ -13,11 +13,14 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: { baseURL, trace: 'on-first-retry' },
-  webServer: {
-    command: 'pnpm demo:build && pnpm preview --host 127.0.0.1 --port 4173 --strictPort',
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command:
+          'pnpm demo:build && pnpm exec vite preview --config vite.simulator.config.ts --host 127.0.0.1 --port 4173 --strictPort',
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
+      },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

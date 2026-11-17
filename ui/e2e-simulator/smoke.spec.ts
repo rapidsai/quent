@@ -4,7 +4,7 @@
 import { expect, test } from '@playwright/test';
 
 test('loads the static WASM analyzer and navigates to a query', async ({ page }) => {
-  const response = await page.goto('/');
+  const response = await page.goto('./');
   expect(response?.ok()).toBe(true);
   await expect(page.getByRole('heading', { name: 'Select an engine' })).toBeVisible();
 
@@ -19,5 +19,5 @@ test('loads the static WASM analyzer and navigates to a query', async ({ page })
     .first()
     .click();
   await expect(page).toHaveURL(/\/timeline$/);
-  await expect(page.getByRole('tree')).toBeVisible();
+  await expect(page.getByRole('tree').filter({ hasText: /Type:/ })).toBeVisible();
 });
