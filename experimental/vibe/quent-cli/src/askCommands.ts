@@ -5,10 +5,12 @@ import { questionRegistry } from './questions/questionRegistry';
 import type { AskCommand } from './askCommand.types';
 import { discoveryCommands } from './discoveryCommands';
 import { createQuestionCommand } from './questionCommand';
+import { queryDiffCommand } from './queryDiff';
 
 const commands = [
   ...discoveryCommands,
   ...[...questionRegistry.values()].map(createQuestionCommand),
+  queryDiffCommand,
 ];
 
 export const askCommandRegistry: ReadonlyMap<string, AskCommand> = new Map(
