@@ -33,6 +33,11 @@ allowBuilds:
   msw: true
   protobufjs: true
 
+auditConfig:
+  # No patched picomatch release exists; Quent passes only static globs to dev tooling.
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf
+
 overrides:
   # solid-js@1.9.15 pins seroval to ~1.5.4, excluding patched releases.
   'solid-js>seroval': ^1.6.3
