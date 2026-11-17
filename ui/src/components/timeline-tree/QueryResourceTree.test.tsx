@@ -1579,6 +1579,7 @@ describe('QueryResourceTree — NVTX pinning', () => {
 
   it.each([
     ['worker 7', '1 match'],
+    ['Domain 1', '1 match'],
     ['GPU 0, worker 7', '2 matches'],
   ])('counts all matching rows for %s', async (search, count) => {
     const store = createStore();

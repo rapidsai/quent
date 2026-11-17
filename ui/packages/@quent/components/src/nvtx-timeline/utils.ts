@@ -258,7 +258,9 @@ export function filterNvtxTree(root: NvtxTreeItem, search: string): NvtxTreeFilt
     }
     if (isDirectMatch) {
       directMatchIds.add(item.id);
-      matchCount += 1;
+      if (item.type === NVTX_LANE_ROW_TYPE) {
+        matchCount += 1;
+      }
     }
     return { ...item, children: matchedChildren };
   };

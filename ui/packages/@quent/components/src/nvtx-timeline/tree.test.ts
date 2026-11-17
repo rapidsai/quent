@@ -233,6 +233,16 @@ describe('NVTX resource tree', () => {
     ]);
   });
 
+  it('excludes matching headers from the result count', () => {
+    const tree = buildNvtxTree(catalog, allCatalogLaneRowIds, null)!;
+    const result = filterNvtxTree(tree, 'CCCL');
+
+    expect(result.directMatchIds).toEqual(
+      new Set([nvtxDomainRowId('3'), nvtxThreadRowId('3', 303)])
+    );
+    expect(result.matchCount).toBe(1);
+  });
+
   it('preserves the original tree for whitespace-only searches', () => {
     const tree = buildNvtxTree(catalog, allCatalogLaneRowIds, null)!;
     const result = filterNvtxTree(tree, ' \t ');
