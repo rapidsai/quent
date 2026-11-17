@@ -10,4 +10,5 @@ own risk.
 - [Quent MCP REST bridge](quent-mcp/)
 - [Intricate query-engine simulator](simulator/)
 - [Benchmark plot viewer](bench-plot/)
-- [Question and query-diff CLI](quent-cli/)
+- [Question and query-diff CLI](quent-cli/) — runs every command against local
+  APIs, benchmark database runs, or a mix of both
