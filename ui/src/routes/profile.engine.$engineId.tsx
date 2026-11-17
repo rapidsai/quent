@@ -14,6 +14,7 @@ import {
   transformResourceTree,
 } from '@quent/components';
 import { CopyLinkButton, DeepLinkBoundary } from '@/features/deep-link';
+import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { useRestoredView } from '@/features/view-autosave';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import { type EntityRef, type PaletteTheme, type QueryBundle } from '@quent/utils';
@@ -32,6 +33,8 @@ function defaultRootResourceType(queryBundle: QueryBundle<EntityRef> | undefined
     (root.entity && 'type_name' in root.entity ? root.entity.type_name : null)
   );
 }
+
+const PROFILE_PANEL_IDS = ['query-plan', 'query-tabs'];
 
 function ProfileLayout() {
   const { engineId } = Route.useParams();
@@ -85,6 +88,8 @@ function ProfileLayout() {
     setProviderPayload(encodedState);
   }
 
+  const layout = usePanelLayout('profile-split', PROFILE_PANEL_IDS);
+
   if (!hasQuery) {
     return <Outlet />;
   }
@@ -113,8 +118,18 @@ function ProfileLayout() {
             <CopyLinkButton />
           </QueryToolbar>
         )}
-        <ResizablePanelGroup orientation="horizontal" className="min-h-0 min-w-0 flex-1">
-          <ResizablePanel defaultSize="33%" minSize="15%" collapsible collapsedSize="0%">
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 min-w-0 flex-1"
+          {...layout}
+        >
+          <ResizablePanel
+            id="query-plan"
+            defaultSize="33%"
+            minSize="15%"
+            collapsible
+            collapsedSize="0%"
+          >
             {queryId && queryId !== '' ? (
               <QueryPlan queryId={queryId} engineId={engineId} />
             ) : (
@@ -125,6 +140,7 @@ function ProfileLayout() {
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel
+            id="query-tabs"
             defaultSize="67%"
             minSize="20%"
             collapsible
