@@ -14,6 +14,7 @@ import {
   transformResourceTree,
 } from '@quent/components';
 import { CopyLinkButton, DeepLinkBoundary } from '@/features/deep-link';
+import { useRestoredView } from '@/features/view-autosave';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import { type EntityRef, type PaletteTheme, type QueryBundle } from '@quent/utils';
 
@@ -70,6 +71,14 @@ function ProfileLayout() {
         : undefined;
   const hasQuery = queryId !== undefined;
   const isQueryReady = !hasQuery || queryMatch?.status === 'success';
+  // A shared link wins; otherwise the view this browser last left the query in comes back.
+  const restoredView = useRestoredView({
+    engineId,
+    queryId,
+    activeTab,
+    hasUrlState: encodedState !== undefined,
+    isReady: isQueryReady,
+  });
   // Stripping a consumed `s` keeps the store; a different payload resets it.
   const [providerPayload, setProviderPayload] = useState(encodedState);
   if (encodedState !== undefined && encodedState !== providerPayload) {
@@ -93,7 +102,9 @@ function ProfileLayout() {
       durationSeconds={queryBundle?.duration_s ?? 0}
       defaultRootResourceType={defaultRootResourceType(queryBundle)}
       operators={operators}
-      encodedState={encodedState}
+      encodedState={encodedState ?? restoredView?.payload}
+      restoreSource={encodedState === undefined && restoredView ? 'stored' : 'url'}
+      storedExtras={encodedState === undefined ? restoredView?.extras : undefined}
       isQueryReady={isQueryReady}
     >
       <div className="flex h-full min-w-0 flex-col">
