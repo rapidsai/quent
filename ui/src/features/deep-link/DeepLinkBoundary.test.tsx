@@ -7,22 +7,28 @@ import { Provider as JotaiProvider, createStore, useAtomValue, useSetAtom } from
 import {
   useDebouncedZoomRange,
   useHydrateTimelineAtoms,
+  useLongEntityDensity,
   useOperatorSelection,
   useSerializableViewState,
   useSetDebouncedZoomRange,
+  useSetLongEntityDensity,
   useSetZoomRange,
   useZoomRange,
 } from '@quent/hooks';
+import { longEntityDensityAtom } from '@quent/hooks/testing';
 import { NVTX_SECTION_ID, toast, Toaster } from '@quent/components';
 import type { Operator } from '@quent/utils';
 import { render, screen, waitFor, userEvent } from '@/test/test-utils';
 import { entitiesTableStateAtom, type EntitiesTableState } from '@/atoms/entitiesTable';
 import {
   expandedIdsAtom,
+  pinnedCollapsedAtom,
   pinnedIdsAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
+  selectedNvtxCategoriesAtom,
+  selectedNvtxDomainAtom,
   selectedTypesAtom,
 } from '@/atoms/resourceTree';
 import {
@@ -36,7 +42,7 @@ import {
 import { CopyLinkButton } from './CopyLinkButton';
 import { DeepLinkBoundary } from './DeepLinkBoundary';
 import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
-import { useDeepLink } from './deepLink.context';
+import { useDeepLink, type CaptureSavedViewResult } from './deepLink.context';
 import { MAX_EXPANDED_RESOURCE_IDS, MAX_SELECTED_NODE_IDS } from './deepLink.schema';
 
 const BOUNDARY_PROPS = {
@@ -93,6 +99,51 @@ function ViewportProbe() {
 function IntakeStatusProbe() {
   const deepLink = useDeepLink();
   return <output data-testid="intake-status">{deepLink?.intakeStatus.kind}</output>;
+}
+
+function CaptureSavedViewProbe({
+  onCapture,
+}: {
+  onCapture: (result: CaptureSavedViewResult) => void;
+}) {
+  const deepLink = useDeepLink();
+  return (
+    <button type="button" onClick={() => deepLink && onCapture(deepLink.captureSavedView())}>
+      Capture saved view
+    </button>
+  );
+}
+
+function SeedSavedViewExtras() {
+  const setPinnedCollapsed = useSetAtom(pinnedCollapsedAtom);
+  const setNvtxDomain = useSetAtom(selectedNvtxDomainAtom);
+  const setNvtxCategories = useSetAtom(selectedNvtxCategoriesAtom);
+  const setDensity = useSetLongEntityDensity();
+
+  useLayoutEffect(() => {
+    setPinnedCollapsed(true);
+    setNvtxDomain('domain-a');
+    setNvtxCategories(new Map([['domain-a', 'category-a']]));
+    setDensity(5);
+  }, [setDensity, setNvtxCategories, setNvtxDomain, setPinnedCollapsed]);
+  return null;
+}
+
+function SavedViewExtrasProbe() {
+  const pinnedCollapsed = useAtomValue(pinnedCollapsedAtom);
+  const nvtxDomain = useAtomValue(selectedNvtxDomainAtom);
+  const nvtxCategories = useAtomValue(selectedNvtxCategoriesAtom);
+  const density = useLongEntityDensity();
+  return (
+    <output data-testid="saved-view-extras">
+      {JSON.stringify({
+        pinnedCollapsed,
+        nvtxDomain,
+        nvtxCategories: [...nvtxCategories],
+        density,
+      })}
+    </output>
+  );
 }
 
 function InitialEntitiesProbe() {
@@ -672,6 +723,122 @@ describe('DeepLinkBoundary', () => {
     expect(
       screen.getAllByText('Too small: expected number to be >=0 (timeline.zoomRange.start)')[0]
     ).toBeVisible();
+  });
+
+  it('captures the deep-link payload and saved-view-only extras', async () => {
+    const onCapture = vi.fn<(result: CaptureSavedViewResult) => void>();
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <SeedViewport start={20} end={60} />
+          <SeedSavedViewExtras />
+          <ViewportProbe />
+          <CaptureSavedViewProbe onCapture={onCapture} />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('viewport')).toHaveTextContent('"start":20'));
+    await userEvent.click(screen.getByRole('button', { name: 'Capture saved view' }));
+
+    expect(onCapture).toHaveBeenCalledOnce();
+    const result = onCapture.mock.calls[0][0];
+    expect(result).toMatchObject({
+      ok: true,
+      tab: 'timeline',
+      extras: {
+        pinnedCollapsed: true,
+        longEntityDensity: 5,
+        nvtx: {
+          domainId: 'domain-a',
+          categories: [{ domainId: 'domain-a', categoryId: 'category-a' }],
+        },
+      },
+    });
+    if (!result.ok) {
+      throw new Error('Expected saved-view capture to succeed');
+    }
+    expect(decodeDeepLinkState(result.payload)).toMatchObject({
+      ok: true,
+      value: {
+        version: 'v3',
+        data: {
+          route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+          timeline: { zoomRange: { start: 20, end: 60 } },
+        },
+      },
+    });
+  });
+
+  it('hydrates saved-view-only extras', async () => {
+    const encoded = encodeDeepLinkState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 20, end: 60 } },
+    });
+    if (!encoded.ok) {
+      throw new Error(encoded.message);
+    }
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          encodedState={encoded.value}
+          restoreKind="saved"
+          savedViewExtras={{
+            pinnedCollapsed: true,
+            longEntityDensity: 5,
+            nvtx: {
+              domainId: 'domain-a',
+              categories: [{ domainId: 'domain-a', categoryId: 'category-a' }],
+            },
+          }}
+        >
+          <SavedViewExtrasProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('saved-view-extras')).toHaveTextContent(
+        JSON.stringify({
+          pinnedCollapsed: true,
+          nvtxDomain: 'domain-a',
+          nvtxCategories: [['domain-a', 'category-a']],
+          density: 5,
+        })
+      )
+    );
+  });
+
+  it('restores the default density when the saved view omits it', async () => {
+    const encoded = encodeDeepLinkState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 20, end: 60 } },
+    });
+    if (!encoded.ok) {
+      throw new Error(encoded.message);
+    }
+    const store = createStore();
+    store.set(longEntityDensityAtom, 5);
+
+    render(
+      <JotaiProvider store={store}>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          encodedState={encoded.value}
+          restoreKind="saved"
+          savedViewExtras={{}}
+        >
+          <SavedViewExtrasProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('saved-view-extras')).toHaveTextContent('"density":4')
+    );
   });
 
   it('copies the current viewport without changing the address bar', async () => {

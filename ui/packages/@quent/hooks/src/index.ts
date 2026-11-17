@@ -53,7 +53,11 @@ export {
 } from './timeline/useTimelineAtoms';
 
 // Timeline cache key helpers (consumers need these to address per-item data)
-export { LONG_ENTITY_DENSITIES, timelineCacheKey } from './atoms/timeline';
+export {
+  LONG_ENTITY_DENSITIES,
+  LONG_ENTITY_DENSITY_DEFAULT,
+  timelineCacheKey,
+} from './atoms/timeline';
 export type { LongEntityDensity, TimelineCacheParams, TimelineHoverState } from './atoms/timeline';
 export { bulkEntryId, isTimelineUtilizationAllZero } from './timeline/timeline.utils';
 
@@ -154,6 +158,7 @@ export type {
   SerializableDagControls,
   SerializableDataFlowState,
   SerializableOperatorTableState,
+  SerializableTimelineState,
   SerializableViewState,
 } from './deepLink/useSerializableViewState';
 
