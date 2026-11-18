@@ -4,7 +4,7 @@
 import type { PropsWithChildren } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import type { OperatorFilter, SingleTimelineResponse, TimelineRequest } from '@quent/utils';
 import { operatorSelectionActionAtom } from '../atoms/dag';
 import {

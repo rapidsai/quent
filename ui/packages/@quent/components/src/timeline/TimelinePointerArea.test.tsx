@@ -3,7 +3,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'jotai';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { TimelinePointerArea } from './TimelinePointerArea';
 
 const chartRect = {

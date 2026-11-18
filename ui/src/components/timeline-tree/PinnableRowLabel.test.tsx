@@ -3,7 +3,7 @@
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { PinnableRowLabel } from './PinnableRowLabel';
 
 function renderLabel(props: Partial<React.ComponentProps<typeof PinnableRowLabel>> = {}) {

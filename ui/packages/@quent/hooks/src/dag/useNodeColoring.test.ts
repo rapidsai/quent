@@ -4,7 +4,7 @@
 import { createElement, type ReactNode } from 'react';
 import { renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { continuousColor } from '@quent/utils';
 import { hoveredPipeIdAtom, inspectedPipeRefsAtom } from '../atoms/pipeInspection';
 import { nodeColoringAtom, selectedScaleTypeAtom } from '../atoms/dagControls';

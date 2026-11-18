@@ -5,7 +5,7 @@
     "declaration": false,
     "declarationMap": false,
     "noEmit": true,
-    "types": ["vitest/globals", "@testing-library/jest-dom/vitest"]
+    "types": ["vite-plus/test/globals", "@testing-library/jest-dom/vitest"]
   },
   "include": ["src/**/*.test.ts", "src/**/*.test.tsx"],
   "exclude": []

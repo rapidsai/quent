@@ -13,10 +13,8 @@
   ],
   "scripts": {
     "prebuild": "pnpm --workspace-root bindings",
-    "build": "tsdown",
-    "build:ci": "tsdown",
-    "pretypecheck": "pnpm --workspace-root bindings",
-    "typecheck": "tsc --noEmit"
+    "build": "vp pack",
+    "build:ci": "vp pack"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -53,7 +51,6 @@
     "jotai": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "vite-plus": "catalog:"
   }
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import type { BulkTimelinesResponse, QueryEntities } from '@quent/utils';
 import { renderHookWithQuery } from '@/test/test-utils';
 import { useFullDurationZeroUtilizationResourceIds } from './useFullDurationZeroUtilizationResourceIds';

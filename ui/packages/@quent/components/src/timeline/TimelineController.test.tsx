@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import { render } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { TimelineController } from './TimelineController';
 
 const mocks = vi.hoisted(() => ({

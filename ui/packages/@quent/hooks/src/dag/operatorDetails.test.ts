@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createStore } from 'jotai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { operatorSelectionActionAtom } from '../atoms/dag';
 import { displayedOperatorDetailsAtom } from '../atoms/operatorDetails';
 

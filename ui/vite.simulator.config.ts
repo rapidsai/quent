@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import path from 'path';
-import { defineConfig, mergeConfig } from 'vite';
+import { defineConfig, mergeConfig } from 'vite-plus';
 import uiConfig from './vite.config';
 
 export default defineConfig(

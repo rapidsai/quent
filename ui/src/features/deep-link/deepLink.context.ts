@@ -11,7 +11,8 @@ export type DeepLinkIntakeStatus =
   | { kind: 'error'; message: string; messages: readonly string[] };
 
 export type CopyLinkResult =
-  { ok: true; url: string } | { ok: false; message: string; messages: readonly string[] };
+  | { ok: true; url: string }
+  | { ok: false; message: string; messages: readonly string[] };
 
 export interface DeepLinkContextValue {
   copyLink(): Promise<CopyLinkResult>;

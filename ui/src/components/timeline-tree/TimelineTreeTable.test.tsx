@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import { render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { TabActionSlotsContext, type TabActionSlots } from '@/components/TabActionSlots';
 import { TimelineTreeTable } from './TimelineTreeTable';
 

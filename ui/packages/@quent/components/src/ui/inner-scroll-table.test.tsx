@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { InnerScrollTable } from './inner-scroll-table';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './table';
 

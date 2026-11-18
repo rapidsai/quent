@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vite-plus';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
@@ -12,6 +12,11 @@ export default defineConfig({
     'import.meta.env.VITE_API_BASE_URL': '"http://localhost:8000/api"',
   },
   test: {
+    // Vitest v4 compatibility: preserve mock call history.
+    // Remove after tests no longer rely on calls from setup or earlier tests.
+    // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
+    // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
+    clearMocks: false,
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],

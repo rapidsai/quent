@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import type { EntityRef, FiniteStateMachine, QueryBundle } from '@quent/utils';
 import { EntityDetailPanel } from './EntityDetailPanel';
 

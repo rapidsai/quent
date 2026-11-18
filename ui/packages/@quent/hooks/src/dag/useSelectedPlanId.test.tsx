@@ -4,7 +4,7 @@
 import type { PropsWithChildren } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { expect, it } from 'vitest';
+import { expect, it } from 'vite-plus/test';
 import { selectedPlanIdAtom } from '../atoms/dag';
 import { useHydrateSelectedPlanId, useSelectedPlanId } from './useSelectedPlanId';
 

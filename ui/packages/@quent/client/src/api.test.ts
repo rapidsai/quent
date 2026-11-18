@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vite-plus/test';
 import type { DataFlowTimelineBinned, TimelineConfig } from '@quent/utils/query-engine';
 import { createHttpApiClient, fetchDataFlow, fetchListEngines, fetchListQueries } from './api';
 

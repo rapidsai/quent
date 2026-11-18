@@ -3,7 +3,7 @@
 
 import { render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { QueryPlanNode } from './QueryPlanNode';
 
 describe('QueryPlanNode', () => {

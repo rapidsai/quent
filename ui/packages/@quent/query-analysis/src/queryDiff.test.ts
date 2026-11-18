@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { EntityRef, Operator, QueryBundle } from '@quent/utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { commonQueryMetrics, diffQueryBundles } from './queryDiff';
 
 function operator(

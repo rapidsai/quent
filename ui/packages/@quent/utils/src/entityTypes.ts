@@ -15,7 +15,15 @@ import type {
 } from './types/index';
 
 export type EntityTypeValue =
-  Engine | Operator | Plan | Port | Query | Resource | ResourceGroup | ResourceTypeDecl | Worker;
+  | Engine
+  | Operator
+  | Plan
+  | Port
+  | Query
+  | Resource
+  | ResourceGroup
+  | ResourceTypeDecl
+  | Worker;
 
 export type SingleEntity = Engine | Query;
 

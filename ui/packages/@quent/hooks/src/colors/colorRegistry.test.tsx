@@ -3,7 +3,7 @@
 
 import type { PropsWithChildren } from 'react';
 import { render, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { COLOR_PALETTES, createColorRegistry, getDeterministicColor } from '@quent/utils';
 import {
   COLOR_REGISTRY_KEYS,

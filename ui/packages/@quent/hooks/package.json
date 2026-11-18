@@ -11,10 +11,8 @@
   "sideEffects": false,
   "scripts": {
     "prebuild": "pnpm --workspace-root bindings",
-    "build": "tsdown",
-    "build:ci": "tsdown",
-    "pretypecheck": "pnpm --workspace-root bindings",
-    "typecheck": "tsc --noEmit"
+    "build": "vp pack",
+    "build:ci": "vp pack"
   },
   "dependencies": {
     "@quent/client": "workspace:*",
@@ -33,7 +31,6 @@
     "@types/react": "catalog:",
     "jotai": "catalog:",
     "react": "catalog:",
-    "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "vite-plus": "catalog:"
   }
 }

@@ -11,14 +11,11 @@
   "sideEffects": false,
   "scripts": {
     "prebuild": "pnpm --workspace-root bindings",
-    "build": "tsdown",
-    "build:ci": "tsdown",
-    "pretypecheck": "pnpm --workspace-root bindings",
-    "typecheck": "tsc --noEmit"
+    "build": "vp pack",
+    "build:ci": "vp pack"
   },
   "devDependencies": {
-    "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "vite-plus": "catalog:"
   },
   "dependencies": {
     "clsx": "catalog:",

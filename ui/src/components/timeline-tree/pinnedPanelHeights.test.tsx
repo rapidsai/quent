@@ -3,7 +3,7 @@
 
 import { render } from '@testing-library/react';
 import { TreeTable, type Column } from '@quent/components';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { measurePinnedPanelHeights } from './pinnedPanelHeights';
 
 const ROW_HEIGHT = 40;

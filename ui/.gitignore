@@ -46,3 +46,4 @@ public/analyzers/
 public/traces/
 # For now ignore agents md, add official one later
 AGENTS.md
+.vitest/

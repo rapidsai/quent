@@ -4,7 +4,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { useSelectedColorField } from '@quent/hooks';
 import { flattenStatistics, statisticFieldId } from '@quent/utils';
 import { DAGControls } from './DAGControls';

@@ -4,7 +4,7 @@
 import { type ReactNode } from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { useSelectedColorField, useSelectedScaleType, useSetNodeColoring } from '@quent/hooks';
 import { flattenStatistics } from '@quent/utils';
 import { DAGLegend } from './DAGLegend';

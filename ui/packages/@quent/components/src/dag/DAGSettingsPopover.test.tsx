@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { flattenStatistics, type StatisticField } from '@quent/utils';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { DAGSettingsPopover } from './DAGSettingsPopover';
 
 const mocks = vi.hoisted(() => ({

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import type { NvtxCatalog, NvtxViewportRequest } from '@quent/utils/query-engine';
 import { fetchNvtxCatalog, fetchNvtxViewport } from './api';
 import {

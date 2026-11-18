@@ -3,7 +3,7 @@
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { TreeSelect } from './tree-select';
 import type { TreeDataItem } from './tree-view';
 
