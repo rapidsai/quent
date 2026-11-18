@@ -11,4 +11,6 @@ export type TreeTableItem<TEntity = EntityTypeValue> = {
   icon?: LucideIcon;
   children?: TreeTableItem<TEntity>[];
   availableResourceTypes?: string[];
+  /** The row is not drawn on its own; its parent's row draws its content while the parent is open. */
+  rendersInParent?: boolean;
 };

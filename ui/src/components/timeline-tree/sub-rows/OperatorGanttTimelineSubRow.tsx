@@ -11,7 +11,12 @@ import {
   workerIdFromOperatorTimelineRowId,
 } from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
-import { createSyntheticSubRow, createTimelineSubRow, mapTreeItems } from './subRow';
+import {
+  createSyntheticSubRow,
+  createTimelineSubRow,
+  createTimelineSubRowDisclosure,
+  mapTreeItems,
+} from './subRow';
 
 interface OperatorGanttTimelineSubRowOptions {
   queryBundle: QueryBundle<EntityRef>;
@@ -33,11 +38,16 @@ export function createOperatorGanttTimelineSubRow({
     id: 'operator-gantt',
     rowType: OPERATOR_TIMELINE_ROW_TYPE,
     label: 'Operators',
+    pinsWithOwner: true,
     injectRows: rootItem =>
       mapTreeItems(rootItem, (item, children) =>
         workerIds.has(item.id)
           ? [
-              createSyntheticSubRow(operatorTimelineRowId(item.id), OPERATOR_TIMELINE_ROW_TYPE),
+              createTimelineSubRowDisclosure(
+                item.id,
+                OPERATOR_TIMELINE_ROW_TYPE,
+                createSyntheticSubRow(operatorTimelineRowId(item.id), OPERATOR_TIMELINE_ROW_TYPE)
+              ),
               ...children,
             ]
           : children
