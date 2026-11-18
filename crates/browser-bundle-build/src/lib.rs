@@ -195,7 +195,7 @@ fn extract_zip_with_limits(
         let mut file = archive.by_index(index)?;
         let Some(relative) = file.enclosed_name() else {
             return Err(Error::ArchiveUnsafePath {
-                name: file.name().to_owned(),
+                name: String::from_utf8_lossy(file.name_raw()).into_owned(),
             });
         };
         reject_special_file(&file, &relative)?;
@@ -328,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn enforces_budget_when_header_understates_size() {
+    fn fails_closed_when_header_understates_size() {
         // Highly compressible payload: 1 MiB of zeros deflates to ~1 KiB.
         let payload = vec![0u8; 1024 * 1024];
         let mut bytes = build_zip(&[("a", &payload)], zip::CompressionMethod::Deflated);
@@ -338,8 +338,13 @@ mod tests {
         patch_u32(&mut bytes, b"PK\x01\x02", 24, 1);
 
         let (result, dir) = extract(&bytes, 10, 4096);
-        assert!(matches!(result, Err(Error::ArchiveTooLarge { .. })));
-        // Never write more than the budget plus the single detection byte.
+        // zip >= 9 rejects data that outgrows its declared size (as `Error::Io`); our own cap
+        // on bytes written is a second line of defense. Either way extraction must fail and
+        // must not write more than the budget plus the single detection byte.
+        assert!(
+            matches!(result, Err(Error::ArchiveTooLarge { .. } | Error::Io(_))),
+            "{result:?}"
+        );
         let written = std::fs::metadata(dir.path().join("out/a")).unwrap().len();
         assert!(written <= 4097, "wrote {written} bytes");
     }
