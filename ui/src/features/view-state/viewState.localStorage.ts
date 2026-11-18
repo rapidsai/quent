@@ -6,7 +6,7 @@ import { decodeViewState } from './viewState.codec';
 import { readViewStateFields } from './viewState.fields';
 import type { ViewStateScope, EncodedViewStateRepository } from './viewState.storage';
 
-const STORAGE_PREFIX = 'quent.deepLink.v1'; // Preserve existing browser state.
+const STORAGE_PREFIX = 'quent.viewState.v1'; // Preserve existing browser state.
 
 export function viewStateStorageKey({ engineId, queryId }: ViewStateScope): string {
   return `${STORAGE_PREFIX}:${encodeURIComponent(engineId)}:${encodeURIComponent(queryId)}`;
