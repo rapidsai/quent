@@ -2323,6 +2323,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror",
  "uuid",
  "zip 6.0.0",
 ]

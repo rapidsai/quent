@@ -3,7 +3,7 @@
 
 //! Native construction of portable browser-analyzer bundles.
 
-use std::{collections::HashSet, error::Error, io::Read, path::Path};
+use std::{collections::HashSet, io::Read, path::Path};
 
 use quent_browser_bundle::{Capabilities, FORMAT_VERSION, Metadata};
 use quent_events::{CombinedEventModel, Event, EventModel};
@@ -13,14 +13,25 @@ use quent_store::{
 };
 use uuid::Uuid;
 
+mod error;
+
+pub use error::{Error, Result};
+
 const MAX_ARCHIVE_ENTRIES: usize = 1_000_000;
 const MAX_ARCHIVE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 
 /// Model-specific metadata used to construct a browser bundle.
 #[derive(Clone, Debug)]
 pub struct BuildOptions<'a> {
+    /// Identifies the event model. Stored verbatim in the bundle metadata; analyzers reject
+    /// bundles whose `model_name` is not the one they were built for.
     pub model_name: &'a str,
+    /// Identifies the serialized event schema. Stored verbatim in the bundle metadata;
+    /// analyzers reject bundles whose digest differs from the one for their own build, before
+    /// decoding the payload.
     pub schema_digest: &'a str,
+    /// Version or commit of the analyzer that produced the bundle. Stored verbatim in the
+    /// bundle metadata for provenance; analyzers do not validate it.
     pub analyzer_revision: &'a str,
     pub capabilities: Capabilities,
 }
@@ -29,8 +40,14 @@ pub struct BuildOptions<'a> {
 #[derive(Clone, Debug)]
 pub struct GenerationSummary {
     pub engine_id: Uuid,
+    /// Number of context directories included in the bundle: the immediate subdirectories of
+    /// the input root (the directory itself, or the ZIP's top level) whose names parse as
+    /// UUIDs. Every such directory is loaded, whether or not it contains events.
     pub context_count: usize,
+    /// Total number of events written to the bundle payload, summed across all included
+    /// contexts, including the engine events.
     pub event_count: usize,
+    /// The `schema_digest` from [`BuildOptions`], as recorded in the bundle metadata.
     pub schema_digest: String,
     pub format_version: u32,
 }
@@ -44,7 +61,7 @@ pub fn generate_bundle<M>(
     output: &Path,
     options: &BuildOptions<'_>,
     engine_id: impl Fn(&Event<<M as CombinedEventModel>::CombinedEvent>) -> Option<Uuid>,
-) -> Result<GenerationSummary, Box<dyn Error>>
+) -> Result<GenerationSummary>
 where
     M: EventModel + filesystem::Model,
     <M as CombinedEventModel>::CombinedEvent: serde::Serialize,
@@ -60,7 +77,9 @@ where
 
     let context_ids = discover_context_ids(root)?;
     if context_ids.is_empty() {
-        return Err(format!("no UUID context directories found under {}", root.display()).into());
+        return Err(Error::NoContexts {
+            root: root.to_path_buf(),
+        });
     }
 
     let mut events = Vec::new();
@@ -68,18 +87,16 @@ where
         events.extend(
             filesystem::Loader::<M>::new(root, ContextSet::one(*context_id))
                 .combined_events()?
-                .collect::<Result<Vec<_>, _>>()?,
+                .collect::<std::result::Result<Vec<_>, quent_store::Error>>()?,
         );
     }
     events.sort_by_key(|event| (event.timestamp, event.id));
 
     let engine_ids = events.iter().filter_map(engine_id).collect::<HashSet<_>>();
     if engine_ids.len() != 1 {
-        return Err(format!(
-            "expected exactly one engine in browser bundle, found {}",
-            engine_ids.len()
-        )
-        .into());
+        return Err(Error::UnexpectedEngineCount {
+            found: engine_ids.len(),
+        });
     }
     let engine_id = *engine_ids.iter().next().expect("one engine was validated");
     let model_provenance = read_model_provenance(root, &context_ids)?;
@@ -115,7 +132,7 @@ where
     })
 }
 
-fn discover_context_ids(root: &Path) -> Result<Vec<Uuid>, std::io::Error> {
+fn discover_context_ids(root: &Path) -> Result<Vec<Uuid>> {
     let mut ids = Vec::new();
     for entry in std::fs::read_dir(root)? {
         let entry = entry?;
@@ -130,31 +147,32 @@ fn discover_context_ids(root: &Path) -> Result<Vec<Uuid>, std::io::Error> {
     Ok(ids)
 }
 
-fn read_model_provenance(
-    root: &Path,
-    context_ids: &[Uuid],
-) -> Result<Option<serde_json::Value>, Box<dyn Error>> {
-    let mut provenance = None;
-    for context_id in context_ids {
+fn read_model_provenance(root: &Path, context_ids: &[Uuid]) -> Result<Option<serde_json::Value>> {
+    // The first context that recorded provenance, and its value.
+    let mut provenance: Option<(Uuid, serde_json::Value)> = None;
+    for &context_id in context_ids {
         let path = root.join(context_id.to_string()).join("model.qmi");
         let value = match std::fs::read(path) {
-            Ok(bytes) => Some(serde_json::from_slice(&bytes)?),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Ok(bytes) => serde_json::from_slice::<serde_json::Value>(&bytes)
+                .map_err(|source| Error::InvalidProvenance { context_id, source })?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error.into()),
         };
-        if let (Some(first), Some(current)) = (&provenance, &value)
-            && first != current
-        {
-            return Err("browser bundle contexts have inconsistent model provenance".into());
-        }
-        if provenance.is_none() {
-            provenance = value;
+        match &provenance {
+            Some((first_context_id, first)) if *first != value => {
+                return Err(Error::ProvenanceConflict {
+                    first_context_id: *first_context_id,
+                    conflicting_context_id: context_id,
+                });
+            }
+            Some(_) => {}
+            None => provenance = Some((context_id, value)),
         }
     }
-    Ok(provenance)
+    Ok(provenance.map(|(_, value)| value))
 }
 
-fn extract_zip(input: &Path, output: &Path) -> Result<(), Box<dyn Error>> {
+fn extract_zip(input: &Path, output: &Path) -> Result<()> {
     extract_zip_with_limits(input, output, MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_BYTES)
 }
 
@@ -163,21 +181,22 @@ fn extract_zip_with_limits(
     output: &Path,
     max_entries: usize,
     max_bytes: u64,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let mut archive = zip::ZipArchive::new(std::fs::File::open(input)?)?;
     if archive.len() > max_entries {
-        return Err(format!(
-            "ZIP contains too many entries: {} exceeds {max_entries}",
-            archive.len()
-        )
-        .into());
+        return Err(Error::ArchiveTooManyEntries {
+            entries: archive.len(),
+            max_entries,
+        });
     }
 
     let mut extracted_bytes = 0_u64;
     for index in 0..archive.len() {
         let mut file = archive.by_index(index)?;
         let Some(relative) = file.enclosed_name() else {
-            return Err(format!("ZIP contains unsafe path: {}", file.name()).into());
+            return Err(Error::ArchiveUnsafePath {
+                name: file.name().to_owned(),
+            });
         };
         reject_special_file(&file, &relative)?;
 
@@ -186,7 +205,7 @@ fn extract_zip_with_limits(
         // the budget against the bytes actually written.
         let remaining = max_bytes - extracted_bytes;
         if file.size() > remaining {
-            return Err(archive_too_large(max_bytes).into());
+            return Err(Error::ArchiveTooLarge { max_bytes });
         }
 
         let path = output.join(relative);
@@ -201,7 +220,7 @@ fn extract_zip_with_limits(
             let mut limited = (&mut file).take(remaining.saturating_add(1));
             let written = std::io::copy(&mut limited, &mut std::fs::File::create(path)?)?;
             if written > remaining {
-                return Err(archive_too_large(max_bytes).into());
+                return Err(Error::ArchiveTooLarge { max_bytes });
             }
             extracted_bytes += written;
         }
@@ -209,14 +228,7 @@ fn extract_zip_with_limits(
     Ok(())
 }
 
-fn archive_too_large(max_bytes: u64) -> String {
-    format!("ZIP expands beyond the {max_bytes}-byte safety limit")
-}
-
-fn reject_special_file(
-    file: &zip::read::ZipFile<'_, std::fs::File>,
-    path: &Path,
-) -> Result<(), Box<dyn Error>> {
+fn reject_special_file(file: &zip::read::ZipFile<'_, std::fs::File>, path: &Path) -> Result<()> {
     const FILE_TYPE_MASK: u32 = 0o170000;
     const REGULAR_FILE: u32 = 0o100000;
     const DIRECTORY: u32 = 0o040000;
@@ -224,7 +236,9 @@ fn reject_special_file(
     if let Some(mode) = file.unix_mode() {
         let file_type = mode & FILE_TYPE_MASK;
         if file_type != 0 && file_type != REGULAR_FILE && file_type != DIRECTORY {
-            return Err(format!("ZIP contains non-regular entry: {}", path.display()).into());
+            return Err(Error::ArchiveNonRegularEntry {
+                path: path.to_path_buf(),
+            });
         }
     }
     Ok(())
@@ -250,14 +264,13 @@ mod tests {
         bytes: &[u8],
         max_entries: usize,
         max_bytes: u64,
-    ) -> (Result<(), String>, tempfile::TempDir) {
+    ) -> (Result<()>, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let zip_path = dir.path().join("in.zip");
         std::fs::write(&zip_path, bytes).unwrap();
         let out = dir.path().join("out");
         std::fs::create_dir(&out).unwrap();
-        let result = extract_zip_with_limits(&zip_path, &out, max_entries, max_bytes)
-            .map_err(|e| e.to_string());
+        let result = extract_zip_with_limits(&zip_path, &out, max_entries, max_bytes);
         (result, dir)
     }
 
@@ -288,14 +301,20 @@ mod tests {
             zip::CompressionMethod::Stored,
         );
         let (result, _dir) = extract(&bytes, 2, 1024);
-        assert!(result.unwrap_err().contains("too many entries"));
+        assert!(matches!(
+            result,
+            Err(Error::ArchiveTooManyEntries {
+                entries: 3,
+                max_entries: 2
+            })
+        ));
     }
 
     #[test]
     fn rejects_declared_size_over_budget() {
         let bytes = build_zip(&[("a", &[0u8; 100])], zip::CompressionMethod::Stored);
         let (result, _dir) = extract(&bytes, 10, 99);
-        assert!(result.unwrap_err().contains("safety limit"));
+        assert!(matches!(result, Err(Error::ArchiveTooLarge { .. })));
     }
 
     #[test]
@@ -305,7 +324,7 @@ mod tests {
             zip::CompressionMethod::Stored,
         );
         let (result, _dir) = extract(&bytes, 10, 100);
-        assert!(result.unwrap_err().contains("safety limit"));
+        assert!(matches!(result, Err(Error::ArchiveTooLarge { .. })));
     }
 
     #[test]
@@ -319,9 +338,72 @@ mod tests {
         patch_u32(&mut bytes, b"PK\x01\x02", 24, 1);
 
         let (result, dir) = extract(&bytes, 10, 4096);
-        assert!(result.unwrap_err().contains("safety limit"));
+        assert!(matches!(result, Err(Error::ArchiveTooLarge { .. })));
         // Never write more than the budget plus the single detection byte.
         let written = std::fs::metadata(dir.path().join("out/a")).unwrap().len();
         assert!(written <= 4097, "wrote {written} bytes");
+    }
+
+    #[test]
+    fn rejects_unsafe_archive_path() {
+        let bytes = build_zip(&[("../escape", b"x")], zip::CompressionMethod::Stored);
+        let (result, _dir) = extract(&bytes, 10, 1024);
+        assert!(matches!(result, Err(Error::ArchiveUnsafePath { name }) if name == "../escape"));
+    }
+
+    #[test]
+    fn rejects_non_archive_input() {
+        let (result, _dir) = extract(b"not a zip", 10, 1024);
+        assert!(matches!(result, Err(Error::Archive(_))));
+    }
+
+    fn write_provenance(root: &Path, context_id: Uuid, contents: &str) {
+        let dir = root.join(context_id.to_string());
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("model.qmi"), contents).unwrap();
+    }
+
+    #[test]
+    fn provenance_conflict_names_both_contexts() {
+        let root = tempfile::tempdir().unwrap();
+        let (first, second) = (Uuid::from_u128(1), Uuid::from_u128(2));
+        write_provenance(root.path(), first, r#"{"a":1}"#);
+        write_provenance(root.path(), second, r#"{"a":2}"#);
+
+        let error = read_model_provenance(root.path(), &[first, second]).unwrap_err();
+        assert!(matches!(
+            error,
+            Error::ProvenanceConflict {
+                first_context_id,
+                conflicting_context_id,
+            } if first_context_id == first && conflicting_context_id == second
+        ));
+    }
+
+    #[test]
+    fn provenance_ignores_contexts_without_it() {
+        let root = tempfile::tempdir().unwrap();
+        let (first, second, third) = (Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(3));
+        std::fs::create_dir_all(root.path().join(first.to_string())).unwrap();
+        write_provenance(root.path(), second, r#"{"a":1}"#);
+        write_provenance(root.path(), third, r#"{"a":1}"#);
+
+        let provenance = read_model_provenance(root.path(), &[first, second, third]).unwrap();
+        assert_eq!(provenance, Some(serde_json::json!({"a": 1})));
+    }
+
+    #[test]
+    fn invalid_provenance_keeps_json_error_as_source() {
+        let root = tempfile::tempdir().unwrap();
+        let context_id = Uuid::from_u128(1);
+        write_provenance(root.path(), context_id, "{not json");
+
+        let error = read_model_provenance(root.path(), &[context_id]).unwrap_err();
+        assert!(matches!(
+            error,
+            Error::InvalidProvenance { context_id: id, .. } if id == context_id
+        ));
+        let source = std::error::Error::source(&error).expect("source is preserved");
+        assert!(source.downcast_ref::<serde_json::Error>().is_some());
     }
 }
