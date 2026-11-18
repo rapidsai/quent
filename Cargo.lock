@@ -3023,6 +3023,7 @@ dependencies = [
  "quent-simulator-instrumentation",
  "quent-simulator-store",
  "tempfile",
+ "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]

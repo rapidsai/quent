@@ -11,6 +11,12 @@ use quent_query_engine_browser::{BrowserError, BrowserService};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_store::SimulatorEvent;
 
+/// Digest of the simulator event schema that this build can decode.
+///
+/// Shared with the bundle generator so producer and consumer agree. Bump it whenever the
+/// serialized `Event<SimulatorEvent>` layout changes.
+pub const SCHEMA_DIGEST: &str = "quent-simulator-v1";
+
 fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyzer>, BrowserError> {
     let bundle = quent_browser_bundle::decode(bytes).map_err(|error| {
         BrowserError::failure(format!("unable to decode browser bundle: {error}"))
@@ -25,6 +31,12 @@ fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyz
         return Err(BrowserError::failure(format!(
             "unsupported simulator event codec: {}",
             bundle.metadata.codec
+        )));
+    }
+    if bundle.metadata.schema_digest != SCHEMA_DIGEST {
+        return Err(BrowserError::failure(format!(
+            "browser bundle schema mismatch: expected {SCHEMA_DIGEST}, got {}",
+            bundle.metadata.schema_digest
         )));
     }
 
@@ -58,3 +70,52 @@ fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyz
 }
 
 quent_query_engine_browser::export_wasm_browser_server!(SimulatorUiAnalyzer, load_browser_service);
+
+#[cfg(test)]
+mod tests {
+    use quent_browser_bundle::{Capabilities, FORMAT_VERSION, Metadata};
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn bundle_with_digest(schema_digest: &str) -> Vec<u8> {
+        quent_browser_bundle::encode(
+            &Metadata {
+                format_version: FORMAT_VERSION,
+                model_name: "quent-simulator".into(),
+                schema_digest: schema_digest.into(),
+                model_provenance: None,
+                analyzer_revision: "test".into(),
+                quent_revision: "test".into(),
+                codec: "postcard".into(),
+                engine_id: Uuid::nil(),
+                context_ids: vec![],
+                capabilities: Capabilities::default(),
+            },
+            // Not a valid event list: a digest mismatch must be reported before decoding.
+            b"\xff\xff\xff",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn rejects_schema_digest_mismatch_before_decoding_events() {
+        let error = load_browser_service(&bundle_with_digest("some-other-schema"))
+            .err()
+            .unwrap();
+        assert!(error.to_string().contains("schema mismatch"), "{error}");
+    }
+
+    #[test]
+    fn accepts_matching_schema_digest_and_proceeds_to_decoding() {
+        let error = load_browser_service(&bundle_with_digest(SCHEMA_DIGEST))
+            .err()
+            .unwrap();
+        assert!(
+            error
+                .to_string()
+                .contains("unable to decode simulator events"),
+            "{error}"
+        );
+    }
+}

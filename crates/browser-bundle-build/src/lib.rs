@@ -3,7 +3,7 @@
 
 //! Native construction of portable browser-analyzer bundles.
 
-use std::{collections::HashSet, error::Error, path::Path};
+use std::{collections::HashSet, error::Error, io::Read, path::Path};
 
 use quent_browser_bundle::{Capabilities, FORMAT_VERSION, Metadata};
 use quent_events::{CombinedEventModel, Event, EventModel};
@@ -155,10 +155,19 @@ fn read_model_provenance(
 }
 
 fn extract_zip(input: &Path, output: &Path) -> Result<(), Box<dyn Error>> {
+    extract_zip_with_limits(input, output, MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_BYTES)
+}
+
+fn extract_zip_with_limits(
+    input: &Path,
+    output: &Path,
+    max_entries: usize,
+    max_bytes: u64,
+) -> Result<(), Box<dyn Error>> {
     let mut archive = zip::ZipArchive::new(std::fs::File::open(input)?)?;
-    if archive.len() > MAX_ARCHIVE_ENTRIES {
+    if archive.len() > max_entries {
         return Err(format!(
-            "ZIP contains too many entries: {} exceeds {MAX_ARCHIVE_ENTRIES}",
+            "ZIP contains too many entries: {} exceeds {max_entries}",
             archive.len()
         )
         .into());
@@ -171,13 +180,13 @@ fn extract_zip(input: &Path, output: &Path) -> Result<(), Box<dyn Error>> {
             return Err(format!("ZIP contains unsafe path: {}", file.name()).into());
         };
         reject_special_file(&file, &relative)?;
-        extracted_bytes = extracted_bytes
-            .checked_add(file.size())
-            .ok_or("ZIP extracted size overflow")?;
-        if extracted_bytes > MAX_ARCHIVE_BYTES {
-            return Err(
-                format!("ZIP expands beyond the {MAX_ARCHIVE_BYTES}-byte safety limit").into(),
-            );
+
+        // Fail fast on the size declared in the ZIP header. This is attacker-controlled and
+        // may understate the real size, so it is only an early check; the copy below enforces
+        // the budget against the bytes actually written.
+        let remaining = max_bytes - extracted_bytes;
+        if file.size() > remaining {
+            return Err(archive_too_large(max_bytes).into());
         }
 
         let path = output.join(relative);
@@ -187,10 +196,21 @@ fn extract_zip(input: &Path, output: &Path) -> Result<(), Box<dyn Error>> {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            std::io::copy(&mut file, &mut std::fs::File::create(path)?)?;
+            // Read at most one byte past the budget so an overrun is detectable without ever
+            // writing more than `remaining + 1` bytes for this entry.
+            let mut limited = (&mut file).take(remaining.saturating_add(1));
+            let written = std::io::copy(&mut limited, &mut std::fs::File::create(path)?)?;
+            if written > remaining {
+                return Err(archive_too_large(max_bytes).into());
+            }
+            extracted_bytes += written;
         }
     }
     Ok(())
+}
+
+fn archive_too_large(max_bytes: u64) -> String {
+    format!("ZIP expands beyond the {max_bytes}-byte safety limit")
 }
 
 fn reject_special_file(
@@ -208,4 +228,100 @@ fn reject_special_file(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Cursor, Write};
+
+    use super::*;
+
+    fn build_zip(entries: &[(&str, &[u8])], method: zip::CompressionMethod) -> Vec<u8> {
+        let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default().compression_method(method);
+        for (name, data) in entries {
+            writer.start_file(*name, options).unwrap();
+            writer.write_all(data).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
+    }
+
+    fn extract(
+        bytes: &[u8],
+        max_entries: usize,
+        max_bytes: u64,
+    ) -> (Result<(), String>, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("in.zip");
+        std::fs::write(&zip_path, bytes).unwrap();
+        let out = dir.path().join("out");
+        std::fs::create_dir(&out).unwrap();
+        let result = extract_zip_with_limits(&zip_path, &out, max_entries, max_bytes)
+            .map_err(|e| e.to_string());
+        (result, dir)
+    }
+
+    /// Overwrite every little-endian u32 at `field_offset` after each `signature`.
+    fn patch_u32(bytes: &mut [u8], signature: &[u8; 4], field_offset: usize, value: u32) {
+        for i in 0..bytes.len().saturating_sub(field_offset + 4) {
+            if &bytes[i..i + 4] == signature {
+                bytes[i + field_offset..i + field_offset + 4].copy_from_slice(&value.to_le_bytes());
+            }
+        }
+    }
+
+    #[test]
+    fn extracts_within_limits() {
+        let bytes = build_zip(&[("a/b.txt", b"hello")], zip::CompressionMethod::Stored);
+        let (result, dir) = extract(&bytes, 10, 5);
+        result.unwrap();
+        assert_eq!(
+            std::fs::read(dir.path().join("out/a/b.txt")).unwrap(),
+            b"hello"
+        );
+    }
+
+    #[test]
+    fn rejects_too_many_entries() {
+        let bytes = build_zip(
+            &[("a", b"1"), ("b", b"2"), ("c", b"3")],
+            zip::CompressionMethod::Stored,
+        );
+        let (result, _dir) = extract(&bytes, 2, 1024);
+        assert!(result.unwrap_err().contains("too many entries"));
+    }
+
+    #[test]
+    fn rejects_declared_size_over_budget() {
+        let bytes = build_zip(&[("a", &[0u8; 100])], zip::CompressionMethod::Stored);
+        let (result, _dir) = extract(&bytes, 10, 99);
+        assert!(result.unwrap_err().contains("safety limit"));
+    }
+
+    #[test]
+    fn rejects_cumulative_size_over_budget() {
+        let bytes = build_zip(
+            &[("a", &[0u8; 60]), ("b", &[0u8; 60])],
+            zip::CompressionMethod::Stored,
+        );
+        let (result, _dir) = extract(&bytes, 10, 100);
+        assert!(result.unwrap_err().contains("safety limit"));
+    }
+
+    #[test]
+    fn enforces_budget_when_header_understates_size() {
+        // Highly compressible payload: 1 MiB of zeros deflates to ~1 KiB.
+        let payload = vec![0u8; 1024 * 1024];
+        let mut bytes = build_zip(&[("a", &payload)], zip::CompressionMethod::Deflated);
+        // Lie about the uncompressed size in the local (offset 22) and central (offset 24)
+        // headers so the declared-size precheck passes.
+        patch_u32(&mut bytes, b"PK\x03\x04", 22, 1);
+        patch_u32(&mut bytes, b"PK\x01\x02", 24, 1);
+
+        let (result, dir) = extract(&bytes, 10, 4096);
+        assert!(result.unwrap_err().contains("safety limit"));
+        // Never write more than the budget plus the single detection byte.
+        let written = std::fs::metadata(dir.path().join("out/a")).unwrap().len();
+        assert!(written <= 4097, "wrote {written} bytes");
+    }
 }
