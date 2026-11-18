@@ -213,6 +213,9 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
         reserve_name(&mut names, "Collector".to_owned())?;
         reserve_name(&mut names, "start_collector".to_owned())?;
     }
+    if options.browser_bundle_writer.is_some() {
+        reserve_name(&mut names, "write_browser_bundle".to_owned())?;
+    }
     for record in schema.records() {
         reserve_name(&mut names, format!("{}Dict", path_pascal(record.path())))?;
         validate_python_fields(record.fields().map(|field| field.name().as_ref()))?;
