@@ -103,6 +103,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "arbitrary"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bc62ac97cc33321f50863d514c3bc38a453947a8f9e781137e47c7401020aed"
+dependencies = [
+ "derive_arbitrary",
+]
+
+[[package]]
 name = "arraydeque"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -608,6 +617,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac6b926516df9c60bfa16e107b21086399f8285a44ca9711344b9e553c5146e2"
 
 [[package]]
+name = "derive_arbitrary"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b034bd7d5f032402a2479444dcc6f74e36a03f31854d41680fb240ef682a1ac"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
 name = "digest"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -725,7 +745,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2293,6 +2313,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-browser-bundle-build"
+version = "0.2.0"
+dependencies = [
+ "postcard",
+ "quent-browser-bundle",
+ "quent-events",
+ "quent-store",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "uuid",
+ "zip 6.0.0",
+]
+
+[[package]]
 name = "quent-build-info"
 version = "0.2.0"
 dependencies = [
@@ -2705,7 +2740,7 @@ dependencies = [
  "toml",
  "uuid",
  "walkdir",
- "zip",
+ "zip 9.2.2",
  "zstd",
 ]
 
@@ -2732,6 +2767,21 @@ dependencies = [
  "quent-time",
  "quent-ui",
  "rustc-hash",
+ "uuid",
+]
+
+[[package]]
+name = "quent-query-engine-browser"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "quent-analyzer",
+ "quent-query-engine-analyzer",
+ "quent-query-engine-ui",
+ "quent-ui",
+ "serde",
+ "serde_json",
+ "thiserror",
  "uuid",
 ]
 
@@ -2961,24 +3011,18 @@ dependencies = [
 name = "quent-simulator-wasm"
 version = "0.2.0"
 dependencies = [
- "async-trait",
  "postcard",
- "quent-analyzer",
  "quent-browser-bundle",
+ "quent-browser-bundle-build",
  "quent-events",
  "quent-instrumentation",
  "quent-query-engine-analyzer",
- "quent-query-engine-ui",
+ "quent-query-engine-browser",
  "quent-simulator",
  "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
  "quent-simulator-store",
- "quent-store",
- "quent-ui",
- "serde",
- "serde_json",
  "tempfile",
- "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -3124,7 +3168,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3426,7 +3470,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3933,7 +3977,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4446,7 +4490,7 @@ dependencies = [
  "serde_json",
  "url",
  "utoipa",
- "zip",
+ "zip 9.2.2",
 ]
 
 [[package]]
@@ -4620,7 +4664,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4933,6 +4977,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "zip"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb2a05c7c36fde6c09b08576c9f7fb4cda705990f73b58fe011abf7dfb24168b"
+dependencies = [
+ "arbitrary",
+ "crc32fast",
+ "flate2",
+ "indexmap",
+ "memchr",
+ "zopfli",
 ]
 
 [[package]]

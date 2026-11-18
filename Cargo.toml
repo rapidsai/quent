@@ -6,6 +6,7 @@ members = [
     "crates/dynamic-attributes",
     "crates/build-info",
     "crates/browser-bundle",
+    "crates/browser-bundle-build",
     "crates/collector/server",
     "crates/collector/python",
     "crates/collector/client",
@@ -39,6 +40,7 @@ members = [
     "integrations/nvtx/server",
     # Domain-specific crates
     "domains/query_engine/analyzer",
+    "domains/query_engine/browser",
     "domains/query_engine/server",
     "domains/query_engine/ui",
     "domains/query_engine/ui-bindings",
@@ -84,6 +86,7 @@ default-members = [
     "crates/dynamic-attributes",
     "crates/build-info",
     "crates/browser-bundle",
+    "crates/browser-bundle-build",
     "crates/collector/server",
     "crates/collector/client",
     "crates/collector/proto",
@@ -101,6 +104,7 @@ default-members = [
     "crates/time",
     "crates/ui",
     "domains/query_engine/analyzer",
+    "domains/query_engine/browser",
     "domains/query_engine/server",
     "domains/query_engine/ui",
     "domains/query_engine/ui-bindings",
@@ -140,11 +144,13 @@ quanta = "0.13.0"
 rmcp = { version = "3.5.0", default-features = false }
 quent-collector = { path = "crates/collector/server" }
 quent-browser-bundle = { path = "crates/browser-bundle" }
+quent-browser-bundle-build = { path = "crates/browser-bundle-build" }
 quent-collector-client = { path = "crates/collector/client" }
 quent-collector-proto = { path = "crates/collector/proto" }
 quent-constraints = { path = "crates/constraints" }
 quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
 quent-events = { path = "crates/events" }
+quent-query-engine-browser = { path = "domains/query_engine/browser" }
 quent-resource = { path = "crates/resource" }
 quent-schema = { path = "crates/schema" }
 quote = "1"
