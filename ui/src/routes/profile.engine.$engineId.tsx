@@ -13,9 +13,14 @@ import {
   ResizablePanelGroup,
   transformResourceTree,
 } from '@quent/components';
-import { CopyLinkButton, DeepLinkBoundary } from '@/features/deep-link';
+import {
+  CopyLinkButton,
+  DeepLinkBoundary,
+  LocalDeepLinkStorage,
+  UrlDeepLinkState,
+  useLocalDeepLinkState,
+} from '@/features/deep-link';
 import { usePanelLayout } from '@/hooks/usePanelLayout';
-import { useRestoredView } from '@/features/view-autosave';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import { type EntityRef, type PaletteTheme, type QueryBundle } from '@quent/utils';
 
@@ -74,14 +79,14 @@ function ProfileLayout() {
         : undefined;
   const hasQuery = queryId !== undefined;
   const isQueryReady = !hasQuery || queryMatch?.status === 'success';
-  // A shared link wins; otherwise the view this browser last left the query in comes back.
-  const restoredView = useRestoredView({
+  const localState = useLocalDeepLinkState({
     engineId,
     queryId,
     activeTab,
     hasUrlState: encodedState !== undefined,
     isReady: isQueryReady,
   });
+  const resolvedState = encodedState ?? localState ?? undefined;
   // Stripping a consumed `s` keeps the store; a different payload resets it.
   const [providerPayload, setProviderPayload] = useState(encodedState);
   if (encodedState !== undefined && encodedState !== providerPayload) {
@@ -107,12 +112,19 @@ function ProfileLayout() {
       durationSeconds={queryBundle?.duration_s ?? 0}
       defaultRootResourceType={defaultRootResourceType(queryBundle)}
       operators={operators}
-      encodedState={encodedState ?? restoredView?.payload}
-      restoreSource={encodedState === undefined && restoredView ? 'stored' : 'url'}
-      storedExtras={encodedState === undefined ? restoredView?.extras : undefined}
+      encodedState={resolvedState}
       isQueryReady={isQueryReady}
     >
       <div className="flex h-full min-w-0 flex-col">
+        <UrlDeepLinkState active={encodedState !== undefined} />
+        {activeTab && (
+          <LocalDeepLinkStorage
+            engineId={engineId}
+            queryId={queryId}
+            tab={activeTab}
+            restoring={encodedState === undefined && localState !== null}
+          />
+        )}
         {queryId && (
           <QueryToolbar>
             <CopyLinkButton />

@@ -14,12 +14,13 @@ import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
 import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/resourceFilter';
 
 export const MAX_ENCODED_STATE_LENGTH = 4096;
-export const MAX_EXPANDED_RESOURCE_IDS = 50;
-export const MAX_SELECTED_NODE_IDS = 100;
-export const MAX_PINNED_ROW_IDS = 100;
+export const MAX_EXPANDED_RESOURCE_IDS = 500;
+export const MAX_SELECTED_NODE_IDS = 500;
+export const MAX_PINNED_ROW_IDS = 500;
 export const MAX_RESOURCE_OVERRIDES = 50;
 export const MAX_VISIBLE_STATS = 100;
 export const MAX_TABLE_SORTS = 5;
+export const MAX_NVTX_CATEGORIES = 50;
 
 const MAX_V1_EXPANDED_RESOURCE_IDS = 100;
 const MAX_ID_LENGTH = 128;
@@ -104,7 +105,16 @@ const RouteV3Schema = z
   })
   .strip();
 
-const TimelineSchema = z.object({ zoomRange: ZoomRangeSchema }).strip();
+const TimelineV2Schema = z.object({ zoomRange: ZoomRangeSchema }).strip();
+
+const TimelineSchema = z
+  .object({
+    zoomRange: ZoomRangeSchema.optional(),
+    longEntityDensity: z
+      .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
+      .optional(),
+  })
+  .strip();
 
 const SelectionSchema = z
   .object({
@@ -158,6 +168,16 @@ const FsmSelectionSchema = z
   })
   .strip();
 
+const NvtxSelectionSchema = z
+  .object({
+    domainId: IdSchema.optional(),
+    categories: z
+      .array(z.object({ domainId: IdSchema, categoryId: IdSchema }).strip())
+      .max(MAX_NVTX_CATEGORIES, limitMessage('selected NVTX categories', MAX_NVTX_CATEGORIES))
+      .optional(),
+  })
+  .strip();
+
 const ResourceFilterSchema = z
   .object({
     search: z
@@ -190,11 +210,23 @@ const ResourceTreeSchema = z
       .max(MAX_EXPANDED_RESOURCE_IDS, limitMessage('expanded resources', MAX_EXPANDED_RESOURCE_IDS))
       .transform(uniqueSorted)
       .optional(),
+    collapsedRowIds: z
+      .array(IdSchema)
+      .max(
+        MAX_EXPANDED_RESOURCE_IDS,
+        limitMessage('collapsed resources', MAX_EXPANDED_RESOURCE_IDS)
+      )
+      .transform(uniqueSorted)
+      .optional(),
     pinnedRowIds: z
       .array(IdSchema)
       .max(MAX_PINNED_ROW_IDS, limitMessage('pinned rows', MAX_PINNED_ROW_IDS))
       .transform(uniqueInOrder)
       .optional(),
+    pinnedRowsCollapsed: z.literal(true).optional(),
+    pinnedRowsPanelSize: z.number().positive().max(10_000).optional(),
+    nvtxSelection: NvtxSelectionSchema.optional(),
+    showNestedChartRows: z.boolean().optional(),
     rootResourceType: NameSchema.optional(),
     resourceFilter: ResourceFilterSchema.optional(),
     resourceTypeSelections: z
@@ -316,7 +348,7 @@ const EntitiesSchema = z
 export const DeepLinkStateV2Schema = z
   .object({
     route: RouteSchema,
-    timeline: TimelineSchema,
+    timeline: TimelineV2Schema,
     selection: SelectionSchema.optional(),
     resources: ResourceTreeSchema.optional(),
     dag: DagControlsSchema.optional(),
@@ -340,7 +372,7 @@ export const DeepLinkStateV3Schema = z
   })
   .strip()
   .superRefine((state, context) => {
-    if (state.route.tab !== 'entities' && !state.timeline) {
+    if (state.route.tab !== 'entities' && !state.timeline?.zoomRange) {
       context.addIssue({
         code: 'custom',
         path: ['timeline'],

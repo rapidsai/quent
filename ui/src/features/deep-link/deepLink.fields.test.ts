@@ -16,6 +16,7 @@ import {
 
 const absentFields = {
   route: undefined,
+  timeline: undefined,
   zoomRange: undefined,
   expandedResourceIds: undefined,
   selection: undefined,
@@ -71,6 +72,7 @@ describe('deep-link field readers', () => {
     expect(readDeepLinkFields(decoded)).toEqual({
       ...absentFields,
       route: v2State.route,
+      timeline: v2State.timeline,
       zoomRange: { start: 10, end: 40 },
       expandedResourceIds: ['resource-a', 'resource-b'],
       selection: { planId: 'plan-a' },

@@ -15,6 +15,7 @@ import {
 /** Canonical fields a decoded link may expose. Missing readers return `undefined`. */
 export type DeepLinkFields = {
   route: DeepLinkStateV3['route'] | undefined;
+  timeline: DeepLinkStateV3['timeline'];
   zoomRange: ZoomRange | undefined;
   expandedResourceIds: readonly string[] | undefined;
   selection: DeepLinkStateV3['selection'];
@@ -41,6 +42,7 @@ type DeepLinkVersionEntry<V extends string, TState> = {
 function readFields<TState>(readers: DeepLinkFieldReaders<TState>, state: TState): DeepLinkFields {
   return {
     route: readers.route?.(state),
+    timeline: readers.timeline?.(state),
     zoomRange: readers.zoomRange?.(state),
     expandedResourceIds: readers.expandedResourceIds?.(state),
     selection: readers.selection?.(state),
@@ -82,6 +84,7 @@ export const SUPPORTED_DEEP_LINK_SCHEMAS = [
     schema: DeepLinkStateV2Schema,
     fields: {
       route: state => state.route,
+      timeline: state => state.timeline,
       zoomRange: state => state.timeline.zoomRange,
       expandedResourceIds: state => state.resources?.expandedRowIds,
       selection: state => state.selection,
@@ -96,6 +99,7 @@ export const SUPPORTED_DEEP_LINK_SCHEMAS = [
     schema: DeepLinkStateV3Schema,
     fields: {
       route: state => state.route,
+      timeline: state => state.timeline,
       zoomRange: state => state.timeline?.zoomRange,
       expandedResourceIds: state => state.resources?.expandedRowIds,
       selection: state => state.selection,

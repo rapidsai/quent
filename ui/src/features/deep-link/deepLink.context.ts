@@ -10,11 +10,11 @@ export type DeepLinkIntakeStatus =
   | { kind: 'warning'; message: string }
   | { kind: 'error'; message: string; messages: readonly string[] };
 
-export type CopyLinkResult =
-  { ok: true; url: string } | { ok: false; message: string; messages: readonly string[] };
+export type EncodedDeepLinkResult =
+  { ok: true; value: string } | { ok: false; message: string; messages: readonly string[] };
 
 export interface DeepLinkContextValue {
-  copyLink(): Promise<CopyLinkResult>;
+  captureEncodedState(): EncodedDeepLinkResult;
   initialExpandedResourceIds: readonly string[] | null;
   initialZoomRange: ZoomRange | null;
   intakeStatus: DeepLinkIntakeStatus;

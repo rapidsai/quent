@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Share2 } from 'lucide-react';
 import { Button } from '@quent/components';
+import { buildDeepLinkUrlFromEncodedState } from './deepLink.codec';
 import { useDeepLink } from './deepLink.context';
 import { showDeepLinkErrorToasts } from './deepLink.toasts';
 
@@ -32,7 +33,27 @@ export function CopyLinkButton() {
       return;
     }
     setFeedback({ kind: 'working', message: 'Copying…' });
-    const result = await deepLink.copyLink();
+    const captured = deepLink.captureEncodedState();
+    let result: { ok: true } | { ok: false; message: string; messages: readonly string[] } =
+      captured;
+    if (captured.ok) {
+      const canonicalPageUrl = `${window.location.origin}${window.location.pathname}`;
+      const link = buildDeepLinkUrlFromEncodedState(canonicalPageUrl, captured.value);
+      if (!link.ok) {
+        result = link;
+      } else if (!navigator.clipboard?.writeText) {
+        const message = 'Clipboard access is unavailable.';
+        result = { ok: false, message, messages: [message] };
+      } else {
+        try {
+          await navigator.clipboard.writeText(link.value);
+          result = { ok: true };
+        } catch {
+          const message = 'Could not copy the link to the clipboard.';
+          result = { ok: false, message, messages: [message] };
+        }
+      }
+    }
     setFeedback(
       result.ok
         ? { kind: 'success', message: 'Link copied' }

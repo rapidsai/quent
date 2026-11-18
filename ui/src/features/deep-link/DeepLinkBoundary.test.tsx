@@ -35,6 +35,7 @@ import {
 } from '@/components/operator-table/types';
 import { CopyLinkButton } from './CopyLinkButton';
 import { DeepLinkBoundary } from './DeepLinkBoundary';
+import { UrlDeepLinkState } from './UrlDeepLinkState';
 import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
 import { useDeepLink } from './deepLink.context';
 import { MAX_EXPANDED_RESOURCE_IDS, MAX_SELECTED_NODE_IDS } from './deepLink.schema';
@@ -288,6 +289,7 @@ describe('DeepLinkBoundary', () => {
     render(
       <JotaiProvider>
         <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
+          <UrlDeepLinkState active />
           <ViewportProbe />
         </DeepLinkBoundary>
       </JotaiProvider>
@@ -588,6 +590,7 @@ describe('DeepLinkBoundary', () => {
       <>
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded}>
+            <UrlDeepLinkState active />
             <IntakeStatusProbe />
             <ViewportProbe />
           </DeepLinkBoundary>
@@ -647,6 +650,7 @@ describe('DeepLinkBoundary', () => {
       <>
         <JotaiProvider>
           <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded}>
+            <UrlDeepLinkState active />
             <IntakeStatusProbe />
           </DeepLinkBoundary>
         </JotaiProvider>

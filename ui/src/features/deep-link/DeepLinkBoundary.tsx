@@ -1,15 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from 'jotai';
 import {
   LONG_ENTITY_DENSITY_DEFAULT,
@@ -20,7 +12,6 @@ import {
   useSetZoomRange,
 } from '@quent/hooks';
 import { DAG_LAYOUT_DIRECTION, SCALE_TYPE, NODE_LABEL_FIELD, type Operator } from '@quent/utils';
-import { toast } from '@quent/components';
 import {
   entitiesTableStateAtom,
   type EntitiesTableState,
@@ -28,9 +19,13 @@ import {
 } from '@/atoms/entitiesTable';
 import {
   expandedIdsAtom,
+  pinnedCollapsedAtom,
   pinnedIdsAtom,
+  pinnedPanelSizeAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
+  selectedNvtxCategoriesAtom,
+  selectedNvtxDomainAtom,
   selectedFsmTypesAtom,
   selectedTypesAtom,
 } from '@/atoms/resourceTree';
@@ -51,30 +46,15 @@ import {
   parseOptionalNumber,
   validateEntityFilters,
 } from '@/components/entities-table/utils';
-import {
-  clearViewAutosave,
-  browserStorage,
-  captureViewExtras,
-  hydrateViewExtras,
-  useViewAutosave,
-  type ViewAutosaveSnapshot,
-  type ViewExtras,
-} from '@/features/view-autosave';
-import {
-  buildDeepLinkUrl,
-  decodeDeepLinkState,
-  DEEP_LINK_SEARCH_KEY,
-  encodeDeepLinkState,
-} from './deepLink.codec';
+import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
 import {
   DeepLinkContext,
-  type CopyLinkResult,
   type DeepLinkContextValue,
   type DeepLinkIntakeStatus,
+  type EncodedDeepLinkResult,
 } from './deepLink.context';
 import { readDeepLinkFields, type DeepLinkFields } from './deepLink.fields';
 import { normalizeZoomRange, resolveCapturedZoomRange } from './deepLink.normalize';
-import { showDeepLinkErrorToasts } from './deepLink.toasts';
 import {
   OperatorGroupSchema,
   type DeepLinkEntitiesState,
@@ -92,10 +72,6 @@ interface DeepLinkBoundaryProps {
   defaultRootResourceType?: string | null;
   operators: readonly Operator[];
   encodedState?: string;
-  /** 'stored' means encodedState came from the autosaved view, not the URL. */
-  restoreSource?: 'url' | 'stored';
-  /** Extras saved next to a stored view; present only with restoreSource 'stored'. */
-  storedExtras?: ViewExtras;
   isQueryReady: boolean;
 }
 
@@ -116,7 +92,7 @@ function hasKeys(value: object): boolean {
   return Object.keys(value).length > 0;
 }
 
-function copyFailure(message: string): ViewFailure {
+function captureFailure(message: string): ViewFailure {
   return { ok: false, message, messages: [message] };
 }
 
@@ -199,8 +175,6 @@ export function DeepLinkBoundary({
   defaultRootResourceType = null,
   operators,
   encodedState,
-  restoreSource = 'url',
-  storedExtras,
   isQueryReady,
 }: DeepLinkBoundaryProps) {
   useHydrateSelectedPlanId(initialPlanId);
@@ -263,7 +237,7 @@ export function DeepLinkBoundary({
         fields.route.tab !== intakeRoute.activeTab)
     ) {
       /* eslint-enable react-hooks/refs */
-      const message = 'The shared state does not match the engine, query, and tab in this URL.';
+      const message = 'The saved state does not match the current engine, query, and tab.';
       return {
         initialExpandedResourceIds: null,
         initialZoomRange: null,
@@ -282,7 +256,7 @@ export function DeepLinkBoundary({
       ? normalizeZoomRange(fields.zoomRange, durationSeconds)
       : null;
     if (fields.zoomRange && !normalized) {
-      const message = 'The query duration cannot support the shared timeline viewport.';
+      const message = 'The query duration cannot support the restored timeline viewport.';
       return {
         initialExpandedResourceIds: expandedResourceIds,
         initialZoomRange: null,
@@ -304,49 +278,11 @@ export function DeepLinkBoundary({
       status: normalized?.wasAdjusted
         ? ({
             kind: 'warning',
-            message: 'The shared timeline viewport was adjusted to fit this query.',
+            message: 'The restored timeline viewport was adjusted to fit this query.',
           } satisfies DeepLinkIntakeStatus)
         : ({ kind: 'ready' } satisfies DeepLinkIntakeStatus),
     };
   }, [durationSeconds, encodedState, intakeRoute, isQueryReady]);
-
-  useEffect(() => {
-    if (intake.status.kind !== 'error' && intake.status.kind !== 'warning') {
-      return;
-    }
-    if (restoreSource === 'stored') {
-      // A remembered view that no longer fits is dropped without bothering the user.
-      if (intake.status.kind === 'error' && queryId) {
-        clearViewAutosave(browserStorage(), { engineId, queryId });
-      }
-      return;
-    }
-
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) {
-        return;
-      }
-      if (intake.status.kind === 'error') {
-        showDeepLinkErrorToasts({
-          id: 'deep-link-intake',
-          title: 'Could not restore shared view',
-          messages: intake.status.messages,
-        });
-      } else if (intake.status.kind === 'warning') {
-        toast.add({
-          id: 'deep-link-intake',
-          type: 'warning',
-          title: 'Shared view adjusted',
-          description: intake.status.message,
-        });
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [engineId, intake.status, queryId, restoreSource]);
 
   useLayoutEffect(() => {
     if (!intake.isResolved) {
@@ -360,7 +296,7 @@ export function DeepLinkBoundary({
       store.set(expandedIdsAtom, new Set(intake.initialExpandedResourceIds));
     }
     if (intake.fields) {
-      // A shared link describes the whole view, so a link without pins clears any in the session.
+      // Restored state describes the whole view, so omitted pins clear session state.
       store.set(pinnedIdsAtom, new Set(intake.fields.resources?.pinnedRowIds ?? []));
       const resourceFilter = intake.fields.resources?.resourceFilter;
       store.set(
@@ -393,10 +329,20 @@ export function DeepLinkBoundary({
         );
       }
     }
-    if (intake.fields && storedExtras) {
-      hydrateViewExtras(store, storedExtras);
-    }
     if (intake.fields) {
+      const resources = intake.fields.resources;
+      store.set(pinnedCollapsedAtom, resources?.pinnedRowsCollapsed ?? false);
+      store.set(pinnedPanelSizeAtom, resources?.pinnedRowsPanelSize);
+      store.set(selectedNvtxDomainAtom, resources?.nvtxSelection?.domainId ?? null);
+      store.set(
+        selectedNvtxCategoriesAtom,
+        new Map(
+          resources?.nvtxSelection?.categories?.map(({ domainId, categoryId }) => [
+            domainId,
+            categoryId,
+          ]) ?? []
+        )
+      );
       hydrateSerializableViewState({
         selection: intake.fields.selection,
         dag: intake.fields.dag,
@@ -410,9 +356,10 @@ export function DeepLinkBoundary({
             }
           : undefined,
         operatorTable: intake.fields.operatorTable,
-        timeline: storedExtras
-          ? { longEntityDensity: storedExtras.longEntityDensity ?? LONG_ENTITY_DENSITY_DEFAULT }
-          : undefined,
+        timeline: {
+          longEntityDensity:
+            intake.fields.timeline?.longEntityDensity ?? LONG_ENTITY_DENSITY_DEFAULT,
+        },
       });
       if (intake.fields.entities) {
         store.set(
@@ -420,15 +367,6 @@ export function DeepLinkBoundary({
           hydrateEntitiesState(intake.fields.entities, durationSeconds)
         );
       }
-    }
-    if (encodedState) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete(DEEP_LINK_SEARCH_KEY);
-      window.history.replaceState(
-        window.history.state,
-        '',
-        `${url.pathname}${url.search}${url.hash}`
-      );
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration-complete flag; cannot be derived during render
     setIsHydrated(true);
@@ -439,7 +377,6 @@ export function DeepLinkBoundary({
     intake.initialZoomRange,
     intake.isResolved,
     intake.fields,
-    storedExtras,
     hydrateSerializableViewState,
     setDebouncedZoomRange,
     setZoomRange,
@@ -448,12 +385,12 @@ export function DeepLinkBoundary({
 
   const captureState = useCallback((): CaptureStateResult => {
     if (!queryId || !activeTab) {
-      return copyFailure('Select a query tab before copying a shared link.');
+      return captureFailure('Select a query tab before capturing view state.');
     }
     const capturedRange =
       activeTab === 'entities' ? null : resolveCapturedZoomRange(readZoomRange(), durationSeconds);
     if (!capturedRange && activeTab !== 'entities') {
-      return copyFailure('The timeline viewport is not available yet.');
+      return captureFailure('The timeline viewport is not available yet.');
     }
     const sharedView = readSerializableViewState();
     const entitiesState =
@@ -461,14 +398,21 @@ export function DeepLinkBoundary({
         ? captureEntitiesState(store.get(entitiesTableStateAtom), durationSeconds)
         : undefined;
     if (activeTab === 'entities' && entitiesState === null) {
-      return copyFailure('Fix the entity filters before copying a shared link.');
+      return captureFailure('Fix the entity filters before capturing view state.');
     }
 
     const state: DeepLinkStateV3 = {
       route: { engineId, queryId, tab: activeTab },
     };
+    const timeline: NonNullable<DeepLinkStateV3['timeline']> = {};
     if (capturedRange) {
-      state.timeline = { zoomRange: capturedRange };
+      timeline.zoomRange = capturedRange;
+    }
+    if (sharedView.timeline.longEntityDensity !== LONG_ENTITY_DENSITY_DEFAULT) {
+      timeline.longEntityDensity = sharedView.timeline.longEntityDensity;
+    }
+    if (hasKeys(timeline)) {
+      state.timeline = timeline;
     }
 
     const selection: NonNullable<DeepLinkStateV3['selection']> = {};
@@ -494,6 +438,23 @@ export function DeepLinkBoundary({
     const pinnedRowIds = [...store.get(pinnedIdsAtom)];
     if (pinnedRowIds.length > 0) {
       resources.pinnedRowIds = pinnedRowIds;
+    }
+    if (store.get(pinnedCollapsedAtom)) {
+      resources.pinnedRowsCollapsed = true;
+    }
+    const pinnedRowsPanelSize = store.get(pinnedPanelSizeAtom);
+    if (pinnedRowsPanelSize !== undefined && pinnedRowsPanelSize > 0) {
+      resources.pinnedRowsPanelSize = Math.round(pinnedRowsPanelSize);
+    }
+    const nvtxDomainId = store.get(selectedNvtxDomainAtom);
+    const nvtxCategories = [...store.get(selectedNvtxCategoriesAtom)]
+      .map(([domainId, categoryId]) => ({ domainId, categoryId }))
+      .sort((a, b) => a.domainId.localeCompare(b.domainId));
+    if (nvtxDomainId || nvtxCategories.length > 0) {
+      resources.nvtxSelection = {
+        ...(nvtxDomainId ? { domainId: nvtxDomainId } : {}),
+        ...(nvtxCategories.length > 0 ? { categories: nvtxCategories } : {}),
+      };
     }
     const resourceFilter = store.get(resourceFilterAtom);
     if (isResourceFilterActive(resourceFilter)) {
@@ -624,60 +585,26 @@ export function DeepLinkBoundary({
     store,
   ]);
 
-  const copyLink = useCallback(async (): Promise<CopyLinkResult> => {
+  const captureEncodedState = useCallback((): EncodedDeepLinkResult => {
     const captured = captureState();
     if (!captured.ok) {
       return captured;
     }
-    const canonicalPageUrl = `${window.location.origin}${window.location.pathname}`;
-    const result = buildDeepLinkUrl(canonicalPageUrl, captured.value);
-    if (!result.ok) {
-      return { ok: false, message: result.message, messages: result.messages };
-    }
-    if (!navigator.clipboard?.writeText) {
-      return copyFailure('Clipboard access is unavailable.');
-    }
-
-    try {
-      await navigator.clipboard.writeText(result.value);
-      return { ok: true, url: result.value };
-    } catch {
-      return copyFailure('Could not copy the link to the clipboard.');
-    }
-  }, [captureState]);
-
-  const captureAutosave = useCallback((): ViewAutosaveSnapshot | null => {
-    const captured = captureState();
-    if (!captured.ok) {
-      return null;
-    }
     const encoded = encodeDeepLinkState(captured.value);
     if (!encoded.ok) {
-      return null;
+      return { ok: false, message: encoded.message, messages: encoded.messages };
     }
-    const extras = captureViewExtras(store, readSerializableViewState().timeline.longEntityDensity);
-    return {
-      tab: captured.value.route.tab,
-      payload: encoded.value,
-      ...(hasKeys(extras) ? { extras } : {}),
-    };
-  }, [captureState, readSerializableViewState, store]);
-
-  useViewAutosave({
-    scope: { engineId, queryId: queryId ?? '' },
-    tab: activeTab,
-    enabled: isHydrated && isQueryReady && queryId !== undefined && activeTab !== undefined,
-    capture: captureAutosave,
-  });
+    return { ok: true, value: encoded.value };
+  }, [captureState]);
 
   const value = useMemo<DeepLinkContextValue>(
     () => ({
-      copyLink,
+      captureEncodedState,
       initialExpandedResourceIds: intake.initialExpandedResourceIds,
       initialZoomRange: intake.initialZoomRange,
       intakeStatus: intake.status,
     }),
-    [copyLink, intake.initialExpandedResourceIds, intake.initialZoomRange, intake.status]
+    [captureEncodedState, intake.initialExpandedResourceIds, intake.initialZoomRange, intake.status]
   );
 
   return (

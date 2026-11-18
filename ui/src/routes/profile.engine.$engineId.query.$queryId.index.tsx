@@ -2,13 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { browserStorage, readViewAutosave } from '@/features/view-autosave';
+import { decodeDeepLinkState } from '@/features/deep-link/deepLink.codec';
+import { readDeepLinkFields } from '@/features/deep-link/deepLink.fields';
+import {
+  browserLocalStorage,
+  readDeepLinkFromLocalStorage,
+} from '@/features/deep-link/deepLink.localStorage';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/')({
   beforeLoad: ({ params, search }) => {
     // Reopen the query on the tab the user last left it on.
+    const stored =
+      search.s === undefined ? readDeepLinkFromLocalStorage(browserLocalStorage(), params) : null;
+    const decoded = stored ? decodeDeepLinkState(stored) : null;
+    const route = decoded?.ok ? readDeepLinkFields(decoded.value).route : undefined;
     const tab =
-      search.s === undefined ? readViewAutosave(browserStorage(), params)?.tab : undefined;
+      route?.engineId === params.engineId && route.queryId === params.queryId
+        ? route.tab
+        : undefined;
     throw redirect({
       to: `/profile/engine/$engineId/query/$queryId/${tab ?? 'timeline'}`,
       params,

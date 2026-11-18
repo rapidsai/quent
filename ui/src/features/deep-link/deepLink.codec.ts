@@ -152,7 +152,13 @@ export function buildDeepLinkUrl(
   if (!encoded.ok) {
     return encoded;
   }
+  return buildDeepLinkUrlFromEncodedState(currentUrl, encoded.value);
+}
 
+export function buildDeepLinkUrlFromEncodedState(
+  currentUrl: string,
+  encodedState: string
+): DeepLinkResult<string> {
   const isAbsolute = /^[A-Za-z][A-Za-z\d+.-]*:/u.test(currentUrl);
   let url: URL;
   try {
@@ -161,7 +167,7 @@ export function buildDeepLinkUrl(
     return failure('invalid-url', 'The current page URL is invalid.');
   }
 
-  url.searchParams.set(DEEP_LINK_SEARCH_KEY, encoded.value);
+  url.searchParams.set(DEEP_LINK_SEARCH_KEY, encodedState);
   const result = isAbsolute ? url.toString() : `${url.pathname}${url.search}${url.hash}`;
   if (result.length > MAX_DEEP_LINK_URL_LENGTH) {
     return failure('url-too-long', 'The shareable URL exceeds 2,048 characters.');

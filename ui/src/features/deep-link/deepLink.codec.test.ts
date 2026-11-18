@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { gzipSync, strToU8 } from 'fflate';
 import {
   buildDeepLinkUrl,
+  buildDeepLinkUrlFromEncodedState,
   CURRENT_DEEP_LINK_VERSION,
   decodeDeepLinkState,
   encodeDeepLinkState,
@@ -60,6 +61,7 @@ const state: DeepLinkStateV3 = {
       start: 12.5,
       end: 48.75,
     },
+    longEntityDensity: 2,
   },
   selection: {
     planId: 'plan-a',
@@ -67,6 +69,12 @@ const state: DeepLinkStateV3 = {
   },
   resources: {
     expandedRowIds: ['resource-a', 'resource-b'],
+    pinnedRowsCollapsed: true,
+    pinnedRowsPanelSize: 240,
+    nvtxSelection: {
+      domainId: 'nvtx-domain-a',
+      categories: [{ domainId: 'nvtx-domain-a', categoryId: 'category-a' }],
+    },
     resourceFilter: {
       search: 'resource',
       resourceTypes: ['channel', 'memory'],
@@ -207,6 +215,23 @@ describe('deep-link codec', () => {
     expect(new URL(result.value).searchParams.get('s')).toMatch(
       new RegExp(`^${CURRENT_DEEP_LINK_VERSION}\\.`)
     );
+  });
+
+  it('builds a link from state encoded by the boundary', () => {
+    const encoded = encodeDeepLinkState(state);
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+
+    const result = buildDeepLinkUrlFromEncodedState(
+      '/profile/engine/e/query/q/entities',
+      encoded.value
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(new URL(result.value, 'https://quent.test').searchParams.get('s')).toBe(encoded.value);
+    }
   });
 
   it('decodes links produced by the experimental CLI', () => {
