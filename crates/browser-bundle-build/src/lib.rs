@@ -133,18 +133,31 @@ where
 }
 
 fn discover_context_ids(root: &Path) -> Result<Vec<Uuid>> {
-    let mut ids = Vec::new();
+    // `Uuid::parse_str` accepts several spellings of one UUID, but the loader opens
+    // `<root>/<canonical UUID>`. Two spellings would load the same directory twice (or not at
+    // all), so reject them rather than guess which one is meant.
+    let mut contexts = std::collections::BTreeMap::<Uuid, String>::new();
     for entry in std::fs::read_dir(root)? {
         let entry = entry?;
         if entry.file_type()?.is_dir()
             && let Some(name) = entry.file_name().to_str()
             && let Ok(id) = Uuid::parse_str(name)
+            && let Some(existing) = contexts.insert(id, name.to_owned())
         {
-            ids.push(id);
+            // `read_dir` order is unspecified; report the names in a stable order.
+            let (first_name, second_name) = if existing.as_str() <= name {
+                (existing, name.to_owned())
+            } else {
+                (name.to_owned(), existing)
+            };
+            return Err(Error::DuplicateContext {
+                context_id: id,
+                first_name,
+                second_name,
+            });
         }
     }
-    ids.sort_unstable();
-    Ok(ids)
+    Ok(contexts.into_keys().collect())
 }
 
 fn read_model_provenance(root: &Path, context_ids: &[Uuid]) -> Result<Option<serde_json::Value>> {
@@ -410,5 +423,31 @@ mod tests {
         ));
         let source = std::error::Error::source(&error).expect("source is preserved");
         assert!(source.downcast_ref::<serde_json::Error>().is_some());
+    }
+
+    #[test]
+    fn rejects_context_directories_that_parse_to_the_same_uuid() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Uuid::from_u128(1);
+        std::fs::create_dir(root.path().join(id.hyphenated().to_string())).unwrap();
+        std::fs::create_dir(root.path().join(id.simple().to_string())).unwrap();
+
+        let error = discover_context_ids(root.path()).unwrap_err();
+        assert!(matches!(
+            error,
+            Error::DuplicateContext { context_id, .. } if context_id == id
+        ));
+    }
+
+    #[test]
+    fn discovers_distinct_contexts_in_sorted_order() {
+        let root = tempfile::tempdir().unwrap();
+        let (a, b) = (Uuid::from_u128(1), Uuid::from_u128(2));
+        std::fs::create_dir(root.path().join(b.to_string())).unwrap();
+        std::fs::create_dir(root.path().join(a.to_string())).unwrap();
+        std::fs::create_dir(root.path().join("not-a-uuid")).unwrap();
+        std::fs::write(root.path().join(Uuid::from_u128(3).to_string()), b"file").unwrap();
+
+        assert_eq!(discover_context_ids(root.path()).unwrap(), [a, b]);
     }
 }
