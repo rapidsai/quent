@@ -4,23 +4,21 @@
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
 import type { ZodError } from 'zod';
 import {
-  SUPPORTED_DEEP_LINK_SCHEMAS,
-  type DeepLinkVersion,
-  type VersionedDeepLinkState,
-} from './deepLink.fields';
-import {
-  DeepLinkStateV3Schema,
-  MAX_ENCODED_STATE_LENGTH,
-  type DeepLinkStateV3,
-} from './deepLink.schema';
+  SUPPORTED_VIEW_STATE_SCHEMAS,
+  type ViewStateVersion,
+  type VersionedViewState,
+} from './viewState.fields';
+import { ViewStateV3Schema, MAX_ENCODED_STATE_LENGTH, type ViewStateV3 } from './viewState.schema';
 
-export const CURRENT_DEEP_LINK_VERSION: DeepLinkVersion = 'v3';
-export const SUPPORTED_DEEP_LINK_VERSIONS = SUPPORTED_DEEP_LINK_SCHEMAS.map(entry => entry.version);
-export const DEEP_LINK_SEARCH_KEY = 's';
-export const MAX_DEEP_LINK_URL_LENGTH = 2048;
+export const CURRENT_VIEW_STATE_VERSION: ViewStateVersion = 'v3';
+export const SUPPORTED_VIEW_STATE_VERSIONS = SUPPORTED_VIEW_STATE_SCHEMAS.map(
+  entry => entry.version
+);
+export const VIEW_STATE_SEARCH_KEY = 's';
+export const MAX_VIEW_STATE_URL_LENGTH = 2048;
 export const MAX_DECOMPRESSED_STATE_LENGTH = 64 * 1024;
 
-export type DeepLinkErrorCode =
+export type ViewStateErrorCode =
   | 'invalid-state'
   | 'invalid-encoding'
   | 'unsupported-version'
@@ -28,19 +26,19 @@ export type DeepLinkErrorCode =
   | 'url-too-long'
   | 'invalid-url';
 
-export type DeepLinkResult<T> =
+export type ViewStateResult<T> =
   | { ok: true; value: T }
   | {
       ok: false;
-      code: DeepLinkErrorCode;
+      code: ViewStateErrorCode;
       message: string;
       messages: readonly string[];
     };
 
 function failure(
-  code: DeepLinkErrorCode,
+  code: ViewStateErrorCode,
   messageOrMessages: string | readonly string[]
-): DeepLinkResult<never> {
+): ViewStateResult<never> {
   const messages =
     typeof messageOrMessages === 'string' ? [messageOrMessages] : [...messageOrMessages];
   return { ok: false, code, message: messages.join(' '), messages };
@@ -56,7 +54,7 @@ function formatIssuePath(path: PropertyKey[]): string {
   }, '');
 }
 
-function invalidState(error: ZodError, fallback: string): DeepLinkResult<never> {
+function invalidState(error: ZodError, fallback: string): ViewStateResult<never> {
   const messages = error.issues.map(issue => {
     const path =
       issue.code === 'too_big' || issue.code === 'custom' ? '' : formatIssuePath(issue.path);
@@ -86,90 +84,84 @@ function base64UrlToBytes(value: string): Uint8Array | null {
   }
 }
 
-export function encodeDeepLinkState(state: DeepLinkStateV3): DeepLinkResult<string> {
-  const parsed = DeepLinkStateV3Schema.safeParse(state);
+export function encodeViewState(state: ViewStateV3): ViewStateResult<string> {
+  const parsed = ViewStateV3Schema.safeParse(state);
   if (!parsed.success) {
     return invalidState(parsed.error, 'The current shared view state is invalid.');
   }
 
   const json = JSON.stringify(parsed.data);
   const compressed = gzipSync(strToU8(json), { level: 9, mtime: 0 });
-  const encoded = `${CURRENT_DEEP_LINK_VERSION}.${bytesToBase64Url(compressed)}`;
+  const encoded = `${CURRENT_VIEW_STATE_VERSION}.${bytesToBase64Url(compressed)}`;
 
   if (encoded.length > MAX_ENCODED_STATE_LENGTH) {
-    return failure('payload-too-large', 'The encoded deep-link state is too large.');
+    return failure('payload-too-large', 'The encoded view state is too large.');
   }
   return { ok: true, value: encoded };
 }
 
-export function decodeDeepLinkState(encoded: string): DeepLinkResult<VersionedDeepLinkState> {
+export function decodeViewState(encoded: string): ViewStateResult<VersionedViewState> {
   if (encoded.length > MAX_ENCODED_STATE_LENGTH) {
-    return failure('payload-too-large', 'The deep-link state exceeds the supported size.');
+    return failure('payload-too-large', 'The view state exceeds the supported size.');
   }
 
   const separator = encoded.indexOf('.');
   if (separator === -1) {
-    return failure('invalid-encoding', 'The deep-link state has no version prefix.');
+    return failure('invalid-encoding', 'The view state has no version prefix.');
   }
 
   const version = encoded.slice(0, separator);
-  const versionedSchema = SUPPORTED_DEEP_LINK_SCHEMAS.find(entry => entry.version === version);
+  const versionedSchema = SUPPORTED_VIEW_STATE_SCHEMAS.find(entry => entry.version === version);
   if (!versionedSchema) {
-    return failure('unsupported-version', `Unsupported deep-link version: ${version}`);
+    return failure('unsupported-version', `Unsupported view-state version: ${version}`);
   }
 
   const compressed = base64UrlToBytes(encoded.slice(separator + 1));
   if (!compressed) {
-    return failure('invalid-encoding', 'The deep-link state is not valid URL-safe base64.');
+    return failure('invalid-encoding', 'The view state is not valid URL-safe base64.');
   }
 
   try {
     const output = new Uint8Array(MAX_DECOMPRESSED_STATE_LENGTH + 1);
     const decompressed = gunzipSync(compressed, { out: output });
     if (decompressed.length > MAX_DECOMPRESSED_STATE_LENGTH) {
-      return failure('payload-too-large', 'The decoded deep-link state is too large.');
+      return failure('payload-too-large', 'The decoded view state is too large.');
     }
 
     const json = JSON.parse(strFromU8(decompressed)) as unknown;
     const parsed = versionedSchema.schema.safeParse(json);
     if (!parsed.success) {
-      return invalidState(
-        parsed.error,
-        `The deep-link state does not match the ${version} schema.`
-      );
+      return invalidState(parsed.error, `The view state does not match the ${version} schema.`);
     }
     return { ok: true, value: { version: versionedSchema.version, data: parsed.data } };
   } catch {
-    return failure('invalid-encoding', 'The deep-link state could not be decoded.');
+    return failure('invalid-encoding', 'The view state could not be decoded.');
   }
 }
 
-export function buildDeepLinkUrl(
-  currentUrl: string,
-  state: DeepLinkStateV3
-): DeepLinkResult<string> {
-  const encoded = encodeDeepLinkState(state);
+export function buildViewStateUrl(currentUrl: string, state: ViewStateV3): ViewStateResult<string> {
+  const encoded = encodeViewState(state);
   if (!encoded.ok) {
     return encoded;
   }
-  return buildDeepLinkUrlFromEncodedState(currentUrl, encoded.value);
+  return buildViewStateUrlFromEncodedState(currentUrl, encoded.value);
 }
 
-export function buildDeepLinkUrlFromEncodedState(
+export function buildViewStateUrlFromEncodedState(
   currentUrl: string,
   encodedState: string
-): DeepLinkResult<string> {
+): ViewStateResult<string> {
   const isAbsolute = /^[A-Za-z][A-Za-z\d+.-]*:/u.test(currentUrl);
   let url: URL;
   try {
-    url = new URL(currentUrl, 'http://deep-link.invalid');
+    url = new URL(currentUrl, 'http://view-state.invalid');
   } catch {
     return failure('invalid-url', 'The current page URL is invalid.');
   }
 
-  url.searchParams.set(DEEP_LINK_SEARCH_KEY, encodedState);
+  url.searchParams.set(VIEW_STATE_SEARCH_KEY, encodedState);
   const result = isAbsolute ? url.toString() : `${url.pathname}${url.search}${url.hash}`;
-  if (result.length > MAX_DEEP_LINK_URL_LENGTH) {
+  if (result.length > MAX_VIEW_STATE_URL_LENGTH) {
     return failure('url-too-long', 'The shareable URL exceeds 2,048 characters.');
   }
   return { ok: true, value: result };

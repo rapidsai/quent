@@ -4,42 +4,45 @@
 import type { ZoomRange } from '@quent/utils';
 import { z } from 'zod';
 import {
-  DeepLinkStateV1Schema,
-  DeepLinkStateV2Schema,
-  DeepLinkStateV3Schema,
-  type DeepLinkStateV1,
-  type DeepLinkStateV2,
-  type DeepLinkStateV3,
-} from './deepLink.schema';
+  ViewStateV1Schema,
+  ViewStateV2Schema,
+  ViewStateV3Schema,
+  type ViewStateV1,
+  type ViewStateV2,
+  type ViewStateV3,
+} from './viewState.schema';
 
 /** Canonical fields a decoded link may expose. Missing readers return `undefined`. */
-export type DeepLinkFields = {
-  route: DeepLinkStateV3['route'] | undefined;
-  timeline: DeepLinkStateV3['timeline'];
+export type ViewStateFields = {
+  route: ViewStateV3['route'] | undefined;
+  timeline: ViewStateV3['timeline'];
   zoomRange: ZoomRange | undefined;
   expandedResourceIds: readonly string[] | undefined;
-  selection: DeepLinkStateV3['selection'];
-  resources: DeepLinkStateV3['resources'];
-  dag: DeepLinkStateV3['dag'];
-  dataFlow: DeepLinkStateV3['dataFlow'];
-  operatorTable: DeepLinkStateV3['operatorTable'];
-  entities: DeepLinkStateV3['entities'];
+  selection: ViewStateV3['selection'];
+  resources: ViewStateV3['resources'];
+  dag: ViewStateV3['dag'];
+  dataFlow: ViewStateV3['dataFlow'];
+  operatorTable: ViewStateV3['operatorTable'];
+  entities: ViewStateV3['entities'];
 };
 
-export type DeepLinkFieldKey = keyof DeepLinkFields;
+export type ViewStateFieldKey = keyof ViewStateFields;
 
-export type DeepLinkFieldReaders<TState> = {
-  [K in DeepLinkFieldKey]?: (state: TState) => DeepLinkFields[K];
+export type ViewStateFieldReaders<TState> = {
+  [K in ViewStateFieldKey]?: (state: TState) => ViewStateFields[K];
 };
 
-type DeepLinkVersionEntry<V extends string, TState> = {
+type ViewStateVersionEntry<V extends string, TState> = {
   version: V;
   schema: z.ZodType<TState>;
-  readField: <K extends DeepLinkFieldKey>(data: unknown, field: K) => DeepLinkFields[K];
-  readFields: (data: unknown) => DeepLinkFields;
+  readField: <K extends ViewStateFieldKey>(data: unknown, field: K) => ViewStateFields[K];
+  readFields: (data: unknown) => ViewStateFields;
 };
 
-function readFields<TState>(readers: DeepLinkFieldReaders<TState>, state: TState): DeepLinkFields {
+function readFields<TState>(
+  readers: ViewStateFieldReaders<TState>,
+  state: TState
+): ViewStateFields {
   return {
     route: readers.route?.(state),
     timeline: readers.timeline?.(state),
@@ -54,34 +57,34 @@ function readFields<TState>(readers: DeepLinkFieldReaders<TState>, state: TState
   };
 }
 
-export function defineDeepLinkVersion<V extends string, TState>(definition: {
+export function defineViewStateVersion<V extends string, TState>(definition: {
   version: V;
   schema: z.ZodType<TState>;
-  fields: DeepLinkFieldReaders<TState>;
-}): DeepLinkVersionEntry<V, TState> {
+  fields: ViewStateFieldReaders<TState>;
+}): ViewStateVersionEntry<V, TState> {
   return {
     version: definition.version,
     schema: definition.schema,
     readField: (data, field) => {
       const reader = definition.fields[field];
-      return reader ? reader(data as TState) : (undefined as DeepLinkFields[typeof field]);
+      return reader ? reader(data as TState) : (undefined as ViewStateFields[typeof field]);
     },
     readFields: data => readFields(definition.fields, data as TState),
   };
 }
 
-export const SUPPORTED_DEEP_LINK_SCHEMAS = [
-  defineDeepLinkVersion({
+export const SUPPORTED_VIEW_STATE_SCHEMAS = [
+  defineViewStateVersion({
     version: 'v1',
-    schema: DeepLinkStateV1Schema,
+    schema: ViewStateV1Schema,
     fields: {
       zoomRange: state => state.zoomRange,
       expandedResourceIds: state => state.expandedResourceIds,
     },
   }),
-  defineDeepLinkVersion({
+  defineViewStateVersion({
     version: 'v2',
-    schema: DeepLinkStateV2Schema,
+    schema: ViewStateV2Schema,
     fields: {
       route: state => state.route,
       timeline: state => state.timeline,
@@ -94,9 +97,9 @@ export const SUPPORTED_DEEP_LINK_SCHEMAS = [
       operatorTable: state => state.operatorTable,
     },
   }),
-  defineDeepLinkVersion({
+  defineViewStateVersion({
     version: 'v3',
-    schema: DeepLinkStateV3Schema,
+    schema: ViewStateV3Schema,
     fields: {
       route: state => state.route,
       timeline: state => state.timeline,
@@ -112,29 +115,29 @@ export const SUPPORTED_DEEP_LINK_SCHEMAS = [
   }),
 ] as const;
 
-export type DeepLinkVersion = (typeof SUPPORTED_DEEP_LINK_SCHEMAS)[number]['version'];
-export type DecodedDeepLinkState = DeepLinkStateV1 | DeepLinkStateV2 | DeepLinkStateV3;
+export type ViewStateVersion = (typeof SUPPORTED_VIEW_STATE_SCHEMAS)[number]['version'];
+export type DecodedViewState = ViewStateV1 | ViewStateV2 | ViewStateV3;
 
-export type VersionedDeepLinkState = {
-  version: DeepLinkVersion;
-  data: DecodedDeepLinkState;
+export type VersionedViewState = {
+  version: ViewStateVersion;
+  data: DecodedViewState;
 };
 
-function schemaFor(version: DeepLinkVersion) {
-  const entry = SUPPORTED_DEEP_LINK_SCHEMAS.find(item => item.version === version);
+function schemaFor(version: ViewStateVersion) {
+  const entry = SUPPORTED_VIEW_STATE_SCHEMAS.find(item => item.version === version);
   if (!entry) {
-    throw new Error(`Unsupported deep-link version: ${version}`);
+    throw new Error(`Unsupported view-state version: ${version}`);
   }
   return entry;
 }
 
-export function readDeepLinkField<K extends DeepLinkFieldKey>(
-  decoded: VersionedDeepLinkState,
+export function readViewStateField<K extends ViewStateFieldKey>(
+  decoded: VersionedViewState,
   field: K
-): DeepLinkFields[K] {
+): ViewStateFields[K] {
   return schemaFor(decoded.version).readField(decoded.data, field);
 }
 
-export function readDeepLinkFields(decoded: VersionedDeepLinkState): DeepLinkFields {
+export function readViewStateFields(decoded: VersionedViewState): ViewStateFields {
   return schemaFor(decoded.version).readFields(decoded.data);
 }

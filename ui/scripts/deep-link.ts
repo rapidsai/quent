@@ -4,16 +4,16 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
-  buildDeepLinkUrl,
-  decodeDeepLinkState,
-  DEEP_LINK_SEARCH_KEY,
-} from '../src/features/deep-link/deepLink.codec';
+  buildViewStateUrl,
+  decodeViewState,
+  VIEW_STATE_SEARCH_KEY,
+} from '../src/features/view-state/viewState.codec';
 import {
-  DeepLinkStateV3Schema,
-  type DeepLinkStateV3,
-  type DeepLinkTab,
-} from '../src/features/deep-link/deepLink.schema';
-import { mergeResourceFilter } from '../src/features/deep-link/deepLink.cli';
+  ViewStateV3Schema,
+  type ViewStateV3,
+  type ViewStateTab,
+} from '../src/features/view-state/viewState.schema';
+import { mergeResourceFilter } from '../src/features/view-state/viewState.cli';
 
 const usage = `Usage:
   pnpm deep-link create --engine ID --query ID --tab timeline --start S --end S [--resource-search TEXT] [--resource-types TYPES] [--fsm-types TYPES] [--show-others] [--base URL]
@@ -39,7 +39,7 @@ function parseList(value: string | boolean | undefined): string[] | undefined {
 
 async function readState(
   values: Record<string, string | boolean | undefined>,
-  route: DeepLinkStateV3['route']
+  route: ViewStateV3['route']
 ) {
   let input: unknown;
   if (typeof values.state === 'string') {
@@ -73,21 +73,21 @@ async function readState(
     ...(values['show-others'] === true ? { showOthers: true } : {}),
   };
   const candidateWithFilter = mergeResourceFilter(candidate, resourceFilter);
-  const parsed = DeepLinkStateV3Schema.safeParse(candidateWithFilter);
+  const parsed = ViewStateV3Schema.safeParse(candidateWithFilter);
   if (!parsed.success) {
     fail(`Invalid state: ${parsed.error.message}`);
   }
   return parsed.data;
 }
 
-function parseTab(tab: string): DeepLinkTab {
+function parseTab(tab: string): ViewStateTab {
   if (tab !== 'timeline' && tab !== 'operators' && tab !== 'entities') {
     fail('The --tab option must be "timeline", "operators", or "entities".');
   }
   return tab;
 }
 
-function buildRoute(engineId: string, queryId: string, tab: DeepLinkTab): string {
+function buildRoute(engineId: string, queryId: string, tab: ViewStateTab): string {
   return `/profile/engine/${encodeURIComponent(engineId)}/query/${encodeURIComponent(queryId)}/${tab}`;
 }
 
@@ -114,7 +114,7 @@ async function createLink(values: Record<string, string | boolean | undefined>) 
   const route = buildRoute(values.engine, values.query, tab);
   const currentUrl =
     typeof values.base === 'string' ? new URL(route, values.base).toString() : route;
-  const result = buildDeepLinkUrl(currentUrl, state);
+  const result = buildViewStateUrl(currentUrl, state);
   if (!result.ok) {
     fail(result.message);
   }
@@ -126,12 +126,12 @@ function decodeLink(input: string | undefined) {
     fail('Missing URL to decode.');
   }
   const url = new URL(input, 'http://deep-link.invalid');
-  const encoded = url.searchParams.get(DEEP_LINK_SEARCH_KEY);
+  const encoded = url.searchParams.get(VIEW_STATE_SEARCH_KEY);
   if (!encoded) {
-    fail(`The URL has no "${DEEP_LINK_SEARCH_KEY}" parameter.`);
+    fail(`The URL has no "${VIEW_STATE_SEARCH_KEY}" parameter.`);
   }
 
-  const result = decodeDeepLinkState(encoded);
+  const result = decodeViewState(encoded);
   if (!result.ok) {
     fail(result.message);
   }

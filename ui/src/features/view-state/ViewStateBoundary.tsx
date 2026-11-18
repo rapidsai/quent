@@ -46,27 +46,27 @@ import {
   parseOptionalNumber,
   validateEntityFilters,
 } from '@/components/entities-table/utils';
-import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
+import { decodeViewState, encodeViewState } from './viewState.codec';
 import {
-  DeepLinkContext,
-  type DeepLinkContextValue,
-  type DeepLinkIntakeStatus,
-  type EncodedDeepLinkResult,
-} from './deepLink.context';
-import { readDeepLinkFields, type DeepLinkFields } from './deepLink.fields';
-import { normalizeZoomRange, resolveCapturedZoomRange } from './deepLink.normalize';
+  ViewStateContext,
+  type ViewStateContextValue,
+  type ViewStateIntakeStatus,
+  type EncodedViewStateResult,
+} from './viewState.context';
+import { readViewStateFields, type ViewStateFields } from './viewState.fields';
+import { normalizeZoomRange, resolveCapturedZoomRange } from './viewState.normalize';
 import {
   OperatorGroupSchema,
-  type DeepLinkEntitiesState,
-  type DeepLinkStateV3,
-  type DeepLinkTab,
-} from './deepLink.schema';
+  type ViewStateEntitiesState,
+  type ViewStateV3,
+  type ViewStateTab,
+} from './viewState.schema';
 
-interface DeepLinkBoundaryProps {
+interface ViewStateBoundaryProps {
   children: ReactNode;
   engineId: string;
   queryId?: string;
-  activeTab?: DeepLinkTab;
+  activeTab?: ViewStateTab;
   initialPlanId: string;
   durationSeconds: number;
   defaultRootResourceType?: string | null;
@@ -76,16 +76,15 @@ interface DeepLinkBoundaryProps {
 }
 
 type CaptureStateResult =
-  | { ok: true; value: DeepLinkStateV3 }
-  | { ok: false; message: string; messages: readonly string[] };
+  { ok: true; value: ViewStateV3 } | { ok: false; message: string; messages: readonly string[] };
 type ViewFailure = Extract<CaptureStateResult, { ok: false }>;
 
 type IntakeState = {
   initialExpandedResourceIds: readonly string[] | null;
-  initialZoomRange: NonNullable<DeepLinkFields['zoomRange']> | null;
-  fields: DeepLinkFields | null;
+  initialZoomRange: NonNullable<ViewStateFields['zoomRange']> | null;
+  fields: ViewStateFields | null;
   isResolved: boolean;
-  status: DeepLinkIntakeStatus;
+  status: ViewStateIntakeStatus;
 };
 
 function hasKeys(value: object): boolean {
@@ -101,7 +100,7 @@ function isOperatorGroup(value: string): value is (typeof OperatorGroupSchema.op
 }
 
 function hydrateEntitiesState(
-  state: DeepLinkEntitiesState,
+  state: ViewStateEntitiesState,
   durationSeconds: number
 ): EntitiesTableState {
   const filters: EntityFilters = {
@@ -126,13 +125,13 @@ function hydrateEntitiesState(
 function captureEntitiesState(
   tableState: EntitiesTableState,
   durationSeconds: number
-): DeepLinkEntitiesState | null {
+): ViewStateEntitiesState | null {
   const filters = tableState.filters ?? defaultEntityFilters(durationSeconds);
   if (validateEntityFilters(filters).errors.length > 0) {
     return null;
   }
 
-  const state: DeepLinkEntitiesState = {};
+  const state: ViewStateEntitiesState = {};
   if (filters.entityType) {
     state.entityType = filters.entityType;
   }
@@ -165,7 +164,7 @@ function captureEntitiesState(
   return state;
 }
 
-export function DeepLinkBoundary({
+export function ViewStateBoundary({
   children,
   engineId,
   queryId,
@@ -176,7 +175,7 @@ export function DeepLinkBoundary({
   operators,
   encodedState,
   isQueryReady,
-}: DeepLinkBoundaryProps) {
+}: ViewStateBoundaryProps) {
   useHydrateSelectedPlanId(initialPlanId);
   const store = useStore();
   const readZoomRange = useReadZoomRange();
@@ -198,7 +197,7 @@ export function DeepLinkBoundary({
         initialZoomRange: null,
         fields: null,
         isResolved: true,
-        status: { kind: 'idle' } satisfies DeepLinkIntakeStatus,
+        status: { kind: 'idle' } satisfies ViewStateIntakeStatus,
       };
     }
     if (!isQueryReady) {
@@ -207,11 +206,11 @@ export function DeepLinkBoundary({
         initialZoomRange: null,
         fields: null,
         isResolved: false,
-        status: { kind: 'idle' } satisfies DeepLinkIntakeStatus,
+        status: { kind: 'idle' } satisfies ViewStateIntakeStatus,
       };
     }
 
-    const decoded = decodeDeepLinkState(encodedState);
+    const decoded = decodeViewState(encodedState);
     if (!decoded.ok) {
       return {
         initialExpandedResourceIds: null,
@@ -222,11 +221,11 @@ export function DeepLinkBoundary({
           kind: 'error',
           message: decoded.message,
           messages: decoded.messages,
-        } satisfies DeepLinkIntakeStatus,
+        } satisfies ViewStateIntakeStatus,
       };
     }
 
-    const fields = readDeepLinkFields(decoded.value);
+    const fields = readViewStateFields(decoded.value);
     // intakeRoute is captured once via useRef(...).current at mount and never
     // reassigned, so reading it during render carries no tearing risk.
     /* eslint-disable react-hooks/refs */
@@ -266,7 +265,7 @@ export function DeepLinkBoundary({
           kind: 'error',
           message,
           messages: [message],
-        } satisfies DeepLinkIntakeStatus,
+        } satisfies ViewStateIntakeStatus,
       };
     }
 
@@ -279,8 +278,8 @@ export function DeepLinkBoundary({
         ? ({
             kind: 'warning',
             message: 'The restored timeline viewport was adjusted to fit this query.',
-          } satisfies DeepLinkIntakeStatus)
-        : ({ kind: 'ready' } satisfies DeepLinkIntakeStatus),
+          } satisfies ViewStateIntakeStatus)
+        : ({ kind: 'ready' } satisfies ViewStateIntakeStatus),
     };
   }, [durationSeconds, encodedState, intakeRoute, isQueryReady]);
 
@@ -401,10 +400,10 @@ export function DeepLinkBoundary({
       return captureFailure('Fix the entity filters before capturing view state.');
     }
 
-    const state: DeepLinkStateV3 = {
+    const state: ViewStateV3 = {
       route: { engineId, queryId, tab: activeTab },
     };
-    const timeline: NonNullable<DeepLinkStateV3['timeline']> = {};
+    const timeline: NonNullable<ViewStateV3['timeline']> = {};
     if (capturedRange) {
       timeline.zoomRange = capturedRange;
     }
@@ -415,7 +414,7 @@ export function DeepLinkBoundary({
       state.timeline = timeline;
     }
 
-    const selection: NonNullable<DeepLinkStateV3['selection']> = {};
+    const selection: NonNullable<ViewStateV3['selection']> = {};
     if (sharedView.selection.planId) {
       selection.planId = sharedView.selection.planId;
     }
@@ -429,7 +428,7 @@ export function DeepLinkBoundary({
       state.selection = selection;
     }
 
-    const resources: NonNullable<DeepLinkStateV3['resources']> = {};
+    const resources: NonNullable<ViewStateV3['resources']> = {};
     const expandedRowIds = [...store.get(expandedIdsAtom)].sort();
     if (expandedRowIds.length > 0) {
       resources.expandedRowIds = expandedRowIds;
@@ -489,7 +488,7 @@ export function DeepLinkBoundary({
       state.resources = resources;
     }
 
-    const dag: NonNullable<DeepLinkStateV3['dag']> = {};
+    const dag: NonNullable<ViewStateV3['dag']> = {};
     if (sharedView.dag.nodeColorField) {
       dag.nodeColorField = sharedView.dag.nodeColorField;
     }
@@ -518,7 +517,7 @@ export function DeepLinkBoundary({
       state.dag = dag;
     }
 
-    const dataFlow: NonNullable<DeepLinkStateV3['dataFlow']> = {};
+    const dataFlow: NonNullable<ViewStateV3['dataFlow']> = {};
     if (!sharedView.dataFlow.enabled) {
       dataFlow.enabled = false;
     }
@@ -542,7 +541,7 @@ export function DeepLinkBoundary({
       state.dataFlow = dataFlow;
     }
 
-    const table: NonNullable<DeepLinkStateV3['operatorTable']> = {};
+    const table: NonNullable<ViewStateV3['operatorTable']> = {};
     const groupingOrder = sharedView.operatorTable.groupingOrder?.filter(isOperatorGroup);
     if (groupingOrder) {
       table.groupingOrder = groupingOrder;
@@ -585,19 +584,19 @@ export function DeepLinkBoundary({
     store,
   ]);
 
-  const captureEncodedState = useCallback((): EncodedDeepLinkResult => {
+  const captureEncodedState = useCallback((): EncodedViewStateResult => {
     const captured = captureState();
     if (!captured.ok) {
       return captured;
     }
-    const encoded = encodeDeepLinkState(captured.value);
+    const encoded = encodeViewState(captured.value);
     if (!encoded.ok) {
       return { ok: false, message: encoded.message, messages: encoded.messages };
     }
     return { ok: true, value: encoded.value };
   }, [captureState]);
 
-  const value = useMemo<DeepLinkContextValue>(
+  const value = useMemo<ViewStateContextValue>(
     () => ({
       captureEncodedState,
       initialExpandedResourceIds: intake.initialExpandedResourceIds,
@@ -608,8 +607,8 @@ export function DeepLinkBoundary({
   );
 
   return (
-    <DeepLinkContext.Provider value={value}>
+    <ViewStateContext.Provider value={value}>
       {isHydrated ? children : null}
-    </DeepLinkContext.Provider>
+    </ViewStateContext.Provider>
   );
 }

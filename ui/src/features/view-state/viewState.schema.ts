@@ -68,7 +68,7 @@ export const ZoomRangeSchema = z
     message: 'Zoom range end must be greater than start',
   });
 
-export const DeepLinkStateV1Schema = z
+export const ViewStateV1Schema = z
   .object({
     zoomRange: ZoomRangeSchema,
     expandedResourceIds: z
@@ -87,7 +87,7 @@ export const DeepLinkStateV1Schema = z
   })
   .strip();
 
-export type DeepLinkStateV1 = z.infer<typeof DeepLinkStateV1Schema>;
+export type ViewStateV1 = z.infer<typeof ViewStateV1Schema>;
 
 const RouteSchema = z
   .object({
@@ -345,7 +345,7 @@ const EntitiesSchema = z
   })
   .strip();
 
-export const DeepLinkStateV2Schema = z
+export const ViewStateV2Schema = z
   .object({
     route: RouteSchema,
     timeline: TimelineV2Schema,
@@ -357,9 +357,9 @@ export const DeepLinkStateV2Schema = z
   })
   .strip();
 
-export type DeepLinkStateV2 = z.infer<typeof DeepLinkStateV2Schema>;
+export type ViewStateV2 = z.infer<typeof ViewStateV2Schema>;
 
-export const DeepLinkStateV3Schema = z
+export const ViewStateV3Schema = z
   .object({
     route: RouteV3Schema,
     timeline: TimelineSchema.optional(),
@@ -388,20 +388,20 @@ export const DeepLinkStateV3Schema = z
     }
   });
 
-export type DeepLinkStateV3 = z.infer<typeof DeepLinkStateV3Schema>;
-export type DeepLinkState = DeepLinkStateV3;
-export type DeepLinkTab = DeepLinkStateV3['route']['tab'];
-export type DeepLinkEntitiesState = NonNullable<DeepLinkStateV3['entities']>;
+export type ViewStateV3 = z.infer<typeof ViewStateV3Schema>;
+export type ViewState = ViewStateV3;
+export type ViewStateTab = ViewStateV3['route']['tab'];
+export type ViewStateEntitiesState = NonNullable<ViewStateV3['entities']>;
 
-export const DeepLinkSearchSchema = z
+export const ViewStateSearchSchema = z
   .object({
     s: z.string().optional(),
   })
   .strip();
 
-export type DeepLinkSearch = z.infer<typeof DeepLinkSearchSchema>;
+export type ViewStateSearch = z.infer<typeof ViewStateSearchSchema>;
 
-export function validateDeepLinkSearch(search: unknown): DeepLinkSearch {
-  const result = DeepLinkSearchSchema.safeParse(search);
+export function validateViewStateSearch(search: unknown): ViewStateSearch {
+  const result = ViewStateSearchSchema.safeParse(search);
   return result.success ? result.data : {};
 }

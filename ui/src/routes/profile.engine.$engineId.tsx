@@ -15,11 +15,14 @@ import {
 } from '@quent/components';
 import {
   CopyLinkButton,
-  DeepLinkBoundary,
-  LocalDeepLinkStorage,
-  UrlDeepLinkState,
-  useLocalDeepLinkState,
-} from '@/features/deep-link';
+  ViewStateBoundary,
+  ViewStatePersistence,
+  UrlViewState,
+  applicationViewStateRepository,
+  createUrlViewStateSource,
+  type ViewStateScope,
+  useResolvedViewState,
+} from '@/features/view-state';
 import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import { type EntityRef, type PaletteTheme, type QueryBundle } from '@quent/utils';
@@ -79,19 +82,34 @@ function ProfileLayout() {
         : undefined;
   const hasQuery = queryId !== undefined;
   const isQueryReady = !hasQuery || queryMatch?.status === 'success';
-  const localState = useLocalDeepLinkState({
-    engineId,
-    queryId,
-    activeTab,
-    hasUrlState: encodedState !== undefined,
-    isReady: isQueryReady,
+  const providerScopeKey = queryId ? `${engineId}:${queryId}` : null;
+  const [providerState, setProviderState] = useState({
+    scopeKey: providerScopeKey,
+    urlPayload: encodedState,
   });
-  const resolvedState = encodedState ?? localState ?? undefined;
-  // Stripping a consumed `s` keeps the store; a different payload resets it.
-  const [providerPayload, setProviderPayload] = useState(encodedState);
-  if (encodedState !== undefined && encodedState !== providerPayload) {
-    setProviderPayload(encodedState);
+  if (providerState.scopeKey !== providerScopeKey) {
+    setProviderState({ scopeKey: providerScopeKey, urlPayload: encodedState });
+  } else if (encodedState !== undefined && encodedState !== providerState.urlPayload) {
+    setProviderState({ scopeKey: providerScopeKey, urlPayload: encodedState });
   }
+  const urlPayload =
+    providerState.scopeKey === providerScopeKey ? providerState.urlPayload : encodedState;
+  const stateScope = useMemo<ViewStateScope | null>(
+    () => (queryId && activeTab ? { engineId, queryId, tab: activeTab } : null),
+    [activeTab, engineId, queryId]
+  );
+  const stateSources = useMemo(
+    () => [createUrlViewStateSource(urlPayload), applicationViewStateRepository],
+    [urlPayload]
+  );
+  const stateResolution = useResolvedViewState({
+    enabled: isQueryReady && stateScope !== null,
+    resolutionKey: queryId ? `${engineId}:${queryId}:${urlPayload ?? ''}` : null,
+    scope: stateScope,
+    sources: stateSources,
+  });
+  const resolvedState =
+    stateResolution.status === 'ready' ? (stateResolution.encodedState ?? undefined) : undefined;
 
   const layout = usePanelLayout('profile-split', PROFILE_PANEL_IDS);
 
@@ -102,9 +120,12 @@ function ProfileLayout() {
   if (!isQueryReady) {
     return <Outlet />;
   }
+  if (stateResolution.status === 'loading') {
+    return <Outlet />;
+  }
 
   const content = (
-    <DeepLinkBoundary
+    <ViewStateBoundary
       engineId={engineId}
       queryId={queryId}
       activeTab={activeTab}
@@ -116,13 +137,14 @@ function ProfileLayout() {
       isQueryReady={isQueryReady}
     >
       <div className="flex h-full min-w-0 flex-col">
-        <UrlDeepLinkState active={encodedState !== undefined} />
+        <UrlViewState active={stateResolution.sourceId === 'url'} />
         {activeTab && (
-          <LocalDeepLinkStorage
+          <ViewStatePersistence
+            repository={applicationViewStateRepository}
             engineId={engineId}
             queryId={queryId}
             tab={activeTab}
-            restoring={encodedState === undefined && localState !== null}
+            restoring={stateResolution.sourceId === applicationViewStateRepository.id}
           />
         )}
         {queryId && (
@@ -163,11 +185,11 @@ function ProfileLayout() {
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
-    </DeepLinkBoundary>
+    </ViewStateBoundary>
   );
 
   return (
-    <Provider key={`${engineId}:${queryId ?? ''}:${providerPayload ?? ''}`}>
+    <Provider key={`${engineId}:${queryId ?? ''}:${urlPayload ?? ''}`}>
       {queryBundle ? (
         <QueryColorRegistry queryBundle={queryBundle} paletteTheme={paletteTheme}>
           {content}

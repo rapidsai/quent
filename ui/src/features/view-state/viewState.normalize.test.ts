@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import { normalizeZoomRange, resolveCapturedZoomRange } from './deepLink.normalize';
+import { normalizeZoomRange, resolveCapturedZoomRange } from './viewState.normalize';
 
 describe('timeline viewport normalization', () => {
   it('preserves a valid viewport', () => {

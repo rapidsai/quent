@@ -1,15 +1,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useMemo } from 'react';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { render } from '@/test/test-utils';
+import { render, waitFor } from '@/test/test-utils';
 import { expandedIdsAtom, pinnedCollapsedAtom, pinnedPanelSizeAtom } from '@/atoms/resourceTree';
-import { DeepLinkBoundary } from './DeepLinkBoundary';
-import { LocalDeepLinkStorage } from './LocalDeepLinkStorage';
-import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
-import { readDeepLinkFromLocalStorage, writeDeepLinkToLocalStorage } from './deepLink.localStorage';
-import { useLocalDeepLinkState } from './useLocalDeepLinkState';
+import { ViewStateBoundary } from './ViewStateBoundary';
+import { ViewStatePersistence } from './ViewStatePersistence';
+import { decodeViewState, encodeViewState } from './viewState.codec';
+import {
+  createLocalViewStateRepository,
+  readViewStateFromLocalStorage,
+} from './viewState.localStorage';
+import type { EncodedViewStateRepository } from './viewState.storage';
+import { createUrlViewStateSource } from './viewState.url';
+import { useResolvedViewState } from './useResolvedViewState';
 
 const SCOPE = { engineId: 'e', queryId: 'q' };
 const PROPS = {
@@ -36,7 +42,7 @@ function createStorage(): Storage {
 }
 
 function encodedState(expandedRowIds = ['row-1']): string {
-  const encoded = encodeDeepLinkState({
+  const encoded = encodeViewState({
     route: { ...SCOPE, tab: 'timeline' },
     timeline: { zoomRange: { start: 10, end: 20 } },
     resources: {
@@ -51,29 +57,43 @@ function encodedState(expandedRowIds = ['row-1']): string {
   return encoded.value;
 }
 
-function StorageHarness({ urlState }: { urlState?: string }) {
-  const localState = useLocalDeepLinkState({
-    ...SCOPE,
-    activeTab: 'timeline',
-    hasUrlState: urlState !== undefined,
-    isReady: true,
+function StorageHarness({
+  repository,
+  urlState,
+}: {
+  repository: EncodedViewStateRepository;
+  urlState?: string;
+}) {
+  const sources = useMemo(
+    () => [createUrlViewStateSource(urlState), repository],
+    [repository, urlState]
+  );
+  const resolution = useResolvedViewState({
+    enabled: true,
+    resolutionKey: `${SCOPE.engineId}:${SCOPE.queryId}:${urlState ?? ''}`,
+    scope: { ...SCOPE, tab: 'timeline' },
+    sources,
   });
-  const resolvedState = urlState ?? localState ?? undefined;
+  if (resolution.status !== 'ready') {
+    return null;
+  }
 
   return (
-    <DeepLinkBoundary {...PROPS} encodedState={resolvedState}>
-      <LocalDeepLinkStorage
+    <ViewStateBoundary {...PROPS} encodedState={resolution.encodedState ?? undefined}>
+      <ViewStatePersistence
+        repository={repository}
         {...SCOPE}
         tab="timeline"
-        restoring={urlState === undefined && localState !== null}
+        restoring={resolution.sourceId === repository.id}
       />
       <div>content</div>
-    </DeepLinkBoundary>
+    </ViewStateBoundary>
   );
 }
 
-describe('deep-link storage mechanisms', () => {
+describe('view-state storage mechanisms', () => {
   let storage: Storage;
+  let repository: EncodedViewStateRepository;
 
   beforeEach(() => {
     storage = createStorage();
@@ -81,47 +101,47 @@ describe('deep-link storage mechanisms', () => {
       configurable: true,
       value: storage,
     });
+    repository = createLocalViewStateRepository(() => storage);
   });
 
-  it('retrieves complete encoded state from local storage', () => {
-    writeDeepLinkToLocalStorage(storage, SCOPE, encodedState());
+  it('retrieves complete encoded state from local storage', async () => {
+    repository.save(SCOPE, encodedState());
     const store = createStore();
 
     render(
       <JotaiProvider store={store}>
-        <StorageHarness />
+        <StorageHarness repository={repository} />
       </JotaiProvider>
     );
 
-    expect([...store.get(expandedIdsAtom)]).toEqual(['row-1']);
+    await waitFor(() => expect([...store.get(expandedIdsAtom)]).toEqual(['row-1']));
     expect(store.get(pinnedCollapsedAtom)).toBe(true);
     expect(store.get(pinnedPanelSizeAtom)).toBe(240);
   });
 
-  it('gives URL state priority over local storage', () => {
-    writeDeepLinkToLocalStorage(storage, SCOPE, encodedState());
+  it('gives URL state priority over local storage', async () => {
+    repository.save(SCOPE, encodedState());
     const store = createStore();
 
     render(
       <JotaiProvider store={store}>
-        <StorageHarness urlState={encodedState(['row-from-url'])} />
+        <StorageHarness repository={repository} urlState={encodedState(['row-from-url'])} />
       </JotaiProvider>
     );
 
-    expect([...store.get(expandedIdsAtom)]).toEqual(['row-from-url']);
+    await waitFor(() => expect([...store.get(expandedIdsAtom)]).toEqual(['row-from-url']));
   });
 
   it('drops invalid local state before passing it to the boundary', async () => {
-    writeDeepLinkToLocalStorage(storage, SCOPE, 'v3.garbage');
+    repository.save(SCOPE, 'v3.garbage');
 
     render(
       <JotaiProvider store={createStore()}>
-        <StorageHarness />
+        <StorageHarness repository={repository} />
       </JotaiProvider>
     );
 
-    await Promise.resolve();
-    expect(readDeepLinkFromLocalStorage(storage, SCOPE)).toBeNull();
+    await waitFor(() => expect(readViewStateFromLocalStorage(storage, SCOPE)).toBeNull());
   });
 
   it('persists encoded state to local storage when the page closes', () => {
@@ -132,18 +152,23 @@ describe('deep-link storage mechanisms', () => {
 
     render(
       <JotaiProvider store={store}>
-        <DeepLinkBoundary {...PROPS}>
-          <LocalDeepLinkStorage {...SCOPE} tab="timeline" restoring={false} />
+        <ViewStateBoundary {...PROPS}>
+          <ViewStatePersistence
+            repository={repository}
+            {...SCOPE}
+            tab="timeline"
+            restoring={false}
+          />
           <div>content</div>
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
-    expect(readDeepLinkFromLocalStorage(storage, SCOPE)).toBeNull();
+    expect(readViewStateFromLocalStorage(storage, SCOPE)).toBeNull();
     window.dispatchEvent(new Event('pagehide'));
-    const stored = readDeepLinkFromLocalStorage(storage, SCOPE);
+    const stored = readViewStateFromLocalStorage(storage, SCOPE);
     expect(stored).not.toBeNull();
-    expect(decodeDeepLinkState(stored!)).toMatchObject({
+    expect(decodeViewState(stored!)).toMatchObject({
       ok: true,
       value: {
         data: {

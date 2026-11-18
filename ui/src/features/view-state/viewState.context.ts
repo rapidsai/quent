@@ -4,24 +4,24 @@
 import { createContext, useContext } from 'react';
 import type { ZoomRange } from '@quent/utils';
 
-export type DeepLinkIntakeStatus =
+export type ViewStateIntakeStatus =
   | { kind: 'idle' }
   | { kind: 'ready' }
   | { kind: 'warning'; message: string }
   | { kind: 'error'; message: string; messages: readonly string[] };
 
-export type EncodedDeepLinkResult =
+export type EncodedViewStateResult =
   { ok: true; value: string } | { ok: false; message: string; messages: readonly string[] };
 
-export interface DeepLinkContextValue {
-  captureEncodedState(): EncodedDeepLinkResult;
+export interface ViewStateContextValue {
+  captureEncodedState(): EncodedViewStateResult;
   initialExpandedResourceIds: readonly string[] | null;
   initialZoomRange: ZoomRange | null;
-  intakeStatus: DeepLinkIntakeStatus;
+  intakeStatus: ViewStateIntakeStatus;
 }
 
-export const DeepLinkContext = createContext<DeepLinkContextValue | null>(null);
+export const ViewStateContext = createContext<ViewStateContextValue | null>(null);
 
-export function useDeepLink(): DeepLinkContextValue | null {
-  return useContext(DeepLinkContext);
+export function useViewState(): ViewStateContextValue | null {
+  return useContext(ViewStateContext);
 }

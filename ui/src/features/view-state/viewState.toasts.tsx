@@ -4,15 +4,15 @@
 import { ChevronDown } from 'lucide-react';
 import { toast } from '@quent/components';
 
-export const MAX_INDIVIDUAL_DEEP_LINK_ERROR_TOASTS = 3;
+export const MAX_INDIVIDUAL_VIEW_STATE_ERROR_TOASTS = 3;
 
-interface ShowDeepLinkErrorToastsOptions {
+interface ShowViewStateErrorToastsOptions {
   id: string;
   title: string;
   messages: readonly string[];
 }
 
-function DeepLinkErrorDetails({ messages }: { messages: readonly string[] }) {
+function ViewStateErrorDetails({ messages }: { messages: readonly string[] }) {
   return (
     <span
       role="region"
@@ -36,7 +36,7 @@ function getErrorDetailsToggleProps(
   expanded: boolean
 ) {
   return {
-    description: expanded ? <DeepLinkErrorDetails messages={messages} /> : null,
+    description: expanded ? <ViewStateErrorDetails messages={messages} /> : null,
     actionProps: {
       'aria-expanded': expanded,
       children: expanded ? (
@@ -57,8 +57,8 @@ function getErrorDetailsToggleProps(
   };
 }
 
-export function showDeepLinkErrorToasts({ id, title, messages }: ShowDeepLinkErrorToastsOptions) {
-  if (messages.length > MAX_INDIVIDUAL_DEEP_LINK_ERROR_TOASTS) {
+export function showViewStateErrorToasts({ id, title, messages }: ShowViewStateErrorToastsOptions) {
+  if (messages.length > MAX_INDIVIDUAL_VIEW_STATE_ERROR_TOASTS) {
     const summaryId = `${id}-summary`;
 
     toast.add({

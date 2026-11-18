@@ -4,9 +4,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Share2 } from 'lucide-react';
 import { Button } from '@quent/components';
-import { buildDeepLinkUrlFromEncodedState } from './deepLink.codec';
-import { useDeepLink } from './deepLink.context';
-import { showDeepLinkErrorToasts } from './deepLink.toasts';
+import { buildViewStateUrlFromEncodedState } from './viewState.codec';
+import { useViewState } from './viewState.context';
+import { showViewStateErrorToasts } from './viewState.toasts';
 
 type CopyFeedback =
   | { kind: 'idle'; message: '' }
@@ -15,7 +15,7 @@ type CopyFeedback =
   | { kind: 'error'; message: string };
 
 export function CopyLinkButton() {
-  const deepLink = useDeepLink();
+  const viewState = useViewState();
   const [feedback, setFeedback] = useState<CopyFeedback>({ kind: 'idle', message: '' });
   const resetTimer = useRef<number | null>(null);
 
@@ -29,16 +29,16 @@ export function CopyLinkButton() {
   );
 
   const handleCopy = async () => {
-    if (!deepLink) {
+    if (!viewState) {
       return;
     }
     setFeedback({ kind: 'working', message: 'Copying…' });
-    const captured = deepLink.captureEncodedState();
+    const captured = viewState.captureEncodedState();
     let result: { ok: true } | { ok: false; message: string; messages: readonly string[] } =
       captured;
     if (captured.ok) {
       const canonicalPageUrl = `${window.location.origin}${window.location.pathname}`;
-      const link = buildDeepLinkUrlFromEncodedState(canonicalPageUrl, captured.value);
+      const link = buildViewStateUrlFromEncodedState(canonicalPageUrl, captured.value);
       if (!link.ok) {
         result = link;
       } else if (!navigator.clipboard?.writeText) {
@@ -60,8 +60,8 @@ export function CopyLinkButton() {
         : { kind: 'error', message: result.message }
     );
     if (!result.ok) {
-      showDeepLinkErrorToasts({
-        id: 'deep-link-copy-error',
+      showViewStateErrorToasts({
+        id: 'view-state-copy-error',
         title: 'Could not copy link',
         messages: result.messages,
       });
@@ -74,8 +74,8 @@ export function CopyLinkButton() {
   };
 
   const intakeMessage =
-    deepLink?.intakeStatus.kind === 'warning' || deepLink?.intakeStatus.kind === 'error'
-      ? deepLink.intakeStatus.message
+    viewState?.intakeStatus.kind === 'warning' || viewState?.intakeStatus.kind === 'error'
+      ? viewState.intakeStatus.message
       : null;
   const statusMessage = feedback.message || intakeMessage || '';
   const title = statusMessage || 'Copy Link';
@@ -89,7 +89,7 @@ export function CopyLinkButton() {
         className="size-8"
         aria-label="Copy Link"
         title={title}
-        disabled={!deepLink || feedback.kind === 'working'}
+        disabled={!viewState || feedback.kind === 'working'}
         onClick={() => void handleCopy()}
       >
         {feedback.kind === 'success' ? <Check className="text-primary" /> : <Share2 />}

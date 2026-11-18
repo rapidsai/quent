@@ -152,7 +152,7 @@ export type {
 // Utility hooks
 export { useDeferredReady } from './dag/useDeferredReady';
 
-export { useSerializableViewState } from './deepLink/useSerializableViewState';
+export { useSerializableViewState } from './viewState/useSerializableViewState';
 export type {
   HydratableViewState,
   SerializableDagControls,
@@ -160,7 +160,7 @@ export type {
   SerializableOperatorTableState,
   SerializableTimelineState,
   SerializableViewState,
-} from './deepLink/useSerializableViewState';
+} from './viewState/useSerializableViewState';
 
 // Pivot-table hooks
 export { useColumnDragDrop } from './pivot-table/useColumnDragDrop';

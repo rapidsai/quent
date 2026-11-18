@@ -3,19 +3,19 @@
 
 import { useEffect, useLayoutEffect } from 'react';
 import { toast } from '@quent/components';
-import { DEEP_LINK_SEARCH_KEY } from './deepLink.codec';
-import { useDeepLink } from './deepLink.context';
-import { showDeepLinkErrorToasts } from './deepLink.toasts';
+import { VIEW_STATE_SEARCH_KEY } from './viewState.codec';
+import { useViewState } from './viewState.context';
+import { showViewStateErrorToasts } from './viewState.toasts';
 
-export function UrlDeepLinkState({ active }: { active: boolean }) {
-  const deepLink = useDeepLink();
+export function UrlViewState({ active }: { active: boolean }) {
+  const viewState = useViewState();
 
   useLayoutEffect(() => {
     if (!active) {
       return;
     }
     const url = new URL(window.location.href);
-    url.searchParams.delete(DEEP_LINK_SEARCH_KEY);
+    url.searchParams.delete(VIEW_STATE_SEARCH_KEY);
     window.history.replaceState(
       window.history.state,
       '',
@@ -26,26 +26,26 @@ export function UrlDeepLinkState({ active }: { active: boolean }) {
   useEffect(() => {
     if (
       !active ||
-      (deepLink?.intakeStatus.kind !== 'error' && deepLink?.intakeStatus.kind !== 'warning')
+      (viewState?.intakeStatus.kind !== 'error' && viewState?.intakeStatus.kind !== 'warning')
     ) {
       return;
     }
-    const status = deepLink.intakeStatus;
+    const status = viewState.intakeStatus;
     if (status.kind === 'error') {
-      showDeepLinkErrorToasts({
-        id: 'deep-link-intake',
+      showViewStateErrorToasts({
+        id: 'view-state-intake',
         title: 'Could not restore shared view',
         messages: status.messages,
       });
     } else {
       toast.add({
-        id: 'deep-link-intake',
+        id: 'view-state-intake',
         type: 'warning',
         title: 'Shared view adjusted',
         description: status.message,
       });
     }
-  }, [active, deepLink?.intakeStatus]);
+  }, [active, viewState?.intakeStatus]);
 
   return null;
 }

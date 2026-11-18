@@ -2,20 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { decodeDeepLinkState } from '@/features/deep-link/deepLink.codec';
-import { readDeepLinkFields } from '@/features/deep-link/deepLink.fields';
-import {
-  browserLocalStorage,
-  readDeepLinkFromLocalStorage,
-} from '@/features/deep-link/deepLink.localStorage';
+import { decodeViewState } from '@/features/view-state/viewState.codec';
+import { readViewStateFields } from '@/features/view-state/viewState.fields';
+import { applicationViewStateRepository } from '@/features/view-state/viewState.repository';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/')({
-  beforeLoad: ({ params, search }) => {
+  beforeLoad: async ({ params, search }) => {
     // Reopen the query on the tab the user last left it on.
     const stored =
-      search.s === undefined ? readDeepLinkFromLocalStorage(browserLocalStorage(), params) : null;
-    const decoded = stored ? decodeDeepLinkState(stored) : null;
-    const route = decoded?.ok ? readDeepLinkFields(decoded.value).route : undefined;
+      search.s === undefined ? await applicationViewStateRepository.load(params) : null;
+    const decoded = stored ? decodeViewState(stored) : null;
+    const route = decoded?.ok ? readViewStateFields(decoded.value).route : undefined;
     const tab =
       route?.engineId === params.engineId && route.queryId === params.queryId
         ? route.tab

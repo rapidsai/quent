@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import { mergeResourceFilter } from './deepLink.cli';
+import { mergeResourceFilter } from './viewState.cli';
 
 describe('mergeResourceFilter', () => {
   it('preserves stored fields when overriding part of a resource filter', () => {
