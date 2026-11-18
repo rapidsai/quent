@@ -8,13 +8,13 @@ packages:
   # `workspace:*` deps still resolve to source.
 
 catalog:
-  '@tanstack/react-query': ^5.105.0
+  '@tanstack/react-query': ^5.105.2
   '@tanstack/react-router': ^1.170.46
   '@tanstack/react-table': ^9.3.1
-  '@tanstack/react-virtual': ^3.14.23
+  '@tanstack/react-virtual': ^3.14.25
   '@types/react': ^19.3.0
   '@types/react-dom': ^19.3.0
-  '@xyflow/react': ^12.12.0
+  '@xyflow/react': ^12.12.1
   clsx: ^2.1.1
   echarts: ^6.1.0
   echarts-for-react: ^3.0.6
@@ -23,7 +23,7 @@ catalog:
   react: ^19.3.1
   react-dom: ^19.3.1
   tailwind-merge: ^3.7.0
-  tsdown: ^0.23.2
+  tsdown: ^0.23.4
   typescript: ^6.0.3
 
 allowBuilds:
@@ -32,6 +32,11 @@ allowBuilds:
   esbuild: true
   msw: true
   protobufjs: true
+
+auditConfig:
+  # No patched picomatch release exists; Quent passes only static globs to dev tooling.
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf
 
 overrides:
   # solid-js@1.9.15 pins seroval to ~1.5.4, excluding patched releases.

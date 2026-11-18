@@ -32,6 +32,11 @@ interface TreeTableDataItem {
   actions?: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
+  /**
+   * The row is not drawn on its own. Its parent draws its content, in the parent's own row, while
+   * the parent is open. Virtualized trees and pinned rows honor this.
+   */
+  rendersInParent?: boolean;
 }
 
 type TreeTableRenderItemParams = {
@@ -58,6 +63,89 @@ const rowSurfaceClasses =
 const RowIndicatorBar = () => (
   <div aria-hidden="true" className="absolute left-0 inset-y-0 w-0.5 bg-primary" />
 );
+
+type TreeTableRowProps = {
+  item: TreeTableDataItem;
+  hasChildren: boolean;
+  isOpen: boolean;
+  isSelected?: boolean;
+  isHighlighted?: boolean;
+  isIndicated?: boolean;
+  isPinned?: boolean;
+  minHeight: number;
+  chevronLeft: number;
+  onClick?: () => void;
+  virtual?: {
+    index: number;
+    start: number;
+    measureElement: (element: Element | null) => void;
+  };
+  children: React.ReactNode;
+};
+
+function TreeTableRow({
+  item,
+  hasChildren,
+  isOpen,
+  isSelected = false,
+  isHighlighted = false,
+  isIndicated = false,
+  isPinned = false,
+  minHeight,
+  chevronLeft,
+  onClick,
+  virtual,
+  children,
+}: TreeTableRowProps) {
+  return (
+    <div
+      ref={virtual?.measureElement as React.Ref<HTMLDivElement> | undefined}
+      data-index={virtual?.index}
+      className={cn(
+        isPinned
+          ? 'relative flex min-w-0 items-center'
+          : `flex text-left items-center text-foreground w-full min-w-0 px-0 outline-none ${rowSurfaceClasses}`,
+        !isPinned && treeVariants(),
+        !isPinned && isSelected && selectedTreeVariants(),
+        !isPinned && isHighlighted && 'bg-primary/10 hover:bg-primary/10',
+        !isPinned && item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none',
+        isPinned && hasChildren && 'cursor-pointer hover:bg-secondary/10'
+      )}
+      style={
+        virtual
+          ? {
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              minHeight: `${minHeight}px`,
+              transform: `translateY(${virtual.start}px)`,
+            }
+          : { minHeight: `${minHeight}px` }
+      }
+      onClick={onClick}
+    >
+      {isIndicated && <RowIndicatorBar />}
+      {!isPinned && <div className="w-2.5 shrink-0" />}
+      {hasChildren ? (
+        <ChevronRight
+          aria-hidden="true"
+          className="chevron-icon absolute top-1/2 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200"
+          data-open={isOpen ? 'true' : 'false'}
+          style={{
+            left: `${chevronLeft}px`,
+            transform: isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)',
+          }}
+        />
+      ) : (
+        !isPinned && <div className="w-6 shrink-0" />
+      )}
+      <div className={cn(!isPinned && hasChildren && 'ml-6', 'min-w-0 flex-1 overflow-hidden')}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // Tree-table specific AccordionTrigger with level-based positioning.
 // Rendered as a <div> via asChild to avoid nesting <button> inside <button>
@@ -491,6 +579,8 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
    * actual rendered row height as closely as possible.
    */
   rowHeight?: number;
+  /** Optional per-row height override for compact or expanded row types. */
+  getRowHeight?: (item: TreeTableDataItem) => number;
   /**
    * Number of extra rows to render above and below the visible window so
    * scrolling doesn't reveal blank space before the next render. Only used
@@ -502,6 +592,7 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
 // Timeline rows render at ~75px; keep virtualization estimate aligned with actual row height.
 const DEFAULT_TREE_ROW_HEIGHT = 75;
 const DEFAULT_TREE_OVERSCAN_ROWS = 4;
+const EMPTY_EXPANDED_IDS = new Set<string>();
 
 function normalizeTreeData(data: TreeTableDataItem[] | TreeTableDataItem): TreeTableDataItem[] {
   return data instanceof Array ? data : [data];
@@ -547,10 +638,17 @@ function collectInitialExpandedIds(
   return ids;
 }
 
-function flattenVisibleRows(items: TreeTableDataItem[], expandedIds: Set<string>): FlatTreeRow[] {
+function flattenVisibleRows(
+  items: TreeTableDataItem[],
+  expandedIds: Set<string>,
+  initialLevel = 0
+): FlatTreeRow[] {
   const rows: FlatTreeRow[] = [];
   const walk = (nodes: TreeTableDataItem[], level: number) => {
     for (const node of nodes) {
+      if (node.rendersInParent) {
+        continue;
+      }
       const hasChildren = !!node.children?.length;
       const isOpen = hasChildren && expandedIds.has(node.id);
       rows.push({ item: node, level, hasChildren, isOpen });
@@ -559,8 +657,15 @@ function flattenVisibleRows(items: TreeTableDataItem[], expandedIds: Set<string>
       }
     }
   };
-  walk(items, 0);
+  walk(items, initialLevel);
   return rows;
+}
+
+function flattenPinnedRows(item: TreeTableDataItem, expandedIds: Set<string>): FlatTreeRow[] {
+  return [
+    { item, level: 0, hasChildren: false, isOpen: false },
+    ...flattenVisibleRows(item.children ?? [], expandedIds, 1),
+  ];
 }
 
 const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
@@ -581,6 +686,7 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       controlledExpandedIds,
       virtualized: _virtualized,
       rowHeight = DEFAULT_TREE_ROW_HEIGHT,
+      getRowHeight,
       overscanRows = DEFAULT_TREE_OVERSCAN_ROWS,
       ...props
     },
@@ -623,15 +729,42 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
     const rowVirtualizer = useVirtualizer({
       count: visibleRows.length,
       getScrollElement: () => scrollContainerRef?.current ?? null,
-      estimateSize: () => rowHeight,
+      estimateSize: index => {
+        const item = visibleRows[index]?.item;
+        return item && getRowHeight ? getRowHeight(item) : rowHeight;
+      },
       overscan: overscanRows,
       getItemKey: index => visibleRows[index]?.item.id ?? index,
     });
 
+    // A row that is already on screen is only re-measured when the browser reports a resize,
+    // which is a frame late, so the rows below would sit in the wrong place for that frame. When
+    // a row's height is about to change, read its real height now, before anything is painted.
+    const containerRef = useRef<HTMLDivElement>(null);
+    const expectedHeightsRef = useRef(new Map<string, number>());
+    useLayoutEffect(() => {
+      const previous = expectedHeightsRef.current;
+      const next = new Map<string, number>();
+      visibleRows.forEach(({ item }, index) => {
+        const expected = getRowHeight ? getRowHeight(item) : rowHeight;
+        next.set(item.id, expected);
+        const before = previous.get(item.id);
+        if (before === undefined || before === expected) {
+          return;
+        }
+        const element = containerRef.current?.querySelector<HTMLElement>(`[data-index="${index}"]`);
+        rowVirtualizer.resizeItem(index, element?.offsetHeight ?? expected);
+      });
+      expectedHeightsRef.current = next;
+    }, [visibleRows, getRowHeight, rowHeight, rowVirtualizer]);
+
     const virtualItems = rowVirtualizer.getVirtualItems();
 
     return (
-      <div className={cn('overflow-hidden relative bg-transparent w-full min-w-0', className)}>
+      <div
+        ref={containerRef}
+        className={cn('overflow-hidden relative bg-transparent w-full min-w-0', className)}
+      >
         {/* Total-height sentinel tells the scroll container the real content height */}
         <div
           ref={ref}
@@ -644,30 +777,24 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
             const isSelected = selectedItemId === item.id;
             const isHighlighted = highlightedItemIds?.has(item.id) ?? false;
             const isIndicated = indicatorItemIds?.has(item.id) ?? false;
-            const chevronTransform = isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)';
             const chevronLeft = 10 + level * 20;
+            const currentRowHeight = getRowHeight?.(item) ?? rowHeight;
 
             return (
-              <div
+              <TreeTableRow
                 key={item.id}
-                data-index={virtualRow.index}
-                ref={rowVirtualizer.measureElement}
-                className={cn(
-                  `flex text-left items-center text-foreground w-full min-w-0 px-0 outline-none ${rowSurfaceClasses}`,
-                  treeVariants(),
-                  isSelected && selectedTreeVariants(),
-                  isHighlighted && 'bg-primary/10 hover:bg-primary/10',
-                  item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
-                )}
-                style={{
-                  // Inline position overrides the `relative` in rowSurfaceClasses
-                  // so Tailwind's stylesheet order cannot flip us back to flow layout.
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  minHeight: `${rowHeight}px`,
-                  transform: `translateY(${virtualRow.start}px)`,
+                item={item}
+                hasChildren={hasChildren}
+                isOpen={isOpen}
+                isSelected={isSelected}
+                isHighlighted={isHighlighted}
+                isIndicated={isIndicated}
+                minHeight={currentRowHeight}
+                chevronLeft={chevronLeft}
+                virtual={{
+                  index: virtualRow.index,
+                  start: virtualRow.start,
+                  measureElement: rowVirtualizer.measureElement,
                 }}
                 onClick={() => {
                   if (item.disabled) {
@@ -692,33 +819,17 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
                   item.onClick?.();
                 }}
               >
-                {isIndicated && <RowIndicatorBar />}
-                <div className="w-2.5 shrink-0" />
-                {hasChildren ? (
-                  <ChevronRight
-                    className="h-4 w-4 shrink-0 transition-transform duration-200 chevron-icon absolute top-1/2 text-muted-foreground"
-                    data-open={isOpen ? 'true' : 'false'}
-                    style={{
-                      left: `${chevronLeft}px`,
-                      transform: chevronTransform,
-                    }}
-                  />
-                ) : (
-                  <div className="w-6 shrink-0" />
-                )}
-                <div className={cn(hasChildren ? 'ml-6' : '', 'flex-1 min-w-0 overflow-hidden')}>
-                  {renderItem
-                    ? renderItem({
-                        item,
-                        level,
-                        isLeaf: !hasChildren,
-                        isSelected,
-                        isOpen,
-                        hasChildren,
-                      })
-                    : null}
-                </div>
-              </div>
+                {renderItem
+                  ? renderItem({
+                      item,
+                      level,
+                      isLeaf: !hasChildren,
+                      isSelected,
+                      isOpen,
+                      hasChildren,
+                    })
+                  : null}
+              </TreeTableRow>
             );
           })}
         </div>
@@ -748,6 +859,7 @@ const RecursiveTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       scrollContainerRef: _scrollContainerRef,
       virtualized: _virtualized,
       rowHeight: _rowHeight,
+      getRowHeight: _getRowHeight,
       overscanRows: _overscanRows,
       ...props
     },
@@ -824,6 +936,139 @@ export type Column<I> = {
   /** Optional content to render in a sub-header row below the header */
   subHeaderContent?: React.ReactNode;
 };
+
+type TreeTableCellsProps<I extends TreeTableDataItem> = {
+  item: I;
+  level: number;
+  isSelected: boolean;
+  isPinned: boolean;
+  columns: Column<I>[];
+  rowStyle: React.CSSProperties;
+  indentPerLevel: number;
+  firstColumnBodyWidth: number;
+  dragArea?: PinnedRowDragArea;
+};
+
+function TreeTableCells<I extends TreeTableDataItem>({
+  item,
+  level,
+  isSelected,
+  isPinned,
+  columns,
+  rowStyle,
+  indentPerLevel,
+  firstColumnBodyWidth,
+  dragArea,
+}: TreeTableCellsProps<I>) {
+  const firstCellPaddingLeft = Math.max(
+    Math.min(level * indentPerLevel, Math.max(firstColumnBodyWidth - 12, 0)),
+    0
+  );
+
+  return (
+    <div className="grid text-sm text-foreground" style={rowStyle}>
+      {columns.map(column => {
+        if (column.isFirst) {
+          return (
+            <div
+              key={column.key}
+              ref={dragArea?.ref as React.Ref<HTMLDivElement> | undefined}
+              {...dragArea?.attributes}
+              {...dragArea?.listeners}
+              className={cn(
+                'group/info flex min-w-0 items-center overflow-hidden pr-1',
+                !dragArea && (item.children?.length ? 'cursor-pointer' : 'cursor-default'),
+                dragArea && (dragArea.isDragging ? 'cursor-grabbing' : 'cursor-grab')
+              )}
+              style={{ paddingLeft: `${firstCellPaddingLeft}px`, paddingRight: '6px' }}
+            >
+              <span className="flex-1 truncate text-left text-sm text-foreground">
+                {column.render({ item, level, isSelected, isPinned })}
+              </span>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={column.key}
+            className="min-w-0 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+          >
+            {column.render({ item, level, isSelected, isPinned })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+type PinnedTreeRowsProps<I extends TreeTableDataItem> = {
+  item: I;
+  dragArea?: PinnedRowDragArea;
+  expandedIds: Set<string>;
+  columns: Column<I>[];
+  rowStyle: React.CSSProperties;
+  indentPerLevel: number;
+  firstColumnBodyWidth: number;
+  defaultRowHeight: number;
+  getRowHeight?: (item: TreeTableDataItem) => number;
+  onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+};
+
+function PinnedTreeRows<I extends TreeTableDataItem>({
+  item,
+  dragArea,
+  expandedIds,
+  columns,
+  rowStyle,
+  indentPerLevel,
+  firstColumnBodyWidth,
+  defaultRowHeight,
+  getRowHeight,
+  onExpandChange,
+}: PinnedTreeRowsProps<I>) {
+  const rows = flattenPinnedRows(item, expandedIds);
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col">
+      {rows.map((row, index) => {
+        const isRoot = index === 0;
+        const chevronLeft = Math.min(
+          row.level * indentPerLevel,
+          Math.max(firstColumnBodyWidth - 12, 0)
+        );
+        return (
+          <TreeTableRow
+            key={row.item.id}
+            item={row.item}
+            hasChildren={row.hasChildren}
+            isOpen={row.isOpen}
+            isPinned
+            minHeight={getRowHeight?.(row.item) ?? defaultRowHeight}
+            chevronLeft={chevronLeft}
+            onClick={
+              !isRoot && row.hasChildren
+                ? () => onExpandChange?.(row.item.id, !row.isOpen)
+                : undefined
+            }
+          >
+            <TreeTableCells
+              item={row.item as I}
+              level={row.level}
+              isSelected={false}
+              isPinned
+              columns={columns}
+              rowStyle={rowStyle}
+              indentPerLevel={indentPerLevel}
+              firstColumnBodyWidth={firstColumnBodyWidth}
+              dragArea={isRoot ? dragArea : undefined}
+            />
+          </TreeTableRow>
+        );
+      })}
+    </div>
+  );
+}
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
@@ -903,7 +1148,7 @@ export function TreeTable<I extends TreeTableDataItem>({
   columnWidths?: ColumnWidth[];
   /** Called when the user drags a column edge, so the widths can be shared with other tables. */
   onColumnWidthsChange?: (widths: ColumnWidth[]) => void;
-  /** Rows to show in a sticky section above the tree, in the order given. */
+  /** Rows to show in a sticky section above the tree, in the order given. A pinned row's children are drawn beneath it and move with it. */
   pinnedItems?: I[];
   /** Pinned rows a filter has hidden; only used to explain why they are missing. */
   hiddenPinnedCount?: number;
@@ -1047,63 +1292,18 @@ export function TreeTable<I extends TreeTableDataItem>({
     [renderItemTotalWidth, gridTemplateColumns]
   );
 
-  const renderRow = (
-    item: TreeTableDataItem,
-    level: number,
-    isSelected: boolean,
-    isPinned = false,
-    dragArea?: PinnedRowDragArea
-  ) => {
-    const extended = item as I;
-    const indentWidth = Math.max(
-      Math.min(level * indentPerLevel, Math.max(firstColumnBodyWidth - 12, 0)),
-      0
-    );
-    const firstCellPaddingLeft = indentWidth;
-
-    return (
-      <div className="grid text-sm text-foreground" style={rowStyle}>
-        {columns.map(column => {
-          if (column.isFirst) {
-            return (
-              <div
-                key={column.key}
-                ref={dragArea?.ref as React.Ref<HTMLDivElement> | undefined}
-                {...dragArea?.attributes}
-                {...dragArea?.listeners}
-                className={cn(
-                  'group/info flex min-w-0 items-center overflow-hidden pr-1',
-                  // Dragging starts here, so show the grab cursor; elsewhere nothing is clickable.
-                  !dragArea && 'cursor-default',
-                  dragArea && (dragArea.isDragging ? 'cursor-grabbing' : 'cursor-grab')
-                )}
-                style={{
-                  paddingLeft: `${firstCellPaddingLeft}px`,
-                  paddingRight: '6px',
-                }}
-              >
-                <span className="flex-1 truncate text-left text-sm text-foreground">
-                  {column.render({ item: extended, level, isSelected, isPinned })}
-                </span>
-              </div>
-            );
-          }
-
-          return (
-            <div
-              key={column.key}
-              className="min-w-0 text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
-            >
-              {column.render({ item: extended, level, isSelected, isPinned })}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const renderItem = ({ item, level, isSelected }: TreeTableRenderItemParams) =>
-    renderRow(item, level, isSelected);
+  const renderItem = ({ item, level, isSelected }: TreeTableRenderItemParams) => (
+    <TreeTableCells
+      item={item as I}
+      level={level}
+      isSelected={isSelected}
+      isPinned={false}
+      columns={columns}
+      rowStyle={rowStyle}
+      indentPerLevel={indentPerLevel}
+      firstColumnBodyWidth={firstColumnBodyWidth}
+    />
+  );
 
   const pinnedRowHeight = treeViewProps.rowHeight ?? DEFAULT_TREE_ROW_HEIGHT;
   const pinnedCount = pinnedItems?.length ?? 0;
@@ -1244,7 +1444,23 @@ export function TreeTable<I extends TreeTableDataItem>({
                       items={pinnedItems ?? []}
                       rowMinHeight={pinnedRowHeight}
                       rowPaddingLeft={totalLeftSpacing}
-                      renderRow={(item, dragArea) => renderRow(item, 0, false, true, dragArea)}
+                      scrollRef={scrollContainerRef}
+                      virtualized={treeViewProps.virtualized}
+                      overscanRows={treeViewProps.overscanRows}
+                      renderRow={(item, dragArea) => (
+                        <PinnedTreeRows
+                          item={item}
+                          dragArea={dragArea}
+                          expandedIds={treeViewProps.controlledExpandedIds ?? EMPTY_EXPANDED_IDS}
+                          columns={columns}
+                          rowStyle={rowStyle}
+                          indentPerLevel={indentPerLevel}
+                          firstColumnBodyWidth={firstColumnBodyWidth}
+                          defaultRowHeight={pinnedRowHeight}
+                          getRowHeight={treeViewProps.getRowHeight}
+                          onExpandChange={treeViewProps.onExpandChange}
+                        />
+                      )}
                       onReorder={onReorderPinned}
                     />
                   )}

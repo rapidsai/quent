@@ -10,12 +10,16 @@ import { TimelineSettingsPopover } from './TimelineSettingsPopover';
 const mocks = vi.hoisted(() => ({
   density: 3 as LongEntityDensity,
   setDensity: vi.fn(),
+  showNestedRows: false,
+  setShowNestedRows: vi.fn(),
 }));
 
 vi.mock('@quent/hooks', async importOriginal => ({
   ...(await importOriginal<typeof import('@quent/hooks')>()),
   useLongEntityDensity: () => mocks.density,
   useSetLongEntityDensity: () => mocks.setDensity,
+  useShowNestedChartRows: () => mocks.showNestedRows,
+  useSetShowNestedChartRows: () => mocks.setShowNestedRows,
 }));
 
 vi.mock('../ui/popover', () => ({
@@ -28,6 +32,8 @@ describe('TimelineSettingsPopover', () => {
   beforeEach(() => {
     mocks.density = 3;
     mocks.setDensity.mockClear();
+    mocks.showNestedRows = false;
+    mocks.setShowNestedRows.mockClear();
   });
 
   it('renders the five entity density snap points', () => {
@@ -50,5 +56,25 @@ describe('TimelineSettingsPopover', () => {
     });
 
     expect(mocks.setDensity).toHaveBeenCalledWith(5);
+  });
+
+  it('leaves nested entity and operator rows unchecked by default', () => {
+    render(<TimelineSettingsPopover />);
+
+    expect(screen.getByRole('checkbox', { name: 'Expand entity/operator rows' })).not.toBeChecked();
+  });
+
+  it('expands, then offers to collapse, nested rows', () => {
+    const { unmount } = render(<TimelineSettingsPopover />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Expand entity/operator rows' }));
+    expect(mocks.setShowNestedRows).toHaveBeenLastCalledWith(true);
+    unmount();
+
+    mocks.showNestedRows = true;
+    render(<TimelineSettingsPopover />);
+    const checkbox = screen.getByRole('checkbox', { name: 'Collapse entity/operator rows' });
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
+    expect(mocks.setShowNestedRows).toHaveBeenLastCalledWith(false);
   });
 });

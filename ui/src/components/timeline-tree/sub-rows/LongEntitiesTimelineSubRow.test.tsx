@@ -13,7 +13,7 @@ function item(id: string, type: string, children?: TreeTableItem[]): TreeTableIt
 const queryBundle = {} as unknown as QueryBundle<EntityRef>;
 
 describe('createLongEntitiesTimelineSubRow', () => {
-  it('injects an Entities sub-row after every resource by default', () => {
+  it('injects an Entities disclosure beneath every resource by default', () => {
     const subRow = createLongEntitiesTimelineSubRow({
       engineId: 'engine-1',
       queryBundle,
@@ -26,12 +26,10 @@ describe('createLongEntitiesTimelineSubRow', () => {
 
     const tree = subRow.injectRows(root);
 
-    expect(tree.children?.map(child => child.id)).toEqual([
-      'res-1',
-      '__long_entities__res-1',
-      'res-2',
-      '__long_entities__res-2',
-    ]);
+    expect(tree.children?.map(child => child.id)).toEqual(['res-1', 'res-2']);
+    expect(tree.children?.[0]?.children?.[0]?.type).toBe('long-entities-disclosure');
+    expect(tree.children?.[0]?.children?.[0]?.children?.[0]?.id).toBe('__long_entities__res-1');
+    expect(tree.children?.[1]?.children?.[0]?.children?.[0]?.id).toBe('__long_entities__res-2');
   });
 
   it('is labeled Entities', () => {

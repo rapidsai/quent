@@ -486,6 +486,45 @@ it('round trips pipe inspection independently of operator selection and nested m
   expect(restored.dag?.edgeWidthField).toBe(shared.dag?.edgeWidthField);
 });
 
+describe('deep-link collapsed default rows', () => {
+  it('round-trips collapsed row ids', () => {
+    const shared: ViewStateV3 = {
+      route: state.route,
+      timeline: state.timeline,
+      resources: { collapsedRowIds: [RESOURCE_A_ID] },
+    };
+    const encoded = encodeViewState(shared);
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+    expect(decodeViewState(encoded.value)).toEqual({
+      ok: true,
+      value: { version: 'v3', data: shared },
+    });
+  });
+});
+
+describe('deep-link nested chart rows', () => {
+  it('round-trips the nested chart rows setting', () => {
+    const shared: ViewStateV3 = {
+      route: state.route,
+      timeline: state.timeline,
+      resources: { showNestedChartRows: true },
+    };
+    const encoded = encodeViewState(shared);
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+
+    expect(decodeViewState(encoded.value)).toEqual({
+      ok: true,
+      value: { version: 'v3', data: shared },
+    });
+  });
+});
+
 it('normalizes legacy detail IDs into filters and preserves nested metric paths', () => {
   const shared = {
     ...state,

@@ -39,6 +39,8 @@ export {
   useSetDebouncedZoomRange,
   useLongEntityDensity,
   useSetLongEntityDensity,
+  useShowNestedChartRows,
+  useSetShowNestedChartRows,
   useTimelineHover,
   useSetTimelineHover,
   useTimelinePointerRatio,
@@ -56,6 +58,7 @@ export {
 export {
   LONG_ENTITY_DENSITIES,
   LONG_ENTITY_DENSITY_DEFAULT,
+  showNestedChartRowsAtom,
   timelineCacheKey,
 } from './atoms/timeline';
 export type { LongEntityDensity, TimelineCacheParams, TimelineHoverState } from './atoms/timeline';

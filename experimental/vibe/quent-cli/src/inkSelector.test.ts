@@ -4,12 +4,16 @@
 import { describe, expect, it } from 'vitest';
 import { act, createElement } from 'react';
 import { renderToString } from 'ink';
+import { MultiSelectionPrompt } from './inkMultiSelectionPrompt';
 import { QueryTreePrompt } from './inkQueryTreePrompt';
 import { SelectionPrompt } from './inkSelectionPrompt';
+import { TextPrompt } from './inkTextPrompt';
+import { selectManyWithInk } from './inkSelectorRunner';
 import {
   filterQueryTreeChoices,
   filterSelectionChoices,
   selectionWindow,
+  toggleMultiSelection,
 } from './inkSelector.utils';
 
 const choices = [
@@ -62,6 +66,60 @@ describe('Ink selector', () => {
     expect(output).toContain('space toggle');
   });
 
+  it('renders All as part of the metric multiselect', async () => {
+    let output = '';
+    await act(() => {
+      output = renderToString(
+        createElement(MultiSelectionPrompt, {
+          prompt: 'Select metrics to compare',
+          choices: [
+            { value: 'all', label: 'All metrics (2)' },
+            { value: 'output_rows', label: 'output_rows' },
+            { value: 'bytes_read', label: 'bytes_read' },
+          ],
+          allValue: 'all',
+        })
+      );
+    });
+
+    expect(output).toContain('○ All metrics (2)');
+    expect(output).toContain('○ output_rows');
+    expect(output).toContain('space toggle');
+    expect(output).toContain('Select at least one item with space');
+  });
+
+  it('explains how to select metrics when no interactive terminal is available', async () => {
+    const input = { isTTY: false } as NodeJS.ReadStream;
+    const output = { isTTY: false } as NodeJS.WriteStream;
+
+    await expect(
+      selectManyWithInk(
+        'Select metrics to compare',
+        [{ value: 'output_rows', label: 'output_rows' }],
+        undefined,
+        undefined,
+        input,
+        output
+      )
+    ).rejects.toThrow('requires an interactive terminal; pass --metric');
+  });
+
+  it('renders a database run text prompt', async () => {
+    let output = '';
+    await act(() => {
+      output = renderToString(
+        createElement(TextPrompt, {
+          prompt: 'Enter database run IDs',
+          placeholder: 'comma-separated, e.g. 6647, 6650',
+        })
+      );
+    });
+
+    expect(output).toContain('Enter database run IDs');
+    expect(output).toContain('6647, 6650');
+    expect(output).toContain('enter confirm');
+  });
+
   it('filters case-insensitively across labels and IDs', () => {
     expect(filterSelectionChoices(choices, 'WARE')).toEqual([choices[2]]);
     expect(filterSelectionChoices(choices, 'engine-beta')).toEqual([choices[1]]);
@@ -84,5 +142,11 @@ describe('Ink selector', () => {
       choices: manyChoices.slice(15, 20),
       offset: 15,
     });
+  });
+
+  it('keeps All mutually exclusive with individual metrics', () => {
+    expect([...toggleMultiSelection(new Set(['metric-1']), 'all', 'all')]).toEqual(['all']);
+    expect([...toggleMultiSelection(new Set(['all']), 'metric-1', 'all')]).toEqual(['metric-1']);
+    expect([...toggleMultiSelection(new Set(['metric-1']), 'metric-1', 'all')]).toEqual([]);
   });
 });

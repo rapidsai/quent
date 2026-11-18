@@ -50,6 +50,9 @@ export const LONG_ENTITY_DENSITY_DEFAULT = 4 satisfies LongEntityDensity;
 /** Controls the minimum usage threshold for entities shown in timeline rows. */
 export const longEntityDensityAtom = atom<LongEntityDensity>(LONG_ENTITY_DENSITY_DEFAULT);
 
+/** Whether the entity and operator chart rows nested under resources and workers are shown. */
+export const showNestedChartRowsAtom = atom(false);
+
 /**
  * Pointer-level hover state used to drive an app-rendered timeline tooltip.
  *

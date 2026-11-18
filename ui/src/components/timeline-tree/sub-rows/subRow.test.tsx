@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { TreeTableItem } from '@quent/components';
 import { EntityTypeKey } from '@quent/utils';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import {
   createSyntheticSubRow,
   createTimelineSubRow,
+  createTimelineSubRowDisclosure,
   mapTreeItems,
   TimelineSubRowLabel,
 } from './subRow';
@@ -54,6 +55,73 @@ describe('createTimelineSubRow', () => {
     });
 
     expect(subRow.label).toBe('Demo');
+  });
+
+  it('labels the disclosure row but leaves the chart row beneath it unlabeled', () => {
+    const subRow = createTimelineSubRow({
+      id: 'demo',
+      rowType: 'demo-row',
+      label: 'Demo',
+      injectRows: root => root,
+      renderTimeline: () => null,
+    });
+    const disclosure = item('__demo_row_disclosure__owner', 'demo-row-disclosure') as never;
+    const chartRow = item('__demo_row__owner', 'demo-row') as never;
+
+    expect(subRow.renderLabel(disclosure)).not.toBeNull();
+    expect(subRow.renderLabel(chartRow)).toBeNull();
+  });
+});
+
+describe('createTimelineSubRowDisclosure', () => {
+  it('leaves the chart row to be drawn by its disclosure row', () => {
+    const chartRow = createSyntheticSubRow('__demo_row__owner', 'demo-row');
+    const disclosure = createTimelineSubRowDisclosure('owner', 'demo-row', chartRow);
+
+    expect(disclosure.children?.[0]?.id).toBe('__demo_row__owner');
+    expect(disclosure.children?.[0]?.rendersInParent).toBe(true);
+  });
+});
+
+describe('createTimelineSubRow timelines', () => {
+  const subRow = createTimelineSubRow({
+    id: 'demo',
+    rowType: 'demo-row',
+    label: 'Demo',
+    injectRows: root => root,
+    renderTimeline: chartRow => `chart for ${chartRow.id}`,
+  });
+  const disclosure = createTimelineSubRowDisclosure(
+    'owner',
+    'demo-row',
+    createSyntheticSubRow('__demo_row__owner', 'demo-row')
+  ) as never;
+
+  it('shows the chart in the disclosure row while it is open', () => {
+    render(<>{subRow.renderTimeline(disclosure, true)}</>);
+
+    expect(screen.getByText('chart for __demo_row__owner')).toBeInTheDocument();
+  });
+
+  it('keeps a click on the chart from opening or closing the disclosure row', () => {
+    const toggle = vi.fn();
+    const chartSubRow = createTimelineSubRow({
+      id: 'demo',
+      rowType: 'demo-row',
+      label: 'Demo',
+      injectRows: root => root,
+      renderTimeline: () => <button type="button">bar</button>,
+    });
+    render(<div onClick={toggle}>{chartSubRow.renderTimeline(disclosure, true)}</div>);
+
+    fireEvent.click(screen.getByText('bar'));
+
+    expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing in the disclosure row while it is closed', () => {
+    expect(subRow.renderTimeline(disclosure, false)).toBeNull();
+    expect(subRow.renderTimeline(disclosure)).toBeNull();
   });
 });
 

@@ -92,7 +92,7 @@ export function buildGanttOption<T extends GanttDatum>({
       },
       {
         type: 'inside',
-        zoomOnMouseWheel: 'shift',
+        zoomOnMouseWheel: true,
         moveOnMouseMove: false,
         moveOnMouseWheel: false,
         throttle: 30,

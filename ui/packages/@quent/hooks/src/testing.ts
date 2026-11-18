@@ -5,4 +5,8 @@
  * Internal atoms exposed for test use only.
  * Do NOT import from this file in production code.
  */
-export { longEntityDensityAtom, timelineDataMapAtom } from './atoms/timeline';
+export {
+  longEntityDensityAtom,
+  showNestedChartRowsAtom,
+  timelineDataMapAtom,
+} from './atoms/timeline';
