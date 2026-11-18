@@ -8,9 +8,9 @@ publish.workspace = true
 postcard.workspace = true
 quent-browser-bundle.workspace = true
 quent-events = { workspace = true, features = ["serde"] }
-quent-store = { path = "../store", default-features = false, features = ["io-ndjson"] }
+quent-store = { workspace = true, features = ["io-ndjson"] }
 serde.workspace = true
 serde_json.workspace = true
-tempfile = "3"
+tempfile.workspace = true
 uuid = { workspace = true, features = ["serde"] }
-zip = { version = "6", default-features = false, features = ["deflate"] }
+zip = { workspace = true, features = ["deflate"] }
