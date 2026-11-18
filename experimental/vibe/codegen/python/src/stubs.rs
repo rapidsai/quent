@@ -91,6 +91,11 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
             "\ndef start_collector(output: ExporterOptions, *, bind_address: str = \"127.0.0.1:0\", advertised_host: str | None = None) -> Collector: ...\n",
         ));
     }
+    if options.browser_bundle_writer.is_some() {
+        output.push_str(
+            "\ndef write_browser_bundle(\n    input: str,\n    output: str,\n) -> tuple[str, int, int, str, int]: ...\n",
+        );
+    }
 
     for record in schema.records() {
         let name = format!("{}Dict", path_pascal(record.path()));

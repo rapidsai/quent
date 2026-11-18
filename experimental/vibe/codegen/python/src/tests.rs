@@ -10,6 +10,25 @@ use crate::{Exporters, GenerateError, Options, emit, emit_stubs};
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
 
 #[test]
+fn generates_browser_bundle_writer_when_enabled() {
+    let schema = parse_from_str(DEMO, None).unwrap().schema;
+    let options = Options {
+        browser_bundle_writer: Some("browser::generate_bundle".to_owned()),
+        ..Options::default()
+    };
+
+    let bridge = emit(&schema, &options).unwrap().remove(0);
+    assert!(bridge.content.contains("browser::generate_bundle("));
+    assert!(
+        bridge
+            .content
+            .contains("wrap_pyfunction!(write_browser_bundle, module)")
+    );
+    let stubs = emit_stubs(&schema, &options).unwrap();
+    assert!(stubs[0].content.contains("def write_browser_bundle("));
+}
+
+#[test]
 fn generates_collector_server_factory_when_enabled() {
     let schema = parse_from_str(DEMO, None).unwrap().schema;
     let options = Options {
