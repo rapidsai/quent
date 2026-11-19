@@ -16,7 +16,6 @@ export interface BrowserAnalyzerDefaults {
 export async function installBrowserAnalyzerClient(
   defaults: BrowserAnalyzerDefaults
 ): Promise<void> {
-  const worker = createBrowserAnalyzerWorker();
   const search = new URLSearchParams(window.location.search);
   const configuredDataUrl = search.get('data');
   const configuredModuleUrl = search.get('module');
@@ -31,6 +30,7 @@ export async function installBrowserAnalyzerClient(
   if (moduleUrl.origin !== window.location.origin) {
     throw new Error('browser analyzer modules must be hosted on the Quent UI origin');
   }
+  const worker = createBrowserAnalyzerWorker();
   setApiClient(
     await createBrowserAnalyzerClient(worker, {
       moduleUrl: moduleUrl.href,
