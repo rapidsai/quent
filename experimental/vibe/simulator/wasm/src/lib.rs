@@ -19,22 +19,22 @@ pub const SCHEMA_DIGEST: &str = env!("QUENT_SIMULATOR_SCHEMA_DIGEST");
 
 fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyzer>, BrowserError> {
     let bundle = quent_browser_bundle::decode(bytes).map_err(|error| {
-        BrowserError::failure(format!("unable to decode browser bundle: {error}"))
+        BrowserError::incompatible_bundle(format!("unable to decode browser bundle: {error}"))
     })?;
     if bundle.metadata.model_name != MODEL_NAME {
-        return Err(BrowserError::failure(format!(
+        return Err(BrowserError::incompatible_bundle(format!(
             "browser bundle model mismatch: expected {MODEL_NAME}, got {}",
             bundle.metadata.model_name
         )));
     }
     if bundle.metadata.codec != "postcard" {
-        return Err(BrowserError::failure(format!(
+        return Err(BrowserError::incompatible_bundle(format!(
             "unsupported simulator event codec: {}",
             bundle.metadata.codec
         )));
     }
     if bundle.metadata.schema_digest != SCHEMA_DIGEST {
-        return Err(BrowserError::failure(format!(
+        return Err(BrowserError::incompatible_bundle(format!(
             "browser bundle schema mismatch: expected {SCHEMA_DIGEST}, got {}",
             bundle.metadata.schema_digest
         )));
@@ -42,21 +42,21 @@ fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyz
 
     let events: Vec<Event<SimulatorEvent>> =
         postcard::from_bytes(bundle.payload).map_err(|error| {
-            BrowserError::failure(format!("unable to decode simulator events: {error}"))
+            BrowserError::incompatible_bundle(format!("unable to decode simulator events: {error}"))
         })?;
     let engine_ids = events
         .iter()
         .filter_map(|event| matches!(event.data, SimulatorEvent::Engine(_)).then_some(event.id))
         .collect::<HashSet<_>>();
     if engine_ids.len() != 1 {
-        return Err(BrowserError::failure(format!(
+        return Err(BrowserError::incompatible_bundle(format!(
             "expected exactly one simulator engine, found {}",
             engine_ids.len()
         )));
     }
     let engine_id = *engine_ids.iter().next().expect("one engine was validated");
     if engine_id != bundle.metadata.engine_id {
-        return Err(BrowserError::failure(
+        return Err(BrowserError::incompatible_bundle(
             "browser bundle engine ID does not match its events",
         ));
     }
@@ -103,6 +103,7 @@ mod tests {
         let error = load_browser_service(&bundle_with_digest("some-other-schema"))
             .err()
             .unwrap();
+        assert_eq!(error.code(), "incompatible-bundle");
         assert!(error.to_string().contains("schema mismatch"), "{error}");
     }
 
@@ -111,6 +112,7 @@ mod tests {
         let error = load_browser_service(&bundle_with_digest(SCHEMA_DIGEST))
             .err()
             .unwrap();
+        assert_eq!(error.code(), "incompatible-bundle");
         assert!(
             error
                 .to_string()

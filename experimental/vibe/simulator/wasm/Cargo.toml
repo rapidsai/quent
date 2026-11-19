@@ -29,7 +29,7 @@ quent-browser-bundle-build = { workspace = true, optional = true }
 quent-events = { path = "../../../../crates/events", features = ["serde"] }
 quent-instrumentation = { path = "../../../../crates/instrumentation", optional = true }
 quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyzer" }
-quent-query-engine-browser.workspace = true
+quent-query-engine-browser = { workspace = true, features = ["wasm"] }
 quent-simulator-analyzer = { path = "../analyzer", default-features = false }
 quent-simulator-instrumentation = { path = "../instrumentation", optional = true }
 quent-simulator-store = { path = "../store", default-features = false }

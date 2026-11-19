@@ -81,17 +81,22 @@ describe('createBrowserAnalyzerClient', () => {
       code: 'not-found',
       message: 'missing',
     });
-    expect(browserAnalyzerErrorReply('QUENT_UNSUPPORTED:no data flow')).toEqual({
+    expect(browserAnalyzerErrorReply({ code: 'unsupported', message: 'no data flow' })).toEqual({
       code: 'unsupported',
       message: 'no data flow',
     });
-    expect(browserAnalyzerErrorReply('QUENT_INVALID_REQUEST:bad UUID')).toEqual({
-      code: 'invalid-request',
-      message: 'bad UUID',
+    expect(
+      browserAnalyzerErrorReply({
+        code: 'incompatible-bundle',
+        message: 'schema mismatch',
+      })
+    ).toEqual({
+      code: 'incompatible-bundle',
+      message: 'schema mismatch',
     });
-    expect(browserAnalyzerErrorReply('QUENT_NOT_FOUND:missing query')).toEqual({
-      code: 'not-found',
-      message: 'missing query',
+    expect(browserAnalyzerErrorReply('failure echoed QUENT_NOT_FOUND:bundle text')).toEqual({
+      code: 'analyzer-failure',
+      message: 'failure echoed QUENT_NOT_FOUND:bundle text',
     });
   });
 });

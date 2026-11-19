@@ -223,12 +223,14 @@ where
 /// Stable error protocol shared by the WASM worker and model-specific analyzers.
 #[derive(Debug, thiserror::Error)]
 pub enum BrowserError {
-    #[error("QUENT_INVALID_REQUEST:{0}")]
+    #[error("{0}")]
     InvalidRequest(String),
-    #[error("QUENT_NOT_FOUND:not found")]
+    #[error("not found")]
     NotFound,
-    #[error("QUENT_UNSUPPORTED:{0}")]
+    #[error("{0}")]
     Unsupported(String),
+    #[error("{0}")]
+    IncompatibleBundle(String),
     #[error("{0}")]
     Failure(String),
 }
@@ -237,6 +239,54 @@ impl BrowserError {
     /// Create an unclassified analyzer or bundle-loading failure.
     pub fn failure(error: impl std::fmt::Display) -> Self {
         Self::Failure(error.to_string())
+    }
+
+    /// Create a failure for a bundle that this analyzer cannot decode.
+    pub fn incompatible_bundle(error: impl std::fmt::Display) -> Self {
+        Self::IncompatibleBundle(error.to_string())
+    }
+
+    /// Stable code consumed by the browser worker.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::InvalidRequest(_) => "invalid-request",
+            Self::NotFound => "not-found",
+            Self::Unsupported(_) => "unsupported",
+            Self::IncompatibleBundle(_) => "incompatible-bundle",
+            Self::Failure(_) => "analyzer-failure",
+        }
+    }
+
+    /// Human-readable detail without encoding the error category in the message.
+    pub fn message(&self) -> &str {
+        match self {
+            Self::InvalidRequest(message)
+            | Self::Unsupported(message)
+            | Self::IncompatibleBundle(message)
+            | Self::Failure(message) => message,
+            Self::NotFound => "not found",
+        }
+    }
+
+    /// Convert this error to the structured object thrown across the WASM boundary.
+    ///
+    /// Available with the `wasm` feature.
+    #[cfg(feature = "wasm")]
+    pub fn to_js_value(&self) -> wasm_bindgen::JsValue {
+        let object = js_sys::Object::new();
+        js_sys::Reflect::set(
+            &object,
+            &wasm_bindgen::JsValue::from_str("code"),
+            &wasm_bindgen::JsValue::from_str(self.code()),
+        )
+        .expect("setting a property on a new object cannot fail");
+        js_sys::Reflect::set(
+            &object,
+            &wasm_bindgen::JsValue::from_str("message"),
+            &wasm_bindgen::JsValue::from_str(self.message()),
+        )
+        .expect("setting a property on a new object cannot fail");
+        object.into()
     }
 }
 
@@ -266,10 +316,11 @@ fn serialize<T: Serialize>(result: Result<T, BrowserError>) -> Result<String, Br
 /// The loader must have the signature
 /// `fn(&[u8]) -> Result<BrowserService<Analyzer>, BrowserError>`.
 ///
-/// The crate invoking this macro must depend directly on `wasm-bindgen` because
-/// the generated code references `wasm_bindgen::` paths. Use a version
-/// compatible with the `wasm-bindgen` CLI that generates the JavaScript
-/// bindings.
+/// Enable the `wasm` feature of this crate. The invoking crate must also depend
+/// directly on `wasm-bindgen`, because the generated code references
+/// `wasm_bindgen::` paths. Use a version compatible with the `wasm-bindgen` CLI
+/// that generates the JavaScript bindings.
+#[cfg(feature = "wasm")]
 #[macro_export]
 macro_rules! export_wasm_browser_server {
     ($analyzer:ty, $loader:path) => {
@@ -284,7 +335,7 @@ macro_rules! export_wasm_browser_server {
             pub fn new(bytes: &[u8]) -> Result<Self, wasm_bindgen::JsValue> {
                 $loader(bytes)
                     .map(|inner| Self { inner })
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
 
             #[wasm_bindgen::prelude::wasm_bindgen(js_name = listEngines)]
@@ -292,7 +343,7 @@ macro_rules! export_wasm_browser_server {
                 self.inner
                     .list_engines_json()
                     .await
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
 
             #[wasm_bindgen::prelude::wasm_bindgen(js_name = engineContexts)]
@@ -303,7 +354,7 @@ macro_rules! export_wasm_browser_server {
                 self.inner
                     .engine_contexts_json(engine_id)
                     .await
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
 
             #[wasm_bindgen::prelude::wasm_bindgen(js_name = queries)]
@@ -314,7 +365,7 @@ macro_rules! export_wasm_browser_server {
                 self.inner
                     .queries_json(engine_id)
                     .await
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
 
             #[wasm_bindgen::prelude::wasm_bindgen(js_name = query)]
@@ -326,7 +377,7 @@ macro_rules! export_wasm_browser_server {
                 self.inner
                     .query_json(engine_id, query_id)
                     .await
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
 
             #[wasm_bindgen::prelude::wasm_bindgen(js_name = singleTimeline)]
@@ -338,7 +389,7 @@ macro_rules! export_wasm_browser_server {
                 self.inner
                     .single_timeline_json(engine_id, request)
                     .await
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
 
             #[wasm_bindgen::prelude::wasm_bindgen(js_name = bulkTimelines)]
@@ -350,7 +401,7 @@ macro_rules! export_wasm_browser_server {
                 self.inner
                     .bulk_timelines_json(engine_id, request)
                     .await
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
 
             #[wasm_bindgen::prelude::wasm_bindgen(js_name = dataFlowTimeline)]
@@ -362,7 +413,7 @@ macro_rules! export_wasm_browser_server {
                 self.inner
                     .data_flow_timeline_json(engine_id, request)
                     .await
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
 
             #[wasm_bindgen::prelude::wasm_bindgen(js_name = entities)]
@@ -374,8 +425,19 @@ macro_rules! export_wasm_browser_server {
                 self.inner
                     .entities_json(engine_id, request)
                     .await
-                    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+                    .map_err(|error| error.to_js_value())
             }
         }
+    };
+}
+
+/// Stub used when the `wasm` feature is disabled.
+#[cfg(not(feature = "wasm"))]
+#[macro_export]
+macro_rules! export_wasm_browser_server {
+    ($($tt:tt)*) => {
+        compile_error!(
+            "enable the `wasm` feature of quent-query-engine-browser to use export_wasm_browser_server"
+        );
     };
 }
