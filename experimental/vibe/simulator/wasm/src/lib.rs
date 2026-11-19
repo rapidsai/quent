@@ -11,19 +11,19 @@ use quent_query_engine_browser::{BrowserError, BrowserService};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_store::SimulatorEvent;
 
-/// Digest of the simulator event schema that this build can decode.
-///
-/// Shared with the bundle generator so producer and consumer agree. Bump it whenever the
-/// serialized `Event<SimulatorEvent>` layout changes.
-pub const SCHEMA_DIGEST: &str = "quent-simulator-v1";
+/// Browser-bundle model name shared by the producer and analyzer.
+pub const MODEL_NAME: &str = "quent-simulator";
+
+/// SHA-256 digest of the simulator schema that this build can decode.
+pub const SCHEMA_DIGEST: &str = env!("QUENT_SIMULATOR_SCHEMA_DIGEST");
 
 fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyzer>, BrowserError> {
     let bundle = quent_browser_bundle::decode(bytes).map_err(|error| {
         BrowserError::failure(format!("unable to decode browser bundle: {error}"))
     })?;
-    if bundle.metadata.model_name != "quent-simulator" {
+    if bundle.metadata.model_name != MODEL_NAME {
         return Err(BrowserError::failure(format!(
-            "browser bundle model mismatch: expected quent-simulator, got {}",
+            "browser bundle model mismatch: expected {MODEL_NAME}, got {}",
             bundle.metadata.model_name
         )));
     }
@@ -82,7 +82,7 @@ mod tests {
         quent_browser_bundle::encode(
             &Metadata {
                 format_version: FORMAT_VERSION,
-                model_name: "quent-simulator".into(),
+                model_name: MODEL_NAME.into(),
                 schema_digest: schema_digest.into(),
                 model_provenance: None,
                 analyzer_revision: "test".into(),

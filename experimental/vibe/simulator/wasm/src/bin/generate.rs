@@ -10,7 +10,7 @@ use quent_browser_bundle_build::{BuildOptions, generate_bundle};
 use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::{Simulator, SimulatorEvent};
-use quent_simulator_wasm::SCHEMA_DIGEST;
+use quent_simulator_wasm::{MODEL_NAME, SCHEMA_DIGEST};
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
 
@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_dir.path(),
         &output,
         &BuildOptions {
-            model_name: "quent-simulator",
+            model_name: MODEL_NAME,
             schema_digest: SCHEMA_DIGEST,
             analyzer_revision: env!("CARGO_PKG_VERSION"),
             capabilities: Capabilities {

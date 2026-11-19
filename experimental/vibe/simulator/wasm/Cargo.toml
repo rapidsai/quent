@@ -40,3 +40,6 @@ tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
 uuid.workspace = true
+
+[build-dependencies]
+sha2 = "0.11"

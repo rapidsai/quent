@@ -3003,6 +3003,7 @@ dependencies = [
  "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
  "quent-simulator-store",
+ "sha2",
  "tempfile",
  "uuid",
  "wasm-bindgen",
