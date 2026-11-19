@@ -44,3 +44,24 @@ describe('browser analyzer worker init', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('browser analyzer worker operations', () => {
+  it('replies invalid-request for an operation it does not know', async () => {
+    const moduleUrl = `${self.location.origin}/analyzer.js`;
+    vi.doMock(moduleUrl, () => ({ default: async () => {}, BrowserServer: class {} }));
+    fetchSpy.mockResolvedValueOnce(new Response(new Uint8Array([1])));
+
+    const init = await send({ id: 1, type: 'init', moduleUrl, dataUrl: 'trace.quent-browser' });
+    expect(init).toEqual({ id: 1, response: '{}' });
+    postMessage.mockClear();
+
+    // A newer client may send an operation this worker version predates.
+    const unknown = { id: 2, type: 'operation', operation: 'fromTheFuture' };
+    const reply = await send(unknown as unknown as BrowserAnalyzerWorkerRequest);
+
+    expect(reply).toEqual({
+      id: 2,
+      error: { code: 'invalid-request', message: 'unknown operation: fromTheFuture' },
+    });
+  });
+});
