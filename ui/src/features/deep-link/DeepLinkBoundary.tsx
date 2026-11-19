@@ -17,6 +17,7 @@ import {
   useSerializableViewState,
   useSetDebouncedZoomRange,
   useSetZoomRange,
+  showNestedChartRowsAtom,
 } from '@quent/hooks';
 import { DAG_LAYOUT_DIRECTION, SCALE_TYPE, NODE_LABEL_FIELD, type Operator } from '@quent/utils';
 import { toast } from '@quent/components';
@@ -26,12 +27,14 @@ import {
   type EntityFilters,
 } from '@/atoms/entitiesTable';
 import {
+  defaultExpandedIdsAtom,
   expandedIdsAtom,
   pinnedIdsAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
   selectedTypesAtom,
+  sharedCollapsedIdsAtom,
 } from '@/atoms/resourceTree';
 import {
   EMPTY_RESOURCE_FILTER,
@@ -342,6 +345,14 @@ export function DeepLinkBoundary({
           : EMPTY_RESOURCE_FILTER
       );
     }
+    if (intake.fields) {
+      // Like pins, a link without the flag means "hidden", so it overrides the session's setting.
+      // expandedIdsAtom is left exactly as restored above.
+      store.set(showNestedChartRowsAtom, intake.fields.resources?.showNestedChartRows ?? false);
+    }
+    if (intake.fields) {
+      store.set(sharedCollapsedIdsAtom, new Set(intake.fields.resources?.collapsedRowIds ?? []));
+    }
     if (intake.fields?.resources) {
       const resources = intake.fields.resources;
       if (resources.rootResourceType !== undefined) {
@@ -446,9 +457,19 @@ export function DeepLinkBoundary({
     }
 
     const resources: NonNullable<DeepLinkStateV3['resources']> = {};
-    const expandedRowIds = [...store.get(expandedIdsAtom)].sort();
+    // Rows the app opens by itself are left out. Only the user's changes to them are shared.
+    const expandedIds = store.get(expandedIdsAtom);
+    const defaultExpandedIds = store.get(defaultExpandedIdsAtom);
+    const expandedRowIds = [...expandedIds].filter(id => !defaultExpandedIds.has(id)).sort();
     if (expandedRowIds.length > 0) {
       resources.expandedRowIds = expandedRowIds;
+    }
+    const collapsedRowIds = [...defaultExpandedIds].filter(id => !expandedIds.has(id)).sort();
+    if (collapsedRowIds.length > 0) {
+      resources.collapsedRowIds = collapsedRowIds;
+    }
+    if (store.get(showNestedChartRowsAtom)) {
+      resources.showNestedChartRows = true;
     }
     // Keep the order the user arranged the pins in.
     const pinnedRowIds = [...store.get(pinnedIdsAtom)];
