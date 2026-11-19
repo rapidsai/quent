@@ -265,6 +265,11 @@ fn serialize<T: Serialize>(result: Result<T, BrowserError>) -> Result<String, Br
 ///
 /// The loader must have the signature
 /// `fn(&[u8]) -> Result<BrowserService<Analyzer>, BrowserError>`.
+///
+/// The crate invoking this macro must depend directly on `wasm-bindgen` because
+/// the generated code references `wasm_bindgen::` paths. Use a version
+/// compatible with the `wasm-bindgen` CLI that generates the JavaScript
+/// bindings.
 #[macro_export]
 macro_rules! export_wasm_browser_server {
     ($analyzer:ty, $loader:path) => {
