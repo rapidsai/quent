@@ -18,6 +18,7 @@ import {
   ViewStateBoundary,
   ViewStatePersistence,
   UrlViewState,
+  ViewStateResolutionToast,
   applicationViewStateRepository,
   createUrlViewStateSource,
   URL_VIEW_STATE_SOURCE_ID,
@@ -142,6 +143,7 @@ function ProfileLayout() {
     >
       <div className="flex h-full min-w-0 flex-col">
         <UrlViewState active={stateResolution.sourceId === URL_VIEW_STATE_SOURCE_ID} />
+        <ViewStateResolutionToast resolution={stateResolution} />
         {activeTab && (
           <ViewStatePersistence
             repository={applicationViewStateRepository}

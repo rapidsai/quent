@@ -5,6 +5,7 @@ export { CopyLinkButton } from './CopyLinkButton';
 export { ViewStateBoundary } from './ViewStateBoundary';
 export { ViewStatePersistence } from './ViewStatePersistence';
 export { UrlViewState } from './UrlViewState';
+export { ViewStateResolutionToast } from './ViewStateResolutionToast';
 export { applicationViewStateRepository } from './viewState.repository';
 export { createUrlViewStateSource, URL_VIEW_STATE_SOURCE_ID } from './viewState.url';
 export { useViewState } from './viewState.context';
