@@ -34,6 +34,8 @@ export default tseslint.config(
       '**/dist/**',
       '**/node_modules/**',
       'generated/ts-bindings/**',
+      // wasm-bindgen output. Gitignored, and its formatting is owned by the generator.
+      'public/analyzers/**',
       '.e2e-data/**',
       'playwright-report/**',
       'test-results/**',
