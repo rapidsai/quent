@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import { PinnedRowsSplit } from './PinnedRowsSplit';
 import { measurePinnedPanelHeights } from './pinnedPanelHeights';
 

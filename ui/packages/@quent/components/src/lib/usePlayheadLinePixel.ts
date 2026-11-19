@@ -12,7 +12,7 @@ export function usePlayheadLinePixel(
   const [pixelX, setPixelX] = useState<number | null>(null);
   const timestampMs = usePlayheadLineTimeMs();
   const timestampMsRef = useRef(timestampMs);
-  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
+  // oxlint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
   timestampMsRef.current = timestampMs;
 
   const recompute = useCallback(() => {

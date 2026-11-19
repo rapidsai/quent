@@ -95,12 +95,12 @@ mixed while later phases split their rendering and integration responsibilities.
 ## Enforcement
 
 - `pnpm boundaries:check` validates source and package-to-package dependency
-  edges.
-- ESLint provides immediate errors for forbidden imports.
-- Package typechecks compile each package independently.
+  edges through Oxlint.
+- Oxlint provides immediate errors for forbidden imports and dependency cycles.
+- Vite+ typechecks the application and packages together.
 - CI runs all three checks before the aggregate build.
-- Dependency Cruiser and ESLint reject query-engine integration, client, hook,
-  generated-binding, and domain-contract imports from `quent-views/**`.
+- Oxlint rejects query-engine integration, client, hook, generated-binding, and
+  domain-contract imports from `quent-views/**`.
 
 When adding a dependency exception, update this document and the graph rule in
 the same change. Exceptions must name a concrete migration boundary; broad

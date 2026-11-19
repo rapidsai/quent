@@ -3,7 +3,7 @@
 
 import { fireEvent, render } from '@testing-library/react';
 import type { EChartsInstance } from 'echarts-for-react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { usePlayheadLinePixel } from '../lib/usePlayheadLinePixel';
 import { PlayheadLine } from './PlayheadLine';
 

@@ -198,7 +198,7 @@ jobs:
           else
             base_bindings=base/examples/simulator/server/ts-bindings
           fi
-          pixi run pnpm --dir ui exec prettier --config .prettierrc --write \
+          pixi run pnpm --dir ui bindings:format -- \
             "../$base_bindings/**/*.ts" "generated/ts-bindings/**/*.ts"
           diff --recursive --unified=3 "$base_bindings" \
             ui/generated/ts-bindings > ts-bindings.diff || diff_status=$?

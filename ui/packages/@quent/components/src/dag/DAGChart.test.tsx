@@ -7,9 +7,10 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
+import type {} from '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import type { Edge, EdgeProps, Node } from '@xyflow/react';
 import {
   useDagEdgeColoring,

@@ -17,7 +17,7 @@ export default defineConfig({
     ? undefined
     : {
         command:
-          'pnpm demo:build && pnpm exec vite preview --config vite.simulator.config.ts --host 127.0.0.1 --port 4173 --strictPort',
+          'pnpm demo:build && pnpm exec vp preview --config vite.simulator.config.ts --host 127.0.0.1 --port 4173 --strictPort',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,

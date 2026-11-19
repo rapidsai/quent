@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { useDagDetailAttention, useOperatorSelectionActions } from '@quent/hooks';
 import { getDeterministicColor } from '@quent/utils';
 import type { DAGEdge, Operator } from '@quent/utils';

@@ -1,8 +1,0 @@
-# Auto-generated files
-**/routeTree.gen.ts
-
-# Build output
-dist
-
-# Dependencies
-node_modules

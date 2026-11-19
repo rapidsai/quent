@@ -79,7 +79,7 @@ export function LongEntitiesRow({
 
   // Retain the rendered threshold while the next viewport loads, so the UI
   // doesn't flash empty between the old and new values.
-  /* eslint-disable react-hooks/refs */
+  /* oxlint-disable react-hooks/refs */
   const minUsageSeconds =
     numBins == null
       ? null
@@ -88,7 +88,7 @@ export function LongEntitiesRow({
     previousMinUsageSeconds.current = minUsageSeconds;
   }
   const displayedMinUsageSeconds = minUsageSeconds ?? previousMinUsageSeconds.current;
-  /* eslint-enable react-hooks/refs */
+  /* oxlint-enable react-hooks/refs */
 
   // Entities aren't filtered by operator server-side: unrelated entities are
   // dimmed below, mirroring how the resource timeline dims rather than
@@ -112,12 +112,12 @@ export function LongEntitiesRow({
   // meantime), and updating from just one of them flashes the wrong empty-state message.
   // Reads and writes this ref in the same render on purpose, to hold the last
   // known answer steady while the timeline/entity list catch up.
-  /* eslint-disable react-hooks/refs */
+  /* oxlint-disable react-hooks/refs */
   if (!returnedTimelineIsStale && !isFetching) {
     previousHasNoUsagesInWindow.current = zeroUtilizationResourceIds.has(resourceId);
   }
   const hasNoUsagesInWindow = previousHasNoUsagesInWindow.current;
-  /* eslint-enable react-hooks/refs */
+  /* oxlint-enable react-hooks/refs */
 
   const entities = useMemo(() => (data?.items ?? []).map(item => item.entity), [data]);
   const entries = useMemo(
@@ -148,7 +148,7 @@ export function LongEntitiesRow({
     [entities, onEntitySelect]
   );
 
-  // eslint-disable-next-line react-hooks/refs -- displayedMinUsageSeconds derives from a ref retained across renders on purpose
+  // oxlint-disable-next-line react-hooks/refs -- displayedMinUsageSeconds derives from a ref retained across renders on purpose
   if (displayedMinUsageSeconds == null || (!data && isFetching)) {
     return (
       <div

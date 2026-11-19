@@ -3,7 +3,7 @@
 
 import { render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { PivotedStatTable, formatStatValue, type PivotedStatTableSchema } from '@quent/components';
 import {
   buildStatisticFieldPresentations,

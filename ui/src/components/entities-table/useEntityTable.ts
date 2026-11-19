@@ -81,7 +81,7 @@ export function useEntityTable({ engineId, queryId, queryBundle }: UseEntityTabl
     [setTableState]
   );
   const filtersRef = useRef(filters);
-  // eslint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
+  // oxlint-disable-next-line react-hooks/refs -- latest-value mirror, only read from callbacks/effects
   filtersRef.current = filters;
   // Clamp only when the fetched usage bound narrows.
   useEffect(() => {

@@ -1173,7 +1173,7 @@ export function TreeTable<I extends TreeTableDataItem>({
       return;
     }
     setCurrentColumnWidthsState(columnWidths);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [columnWidthsKey]);
 
   const setCurrentColumnWidths = (next: ColumnWidth[]) => {

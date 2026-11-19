@@ -3,7 +3,7 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import { EntityDetailDrawer } from './EntityDetailDrawer';
 

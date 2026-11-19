@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vite-plus/test';
 import { parseJsonWithBigInt } from './parseJsonWithBigInt';
 
 // A bunch of AI tests for good measure, while we're using this function to parse the response JSON -> javascript object with BigInt support.

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { EntityRef, QueryBundle } from '@quent/utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import {
   analyzeOperatorFacts,
   analyzeQueryLifecycle,

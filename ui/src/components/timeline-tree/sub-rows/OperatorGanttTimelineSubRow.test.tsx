@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import type { TreeTableItem } from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import { createOperatorGanttTimelineSubRow } from './OperatorGanttTimelineSubRow';

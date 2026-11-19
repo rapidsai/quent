@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vite-plus/test';
 import { render, screen } from '@testing-library/react';
 import { EntityTooltipContent, TooltipContent, type ActiveMark } from './TimelineTooltip';
 import type { DynamicValue } from '@quent/utils';

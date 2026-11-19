@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import '@testing-library/jest-dom/vitest';
-import { afterAll, afterEach, beforeAll, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, vi } from 'vite-plus/test';
 import { cleanup } from '@testing-library/react';
 import { server } from './mocks/server';
 

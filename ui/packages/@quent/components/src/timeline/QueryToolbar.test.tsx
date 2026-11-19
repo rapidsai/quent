@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'jotai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import {
   useSelectedOperatorIds,
   useSelectedOperatorsData,

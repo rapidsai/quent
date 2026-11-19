@@ -3,7 +3,7 @@
 
 import { act, renderHook } from '@testing-library/react';
 import type { EChartsType } from 'echarts';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { TIMELINE_SPACING } from '../timeline/types';
 import { useTimelineWheelNavigation } from './useTimelineWheelNavigation';
 

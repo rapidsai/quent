@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { usePinnedCollapsed, usePinnedIds } from './usePinnedIds';
 
 function renderPinnedHook() {

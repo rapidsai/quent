@@ -5,7 +5,7 @@ import type { PropsWithChildren } from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Provider, createStore } from 'jotai';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import type { OperatorFilter, QueryEntities, TimelineRequest } from '@quent/utils';
 import { visibleEntriesAtom } from '../atoms/timeline';
 import { useBulkTimelines, type TreeNode } from './useBulkTimelines';

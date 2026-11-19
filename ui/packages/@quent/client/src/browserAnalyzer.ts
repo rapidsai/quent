@@ -54,7 +54,10 @@ export type BrowserAnalyzerWorkerMessage =
 export type BrowserAnalyzerWorkerRequest = BrowserAnalyzerWorkerMessage & { id: number };
 
 export type BrowserAnalyzerErrorCode =
-  'invalid-request' | 'not-found' | 'unsupported' | 'analyzer-failure';
+  | 'invalid-request'
+  | 'not-found'
+  | 'unsupported'
+  | 'analyzer-failure';
 
 export interface BrowserAnalyzerErrorReply {
   code: BrowserAnalyzerErrorCode;
@@ -62,7 +65,8 @@ export interface BrowserAnalyzerErrorReply {
 }
 
 export type BrowserAnalyzerWorkerReply =
-  { id: number; response: string } | { id: number; error: BrowserAnalyzerErrorReply };
+  | { id: number; response: string }
+  | { id: number; error: BrowserAnalyzerErrorReply };
 
 export class BrowserAnalyzerError extends Error {
   constructor(

@@ -3,7 +3,7 @@
 
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import { expect, it } from 'vitest';
+import { expect, it } from 'vite-plus/test';
 import {
   PipeInspectionProbe,
   createPipeInspectionRecorder,
