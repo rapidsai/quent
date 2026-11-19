@@ -84,6 +84,9 @@ const browserAnalyzerErrorCodes: readonly BrowserAnalyzerErrorCode[] = [
 
 /** Validate a structured WASM exception or classify an untyped worker failure. */
 export function browserAnalyzerErrorReply(error: unknown): BrowserAnalyzerErrorReply {
+  if (error instanceof BrowserAnalyzerError) {
+    return { code: error.code, message: error.message };
+  }
   if (typeof error === 'object' && error !== null) {
     const candidate = error as Partial<BrowserAnalyzerErrorReply>;
     if (

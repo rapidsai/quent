@@ -9,7 +9,7 @@ import type {
   OperatorFilter,
   QueryFilter,
   SortDir,
-} from '@quent/utils';
+} from '@quent/utils/query-engine';
 import { fetchEntityList } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 

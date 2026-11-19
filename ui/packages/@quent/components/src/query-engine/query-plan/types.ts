@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { TreeDataItem } from '../../ui/tree-view';
-import type { DAGNode, DAGEdge, QuantitySpec } from '@quent/utils';
+import type { QuantitySpec } from '@quent/utils/query-engine';
+import type { DAGNode, DAGEdge } from '@quent/utils';
 
 export interface QueryPlanDataItem extends TreeDataItem {
   queryId?: string;

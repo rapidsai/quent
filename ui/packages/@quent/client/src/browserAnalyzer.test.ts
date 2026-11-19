@@ -99,4 +99,10 @@ describe('createBrowserAnalyzerClient', () => {
       message: 'failure echoed QUENT_NOT_FOUND:bundle text',
     });
   });
+
+  it('passes an existing BrowserAnalyzerError through unchanged', () => {
+    expect(
+      browserAnalyzerErrorReply(new BrowserAnalyzerError('invalid-request', 'bad operation'))
+    ).toEqual({ code: 'invalid-request', message: 'bad operation' });
+  });
 });

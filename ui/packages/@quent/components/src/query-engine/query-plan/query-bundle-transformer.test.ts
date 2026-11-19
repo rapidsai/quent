@@ -2,7 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import type { QueryBundle, EntityRef, Plan, Operator, Port, PlanTree, Worker } from '@quent/utils';
+import type {
+  EntityRef,
+  Operator,
+  Plan,
+  PlanTree,
+  Port,
+  QueryBundle,
+  Worker,
+} from '@quent/utils/query-engine';
 import {
   getPlanDAG,
   getSelectedOperatorCountsByPlan,
