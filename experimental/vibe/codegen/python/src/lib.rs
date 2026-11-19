@@ -214,6 +214,7 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
         reserve_name(&mut names, "start_collector".to_owned())?;
     }
     if options.browser_bundle_writer.is_some() {
+        reserve_name(&mut names, "BrowserBundleSummary".to_owned())?;
         reserve_name(&mut names, "write_browser_bundle".to_owned())?;
     }
     for record in schema.records() {
@@ -1484,21 +1485,30 @@ fn browser_bundle(writer: &syn::Path) -> TokenStream {
     quote! {
         #[pyfunction]
         fn write_browser_bundle(
-            input: &str,
-            output: &str,
-        ) -> PyResult<(String, usize, usize, String, u32)> {
-            let summary = #writer(
-                ::std::path::Path::new(input),
-                ::std::path::Path::new(output),
-            )
-            .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))?;
-            Ok((
-                summary.engine_id.to_string(),
-                summary.context_count,
-                summary.event_count,
-                summary.schema_digest,
-                summary.format_version,
-            ))
+            py: Python<'_>,
+            input: ::std::path::PathBuf,
+            output: ::std::path::PathBuf,
+        ) -> PyResult<Py<pyo3::types::PyDict>> {
+            let (engine_id, context_count, event_count, schema_digest, format_version) =
+                py.detach(move || {
+                    #writer(&input, &output)
+                        .map(|summary| (
+                            summary.engine_id.to_string(),
+                            summary.context_count,
+                            summary.event_count,
+                            summary.schema_digest,
+                            summary.format_version,
+                        ))
+                        .map_err(|error| error.to_string())
+                })
+                .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+            let summary = pyo3::types::PyDict::new(py);
+            summary.set_item("engine_id", engine_id)?;
+            summary.set_item("context_count", context_count)?;
+            summary.set_item("event_count", event_count)?;
+            summary.set_item("schema_digest", schema_digest)?;
+            summary.set_item("format_version", format_version)?;
+            Ok(summary.unbind())
         }
     }
 }

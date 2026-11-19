@@ -92,9 +92,19 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
         ));
     }
     if options.browser_bundle_writer.is_some() {
-        output.push_str(
-            "\ndef write_browser_bundle(\n    input: str,\n    output: str,\n) -> tuple[str, int, int, str, int]: ...\n",
-        );
+        output.push_str(concat!(
+            "\nclass BrowserBundleSummary(TypedDict):\n",
+            "    engine_id: str\n",
+            "    context_count: int\n",
+            "    event_count: int\n",
+            "    schema_digest: str\n",
+            "    format_version: int\n",
+            "\n",
+            "def write_browser_bundle(\n",
+            "    input: str | PathLike[str],\n",
+            "    output: str | PathLike[str],\n",
+            ") -> BrowserBundleSummary: ...\n",
+        ));
     }
 
     for record in schema.records() {

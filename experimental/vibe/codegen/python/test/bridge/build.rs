@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         },
         collector_server: true,
+        browser_bundle_writer: Some("crate::browser::generate_bundle".to_owned()),
         timestamped_methods: true,
         ..Default::default()
     };

@@ -25,7 +25,22 @@ fn generates_browser_bundle_writer_when_enabled() {
             .contains("wrap_pyfunction!(write_browser_bundle, module)")
     );
     let stubs = emit_stubs(&schema, &options).unwrap();
+    assert!(
+        stubs[0]
+            .content
+            .contains("class BrowserBundleSummary(TypedDict):")
+    );
+    assert!(
+        stubs[0]
+            .content
+            .contains("input: str | PathLike[str],")
+    );
     assert!(stubs[0].content.contains("def write_browser_bundle("));
+    assert!(
+        stubs[0]
+            .content
+            .contains(") -> BrowserBundleSummary: ...")
+    );
 }
 
 #[test]
