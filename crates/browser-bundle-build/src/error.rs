@@ -33,14 +33,6 @@ pub enum Error {
     /// The input contains no context directories (UUID-named subdirectories).
     #[error("no UUID context directories found under {}", root.display())]
     NoContexts { root: PathBuf },
-    /// Two context directories have names that parse to the same UUID (for example the
-    /// hyphenated and simple forms, or differing only in case).
-    #[error("context directories `{first_name}` and `{second_name}` are both UUID {context_id}")]
-    DuplicateContext {
-        context_id: Uuid,
-        first_name: String,
-        second_name: String,
-    },
     /// The recording's events could not be loaded.
     #[error("unable to load recorded events: {0}")]
     LoadEvents(#[from] quent_store::Error),

@@ -41,8 +41,9 @@ pub struct BuildOptions<'a> {
 pub struct GenerationSummary {
     pub engine_id: Uuid,
     /// Number of context directories included in the bundle: the immediate subdirectories of
-    /// the input root (the directory itself, or the ZIP's top level) whose names parse as
-    /// UUIDs. Every such directory is loaded, whether or not it contains events.
+    /// the input root (the directory itself, or the ZIP's top level) whose names are canonical,
+    /// lowercase, hyphenated UUIDs. Every such directory is loaded, whether or not it contains
+    /// events.
     pub context_count: usize,
     /// Total number of events written to the bundle payload, summed across all included
     /// contexts, including the engine events.
@@ -133,31 +134,19 @@ where
 }
 
 fn discover_context_ids(root: &Path) -> Result<Vec<Uuid>> {
-    // `Uuid::parse_str` accepts several spellings of one UUID, but the loader opens
-    // `<root>/<canonical UUID>`. Two spellings would load the same directory twice (or not at
-    // all), so reject them rather than guess which one is meant.
-    let mut contexts = std::collections::BTreeMap::<Uuid, String>::new();
+    let mut ids = Vec::new();
     for entry in std::fs::read_dir(root)? {
         let entry = entry?;
         if entry.file_type()?.is_dir()
             && let Some(name) = entry.file_name().to_str()
             && let Ok(id) = Uuid::parse_str(name)
-            && let Some(existing) = contexts.insert(id, name.to_owned())
+            && name == id.hyphenated().to_string()
         {
-            // `read_dir` order is unspecified; report the names in a stable order.
-            let (first_name, second_name) = if existing.as_str() <= name {
-                (existing, name.to_owned())
-            } else {
-                (name.to_owned(), existing)
-            };
-            return Err(Error::DuplicateContext {
-                context_id: id,
-                first_name,
-                second_name,
-            });
+            ids.push(id);
         }
     }
-    Ok(contexts.into_keys().collect())
+    ids.sort_unstable();
+    Ok(ids)
 }
 
 fn read_model_provenance(root: &Path, context_ids: &[Uuid]) -> Result<Option<serde_json::Value>> {
@@ -426,17 +415,20 @@ mod tests {
     }
 
     #[test]
-    fn rejects_context_directories_that_parse_to_the_same_uuid() {
+    fn ignores_noncanonical_context_directory_names() {
         let root = tempfile::tempdir().unwrap();
-        let id = Uuid::from_u128(1);
-        std::fs::create_dir(root.path().join(id.hyphenated().to_string())).unwrap();
-        std::fs::create_dir(root.path().join(id.simple().to_string())).unwrap();
+        let canonical = Uuid::from_u128(1);
+        let noncanonical = Uuid::from_u128(2);
+        let uppercase = Uuid::from_u128(0xabcdef);
+        std::fs::create_dir(root.path().join(canonical.hyphenated().to_string())).unwrap();
+        std::fs::create_dir(root.path().join(noncanonical.simple().to_string())).unwrap();
+        std::fs::create_dir(
+            root.path()
+                .join(uppercase.hyphenated().to_string().to_uppercase()),
+        )
+        .unwrap();
 
-        let error = discover_context_ids(root.path()).unwrap_err();
-        assert!(matches!(
-            error,
-            Error::DuplicateContext { context_id, .. } if context_id == id
-        ));
+        assert_eq!(discover_context_ids(root.path()).unwrap(), [canonical]);
     }
 
     #[test]
