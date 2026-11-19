@@ -7,7 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { RouterProvider, createHashHistory, createRouter } from '@tanstack/react-router';
 
-import { installSimulatorClient } from '../src/lib/simulatorClient';
+import { installBrowserAnalyzerClient } from '../src/lib/browserAnalyzerClient';
 import { queryClient } from '../src/lib/queryClient';
 import { routeTree } from '../src/routeTree.gen';
 
@@ -18,7 +18,10 @@ import '../src/index.css';
 const router = createRouter({ routeTree, history: createHashHistory() });
 
 async function start() {
-  await installSimulatorClient();
+  await installBrowserAnalyzerClient({
+    modulePath: 'analyzers/simulator/quent_simulator_wasm.js',
+    dataPath: 'traces/simulator-demo.quent-browser',
+  });
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>

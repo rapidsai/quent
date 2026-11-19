@@ -42,7 +42,7 @@ playwright-report/
 test-results/
 
 stats.html
-generated/simulator-wasm/
-generated/simulator-demo.postcard
+public/analyzers/
+public/traces/
 # For now ignore agents md, add official one later
 AGENTS.md

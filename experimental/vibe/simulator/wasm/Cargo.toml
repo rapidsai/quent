@@ -7,9 +7,9 @@ publish = false
 [features]
 generate = [
     "dep:quent-instrumentation",
+    "dep:quent-browser-bundle-build",
     "dep:quent-simulator",
     "dep:quent-simulator-instrumentation",
-    "dep:quent-store",
     "dep:tempfile",
     "quent-simulator-store/filesystem",
 ]
@@ -23,21 +23,23 @@ path = "src/bin/generate.rs"
 required-features = ["generate"]
 
 [dependencies]
-async-trait.workspace = true
 postcard.workspace = true
+quent-browser-bundle.workspace = true
+quent-browser-bundle-build = { workspace = true, optional = true }
 quent-events = { path = "../../../../crates/events", features = ["serde"] }
 quent-instrumentation = { path = "../../../../crates/instrumentation", optional = true }
 quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyzer" }
-quent-query-engine-ui = { path = "../../../../domains/query_engine/ui" }
+quent-query-engine-browser.workspace = true
 quent-simulator-analyzer = { path = "../analyzer", default-features = false }
 quent-simulator-instrumentation = { path = "../instrumentation", optional = true }
 quent-simulator-store = { path = "../store", default-features = false }
 quent-simulator = { path = "../application", optional = true }
-quent-store = { path = "../../../../crates/store", features = ["io-ndjson"], optional = true }
-quent-ui = { path = "../../../../crates/ui" }
-serde.workspace = true
-serde_json.workspace = true
-uuid = { workspace = true, features = ["js"] }
 wasm-bindgen = "=0.2.130"
 wasm-bindgen-futures = "=0.4.80"
 tempfile = { version = "3", optional = true }
+
+[dev-dependencies]
+uuid.workspace = true
+
+[build-dependencies]
+sha2 = "0.11"
