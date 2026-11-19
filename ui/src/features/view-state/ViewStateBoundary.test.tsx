@@ -13,6 +13,7 @@ import {
   useSetZoomRange,
   useZoomRange,
 } from '@quent/hooks';
+import { longEntityDensityAtom } from '@quent/hooks/testing';
 import { NVTX_SECTION_ID, toast, Toaster } from '@quent/components';
 import type { Operator } from '@quent/utils';
 import { render, screen, waitFor, userEvent } from '@/test/test-utils';
@@ -20,6 +21,7 @@ import { entitiesTableStateAtom, type EntitiesTableState } from '@/atoms/entitie
 import {
   expandedIdsAtom,
   pinnedIdsAtom,
+  pinnedPanelSizeAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
@@ -1026,5 +1028,42 @@ describe('ViewStateBoundary pinned rows', () => {
     const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
     const decoded = decodeViewState(encoded!);
     expect(decoded.ok && 'resources' in decoded.value.data).toBe(false);
+  });
+});
+
+describe('ViewStateBoundary restored state', () => {
+  function encodeState(): string {
+    const encoded = encodeViewState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 10, end: 20 }, longEntityDensity: 2 },
+      resources: { pinnedRowsPanelSize: 240 },
+    });
+    if (!encoded.ok) {
+      throw new Error('fixture failed to encode');
+    }
+    return encoded.value;
+  }
+
+  it('keeps later edits when the operators or duration change', () => {
+    const encodedState = encodeState();
+    const store = createStore();
+    const renderBoundary = (props: { operators: never[]; durationSeconds: number }) => (
+      <JotaiProvider store={store}>
+        <ViewStateBoundary {...BOUNDARY_PROPS} {...props} encodedState={encodedState}>
+          <div>content</div>
+        </ViewStateBoundary>
+      </JotaiProvider>
+    );
+
+    const view = render(renderBoundary({ operators: [], durationSeconds: 100 }));
+    expect(store.get(pinnedPanelSizeAtom)).toBe(240);
+    expect(store.get(longEntityDensityAtom)).toBe(2);
+
+    store.set(pinnedPanelSizeAtom, 111);
+    store.set(longEntityDensityAtom, 5);
+    view.rerender(renderBoundary({ operators: [], durationSeconds: 120 }));
+
+    expect(store.get(pinnedPanelSizeAtom)).toBe(111);
+    expect(store.get(longEntityDensityAtom)).toBe(5);
   });
 });

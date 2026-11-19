@@ -108,6 +108,7 @@ export function ViewStateBoundary({
     });
   const intakeRoute = useRef({ engineId, queryId, activeTab }).current;
   const [isHydrated, setIsHydrated] = useState(!encodedState);
+  const appliedState = useRef<{ encodedState: string | undefined } | null>(null);
 
   const intake = useMemo((): IntakeState => {
     if (!encodedState) {
@@ -203,9 +204,11 @@ export function ViewStateBoundary({
   }, [durationSeconds, encodedState, intakeRoute, isQueryReady, maxEncodedLength]);
 
   useLayoutEffect(() => {
-    if (!intake.isResolved) {
+    // Restore each state once, so later changes to operators or duration don't undo user edits.
+    if (!intake.isResolved || appliedState.current?.encodedState === encodedState) {
       return;
     }
+    appliedState.current = { encodedState };
     if (intake.initialZoomRange) {
       setZoomRange(intake.initialZoomRange);
       setDebouncedZoomRange(intake.initialZoomRange);
@@ -223,7 +226,6 @@ export function ViewStateBoundary({
         );
       }
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration-complete flag; cannot be derived during render
     setIsHydrated(true);
   }, [
     durationSeconds,
