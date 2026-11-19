@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { browserAnalyzerErrorReply, type BrowserAnalyzerWorkerRequest } from './browserAnalyzer';
+import {
+  BrowserAnalyzerError,
+  browserAnalyzerErrorReply,
+  type BrowserAnalyzerWorkerRequest,
+} from './browserAnalyzer';
 
 interface BrowserServer {
   listEngines(): Promise<string>;
@@ -26,8 +30,16 @@ self.onmessage = async ({ data }: MessageEvent<BrowserAnalyzerWorkerRequest>) =>
     if (data.type === 'init') {
       // The module URL is selected by the hosting application. Vite must leave
       // it dynamic so separately built model analyzers can be deployed beside
-      // the static UI without rebuilding Quent.
-      const module = (await import(/* @vite-ignore */ data.moduleUrl)) as BrowserAnalyzerModule;
+      // the static UI without rebuilding Quent. The worker runs on the UI
+      // origin, so it can enforce here that the module does too.
+      const moduleUrl = new URL(data.moduleUrl, self.location.href);
+      if (moduleUrl.origin !== self.location.origin) {
+        throw new BrowserAnalyzerError(
+          'invalid-request',
+          'browser analyzer modules must be hosted on the Quent UI origin'
+        );
+      }
+      const module = (await import(/* @vite-ignore */ moduleUrl.href)) as BrowserAnalyzerModule;
       await module.default();
       const response = await fetch(data.dataUrl);
       if (!response.ok) {
@@ -67,6 +79,11 @@ self.onmessage = async ({ data }: MessageEvent<BrowserAnalyzerWorkerRequest>) =>
       case 'entityList':
         response = await server.entities(data.engineId, JSON.stringify(data.request));
         break;
+      default:
+        throw new BrowserAnalyzerError(
+          'invalid-request',
+          `unknown operation: ${String((data as { operation?: unknown }).operation)}`
+        );
     }
     self.postMessage({ id: data.id, response });
   } catch (error) {
