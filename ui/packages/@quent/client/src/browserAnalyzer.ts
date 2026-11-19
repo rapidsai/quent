@@ -76,6 +76,9 @@ export class BrowserAnalyzerError extends Error {
 
 /** Convert a model-specific WASM exception into the shared worker error contract. */
 export function browserAnalyzerErrorReply(error: unknown): BrowserAnalyzerErrorReply {
+  if (error instanceof BrowserAnalyzerError) {
+    return { code: error.code, message: error.message };
+  }
   const message = String(error);
   if (message.includes('QUENT_INVALID_REQUEST:')) {
     return {

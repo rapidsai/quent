@@ -94,4 +94,10 @@ describe('createBrowserAnalyzerClient', () => {
       message: 'missing query',
     });
   });
+
+  it('passes an existing BrowserAnalyzerError through unchanged', () => {
+    expect(
+      browserAnalyzerErrorReply(new BrowserAnalyzerError('invalid-request', 'bad operation'))
+    ).toEqual({ code: 'invalid-request', message: 'bad operation' });
+  });
 });
