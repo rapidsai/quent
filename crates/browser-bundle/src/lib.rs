@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const MAGIC: &[u8; 8] = b"QNTBR001";
-const HEADER_LEN: usize = MAGIC.len() + 4 + 8 + 8;
+const CHECKSUM_OFFSET: usize = MAGIC.len() + 4 + 8;
+const CHECKSUM_END: usize = CHECKSUM_OFFSET + 8;
+const HEADER_LEN: usize = CHECKSUM_END;
 
 /// Current browser bundle envelope version.
 pub const FORMAT_VERSION: u32 = 1;
@@ -71,9 +73,11 @@ pub fn encode(metadata: &Metadata, payload: &[u8]) -> Result<Vec<u8>, Error> {
     bytes.extend_from_slice(MAGIC);
     bytes.extend_from_slice(&metadata_len.to_be_bytes());
     bytes.extend_from_slice(&payload_len.to_be_bytes());
-    bytes.extend_from_slice(&checksum(payload).to_be_bytes());
+    bytes.extend_from_slice(&[0; 8]);
     bytes.extend_from_slice(&metadata);
     bytes.extend_from_slice(payload);
+    let checksum = checksum([&bytes[..CHECKSUM_OFFSET], &bytes[CHECKSUM_END..]]);
+    bytes[CHECKSUM_OFFSET..CHECKSUM_END].copy_from_slice(&checksum.to_be_bytes());
     Ok(bytes)
 }
 
@@ -88,7 +92,8 @@ pub fn decode(bytes: &[u8]) -> Result<Bundle<'_>, Error> {
     let metadata_len = u32::from_be_bytes(bytes[8..12].try_into().unwrap()) as usize;
     let payload_len = usize::try_from(u64::from_be_bytes(bytes[12..20].try_into().unwrap()))
         .map_err(|_| Error::LengthOverflow)?;
-    let expected_checksum = u64::from_be_bytes(bytes[20..28].try_into().unwrap());
+    let expected_checksum =
+        u64::from_be_bytes(bytes[CHECKSUM_OFFSET..CHECKSUM_END].try_into().unwrap());
     let metadata_end = HEADER_LEN
         .checked_add(metadata_len)
         .ok_or(Error::LengthOverflow)?;
@@ -98,22 +103,25 @@ pub fn decode(bytes: &[u8]) -> Result<Bundle<'_>, Error> {
     if payload_end != bytes.len() {
         return Err(Error::InvalidLength);
     }
+    let payload = &bytes[metadata_end..payload_end];
+    if checksum([&bytes[..CHECKSUM_OFFSET], &bytes[CHECKSUM_END..]]) != expected_checksum {
+        return Err(Error::Checksum);
+    }
     let metadata: Metadata = serde_json::from_slice(&bytes[HEADER_LEN..metadata_end])?;
     if metadata.format_version != FORMAT_VERSION {
         return Err(Error::UnsupportedVersion(metadata.format_version));
-    }
-    let payload = &bytes[metadata_end..payload_end];
-    if checksum(payload) != expected_checksum {
-        return Err(Error::Checksum);
     }
     Ok(Bundle { metadata, payload })
 }
 
 // FNV-1a is an integrity check for accidental corruption, not authentication.
-fn checksum(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf29ce484222325, |hash, byte| {
-        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
-    })
+fn checksum<'a>(chunks: impl IntoIterator<Item = &'a [u8]>) -> u64 {
+    chunks
+        .into_iter()
+        .flatten()
+        .fold(0xcbf29ce484222325, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+        })
 }
 
 #[cfg(test)]
@@ -147,6 +155,17 @@ mod tests {
     fn rejects_corrupt_payload() {
         let mut bytes = encode(&metadata(), b"events").unwrap();
         *bytes.last_mut().unwrap() ^= 1;
+        assert!(matches!(decode(&bytes), Err(Error::Checksum)));
+    }
+
+    #[test]
+    fn rejects_corrupt_metadata() {
+        let mut bytes = encode(&metadata(), b"events").unwrap();
+        let engine_id = bytes
+            .windows(Uuid::nil().hyphenated().to_string().len())
+            .position(|window| window == Uuid::nil().hyphenated().to_string().as_bytes())
+            .unwrap();
+        bytes[engine_id] = b'1';
         assert!(matches!(decode(&bytes), Err(Error::Checksum)));
     }
 
