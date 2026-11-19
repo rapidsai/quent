@@ -80,8 +80,6 @@ self.onmessage = async ({ data }: MessageEvent<BrowserAnalyzerWorkerRequest>) =>
         response = await server.entities(data.engineId, JSON.stringify(data.request));
         break;
       default:
-        // The type says this is unreachable, but a client built against a
-        // newer protocol can still send an operation this worker predates.
         throw new BrowserAnalyzerError(
           'invalid-request',
           `unknown operation: ${String((data as { operation?: unknown }).operation)}`
