@@ -195,9 +195,9 @@ pnpm dlx shadcn@latest add dropdown-menu
 - `pnpm bindings` - Generate TypeScript bindings from Rust types
 - `pnpm build` - Build the `@quent` packages and application for production
 - `pnpm preview` - Preview production build
-- `pnpm lint` - Run ESLint
-- `pnpm lint:fix` - Fix ESLint errors and format code
-- `pnpm format` - Format code with Prettier
+- `pnpm lint` - Run Oxlint
+- `pnpm lint:fix` - Fix Oxlint errors
+- `pnpm format` - Format code with Oxfmt
 - `pnpm deep-link` - Create or decode versioned shareable links
 - `pnpm test:e2e` - Run Playwright end-to-end tests
 

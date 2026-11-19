@@ -22,8 +22,7 @@ fn build_ui() -> Result<(), Box<dyn std::error::Error>> {
         "package.json",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",
-        ".prettierrc",
-        ".prettierignore",
+        "scripts/format-bindings.ts",
         "tsconfig.base.json",
         "tsconfig.json",
         "tsconfig.node.json",
@@ -32,9 +31,9 @@ fn build_ui() -> Result<(), Box<dyn std::error::Error>> {
     ] {
         rerun_if_changed(&ui_dir.join(path));
     }
-    for package in ["client", "components", "hooks", "utils"] {
+    for package in ["client", "components", "hooks", "query-analysis", "utils"] {
         let package_dir = ui_dir.join("packages/@quent").join(package);
-        for path in ["src", "package.json", "tsconfig.json", "tsdown.config.ts"] {
+        for path in ["src", "package.json", "tsconfig.json", "vite.config.ts"] {
             rerun_if_changed(&package_dir.join(path));
         }
     }

@@ -4,9 +4,16 @@
 import { glob, readFile, writeFile } from 'node:fs/promises';
 import { format } from 'vite-plus/fmt';
 
-let fileCount = 0;
+const patterns = process.argv.slice(2);
+const fileNames = new Set<string>();
 
-for await (const fileName of glob('generated/ts-bindings/**/*.ts')) {
+for (const pattern of patterns.length > 0 ? patterns : ['generated/ts-bindings/**/*.ts']) {
+  for await (const fileName of glob(pattern)) {
+    fileNames.add(fileName);
+  }
+}
+
+for (const fileName of fileNames) {
   const sourceText = await readFile(fileName, 'utf8');
   const result = await format(fileName, sourceText, {
     semi: true,
@@ -28,9 +35,8 @@ for await (const fileName of glob('generated/ts-bindings/**/*.ts')) {
   if (result.code !== sourceText) {
     await writeFile(fileName, result.code);
   }
-  fileCount += 1;
 }
 
-if (fileCount === 0) {
+if (fileNames.size === 0) {
   throw new Error('No generated TypeScript bindings found');
 }

@@ -462,7 +462,7 @@ export default defineConfig({
     ],
     options: {
       typeAware: true,
-      typeCheck: true,
+      typeCheck: process.env.VP_LINT_ONLY !== '1',
     },
   },
   fmt: {
