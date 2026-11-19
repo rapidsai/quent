@@ -3,7 +3,11 @@
 
 //! Native construction of portable browser-analyzer bundles.
 
-use std::{collections::HashSet, io::Read, path::Path};
+use std::{
+    collections::HashSet,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use quent_browser_bundle::{Capabilities, FORMAT_VERSION, Metadata};
 use quent_events::{CombinedEventModel, Event, EventModel};
@@ -67,26 +71,32 @@ where
     M: EventModel + filesystem::Model,
     <M as CombinedEventModel>::CombinedEvent: serde::Serialize,
 {
+    let input_is_directory = input.is_dir();
     let extracted;
-    let root = if input.is_dir() {
-        input
+    let mut root = if input_is_directory {
+        input.to_path_buf()
     } else {
         extracted = tempfile::tempdir()?;
         extract_zip(input, extracted.path())?;
-        extracted.path()
+        extracted.path().to_path_buf()
     };
 
-    let context_ids = discover_context_ids(root)?;
+    let mut context_ids = discover_context_ids(&root)?;
+    if context_ids.is_empty()
+        && !input_is_directory
+        && let Some(nested) = single_top_level_directory(&root)?
+    {
+        root = nested;
+        context_ids = discover_context_ids(&root)?;
+    }
     if context_ids.is_empty() {
-        return Err(Error::NoContexts {
-            root: root.to_path_buf(),
-        });
+        return Err(Error::NoContexts { root });
     }
 
     let mut events = Vec::new();
     for context_id in &context_ids {
         events.extend(
-            filesystem::Loader::<M>::new(root, ContextSet::one(*context_id))
+            filesystem::Loader::<M>::new(&root, ContextSet::one(*context_id))
                 .combined_events()?
                 .collect::<std::result::Result<Vec<_>, quent_store::Error>>()?,
         );
@@ -100,7 +110,7 @@ where
         });
     }
     let engine_id = *engine_ids.iter().next().expect("one engine was validated");
-    let model_provenance = read_model_provenance(root, &context_ids)?;
+    let model_provenance = read_model_provenance(&root, &context_ids)?;
     let event_count = events.len();
     let payload = postcard::to_allocvec(&events)?;
     drop(events);
@@ -145,6 +155,17 @@ fn discover_context_ids(root: &Path) -> Result<Vec<Uuid>> {
     }
     ids.sort_unstable();
     Ok(ids)
+}
+
+fn single_top_level_directory(root: &Path) -> Result<Option<PathBuf>> {
+    let mut entries = std::fs::read_dir(root)?;
+    let Some(entry) = entries.next().transpose()? else {
+        return Ok(None);
+    };
+    if entries.next().transpose()?.is_some() || !entry.file_type()?.is_dir() {
+        return Ok(None);
+    }
+    Ok(Some(entry.path()))
 }
 
 fn read_model_provenance(root: &Path, context_ids: &[Uuid]) -> Result<Option<serde_json::Value>> {
@@ -439,5 +460,27 @@ mod tests {
         std::fs::write(root.path().join(Uuid::from_u128(3).to_string()), b"file").unwrap();
 
         assert_eq!(discover_context_ids(root.path()).unwrap(), [a, b]);
+    }
+
+    #[test]
+    fn discovers_contexts_below_single_top_level_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let context_id = Uuid::from_u128(1);
+        let trace = root.path().join("trace");
+        std::fs::create_dir(&trace).unwrap();
+        std::fs::create_dir(trace.join(context_id.to_string())).unwrap();
+
+        assert!(discover_context_ids(root.path()).unwrap().is_empty());
+        let nested = single_top_level_directory(root.path()).unwrap().unwrap();
+        assert_eq!(discover_context_ids(&nested).unwrap(), [context_id]);
+    }
+
+    #[test]
+    fn does_not_descend_when_top_level_is_ambiguous() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("trace")).unwrap();
+        std::fs::write(root.path().join("README"), b"metadata").unwrap();
+
+        assert!(single_top_level_directory(root.path()).unwrap().is_none());
     }
 }
