@@ -3,6 +3,8 @@
 
 //! Versioned envelope for model-specific browser analyzer recordings.
 
+use std::io::Write;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -59,26 +61,47 @@ pub enum Error {
     Checksum,
     #[error("browser bundle metadata is invalid: {0}")]
     Metadata(#[from] serde_json::Error),
+    #[error("unable to write browser bundle: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 /// Encode metadata and model-specific payload into a portable browser bundle.
 pub fn encode(metadata: &Metadata, payload: &[u8]) -> Result<Vec<u8>, Error> {
+    let (header, metadata) = encode_parts(metadata, payload)?;
+    let mut bytes = Vec::with_capacity(HEADER_LEN + metadata.len() + payload.len());
+    bytes.extend_from_slice(&header);
+    bytes.extend_from_slice(&metadata);
+    bytes.extend_from_slice(payload);
+    Ok(bytes)
+}
+
+/// Write metadata and model-specific payload as a portable browser bundle.
+pub fn encode_to_writer(
+    metadata: &Metadata,
+    payload: &[u8],
+    mut writer: impl Write,
+) -> Result<(), Error> {
+    let (header, metadata) = encode_parts(metadata, payload)?;
+    writer.write_all(&header)?;
+    writer.write_all(&metadata)?;
+    writer.write_all(payload)?;
+    Ok(())
+}
+
+fn encode_parts(metadata: &Metadata, payload: &[u8]) -> Result<([u8; HEADER_LEN], Vec<u8>), Error> {
     if metadata.format_version != FORMAT_VERSION {
         return Err(Error::UnsupportedVersion(metadata.format_version));
     }
     let metadata = serde_json::to_vec(metadata)?;
     let metadata_len = u32::try_from(metadata.len()).map_err(|_| Error::LengthOverflow)?;
     let payload_len = u64::try_from(payload.len()).map_err(|_| Error::LengthOverflow)?;
-    let mut bytes = Vec::with_capacity(HEADER_LEN + metadata.len() + payload.len());
-    bytes.extend_from_slice(MAGIC);
-    bytes.extend_from_slice(&metadata_len.to_be_bytes());
-    bytes.extend_from_slice(&payload_len.to_be_bytes());
-    bytes.extend_from_slice(&[0; 8]);
-    bytes.extend_from_slice(&metadata);
-    bytes.extend_from_slice(payload);
-    let checksum = checksum([&bytes[..CHECKSUM_OFFSET], &bytes[CHECKSUM_END..]]);
-    bytes[CHECKSUM_OFFSET..CHECKSUM_END].copy_from_slice(&checksum.to_be_bytes());
-    Ok(bytes)
+    let mut header = [0; HEADER_LEN];
+    header[..MAGIC.len()].copy_from_slice(MAGIC);
+    header[MAGIC.len()..MAGIC.len() + 4].copy_from_slice(&metadata_len.to_be_bytes());
+    header[MAGIC.len() + 4..CHECKSUM_OFFSET].copy_from_slice(&payload_len.to_be_bytes());
+    let checksum = checksum([&header[..CHECKSUM_OFFSET], &metadata, payload]);
+    header[CHECKSUM_OFFSET..CHECKSUM_END].copy_from_slice(&checksum.to_be_bytes());
+    Ok((header, metadata))
 }
 
 /// Decode and validate a browser bundle without copying its event payload.
@@ -149,6 +172,13 @@ mod tests {
         let bundle = decode(&bytes).unwrap();
         assert_eq!(bundle.metadata, metadata());
         assert_eq!(bundle.payload, b"events");
+    }
+
+    #[test]
+    fn writer_matches_in_memory_encoding() {
+        let mut bytes = Vec::new();
+        encode_to_writer(&metadata(), b"events", &mut bytes).unwrap();
+        assert_eq!(bytes, encode(&metadata(), b"events").unwrap());
     }
 
     #[test]

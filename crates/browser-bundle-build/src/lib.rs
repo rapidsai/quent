@@ -103,26 +103,24 @@ where
     let model_provenance = read_model_provenance(root, &context_ids)?;
     let event_count = events.len();
     let payload = postcard::to_allocvec(&events)?;
+    drop(events);
     let quent = quent_events::build_info::quent();
-    let bytes = quent_browser_bundle::encode(
-        &Metadata {
-            format_version: FORMAT_VERSION,
-            model_name: options.model_name.to_owned(),
-            schema_digest: options.schema_digest.to_owned(),
-            model_provenance,
-            analyzer_revision: options.analyzer_revision.to_owned(),
-            quent_revision: quent.commit.unwrap_or(quent.version),
-            codec: "postcard".into(),
-            engine_id,
-            context_ids: context_ids.clone(),
-            capabilities: options.capabilities.clone(),
-        },
-        &payload,
-    )?;
+    let metadata = Metadata {
+        format_version: FORMAT_VERSION,
+        model_name: options.model_name.to_owned(),
+        schema_digest: options.schema_digest.to_owned(),
+        model_provenance,
+        analyzer_revision: options.analyzer_revision.to_owned(),
+        quent_revision: quent.commit.unwrap_or(quent.version),
+        codec: "postcard".into(),
+        engine_id,
+        context_ids: context_ids.clone(),
+        capabilities: options.capabilities.clone(),
+    };
     if let Some(parent) = output.parent().filter(|path| !path.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(output, bytes)?;
+    quent_browser_bundle::encode_to_writer(&metadata, &payload, std::fs::File::create(output)?)?;
 
     Ok(GenerationSummary {
         engine_id,
