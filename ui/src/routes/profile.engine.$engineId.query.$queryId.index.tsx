@@ -11,7 +11,11 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/'
     // Reopen the query on the tab the user last left it on.
     const stored =
       search.s === undefined ? await applicationViewStateRepository.load(params) : null;
-    const decoded = stored ? decodeViewState(stored) : null;
+    const decoded = stored
+      ? decodeViewState(stored, {
+          maxEncodedLength: applicationViewStateRepository.maxEncodedLength,
+        })
+      : null;
     const route = decoded?.ok ? readViewStateFields(decoded.value).route : undefined;
     const tab =
       route?.engineId === params.engineId && route.queryId === params.queryId

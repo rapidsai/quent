@@ -13,6 +13,8 @@ export interface ViewStateScope {
 
 export interface EncodedViewStateSource {
   readonly id: string;
+  /** Largest encoded state this source holds. Defaults to the shared-link limit. */
+  readonly maxEncodedLength?: number;
   load(scope: ViewStateScope): Awaitable<string | null>;
 }
 

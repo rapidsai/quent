@@ -7,7 +7,12 @@ import type { ViewStateScope, EncodedViewStateSource } from './viewState.storage
 export type ResolvedViewState =
   | { status: 'idle'; encodedState: null; sourceId: null }
   | { status: 'loading'; encodedState: null; sourceId: null }
-  | { status: 'ready'; encodedState: string | null; sourceId: string | null }
+  | {
+      status: 'ready';
+      encodedState: string | null;
+      sourceId: string | null;
+      maxEncodedLength?: number;
+    }
   | { status: 'error'; encodedState: null; sourceId: string; error: unknown };
 
 interface UseResolvedViewStateOptions {
@@ -67,6 +72,7 @@ export function useResolvedViewState({
                 status: 'ready',
                 encodedState,
                 sourceId: source.id,
+                maxEncodedLength: source.maxEncodedLength,
                 resolutionKey: activeKey,
               });
             }

@@ -14,6 +14,8 @@ import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
 import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/resourceFilter';
 
 export const MAX_ENCODED_STATE_LENGTH = 4096;
+// Saved state never goes into a URL. It is bounded by the decompression limit instead.
+export const MAX_STORED_STATE_LENGTH = 128 * 1024;
 export const MAX_EXPANDED_RESOURCE_IDS = 500;
 export const MAX_SELECTED_NODE_IDS = 500;
 export const MAX_PINNED_ROW_IDS = 500;

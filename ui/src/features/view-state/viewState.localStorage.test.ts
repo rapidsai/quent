@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { beforeEach, describe, expect, it } from 'vitest';
+import { MAX_STORED_STATE_LENGTH } from './viewState.schema';
 import {
   clearViewStateFromLocalStorage,
   viewStateStorageKey,
@@ -31,6 +32,12 @@ describe('view-state local storage', () => {
 
   beforeEach(() => {
     storage = createStorage();
+  });
+
+  it('ignores stored state beyond the stored-state limit', () => {
+    const tooLarge = `v3.${'a'.repeat(MAX_STORED_STATE_LENGTH)}`;
+    writeViewStateToLocalStorage(storage, SCOPE, tooLarge);
+    expect(readViewStateFromLocalStorage(storage, SCOPE)).toBeNull();
   });
 
   it('round-trips encoded view state', () => {

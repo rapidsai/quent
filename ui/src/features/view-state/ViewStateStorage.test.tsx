@@ -6,6 +6,7 @@ import { Provider as JotaiProvider, createStore } from 'jotai';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render, waitFor } from '@/test/test-utils';
 import { expandedIdsAtom, pinnedCollapsedAtom, pinnedPanelSizeAtom } from '@/atoms/resourceTree';
+import { MAX_EXPANDED_RESOURCE_IDS } from './viewState.schema';
 import { ViewStateBoundary } from './ViewStateBoundary';
 import { ViewStatePersistence } from './ViewStatePersistence';
 import { decodeViewState, encodeViewState } from './viewState.codec';
@@ -79,7 +80,11 @@ function StorageHarness({
   }
 
   return (
-    <ViewStateBoundary {...PROPS} encodedState={resolution.encodedState ?? undefined}>
+    <ViewStateBoundary
+      {...PROPS}
+      encodedState={resolution.encodedState ?? undefined}
+      maxEncodedLength={resolution.maxEncodedLength}
+    >
       <ViewStatePersistence
         repository={repository}
         {...SCOPE}
@@ -142,6 +147,54 @@ describe('view-state storage mechanisms', () => {
     );
 
     await waitFor(() => expect(readViewStateFromLocalStorage(storage, SCOPE)).toBeNull());
+  });
+
+  it('removes the stored state when the current view can no longer be encoded', () => {
+    repository.save(SCOPE, encodedState());
+    const store = createStore();
+    // More expanded rows than the schema allows.
+    store.set(
+      expandedIdsAtom,
+      new Set(Array.from({ length: MAX_EXPANDED_RESOURCE_IDS + 1 }, (_, index) => `row-${index}`))
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <ViewStateBoundary {...PROPS}>
+          <ViewStatePersistence
+            repository={repository}
+            {...SCOPE}
+            tab="timeline"
+            restoring={false}
+          />
+        </ViewStateBoundary>
+      </JotaiProvider>
+    );
+
+    expect(readViewStateFromLocalStorage(storage, SCOPE)).not.toBeNull();
+    window.dispatchEvent(new Event('pagehide'));
+    expect(readViewStateFromLocalStorage(storage, SCOPE)).toBeNull();
+  });
+
+  it('keeps the stored state when the view is not ready to capture yet', () => {
+    const stored = encodedState();
+    repository.save(SCOPE, stored);
+
+    render(
+      <JotaiProvider store={createStore()}>
+        <ViewStateBoundary {...PROPS} activeTab={undefined}>
+          <ViewStatePersistence
+            repository={repository}
+            {...SCOPE}
+            tab="timeline"
+            restoring={false}
+          />
+        </ViewStateBoundary>
+      </JotaiProvider>
+    );
+
+    window.dispatchEvent(new Event('pagehide'));
+    expect(readViewStateFromLocalStorage(storage, SCOPE)).toBe(stored);
   });
 
   it('persists encoded state to local storage when the page closes', () => {

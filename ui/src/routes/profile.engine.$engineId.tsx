@@ -20,6 +20,7 @@ import {
   UrlViewState,
   applicationViewStateRepository,
   createUrlViewStateSource,
+  URL_VIEW_STATE_SOURCE_ID,
   type ViewStateScope,
   useResolvedViewState,
 } from '@/features/view-state';
@@ -134,10 +135,13 @@ function ProfileLayout() {
       defaultRootResourceType={defaultRootResourceType(queryBundle)}
       operators={operators}
       encodedState={resolvedState}
+      maxEncodedLength={
+        stateResolution.status === 'ready' ? stateResolution.maxEncodedLength : undefined
+      }
       isQueryReady={isQueryReady}
     >
       <div className="flex h-full min-w-0 flex-col">
-        <UrlViewState active={stateResolution.sourceId === 'url'} />
+        <UrlViewState active={stateResolution.sourceId === URL_VIEW_STATE_SOURCE_ID} />
         {activeTab && (
           <ViewStatePersistence
             repository={applicationViewStateRepository}

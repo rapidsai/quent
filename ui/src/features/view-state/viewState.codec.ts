@@ -18,6 +18,10 @@ export const VIEW_STATE_SEARCH_KEY = 's';
 export const MAX_VIEW_STATE_URL_LENGTH = 2048;
 export const MAX_DECOMPRESSED_STATE_LENGTH = 64 * 1024;
 
+export interface ViewStateCodecOptions {
+  maxEncodedLength?: number;
+}
+
 export type ViewStateErrorCode =
   | 'invalid-state'
   | 'invalid-encoding'
@@ -84,7 +88,10 @@ function base64UrlToBytes(value: string): Uint8Array | null {
   }
 }
 
-export function encodeViewState(state: ViewStateV3): ViewStateResult<string> {
+export function encodeViewState(
+  state: ViewStateV3,
+  { maxEncodedLength = MAX_ENCODED_STATE_LENGTH }: ViewStateCodecOptions = {}
+): ViewStateResult<string> {
   const parsed = ViewStateV3Schema.safeParse(state);
   if (!parsed.success) {
     return invalidState(parsed.error, 'The current shared view state is invalid.');
@@ -94,14 +101,17 @@ export function encodeViewState(state: ViewStateV3): ViewStateResult<string> {
   const compressed = gzipSync(strToU8(json), { level: 9, mtime: 0 });
   const encoded = `${CURRENT_VIEW_STATE_VERSION}.${bytesToBase64Url(compressed)}`;
 
-  if (encoded.length > MAX_ENCODED_STATE_LENGTH) {
+  if (encoded.length > maxEncodedLength) {
     return failure('payload-too-large', 'The encoded view state is too large.');
   }
   return { ok: true, value: encoded };
 }
 
-export function decodeViewState(encoded: string): ViewStateResult<VersionedViewState> {
-  if (encoded.length > MAX_ENCODED_STATE_LENGTH) {
+export function decodeViewState(
+  encoded: string,
+  { maxEncodedLength = MAX_ENCODED_STATE_LENGTH }: ViewStateCodecOptions = {}
+): ViewStateResult<VersionedViewState> {
+  if (encoded.length > maxEncodedLength) {
     return failure('payload-too-large', 'The view state exceeds the supported size.');
   }
 

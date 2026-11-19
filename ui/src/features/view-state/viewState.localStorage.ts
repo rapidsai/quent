@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { MAX_ENCODED_STATE_LENGTH } from './viewState.schema';
+import { MAX_STORED_STATE_LENGTH } from './viewState.schema';
 import { decodeViewState } from './viewState.codec';
 import { readViewStateFields } from './viewState.fields';
 import type { ViewStateScope, EncodedViewStateRepository } from './viewState.storage';
@@ -31,7 +31,7 @@ export function readViewStateFromLocalStorage(
     const value = storage.getItem(viewStateStorageKey(scope));
     if (
       value === null ||
-      value.length > MAX_ENCODED_STATE_LENGTH ||
+      value.length > MAX_STORED_STATE_LENGTH ||
       !/^v\d+\.[A-Za-z0-9_-]+$/u.test(value)
     ) {
       return null;
@@ -74,12 +74,13 @@ export function createLocalViewStateRepository(
 ): EncodedViewStateRepository {
   return {
     id: 'local-storage',
+    maxEncodedLength: MAX_STORED_STATE_LENGTH,
     load(scope) {
       const encodedState = readViewStateFromLocalStorage(getStorage(), scope);
       if (!encodedState) {
         return null;
       }
-      const decoded = decodeViewState(encodedState);
+      const decoded = decodeViewState(encodedState, { maxEncodedLength: MAX_STORED_STATE_LENGTH });
       const route = decoded.ok ? readViewStateFields(decoded.value).route : undefined;
       if (!route || route.engineId !== scope.engineId || route.queryId !== scope.queryId) {
         clearViewStateFromLocalStorage(getStorage(), scope);

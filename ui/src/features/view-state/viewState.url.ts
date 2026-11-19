@@ -3,9 +3,11 @@
 
 import type { EncodedViewStateSource } from './viewState.storage';
 
+export const URL_VIEW_STATE_SOURCE_ID = 'url';
+
 export function createUrlViewStateSource(encodedState: string | undefined): EncodedViewStateSource {
   return {
-    id: 'url',
+    id: URL_VIEW_STATE_SOURCE_ID,
     load: () => encodedState ?? null,
   };
 }

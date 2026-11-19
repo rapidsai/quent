@@ -6,7 +6,7 @@ export { ViewStateBoundary } from './ViewStateBoundary';
 export { ViewStatePersistence } from './ViewStatePersistence';
 export { UrlViewState } from './UrlViewState';
 export { applicationViewStateRepository } from './viewState.repository';
-export { createUrlViewStateSource } from './viewState.url';
+export { createUrlViewStateSource, URL_VIEW_STATE_SOURCE_ID } from './viewState.url';
 export { useViewState } from './viewState.context';
 export { useResolvedViewState } from './useResolvedViewState';
 export { validateViewStateSearch } from './viewState.schema';

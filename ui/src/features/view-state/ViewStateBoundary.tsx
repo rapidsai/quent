@@ -49,8 +49,9 @@ import {
   parseOptionalNumber,
   validateEntityFilters,
 } from '@/components/entities-table/utils';
-import { decodeViewState, encodeViewState } from './viewState.codec';
+import { decodeViewState, encodeViewState, type ViewStateCodecOptions } from './viewState.codec';
 import {
+  ENCODED_VIEW_STATE_FAILURE,
   ViewStateContext,
   type ViewStateContextValue,
   type ViewStateIntakeStatus,
@@ -75,11 +76,19 @@ interface ViewStateBoundaryProps {
   defaultRootResourceType?: string | null;
   operators: readonly Operator[];
   encodedState?: string;
+  /** Size limit of the source `encodedState` came from. Defaults to the shared-link limit. */
+  maxEncodedLength?: number;
   isQueryReady: boolean;
 }
 
 type CaptureStateResult =
-  { ok: true; value: ViewStateV3 } | { ok: false; message: string; messages: readonly string[] };
+  | { ok: true; value: ViewStateV3 }
+  | {
+      ok: false;
+      reason: typeof ENCODED_VIEW_STATE_FAILURE.UNAVAILABLE;
+      message: string;
+      messages: readonly string[];
+    };
 type ViewFailure = Extract<CaptureStateResult, { ok: false }>;
 
 type IntakeState = {
@@ -95,7 +104,12 @@ function hasKeys(value: object): boolean {
 }
 
 function captureFailure(message: string): ViewFailure {
-  return { ok: false, message, messages: [message] };
+  return {
+    ok: false,
+    reason: ENCODED_VIEW_STATE_FAILURE.UNAVAILABLE,
+    message,
+    messages: [message],
+  };
 }
 
 function isOperatorGroup(value: string): value is (typeof OperatorGroupSchema.options)[number] {
@@ -177,6 +191,7 @@ export function ViewStateBoundary({
   defaultRootResourceType = null,
   operators,
   encodedState,
+  maxEncodedLength,
   isQueryReady,
 }: ViewStateBoundaryProps) {
   useHydrateSelectedPlanId(initialPlanId);
@@ -213,7 +228,7 @@ export function ViewStateBoundary({
       };
     }
 
-    const decoded = decodeViewState(encodedState);
+    const decoded = decodeViewState(encodedState, { maxEncodedLength });
     if (!decoded.ok) {
       return {
         initialExpandedResourceIds: null,
@@ -284,7 +299,7 @@ export function ViewStateBoundary({
           } satisfies ViewStateIntakeStatus)
         : ({ kind: 'ready' } satisfies ViewStateIntakeStatus),
     };
-  }, [durationSeconds, encodedState, intakeRoute, isQueryReady]);
+  }, [durationSeconds, encodedState, intakeRoute, isQueryReady, maxEncodedLength]);
 
   useLayoutEffect(() => {
     if (!intake.isResolved) {
@@ -605,17 +620,25 @@ export function ViewStateBoundary({
     store,
   ]);
 
-  const captureEncodedState = useCallback((): EncodedViewStateResult => {
-    const captured = captureState();
-    if (!captured.ok) {
-      return captured;
-    }
-    const encoded = encodeViewState(captured.value);
-    if (!encoded.ok) {
-      return { ok: false, message: encoded.message, messages: encoded.messages };
-    }
-    return { ok: true, value: encoded.value };
-  }, [captureState]);
+  const captureEncodedState = useCallback(
+    (options?: ViewStateCodecOptions): EncodedViewStateResult => {
+      const captured = captureState();
+      if (!captured.ok) {
+        return captured;
+      }
+      const encoded = encodeViewState(captured.value, options);
+      if (!encoded.ok) {
+        return {
+          ok: false,
+          reason: ENCODED_VIEW_STATE_FAILURE.UNSAVEABLE,
+          message: encoded.message,
+          messages: encoded.messages,
+        };
+      }
+      return { ok: true, value: encoded.value };
+    },
+    [captureState]
+  );
 
   const value = useMemo<ViewStateContextValue>(
     () => ({

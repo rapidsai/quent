@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useMemo, useRef } from 'react';
-import { useViewState } from './viewState.context';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { ENCODED_VIEW_STATE_FAILURE, useViewState } from './viewState.context';
 import type { ViewStateTab } from './viewState.schema';
 import type { EncodedViewStateRepository } from './viewState.storage';
 
@@ -30,15 +30,19 @@ export function ViewStatePersistence({
     captureRef.current = viewState?.captureEncodedState;
   });
 
+  const removeStored = useCallback(() => {
+    try {
+      void Promise.resolve(repository.remove(scope)).catch(() => undefined);
+    } catch {
+      // A failed removal only leaves the old state available for the next visit.
+    }
+  }, [repository, scope]);
+
   useEffect(() => {
     if (restoring && viewState?.intakeStatus.kind === 'error') {
-      try {
-        void Promise.resolve(repository.remove(scope)).catch(() => undefined);
-      } catch {
-        // A failed removal only leaves the rejected state available for the next visit.
-      }
+      removeStored();
     }
-  }, [viewState?.intakeStatus, repository, restoring, scope]);
+  }, [viewState?.intakeStatus, restoring, removeStored]);
 
   useEffect(() => {
     if (!viewState) {
@@ -46,7 +50,13 @@ export function ViewStatePersistence({
     }
     lastStoredState.current = null;
     const flush = () => {
-      const captured = captureRef.current?.();
+      const captured = captureRef.current?.({ maxEncodedLength: repository.maxEncodedLength });
+      if (captured && !captured.ok && captured.reason === ENCODED_VIEW_STATE_FAILURE.UNSAVEABLE) {
+        // Leaving the old snapshot would restore a view the user has since changed.
+        lastStoredState.current = null;
+        removeStored();
+        return;
+      }
       if (!captured?.ok || captured.value === lastStoredState.current) {
         return;
       }
@@ -74,7 +84,7 @@ export function ViewStatePersistence({
       window.removeEventListener('pagehide', flush);
       flush();
     };
-  }, [viewState, repository, scope]);
+  }, [viewState, repository, scope, removeStored]);
 
   return null;
 }
