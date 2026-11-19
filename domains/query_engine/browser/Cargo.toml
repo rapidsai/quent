@@ -20,4 +20,5 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 uuid = { workspace = true, features = ["js"] }
-wasm-bindgen = { version = "0.2", optional = true }
+# Match `wasm-bindgen-cli` in pixi.toml. The export macro re-exports this crate.
+wasm-bindgen = { version = "=0.2.130", optional = true }

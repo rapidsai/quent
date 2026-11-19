@@ -87,6 +87,15 @@ describe('createBrowserAnalyzerClient', () => {
     });
     expect(
       browserAnalyzerErrorReply({
+        code: 'invalid-bundle',
+        message: 'truncated',
+      })
+    ).toEqual({
+      code: 'invalid-bundle',
+      message: 'truncated',
+    });
+    expect(
+      browserAnalyzerErrorReply({
         code: 'incompatible-bundle',
         message: 'schema mismatch',
       })

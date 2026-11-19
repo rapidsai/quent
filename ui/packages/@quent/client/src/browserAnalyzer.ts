@@ -54,7 +54,12 @@ export type BrowserAnalyzerWorkerMessage =
 export type BrowserAnalyzerWorkerRequest = BrowserAnalyzerWorkerMessage & { id: number };
 
 export type BrowserAnalyzerErrorCode =
-  'invalid-request' | 'not-found' | 'unsupported' | 'incompatible-bundle' | 'analyzer-failure';
+  | 'invalid-request'
+  | 'not-found'
+  | 'unsupported'
+  | 'invalid-bundle'
+  | 'incompatible-bundle'
+  | 'analyzer-failure';
 
 export interface BrowserAnalyzerErrorReply {
   code: BrowserAnalyzerErrorCode;
@@ -78,6 +83,7 @@ const browserAnalyzerErrorCodes: readonly BrowserAnalyzerErrorCode[] = [
   'invalid-request',
   'not-found',
   'unsupported',
+  'invalid-bundle',
   'incompatible-bundle',
   'analyzer-failure',
 ];

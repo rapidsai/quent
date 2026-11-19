@@ -3008,7 +3008,6 @@ dependencies = [
  "sha2",
  "tempfile",
  "uuid",
- "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
 
