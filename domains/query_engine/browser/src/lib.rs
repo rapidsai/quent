@@ -349,9 +349,9 @@ macro_rules! export_wasm_browser_server {
         #[wasm_bindgen(wasm_bindgen = $crate::__wasm_bindgen)]
         impl BrowserServer {
             #[wasm_bindgen(
-                                wasm_bindgen = $crate::__wasm_bindgen,
-                                constructor
-                            )]
+                                        wasm_bindgen = $crate::__wasm_bindgen,
+                                        constructor
+                                    )]
             pub fn new(bytes: &[u8]) -> Result<Self, $crate::__wasm_bindgen::JsValue> {
                 $loader(bytes)
                     .map(|inner| Self { inner })
