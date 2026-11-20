@@ -7,7 +7,7 @@ import type { Operator } from '@quent/utils';
 import type { PlanTree } from '@quent/utils';
 import type { OperatorActiveSpanEntry } from './types';
 import { parseCustomStatistics, parseOperatorAttributes } from '../lib/queryBundle.utils';
-import { stackIntervalsIntoRows } from '../gantt-chart/utils';
+import { stackIntervalsIntoRows } from '../ui/charts/ganttLayout';
 
 /** Row type identifier for synthetic operator-timeline rows in the resource tree. */
 export const OPERATOR_TIMELINE_ROW_TYPE = 'operator-timeline';

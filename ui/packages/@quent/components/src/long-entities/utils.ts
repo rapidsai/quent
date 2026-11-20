@@ -7,7 +7,7 @@ import {
   longEntitiesRowId,
   resourceIdFromLongEntitiesRowId,
 } from '@quent/utils';
-import { stackIntervalsIntoRows } from '../gantt-chart/utils';
+import { stackIntervalsIntoRows } from '../ui/charts/ganttLayout';
 import type { LongEntityEntry, LongEntitySegment } from './types';
 
 export { LONG_ENTITIES_ROW_TYPE, longEntitiesRowId, resourceIdFromLongEntitiesRowId };

@@ -27,10 +27,7 @@ import { QueryEntities, ResourceTree } from '@quent/utils';
 import { entityRefToEntitiesKey } from './queryBundle.utils';
 import { collectResourceTypesFromTree, getIconForType } from './resource.utils';
 import { EntityTypeValue, EntityRefKey, EntityTypeKey } from '@quent/utils';
-import type { EChartsInstance } from 'echarts-for-react';
 import { LONG_ENTITY_DENSITIES, type LongEntityDensity } from '@quent/hooks';
-import { connect } from './echarts';
-import { CHART_GROUP } from '../timeline/types';
 import { MAX_TIMELINE_BINS } from '@quent/utils';
 
 const LONG_ENTITY_DENSITY_MULTIPLIERS = [100, 10, 1, 0.1, 0.01] as const;
@@ -428,35 +425,6 @@ export function getTimelineXAxisIntervalMs(spanMs: number, targetSplits: number 
  * Pass `zoomPct = null` to skip seeding (e.g. when no zoom has been
  * established yet, like a 0-duration query).
  */
-export const connectChart = (
-  instance: EChartsInstance,
-  chartGroup: string = CHART_GROUP,
-  activateBrushSelect = true,
-  zoomPct: { start: number; end: number } | null = null
-) => {
-  // Apply current zoom to this chart without replacing its dataZoom components.
-  // setOption({ dataZoom: [zoomState] }) would replace the array and break slider/inside config.
-  if (zoomPct) {
-    instance.dispatchAction({
-      type: 'dataZoom',
-      dataZoomIndex: 0,
-      start: zoomPct.start,
-      end: zoomPct.end,
-    });
-  }
-
-  if (activateBrushSelect) {
-    instance.dispatchAction({
-      type: 'takeGlobalCursor',
-      key: 'dataZoomSelect',
-      dataZoomSelectActive: true,
-    });
-  }
-
-  instance.group = chartGroup;
-  connect(chartGroup);
-};
-
 // Helper function to lookup entity from QueryEntities
 const lookupEntity = (
   entities: QueryEntities,
@@ -632,33 +600,4 @@ export function collectVisibleEntries(
   return result;
 }
 
-/** Max stacked value across the active base or overlay bins in the visible window. */
-export function computeVisibleMaxValue(
-  series: TimelineSeries,
-  timestamps: number[],
-  zoomStartMs: number,
-  zoomEndMs: number
-): number | null {
-  const allEntries = Object.values(series);
-  const overlayEntries = allEntries.filter(e => e.isOverlay && !e.isDimmed);
-  const entries =
-    overlayEntries.length > 0
-      ? overlayEntries
-      : allEntries.filter(e => !e.isDimmed && !e.isOverlay);
-  if (!entries.length || !entries[0]?.values.length) {
-    return null;
-  }
-  let max = 0;
-  const binDurationMs = (entries[0]?.binDuration ?? 0) * 1_000;
-  for (let i = 0; i < entries[0].values.length; i++) {
-    const t = timestamps[i];
-    if (t === undefined || t + binDurationMs <= zoomStartMs || t >= zoomEndMs) {
-      continue;
-    }
-    const sum = entries.reduce((acc, e) => acc + (e.values[i] ?? 0), 0);
-    if (sum > max) {
-      max = sum;
-    }
-  }
-  return max > 0 ? max : null;
-}
+export { computeVisibleMaxValue } from '../ui/charts/timelineVisibleMax';

@@ -4,10 +4,10 @@
 import { act, renderHook } from '@testing-library/react';
 import type { EChartsType } from 'echarts';
 import { describe, expect, it, vi } from 'vitest';
-import { TIMELINE_SPACING } from '../timeline/types';
-import { useTimelineWheelNavigation } from './useTimelineWheelNavigation';
+import { useChartWheelNavigation } from './useChartWheelNavigation';
 
 const CHART_WIDTH = 1010;
+const CHART_PADDING = { left: 100, right: 10 };
 const ZOOM_MODIFIERS = [
   { name: 'Shift', init: { shiftKey: true } },
   { name: 'Ctrl', init: { ctrlKey: true } },
@@ -39,10 +39,10 @@ function createChart(dataZoom: { start: number; end: number }) {
   return { instance, dom, dispatchAction };
 }
 
-describe('useTimelineWheelNavigation', () => {
+describe('useChartWheelNavigation', () => {
   it('pans the visible range on horizontal wheel input', () => {
     const chart = createChart({ start: 25, end: 75 });
-    const { result } = renderHook(() => useTimelineWheelNavigation(10));
+    const { result } = renderHook(() => useChartWheelNavigation(10, CHART_PADDING));
     act(() => result.current(chart.instance));
 
     const event = new WheelEvent('wheel', {
@@ -53,7 +53,7 @@ describe('useTimelineWheelNavigation', () => {
     act(() => chart.dom.dispatchEvent(event));
 
     const spanPct = 50;
-    const usableWidth = CHART_WIDTH - TIMELINE_SPACING.left - TIMELINE_SPACING.right;
+    const usableWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
     const expectedStart = 25 + (event.deltaX / usableWidth) * spanPct;
     expect(event.defaultPrevented).toBe(true);
     expect(chart.dispatchAction).toHaveBeenCalledWith({
@@ -70,7 +70,7 @@ describe('useTimelineWheelNavigation', () => {
     wheelTarget.appendChild(chart.dom);
     const echartsWheel = vi.fn();
     chart.dom.addEventListener('wheel', echartsWheel);
-    const { result } = renderHook(() => useTimelineWheelNavigation(10));
+    const { result } = renderHook(() => useChartWheelNavigation(10, CHART_PADDING));
     act(() => result.current(chart.instance, wheelTarget));
 
     const event = new WheelEvent('wheel', {
@@ -82,7 +82,7 @@ describe('useTimelineWheelNavigation', () => {
     act(() => chart.dom.dispatchEvent(event));
 
     const spanPct = 50;
-    const usableWidth = CHART_WIDTH - TIMELINE_SPACING.left - TIMELINE_SPACING.right;
+    const usableWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
     const expectedStart = 25 + (event.deltaX / usableWidth) * spanPct;
     expect(echartsWheel).not.toHaveBeenCalled();
     expect(chart.dispatchAction).toHaveBeenCalledWith(
@@ -96,7 +96,7 @@ describe('useTimelineWheelNavigation', () => {
     wheelTarget.appendChild(chart.dom);
     const echartsWheel = vi.fn();
     chart.dom.addEventListener('wheel', echartsWheel);
-    const { result } = renderHook(() => useTimelineWheelNavigation(10));
+    const { result } = renderHook(() => useChartWheelNavigation(10, CHART_PADDING));
     act(() => result.current(chart.instance, wheelTarget));
 
     act(() => {
@@ -120,7 +120,7 @@ describe('useTimelineWheelNavigation', () => {
     wheelTarget.appendChild(chart.dom);
     const echartsWheel = vi.fn();
     chart.dom.addEventListener('wheel', echartsWheel);
-    const { result } = renderHook(() => useTimelineWheelNavigation(10));
+    const { result } = renderHook(() => useChartWheelNavigation(10, CHART_PADDING));
     act(() => result.current(chart.instance, wheelTarget));
 
     const event = new WheelEvent('wheel', {
@@ -145,7 +145,7 @@ describe('useTimelineWheelNavigation', () => {
       parent.addEventListener('wheel', parentWheel);
 
       const { result, rerender } = renderHook(
-        ({ minZoomSpanPct }) => useTimelineWheelNavigation(minZoomSpanPct),
+        ({ minZoomSpanPct }) => useChartWheelNavigation(minZoomSpanPct, CHART_PADDING),
         { initialProps: { minZoomSpanPct: 5 } }
       );
       act(() => result.current(chart.instance));
@@ -180,7 +180,7 @@ describe('useTimelineWheelNavigation', () => {
     { dataZoom: { start: 50, end: 100 }, deltaX: 100, expectedStart: 50 },
   ])('clamps panning at the range edge for $dataZoom', ({ dataZoom, deltaX, expectedStart }) => {
     const chart = createChart(dataZoom);
-    const { result } = renderHook(() => useTimelineWheelNavigation(10));
+    const { result } = renderHook(() => useChartWheelNavigation(10, CHART_PADDING));
     act(() => result.current(chart.instance));
 
     act(() => {
@@ -196,7 +196,7 @@ describe('useTimelineWheelNavigation', () => {
     const chart = createChart({ start: 25, end: 75 });
     const addSpy = vi.spyOn(chart.dom, 'addEventListener');
     const removeSpy = vi.spyOn(chart.dom, 'removeEventListener');
-    const { result } = renderHook(() => useTimelineWheelNavigation(10));
+    const { result } = renderHook(() => useChartWheelNavigation(10, CHART_PADDING));
 
     act(() => result.current(chart.instance));
     act(() => result.current(chart.instance));
@@ -215,7 +215,7 @@ describe('useTimelineWheelNavigation', () => {
 
   it('returns a cleanup function for removing the listener explicitly', () => {
     const chart = createChart({ start: 25, end: 75 });
-    const { result } = renderHook(() => useTimelineWheelNavigation(10));
+    const { result } = renderHook(() => useChartWheelNavigation(10, CHART_PADDING));
     const cleanup = result.current(chart.instance);
     cleanup();
 
@@ -230,7 +230,7 @@ describe('useTimelineWheelNavigation', () => {
 
   it('removes the wheel listener on unmount', () => {
     const chart = createChart({ start: 25, end: 75 });
-    const { result, unmount } = renderHook(() => useTimelineWheelNavigation(10));
+    const { result, unmount } = renderHook(() => useChartWheelNavigation(10, CHART_PADDING));
     act(() => result.current(chart.instance));
     unmount();
 

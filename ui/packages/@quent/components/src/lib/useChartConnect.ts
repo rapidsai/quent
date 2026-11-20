@@ -5,8 +5,9 @@ import { useCallback, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useGetZoomRange } from '@quent/hooks';
-import { connectChart } from './timeline.utils';
-import { useChartResize } from './useChartResize';
+import { CHART_GROUP } from '../timeline/types';
+import { connectChart } from '../ui/charts/connectChart';
+import { useChartResize } from '../ui/charts/useChartResize';
 
 export interface UseChartConnectOptions {
   /** Full query duration in seconds. Used to convert zoomRangeAtom seconds → percent. */
@@ -45,7 +46,7 @@ export interface UseChartConnectResult {
  */
 export function useChartConnect({
   durationSeconds,
-  chartGroup,
+  chartGroup = CHART_GROUP,
   activateBrushSelect = false,
   onReady,
 }: UseChartConnectOptions): UseChartConnectResult {

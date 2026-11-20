@@ -8,47 +8,10 @@ import type { AggMode, HoveredStatInfo } from '@quent/hooks';
 // are commonly imported alongside the table-specific types defined below.
 export type { AggMode, HoveredStatInfo } from '@quent/hooks';
 
-/**
- * Minimal row contract for GroupedDataTable: group columns (with rowSpan) + rowKey for identity.
- */
-export interface GroupedDataTableRowBase {
-  groupKeys: Array<{ key: string; id: string; label: string }>;
-  rowKey: string;
-}
-
-export interface GroupedDataTableSortInfo {
-  desc: boolean;
-}
-
-export interface GroupedDataTableGroupKeyEntry {
-  key: string;
-  id: string;
-  label: string;
-}
-
-// --- GroupedDataTable renderer component prop types ---
-
-export interface DataHeaderProps {
-  stat: string;
-  sortInfo: GroupedDataTableSortInfo | null;
-  onSort: () => void;
-  className?: string;
-  style?: React.CSSProperties;
-}
-
-export interface GroupCellProps<TRow extends GroupedDataTableRowBase> {
-  row: TRow;
-  groupKey: GroupedDataTableGroupKeyEntry;
-  rowSpan: number;
-  columnIndex: number;
-  style?: React.CSSProperties;
-  className?: string;
-}
-
-export interface DataCellProps<TRow extends GroupedDataTableRowBase> {
-  row: TRow;
-  stat: string;
-}
+import type {
+  GroupedDataTableGroupKeyEntry,
+  GroupedDataTableRowBase,
+} from '../ui/grouped-data-table/types';
 
 export interface PivotTableGroupCellHoverHandlers {
   onMouseEnter?: () => void;

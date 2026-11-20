@@ -3,16 +3,15 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { OnChangeFn, SortingState } from '@tanstack/react-table';
-import { GroupedDataTable } from './GroupedDataTable';
+import { GroupedDataTable } from '../ui/grouped-data-table/GroupedDataTable';
 import { cn, computeScaleRange, type ScaleRange, type StatValue } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
+import type { PivotTableInteractionConfig, PivotTableRenderConfig } from './types';
 import type {
   DataHeaderProps,
   GroupCellProps,
   DataCellProps,
-  PivotTableInteractionConfig,
-  PivotTableRenderConfig,
-} from './types';
+} from '../ui/grouped-data-table/types';
 import {
   buildPivotedRows,
   expandRowsFromSchema,
@@ -27,7 +26,7 @@ import type {
   GroupedDataTableColumnDef,
   GroupedDataTableGroupRenderMode,
   GroupedDataTableVirtualizationOptions,
-} from './GroupedDataTable';
+} from '../ui/grouped-data-table/GroupedDataTable';
 import { useNodeColorPalette, useColumnDragDrop, useSelectedScaleType } from '@quent/hooks';
 import {
   PivotTableRenderProvider,

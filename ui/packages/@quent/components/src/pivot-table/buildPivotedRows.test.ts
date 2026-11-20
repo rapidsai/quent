@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
-import { buildPivotedRows, computeRowSpans, type GroupIndexDef } from './utils';
+import { buildPivotedRows, type GroupIndexDef } from './utils';
+import { computeRowSpans } from '../ui/grouped-data-table/rowSpans';
 import type { StatGroupExpandedRow } from './types';
 
 function expanded(

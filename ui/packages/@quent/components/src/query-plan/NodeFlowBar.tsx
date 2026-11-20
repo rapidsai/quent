@@ -17,7 +17,7 @@ import {
   FLOW_BAR_TRACK_GAP,
   FLOW_BAR_LABEL_HEIGHT,
 } from '../dag/layout';
-import { SegmentedBar } from '../segmented-bar/SegmentedBar';
+import { SegmentedBar } from '../ui/segmented-bar/SegmentedBar';
 
 const BAR_TRANSITION = 'width 120ms linear';
 

@@ -3,7 +3,7 @@
 
 import { useCallback, useMemo } from 'react';
 
-import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
+import { useTimelineEchartsTheme } from '../ui/charts/timelineTheme';
 import {
   useSelectedOperatorIds,
   useOperatorSelection,
@@ -25,8 +25,8 @@ import {
 } from '@quent/utils';
 import type { OperatorActiveSpanEntry } from './types';
 import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
-import type { GanttHover } from '../gantt-chart/hover';
-import { layoutGanttBar } from '../gantt-chart/utils';
+import type { GanttHover } from '../ui/charts/ganttHover';
+import { layoutGanttBar } from '../ui/charts/ganttLayout';
 import { getOperatorsAtTimestamp } from './utils';
 import { EmptyState } from '../ui/empty-state';
 import { GanttTooltipPortal, type GanttTooltipItem } from '../gantt-chart/GanttTooltip';
