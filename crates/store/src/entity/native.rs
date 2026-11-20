@@ -25,8 +25,85 @@ pub struct EntityMap<E: EntityMarker, T> {
     marker: PhantomData<fn() -> E>,
 }
 
-/// Stores indexed entity event sequences in memory.
-pub type NativeStore<E> = EntityMap<E, NativeEntity<E>>;
+impl<E: EntityMarker, T> Default for EntityMap<E, T> {
+    fn default() -> Self {
+        Self {
+            entities: HashMap::default(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<E: EntityMarker, T> FromIterator<(Id<E>, T)> for EntityMap<E, T> {
+    fn from_iter<I: IntoIterator<Item = (Id<E>, T)>>(iter: I) -> Self {
+        Self {
+            entities: iter
+                .into_iter()
+                .map(|(id, entity)| (id.uuid(), entity))
+                .collect(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<E: EntityMarker, T> EntityMap<E, T> {
+    /// Returns the number of stored entities.
+    pub fn len(&self) -> usize {
+        self.entities.len()
+    }
+
+    /// Returns whether the map contains no entities.
+    pub fn is_empty(&self) -> bool {
+        self.entities.is_empty()
+    }
+
+    /// Borrows the entity at the given typed lookup key.
+    pub fn get(&self, id: impl Into<Id<E>>) -> Option<&T> {
+        self.entities.get(&id.into().uuid())
+    }
+
+    /// Mutably borrows the entity at the given typed lookup key.
+    pub fn get_mut(&mut self, id: impl Into<Id<E>>) -> Option<&mut T> {
+        self.entities.get_mut(&id.into().uuid())
+    }
+
+    /// Returns whether the typed lookup key exists.
+    pub fn contains_key(&self, id: impl Into<Id<E>>) -> bool {
+        self.entities.contains_key(&id.into().uuid())
+    }
+
+    /// Inserts an entity, returning the previous value at its typed lookup key.
+    pub fn insert(&mut self, id: impl Into<Id<E>>, entity: T) -> Option<T> {
+        self.entities.insert(id.into().uuid(), entity)
+    }
+
+    /// Borrows all entities in unspecified order.
+    pub fn values(&self) -> impl ExactSizeIterator<Item = &T> {
+        self.entities.values()
+    }
+
+    /// Borrows all entries with typed lookup keys in unspecified order.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (Id<E>, &T)> {
+        self.entities
+            .iter()
+            .map(|(&id, entity)| (Id::new(id), entity))
+    }
+
+    /// Transforms values while preserving their typed lookup keys.
+    pub fn map_entities<U>(self, mut map: impl FnMut(T) -> U) -> EntityMap<E, U> {
+        EntityMap {
+            entities: self
+                .entities
+                .into_iter()
+                .map(|(id, entity)| (id, map(entity)))
+                .collect(),
+            marker: PhantomData,
+        }
+    }
+}
+
+/// Stores entities in native memory, using indexed event sequences by default.
+pub type NativeStore<E, T = NativeEntity<E>> = EntityMap<E, T>;
 
 impl<E: NativeEntityMarker> NativeStore<E> {
     /// Groups events by UUID, orders each sequence by timestamp, and indexes it.
@@ -63,29 +140,56 @@ impl<E: NativeEntityMarker> NativeStore<E> {
     fn from_event_results<F: From<Error>>(
         events: impl IntoIterator<Item = Result<Event<E::Payload>, F>>,
     ) -> Result<Self, F> {
-        let mut entities: HashMap<Uuid, OrderedCollector<Timestamped<E::Payload>>> =
-            HashMap::default();
+        let mut builder = NativeStoreBuilder::<E>::default();
         for event in events {
-            let Event {
-                id,
-                timestamp,
-                data,
-            } = event?;
-            entities
-                .entry(id)
-                .or_default()
-                .push(Timestamped::new(timestamp, data));
+            builder.push(event?);
         }
-        let entities = entities
+        builder.try_build().map_err(F::from)
+    }
+}
+
+/// Collects entity events in stable timestamp order before indexing them.
+pub struct NativeStoreBuilder<E: NativeEntityMarker> {
+    entities: HashMap<Uuid, OrderedCollector<Timestamped<E::Payload>>>,
+}
+
+impl<E: NativeEntityMarker> Default for NativeStoreBuilder<E> {
+    fn default() -> Self {
+        Self {
+            entities: HashMap::default(),
+        }
+    }
+}
+
+impl<E: NativeEntityMarker> NativeStoreBuilder<E> {
+    /// Adds an event, retaining arrival order among equal timestamps.
+    pub fn push(&mut self, event: Event<E::Payload>) {
+        let Event {
+            id,
+            timestamp,
+            data,
+        } = event;
+        self.entities
+            .entry(id)
+            .or_default()
+            .push(Timestamped::new(timestamp, data));
+    }
+
+    /// Indexes the collected sequences and returns their store.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first indexing error, including duplicate once-events.
+    pub fn try_build(self) -> Result<NativeStore<E>, Error> {
+        let entities = self
+            .entities
             .into_iter()
             .map(|(id, events)| {
-                let sequence = EventSequence::try_from_ordered(id, events).map_err(F::from)?;
-                NativeEntity::try_from(sequence)
-                    .map(|entity| (id, entity))
-                    .map_err(F::from)
+                let sequence = EventSequence::try_from_ordered(id, events)?;
+                NativeEntity::try_from(sequence).map(|entity| (id, entity))
             })
             .collect::<Result<_, _>>()?;
-        Ok(Self {
+        Ok(EntityMap {
             entities,
             marker: PhantomData,
         })

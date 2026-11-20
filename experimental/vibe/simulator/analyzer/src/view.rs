@@ -44,6 +44,7 @@ impl<'a> SimulatorModelQueryView<'a> {
         model: &'a SimulatorModel,
         query_id: Uuid,
     ) -> AnalyzerResult<SimulatorModelQueryView<'a>> {
+        let engine = model.engine()?;
         let query = model.query(query_id)?;
         let workers: HashMap<Uuid, &Worker> = model
             .query_workers(query_id)?
@@ -61,7 +62,7 @@ impl<'a> SimulatorModelQueryView<'a> {
             .operators_ports(operators.values().copied())?
             .map(|entity| (entity.id(), entity))
             .collect();
-        let query_engine_group_ids: HashSet<Uuid> = std::iter::once(model.engine.id())
+        let query_engine_group_ids: HashSet<Uuid> = std::iter::once(engine.id())
             .chain(std::iter::once(query.id()))
             .chain(workers.keys().copied())
             .chain(plans.keys().copied())
@@ -77,7 +78,7 @@ impl<'a> SimulatorModelQueryView<'a> {
                     .parent_id()
                     .is_some_and(|parent| query_engine_group_ids.contains(&parent))
             })
-            .map(|(id, entity)| (*id, entity))
+            .map(|(id, entity)| (id.uuid(), entity))
             .collect::<HashMap<_, _>>();
         let networks = model
             .networks
@@ -87,7 +88,7 @@ impl<'a> SimulatorModelQueryView<'a> {
                     .parent_id()
                     .is_some_and(|parent| query_engine_group_ids.contains(&parent))
             })
-            .map(|(id, entity)| (*id, entity))
+            .map(|(id, entity)| (id.uuid(), entity))
             .collect::<HashMap<_, _>>();
         let gpus = model
             .gpus
@@ -97,7 +98,7 @@ impl<'a> SimulatorModelQueryView<'a> {
                     .parent_id()
                     .is_some_and(|parent| query_engine_group_ids.contains(&parent))
             })
-            .map(|(id, entity)| (*id, entity))
+            .map(|(id, entity)| (id.uuid(), entity))
             .collect::<HashMap<_, _>>();
 
         let resources = model
@@ -132,7 +133,7 @@ impl<'a> SimulatorModelQueryView<'a> {
                     .is_some_and(|operator_id| operators.contains_key(&operator_id))
             })
             .collect();
-        let scoped_entity_ids = std::iter::once(model.engine.id())
+        let scoped_entity_ids = std::iter::once(engine.id())
             .chain(std::iter::once(query.id()))
             .chain(workers.keys().copied())
             .chain(plans.keys().copied())
@@ -149,7 +150,7 @@ impl<'a> SimulatorModelQueryView<'a> {
 
         Ok(SimulatorModelQueryView {
             resource_types,
-            engine: &model.engine,
+            engine,
             query,
             workers,
             plans,
