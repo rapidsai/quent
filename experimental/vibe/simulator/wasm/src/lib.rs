@@ -18,23 +18,21 @@ pub const MODEL_NAME: &str = "quent-simulator";
 pub const SCHEMA_DIGEST: &str = env!("QUENT_SIMULATOR_SCHEMA_DIGEST");
 
 fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyzer>, BrowserError> {
-    let bundle = quent_browser_bundle::decode(bytes).map_err(|error| {
-        BrowserError::failure(format!("unable to decode browser bundle: {error}"))
-    })?;
+    let bundle = quent_browser_bundle::decode(bytes).map_err(bundle_decode_error)?;
     if bundle.metadata.model_name != MODEL_NAME {
-        return Err(BrowserError::failure(format!(
+        return Err(BrowserError::incompatible_bundle(format!(
             "browser bundle model mismatch: expected {MODEL_NAME}, got {}",
             bundle.metadata.model_name
         )));
     }
     if bundle.metadata.codec != "postcard" {
-        return Err(BrowserError::failure(format!(
+        return Err(BrowserError::incompatible_bundle(format!(
             "unsupported simulator event codec: {}",
             bundle.metadata.codec
         )));
     }
     if bundle.metadata.schema_digest != SCHEMA_DIGEST {
-        return Err(BrowserError::failure(format!(
+        return Err(BrowserError::incompatible_bundle(format!(
             "browser bundle schema mismatch: expected {SCHEMA_DIGEST}, got {}",
             bundle.metadata.schema_digest
         )));
@@ -42,21 +40,21 @@ fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyz
 
     let events: Vec<Event<SimulatorEvent>> =
         postcard::from_bytes(bundle.payload).map_err(|error| {
-            BrowserError::failure(format!("unable to decode simulator events: {error}"))
+            BrowserError::invalid_bundle(format!("unable to decode simulator events: {error}"))
         })?;
     let engine_ids = events
         .iter()
         .filter_map(|event| matches!(event.data, SimulatorEvent::Engine(_)).then_some(event.id))
         .collect::<HashSet<_>>();
     if engine_ids.len() != 1 {
-        return Err(BrowserError::failure(format!(
+        return Err(BrowserError::invalid_bundle(format!(
             "expected exactly one simulator engine, found {}",
             engine_ids.len()
         )));
     }
     let engine_id = *engine_ids.iter().next().expect("one engine was validated");
     if engine_id != bundle.metadata.engine_id {
-        return Err(BrowserError::failure(
+        return Err(BrowserError::invalid_bundle(
             "browser bundle engine ID does not match its events",
         ));
     }
@@ -67,6 +65,22 @@ fn load_browser_service(bytes: &[u8]) -> Result<BrowserService<SimulatorUiAnalyz
         engine_id,
         bundle.metadata.context_ids,
     ))
+}
+
+fn bundle_decode_error(error: quent_browser_bundle::Error) -> BrowserError {
+    let message = format!("unable to decode browser bundle: {error}");
+    match error {
+        quent_browser_bundle::Error::UnsupportedVersion(_) => {
+            BrowserError::incompatible_bundle(message)
+        }
+        quent_browser_bundle::Error::Io(_) => BrowserError::failure(message),
+        quent_browser_bundle::Error::Truncated
+        | quent_browser_bundle::Error::InvalidMagic
+        | quent_browser_bundle::Error::LengthOverflow
+        | quent_browser_bundle::Error::InvalidLength
+        | quent_browser_bundle::Error::Checksum
+        | quent_browser_bundle::Error::Metadata(_) => BrowserError::invalid_bundle(message),
+    }
 }
 
 quent_query_engine_browser::export_wasm_browser_server!(SimulatorUiAnalyzer, load_browser_service);
@@ -103,6 +117,7 @@ mod tests {
         let error = load_browser_service(&bundle_with_digest("some-other-schema"))
             .err()
             .unwrap();
+        assert_eq!(error.code(), "incompatible-bundle");
         assert!(error.to_string().contains("schema mismatch"), "{error}");
     }
 
@@ -111,11 +126,19 @@ mod tests {
         let error = load_browser_service(&bundle_with_digest(SCHEMA_DIGEST))
             .err()
             .unwrap();
+        assert_eq!(error.code(), "invalid-bundle");
         assert!(
             error
                 .to_string()
                 .contains("unable to decode simulator events"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn rejects_truncated_bundle() {
+        let error = load_browser_service(&[0, 1, 2]).err().unwrap();
+        assert_eq!(error.code(), "invalid-bundle");
+        assert!(error.to_string().contains("truncated"), "{error}");
     }
 }

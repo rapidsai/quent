@@ -54,7 +54,12 @@ export type BrowserAnalyzerWorkerMessage =
 export type BrowserAnalyzerWorkerRequest = BrowserAnalyzerWorkerMessage & { id: number };
 
 export type BrowserAnalyzerErrorCode =
-  'invalid-request' | 'not-found' | 'unsupported' | 'analyzer-failure';
+  | 'invalid-request'
+  | 'not-found'
+  | 'unsupported'
+  | 'invalid-bundle'
+  | 'incompatible-bundle'
+  | 'analyzer-failure';
 
 export interface BrowserAnalyzerErrorReply {
   code: BrowserAnalyzerErrorCode;
@@ -74,25 +79,34 @@ export class BrowserAnalyzerError extends Error {
   }
 }
 
-/** Convert a model-specific WASM exception into the shared worker error contract. */
+const browserAnalyzerErrorCodes: readonly BrowserAnalyzerErrorCode[] = [
+  'invalid-request',
+  'not-found',
+  'unsupported',
+  'invalid-bundle',
+  'incompatible-bundle',
+  'analyzer-failure',
+];
+
+/** Validate a structured WASM exception or classify an untyped worker failure. */
 export function browserAnalyzerErrorReply(error: unknown): BrowserAnalyzerErrorReply {
   if (error instanceof BrowserAnalyzerError) {
     return { code: error.code, message: error.message };
   }
-  const message = String(error);
-  if (message.includes('QUENT_INVALID_REQUEST:')) {
-    return {
-      code: 'invalid-request',
-      message: message.split('QUENT_INVALID_REQUEST:', 2)[1] ?? message,
-    };
+  if (typeof error === 'object' && error !== null) {
+    const candidate = error as Partial<BrowserAnalyzerErrorReply>;
+    if (
+      typeof candidate.code === 'string' &&
+      browserAnalyzerErrorCodes.includes(candidate.code as BrowserAnalyzerErrorCode) &&
+      typeof candidate.message === 'string'
+    ) {
+      return {
+        code: candidate.code as BrowserAnalyzerErrorCode,
+        message: candidate.message,
+      };
+    }
   }
-  if (message.includes('QUENT_UNSUPPORTED:')) {
-    return { code: 'unsupported', message: message.split('QUENT_UNSUPPORTED:', 2)[1] ?? message };
-  }
-  if (message.includes('QUENT_NOT_FOUND:')) {
-    return { code: 'not-found', message: message.split('QUENT_NOT_FOUND:', 2)[1] ?? message };
-  }
-  return { code: 'analyzer-failure', message };
+  return { code: 'analyzer-failure', message: String(error) };
 }
 
 type WorkerPort = Pick<
