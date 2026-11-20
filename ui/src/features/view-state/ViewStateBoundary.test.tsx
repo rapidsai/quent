@@ -13,6 +13,7 @@ import {
   useSetZoomRange,
   useZoomRange,
 } from '@quent/hooks';
+import { longEntityDensityAtom } from '@quent/hooks/testing';
 import { NVTX_SECTION_ID, toast, Toaster } from '@quent/components';
 import type { Operator } from '@quent/utils';
 import { render, screen, waitFor, userEvent } from '@/test/test-utils';
@@ -20,6 +21,7 @@ import { entitiesTableStateAtom, type EntitiesTableState } from '@/atoms/entitie
 import {
   expandedIdsAtom,
   pinnedIdsAtom,
+  pinnedPanelSizeAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
@@ -34,10 +36,11 @@ import {
   OPERATOR_TABLE_PERSIST_KEY,
 } from '@/components/operator-table/types';
 import { CopyLinkButton } from './CopyLinkButton';
-import { DeepLinkBoundary } from './DeepLinkBoundary';
-import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
-import { useDeepLink } from './deepLink.context';
-import { MAX_EXPANDED_RESOURCE_IDS, MAX_SELECTED_NODE_IDS } from './deepLink.schema';
+import { ViewStateBoundary } from './ViewStateBoundary';
+import { UrlViewState } from './UrlViewState';
+import { decodeViewState, encodeViewState } from './viewState.codec';
+import { useViewState } from './viewState.context';
+import { MAX_EXPANDED_RESOURCE_IDS, MAX_SELECTED_NODE_IDS } from './viewState.schema';
 
 const BOUNDARY_PROPS = {
   engineId: 'e',
@@ -61,7 +64,7 @@ function encodeRawState(value: unknown): string {
   return `v3.${btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')}`;
 }
 
-const DEEP_LINK_OPERATORS: Operator[] = [
+const VIEW_STATE_OPERATORS: Operator[] = [
   {
     id: 'operator-a',
     plan_id: null,
@@ -91,8 +94,8 @@ function ViewportProbe() {
 }
 
 function IntakeStatusProbe() {
-  const deepLink = useDeepLink();
-  return <output data-testid="intake-status">{deepLink?.intakeStatus.kind}</output>;
+  const viewState = useViewState();
+  return <output data-testid="intake-status">{viewState?.intakeStatus.kind}</output>;
 }
 
 function InitialEntitiesProbe() {
@@ -234,13 +237,13 @@ function HydrateTimelineDuringRender() {
   return null;
 }
 
-describe('DeepLinkBoundary', () => {
+describe('ViewStateBoundary', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it('hydrates timeline viewport and expanded rows before rendering children', () => {
-    const encoded = encodeDeepLinkState({
+    const encoded = encodeViewState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
       timeline: { zoomRange: { start: 10, end: 40 } },
       resources: { expandedRowIds: [RESOURCE_B_ID, RESOURCE_A_ID] },
@@ -252,10 +255,10 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
+        <ViewStateBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
           <ViewportProbe />
           <ExpandedRowsProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -271,7 +274,7 @@ describe('DeepLinkBoundary', () => {
   });
 
   it('removes consumed shared state from the address bar', () => {
-    const encoded = encodeDeepLinkState({
+    const encoded = encodeViewState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
       timeline: { zoomRange: { start: 10, end: 40 } },
     });
@@ -287,9 +290,10 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
+        <ViewStateBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
+          <UrlViewState active />
           <ViewportProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -300,12 +304,12 @@ describe('DeepLinkBoundary', () => {
   it('hydrates a legacy v1 viewport without version-specific branching', () => {
     render(
       <JotaiProvider>
-        <DeepLinkBoundary
+        <ViewStateBoundary
           {...BOUNDARY_PROPS}
           encodedState="v1.H4sIAAAAAAACA6tWqsrPzw1KzEtPVbKqViouSSwqUbIy0FFKzUsB0nomBua1tQAidcVYJQAAAA"
         >
           <ViewportProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -318,7 +322,7 @@ describe('DeepLinkBoundary', () => {
   });
 
   it('hydrates comprehensive view state before rendering children', () => {
-    const encoded = encodeDeepLinkState({
+    const encoded = encodeViewState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
       timeline: { zoomRange: { start: 10, end: 40 } },
       selection: {
@@ -369,15 +373,15 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary
+        <ViewStateBoundary
           {...BOUNDARY_PROPS}
           initialPlanId="root-plan"
-          operators={DEEP_LINK_OPERATORS}
+          operators={VIEW_STATE_OPERATORS}
           encodedState={encoded.value}
         >
           <SerializableStateProbe />
           <OperatorSelectionProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -455,13 +459,13 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary
+        <ViewStateBoundary
           {...BOUNDARY_PROPS}
-          operators={DEEP_LINK_OPERATORS}
+          operators={VIEW_STATE_OPERATORS}
           encodedState={encoded}
         >
           <SerializableStateProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -473,7 +477,7 @@ describe('DeepLinkBoundary', () => {
   });
 
   it('clears an existing resource filter when shared state omits resources', () => {
-    const encoded = encodeDeepLinkState({
+    const encoded = encodeViewState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
       timeline: { zoomRange: { start: 10, end: 40 } },
     });
@@ -491,9 +495,9 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider store={store}>
-        <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
+        <ViewStateBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
           <SerializableStateProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -512,7 +516,7 @@ describe('DeepLinkBoundary', () => {
       page: 2,
       selectedEntityId: 'entity-a',
     };
-    const encoded = encodeDeepLinkState({
+    const encoded = encodeViewState({
       route: { engineId: 'e', queryId: 'q', tab: 'entities' },
       selection: { operatorNodeIds: ['operator-a'] },
       entities,
@@ -524,9 +528,9 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary {...BOUNDARY_PROPS} activeTab="entities" encodedState={encoded.value}>
+        <ViewStateBoundary {...BOUNDARY_PROPS} activeTab="entities" encodedState={encoded.value}>
           <InitialEntitiesProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -553,9 +557,9 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary {...BOUNDARY_PROPS}>
+        <ViewStateBoundary {...BOUNDARY_PROPS}>
           <HydrateTimelineDuringRender />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -587,10 +591,11 @@ describe('DeepLinkBoundary', () => {
     render(
       <>
         <JotaiProvider>
-          <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded}>
+          <ViewStateBoundary {...BOUNDARY_PROPS} encodedState={encoded}>
+            <UrlViewState active />
             <IntakeStatusProbe />
             <ViewportProbe />
-          </DeepLinkBoundary>
+          </ViewStateBoundary>
         </JotaiProvider>
         <Toaster />
       </>
@@ -607,7 +612,7 @@ describe('DeepLinkBoundary', () => {
     expect(toastSpy).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        id: 'deep-link-intake-0',
+        id: 'view-state-intake-0',
         type: 'error',
         title: 'Could not restore shared view',
         description: expect.stringContaining(selectedMessage),
@@ -616,7 +621,7 @@ describe('DeepLinkBoundary', () => {
     expect(toastSpy).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        id: 'deep-link-intake-1',
+        id: 'view-state-intake-1',
         type: 'error',
         title: 'Could not restore shared view',
         description: expect.stringContaining(expandedMessage),
@@ -646,9 +651,10 @@ describe('DeepLinkBoundary', () => {
     render(
       <>
         <JotaiProvider>
-          <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded}>
+          <ViewStateBoundary {...BOUNDARY_PROPS} encodedState={encoded}>
+            <UrlViewState active />
             <IntakeStatusProbe />
-          </DeepLinkBoundary>
+          </ViewStateBoundary>
         </JotaiProvider>
         <Toaster />
       </>
@@ -657,7 +663,7 @@ describe('DeepLinkBoundary', () => {
     await waitFor(() => expect(toastSpy).toHaveBeenCalledTimes(1));
     expect(toastSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'deep-link-intake-summary',
+        id: 'view-state-intake-summary',
         type: 'error',
         title: 'Could not restore shared view',
         description: null,
@@ -685,7 +691,7 @@ describe('DeepLinkBoundary', () => {
     render(
       <>
         <JotaiProvider>
-          <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <ViewStateBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
             <SeedExpandedRows ids={[RESOURCE_B_ID, NVTX_SECTION_ID, RESOURCE_A_ID]} />
             <SeedEmptyDataFlowDimensions />
@@ -699,7 +705,7 @@ describe('DeepLinkBoundary', () => {
             />
             <ViewportProbe />
             <CopyLinkButton />
-          </DeepLinkBoundary>
+          </ViewStateBoundary>
         </JotaiProvider>
       </>
     );
@@ -717,7 +723,7 @@ describe('DeepLinkBoundary', () => {
     const encoded = parsedUrl.searchParams.get('s');
     expect(encoded).not.toBeNull();
     expect(parsedUrl.searchParams.has('unrelated')).toBe(false);
-    expect(decodeDeepLinkState(encoded!)).toEqual({
+    expect(decodeViewState(encoded!)).toEqual({
       ok: true,
       value: {
         version: 'v3',
@@ -744,7 +750,7 @@ describe('DeepLinkBoundary', () => {
     render(
       <>
         <JotaiProvider>
-          <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <ViewStateBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
             <SeedResourceFilter
               filter={{
@@ -755,7 +761,7 @@ describe('DeepLinkBoundary', () => {
               }}
             />
             <CopyLinkButton />
-          </DeepLinkBoundary>
+          </ViewStateBoundary>
         </JotaiProvider>
       </>
     );
@@ -766,7 +772,7 @@ describe('DeepLinkBoundary', () => {
     const copiedUrl = new URL(writeText.mock.calls[0][0] as string);
     const encoded = copiedUrl.searchParams.get('s');
     expect(encoded).not.toBeNull();
-    expect(decodeDeepLinkState(encoded!)).toMatchObject({
+    expect(decodeViewState(encoded!)).toMatchObject({
       ok: true,
       value: {
         version: 'v3',
@@ -812,10 +818,10 @@ describe('DeepLinkBoundary', () => {
     render(
       <>
         <JotaiProvider>
-          <DeepLinkBoundary {...BOUNDARY_PROPS} activeTab="entities">
+          <ViewStateBoundary {...BOUNDARY_PROPS} activeTab="entities">
             <SeedEntitiesState state={tableState} />
             <CopyLinkButton />
-          </DeepLinkBoundary>
+          </ViewStateBoundary>
         </JotaiProvider>
       </>
     );
@@ -824,7 +830,7 @@ describe('DeepLinkBoundary', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
 
-    expect(decodeDeepLinkState(encoded!)).toEqual({
+    expect(decodeViewState(encoded!)).toEqual({
       ok: true,
       value: {
         version: 'v3',
@@ -846,10 +852,10 @@ describe('DeepLinkBoundary', () => {
     render(
       <>
         <JotaiProvider>
-          <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <ViewStateBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
             <CopyLinkButton />
-          </DeepLinkBoundary>
+          </ViewStateBoundary>
         </JotaiProvider>
       </>
     );
@@ -858,7 +864,7 @@ describe('DeepLinkBoundary', () => {
     await waitFor(() =>
       expect(toastSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: 'deep-link-copy-error-0',
+          id: 'view-state-copy-error-0',
           type: 'error',
           title: 'Could not copy link',
         })
@@ -887,12 +893,12 @@ describe('DeepLinkBoundary', () => {
     render(
       <>
         <JotaiProvider>
-          <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <ViewStateBoundary {...BOUNDARY_PROPS}>
             <SeedViewport start={20} end={60} />
             <SeedSelectedOperators ids={selectedIds} />
             <SeedExpandedRows ids={expandedIds} />
             <CopyLinkButton />
-          </DeepLinkBoundary>
+          </ViewStateBoundary>
         </JotaiProvider>
         <Toaster />
       </>
@@ -904,7 +910,7 @@ describe('DeepLinkBoundary', () => {
     expect(toastSpy).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        id: 'deep-link-copy-error-0',
+        id: 'view-state-copy-error-0',
         type: 'error',
         title: 'Could not copy link',
         description: expect.stringContaining(selectedMessage),
@@ -913,7 +919,7 @@ describe('DeepLinkBoundary', () => {
     expect(toastSpy).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        id: 'deep-link-copy-error-1',
+        id: 'view-state-copy-error-1',
         type: 'error',
         title: 'Could not copy link',
         description: expect.stringContaining(expandedMessage),
@@ -923,7 +929,7 @@ describe('DeepLinkBoundary', () => {
   });
 });
 
-describe('DeepLinkBoundary pinned rows', () => {
+describe('ViewStateBoundary pinned rows', () => {
   const LANE_ID = `__long_entities__${RESOURCE_A_ID}`;
 
   afterEach(() => {
@@ -931,7 +937,7 @@ describe('DeepLinkBoundary pinned rows', () => {
   });
 
   function encodeState(resources?: { pinnedRowIds: string[] }) {
-    const encoded = encodeDeepLinkState({
+    const encoded = encodeViewState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
       timeline: { zoomRange: { start: 10, end: 40 } },
       ...(resources ? { resources } : {}),
@@ -951,12 +957,12 @@ describe('DeepLinkBoundary pinned rows', () => {
   it('restores pinned rows from a shared link', () => {
     render(
       <JotaiProvider>
-        <DeepLinkBoundary
+        <ViewStateBoundary
           {...BOUNDARY_PROPS}
           encodedState={encodeState({ pinnedRowIds: [RESOURCE_B_ID, LANE_ID] })}
         >
           <PinnedRowsProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -972,9 +978,9 @@ describe('DeepLinkBoundary pinned rows', () => {
 
     render(
       <JotaiProvider store={store}>
-        <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encodeState()}>
+        <ViewStateBoundary {...BOUNDARY_PROPS} encodedState={encodeState()}>
           <PinnedRowsProbe />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -986,11 +992,11 @@ describe('DeepLinkBoundary pinned rows', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary {...BOUNDARY_PROPS}>
+        <ViewStateBoundary {...BOUNDARY_PROPS}>
           <SeedViewport start={20} end={60} />
           <SeedPinnedRows ids={[RESOURCE_B_ID, RESOURCE_A_ID]} />
           <CopyLinkButton />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -998,7 +1004,7 @@ describe('DeepLinkBoundary pinned rows', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
 
     const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
-    expect(decodeDeepLinkState(encoded!)).toMatchObject({
+    expect(decodeViewState(encoded!)).toMatchObject({
       ok: true,
       value: { data: { resources: { pinnedRowIds: [RESOURCE_B_ID, RESOURCE_A_ID] } } },
     });
@@ -1009,10 +1015,10 @@ describe('DeepLinkBoundary pinned rows', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary {...BOUNDARY_PROPS}>
+        <ViewStateBoundary {...BOUNDARY_PROPS}>
           <SeedViewport start={20} end={60} />
           <CopyLinkButton />
-        </DeepLinkBoundary>
+        </ViewStateBoundary>
       </JotaiProvider>
     );
 
@@ -1020,7 +1026,44 @@ describe('DeepLinkBoundary pinned rows', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
 
     const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
-    const decoded = decodeDeepLinkState(encoded!);
+    const decoded = decodeViewState(encoded!);
     expect(decoded.ok && 'resources' in decoded.value.data).toBe(false);
+  });
+});
+
+describe('ViewStateBoundary restored state', () => {
+  function encodeState(): string {
+    const encoded = encodeViewState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 10, end: 20 }, longEntityDensity: 2 },
+      resources: { pinnedRowsPanelSize: 240 },
+    });
+    if (!encoded.ok) {
+      throw new Error('fixture failed to encode');
+    }
+    return encoded.value;
+  }
+
+  it('keeps later edits when the operators or duration change', () => {
+    const encodedState = encodeState();
+    const store = createStore();
+    const renderBoundary = (props: { operators: never[]; durationSeconds: number }) => (
+      <JotaiProvider store={store}>
+        <ViewStateBoundary {...BOUNDARY_PROPS} {...props} encodedState={encodedState}>
+          <div>content</div>
+        </ViewStateBoundary>
+      </JotaiProvider>
+    );
+
+    const view = render(renderBoundary({ operators: [], durationSeconds: 100 }));
+    expect(store.get(pinnedPanelSizeAtom)).toBe(240);
+    expect(store.get(longEntityDensityAtom)).toBe(2);
+
+    store.set(pinnedPanelSizeAtom, 111);
+    store.set(longEntityDensityAtom, 5);
+    view.rerender(renderBoundary({ operators: [], durationSeconds: 120 }));
+
+    expect(store.get(pinnedPanelSizeAtom)).toBe(111);
+    expect(store.get(longEntityDensityAtom)).toBe(5);
   });
 });

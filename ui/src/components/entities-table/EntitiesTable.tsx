@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
 import { COLOR_REGISTRY_KEYS, useColorResolver } from '@quent/hooks';
@@ -15,13 +16,16 @@ interface EntitiesTableProps {
   queryBundle: QueryBundle<EntityRef>;
 }
 
+const ENTITIES_PANEL_IDS = ['entities-list', 'entities-detail'];
+
 export function EntitiesTable(props: EntitiesTableProps) {
   const table = useEntityTable(props);
+  const layout = usePanelLayout('entities-split', ENTITIES_PANEL_IDS);
   const stateColorFn = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
 
   return (
-    <ResizablePanelGroup orientation="horizontal">
-      <ResizablePanel defaultSize="65%" minSize="40%">
+    <ResizablePanelGroup orientation="horizontal" {...layout}>
+      <ResizablePanel id="entities-list" defaultSize="65%" minSize="40%">
         <div className="flex h-full min-h-0 flex-col">
           <EntitiesToolbar
             filters={table.filters.values}
@@ -72,7 +76,13 @@ export function EntitiesTable(props: EntitiesTableProps) {
         </div>
       </ResizablePanel>
       <ResizableHandle withHandle />
-      <ResizablePanel defaultSize="35%" minSize="20%" collapsible collapsedSize="0%">
+      <ResizablePanel
+        id="entities-detail"
+        defaultSize="35%"
+        minSize="20%"
+        collapsible
+        collapsedSize="0%"
+      >
         <EntityDetailPanel
           fsm={table.selection.selected}
           resourceLabel={table.resourceLabel}

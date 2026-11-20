@@ -9,7 +9,7 @@ import { queryClient } from '@/lib/queryClient';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import { RouteError } from '@/components/RouteError';
 import { TabActionSlotsContext, type TabActionSlots } from '@/components/TabActionSlots';
-import { validateDeepLinkSearch } from '@/features/deep-link';
+import { validateViewStateSearch } from '@/features/view-state';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId')({
   component: QueryLayout,
@@ -21,7 +21,7 @@ export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId')
   ),
   pendingMs: 200,
   pendingMinMs: 300,
-  validateSearch: validateDeepLinkSearch,
+  validateSearch: validateViewStateSearch,
   loader: async ({ params }): Promise<QueryBundle<EntityRef>> => {
     const { engineId, queryId } = params;
     return await queryClient.ensureQueryData(queryBundleQueryOptions({ engineId, queryId }));

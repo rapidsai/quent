@@ -3,19 +3,16 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  defineDeepLinkVersion,
-  readDeepLinkField,
-  readDeepLinkFields,
-  type DeepLinkFields,
-} from './deepLink.fields';
-import {
-  DeepLinkStateV1Schema,
-  DeepLinkStateV2Schema,
-  DeepLinkStateV3Schema,
-} from './deepLink.schema';
+  defineViewStateVersion,
+  readViewStateField,
+  readViewStateFields,
+  type ViewStateFields,
+} from './viewState.fields';
+import { ViewStateV1Schema, ViewStateV2Schema, ViewStateV3Schema } from './viewState.schema';
 
 const absentFields = {
   route: undefined,
+  timeline: undefined,
   zoomRange: undefined,
   expandedResourceIds: undefined,
   selection: undefined,
@@ -24,21 +21,21 @@ const absentFields = {
   dataFlow: undefined,
   operatorTable: undefined,
   entities: undefined,
-} satisfies DeepLinkFields;
+} satisfies ViewStateFields;
 
-const v1State = DeepLinkStateV1Schema.parse({
+const v1State = ViewStateV1Schema.parse({
   zoomRange: { start: 1, end: 2 },
   expandedResourceIds: ['b', 'a'],
 });
 
-const v2State = DeepLinkStateV2Schema.parse({
+const v2State = ViewStateV2Schema.parse({
   route: { engineId: 'engine-a', queryId: 'query-a', tab: 'timeline' },
   timeline: { zoomRange: { start: 10, end: 40 } },
   resources: { expandedRowIds: ['resource-b', 'resource-a'] },
   selection: { planId: 'plan-a' },
 });
 
-const v3State = DeepLinkStateV3Schema.parse({
+const v3State = ViewStateV3Schema.parse({
   route: { engineId: 'engine-a', queryId: 'query-a', tab: 'entities' },
   selection: { operatorNodeIds: ['operator-a'] },
   entities: {
@@ -48,14 +45,14 @@ const v3State = DeepLinkStateV3Schema.parse({
   },
 });
 
-describe('deep-link field readers', () => {
+describe('view-state field readers', () => {
   it('returns v1 values and omits fields that schema does not own', () => {
     const decoded = { version: 'v1' as const, data: v1State };
 
-    expect(readDeepLinkField(decoded, 'zoomRange')).toEqual({ start: 1, end: 2 });
-    expect(readDeepLinkField(decoded, 'expandedResourceIds')).toEqual(['a', 'b']);
-    expect(readDeepLinkField(decoded, 'route')).toBeUndefined();
-    expect(readDeepLinkFields(decoded)).toEqual({
+    expect(readViewStateField(decoded, 'zoomRange')).toEqual({ start: 1, end: 2 });
+    expect(readViewStateField(decoded, 'expandedResourceIds')).toEqual(['a', 'b']);
+    expect(readViewStateField(decoded, 'route')).toBeUndefined();
+    expect(readViewStateFields(decoded)).toEqual({
       ...absentFields,
       zoomRange: { start: 1, end: 2 },
       expandedResourceIds: ['a', 'b'],
@@ -65,12 +62,16 @@ describe('deep-link field readers', () => {
   it('reads v2 nested fields through the same accessors', () => {
     const decoded = { version: 'v2' as const, data: v2State };
 
-    expect(readDeepLinkField(decoded, 'route')).toEqual(v2State.route);
-    expect(readDeepLinkField(decoded, 'zoomRange')).toEqual({ start: 10, end: 40 });
-    expect(readDeepLinkField(decoded, 'expandedResourceIds')).toEqual(['resource-a', 'resource-b']);
-    expect(readDeepLinkFields(decoded)).toEqual({
+    expect(readViewStateField(decoded, 'route')).toEqual(v2State.route);
+    expect(readViewStateField(decoded, 'zoomRange')).toEqual({ start: 10, end: 40 });
+    expect(readViewStateField(decoded, 'expandedResourceIds')).toEqual([
+      'resource-a',
+      'resource-b',
+    ]);
+    expect(readViewStateFields(decoded)).toEqual({
       ...absentFields,
       route: v2State.route,
+      timeline: v2State.timeline,
       zoomRange: { start: 10, end: 40 },
       expandedResourceIds: ['resource-a', 'resource-b'],
       selection: { planId: 'plan-a' },
@@ -81,7 +82,7 @@ describe('deep-link field readers', () => {
   it('reads v3 entity fields without requiring a timeline viewport', () => {
     const decoded = { version: 'v3' as const, data: v3State };
 
-    expect(readDeepLinkFields(decoded)).toEqual({
+    expect(readViewStateFields(decoded)).toEqual({
       ...absentFields,
       route: v3State.route,
       selection: v3State.selection,
@@ -90,9 +91,9 @@ describe('deep-link field readers', () => {
   });
 
   it('lets a new version omit fields by not declaring readers', () => {
-    const v3 = defineDeepLinkVersion({
+    const v3 = defineViewStateVersion({
       version: 'v3',
-      schema: DeepLinkStateV1Schema,
+      schema: ViewStateV1Schema,
       fields: {
         zoomRange: state => state.zoomRange,
       },

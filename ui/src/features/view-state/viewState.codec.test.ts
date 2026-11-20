@@ -4,24 +4,25 @@
 import { describe, expect, it } from 'vitest';
 import { gzipSync, strToU8 } from 'fflate';
 import {
-  buildDeepLinkUrl,
-  CURRENT_DEEP_LINK_VERSION,
-  decodeDeepLinkState,
-  encodeDeepLinkState,
-  MAX_DEEP_LINK_URL_LENGTH,
-  SUPPORTED_DEEP_LINK_VERSIONS,
-} from './deepLink.codec';
+  buildViewStateUrl,
+  buildViewStateUrlFromEncodedState,
+  CURRENT_VIEW_STATE_VERSION,
+  decodeViewState,
+  encodeViewState,
+  MAX_VIEW_STATE_URL_LENGTH,
+  SUPPORTED_VIEW_STATE_VERSIONS,
+} from './viewState.codec';
 import {
-  DeepLinkStateV1Schema,
-  DeepLinkStateV2Schema,
-  DeepLinkStateV3Schema,
+  ViewStateV1Schema,
+  ViewStateV2Schema,
+  ViewStateV3Schema,
   MAX_EXPANDED_RESOURCE_IDS,
   MAX_PINNED_ROW_IDS,
   MAX_SELECTED_NODE_IDS,
   OperatorGroupSchema,
-  type DeepLinkStateV3,
-  validateDeepLinkSearch,
-} from './deepLink.schema';
+  type ViewStateV3,
+  validateViewStateSearch,
+} from './viewState.schema';
 import {
   statisticFieldId,
   CONTINUOUS_PALETTES,
@@ -49,7 +50,7 @@ function encodeRawState(version: string, value: unknown): string {
   return `${version}.${btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')}`;
 }
 
-const state: DeepLinkStateV3 = {
+const state: ViewStateV3 = {
   route: {
     engineId: 'engine-a',
     queryId: 'query-a',
@@ -60,6 +61,7 @@ const state: DeepLinkStateV3 = {
       start: 12.5,
       end: 48.75,
     },
+    longEntityDensity: 2,
   },
   selection: {
     planId: 'plan-a',
@@ -67,6 +69,12 @@ const state: DeepLinkStateV3 = {
   },
   resources: {
     expandedRowIds: ['resource-a', 'resource-b'],
+    pinnedRowsCollapsed: true,
+    pinnedRowsPanelSize: 240,
+    nvtxSelection: {
+      domainId: 'nvtx-domain-a',
+      categories: [{ domainId: 'nvtx-domain-a', categoryId: 'category-a' }],
+    },
     resourceFilter: {
       search: 'resource',
       resourceTypes: ['channel', 'memory'],
@@ -113,17 +121,17 @@ const state: DeepLinkStateV3 = {
   },
 };
 
-describe('deep-link codec', () => {
+describe('view-state codec', () => {
   it('round-trips deterministically', () => {
-    const first = encodeDeepLinkState(state);
-    const second = encodeDeepLinkState(state);
+    const first = encodeViewState(state);
+    const second = encodeViewState(state);
 
     expect(first).toEqual(second);
     expect(first.ok).toBe(true);
     if (!first.ok) {
       return;
     }
-    expect(decodeDeepLinkState(first.value)).toEqual({
+    expect(decodeViewState(first.value)).toEqual({
       ok: true,
       value: { version: 'v3', data: state },
     });
@@ -134,7 +142,7 @@ describe('deep-link codec', () => {
       ['Volume '.repeat(100), 0],
       ['bytes '.repeat(100), 2],
     ]);
-    const nestedState: DeepLinkStateV3 = {
+    const nestedState: ViewStateV3 = {
       ...state,
       dag: {
         ...state.dag,
@@ -143,28 +151,28 @@ describe('deep-link codec', () => {
         edgeColorField: fieldId,
       },
     };
-    const encoded = encodeDeepLinkState(nestedState);
+    const encoded = encodeViewState(nestedState);
     expect(encoded.ok).toBe(true);
     if (!encoded.ok) {
       throw new Error('Failed to encode nested statistic selections');
     }
-    expect(decodeDeepLinkState(encoded.value)).toEqual({
+    expect(decodeViewState(encoded.value)).toEqual({
       ok: true,
       value: { version: 'v3', data: nestedState },
     });
   });
 
   it('keeps the current version in the supported schema registry', () => {
-    expect(SUPPORTED_DEEP_LINK_VERSIONS).toContain(CURRENT_DEEP_LINK_VERSION);
-    expect(new Set(SUPPORTED_DEEP_LINK_VERSIONS).size).toBe(SUPPORTED_DEEP_LINK_VERSIONS.length);
+    expect(SUPPORTED_VIEW_STATE_VERSIONS).toContain(CURRENT_VIEW_STATE_VERSION);
+    expect(new Set(SUPPORTED_VIEW_STATE_VERSIONS).size).toBe(SUPPORTED_VIEW_STATE_VERSIONS.length);
   });
 
   it('rejects unsupported versions and malformed payloads', () => {
-    expect(decodeDeepLinkState('v999.abc')).toMatchObject({
+    expect(decodeViewState('v999.abc')).toMatchObject({
       ok: false,
       code: 'unsupported-version',
     });
-    expect(decodeDeepLinkState('v2.not-gzip')).toMatchObject({
+    expect(decodeViewState('v2.not-gzip')).toMatchObject({
       ok: false,
       code: 'invalid-encoding',
     });
@@ -173,28 +181,28 @@ describe('deep-link codec', () => {
   it('decodes legacy v1 links', () => {
     const encoded = 'v1.H4sIAAAAAAACA6tWqsrPzw1KzEtPVbKqViouSSwqUbIy0FFKzUsB0nomBua1tQAidcVYJQAAAA';
 
-    expect(decodeDeepLinkState(encoded)).toEqual({
+    expect(decodeViewState(encoded)).toEqual({
       ok: true,
       value: { version: 'v1', data: { zoomRange: { start: 0, end: 0.407 } } },
     });
   });
 
   it('decodes legacy v2 links', () => {
-    const legacyState = DeepLinkStateV2Schema.parse({
+    const legacyState = ViewStateV2Schema.parse({
       route: { engineId: 'engine-a', queryId: 'query-a', tab: 'operators' },
       timeline: { zoomRange: { start: 12.5, end: 48.75 } },
       selection: { operatorNodeIds: ['operator-a'] },
     });
     const encoded = encodeRawState('v2', legacyState);
 
-    expect(decodeDeepLinkState(encoded)).toEqual({
+    expect(decodeViewState(encoded)).toEqual({
       ok: true,
       value: { version: 'v2', data: legacyState },
     });
   });
 
   it('builds links within the absolute URL budget', () => {
-    const result = buildDeepLinkUrl(
+    const result = buildViewStateUrl(
       'https://quent.example.test/profile/engine/e/query/q/timeline',
       state
     );
@@ -203,22 +211,39 @@ describe('deep-link codec', () => {
     if (!result.ok) {
       return;
     }
-    expect(result.value.length).toBeLessThanOrEqual(MAX_DEEP_LINK_URL_LENGTH);
+    expect(result.value.length).toBeLessThanOrEqual(MAX_VIEW_STATE_URL_LENGTH);
     expect(new URL(result.value).searchParams.get('s')).toMatch(
-      new RegExp(`^${CURRENT_DEEP_LINK_VERSION}\\.`)
+      new RegExp(`^${CURRENT_VIEW_STATE_VERSION}\\.`)
     );
   });
 
+  it('builds a link from state encoded by the boundary', () => {
+    const encoded = encodeViewState(state);
+    expect(encoded.ok).toBe(true);
+    if (!encoded.ok) {
+      return;
+    }
+
+    const result = buildViewStateUrlFromEncodedState(
+      '/profile/engine/e/query/q/entities',
+      encoded.value
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(new URL(result.value, 'https://quent.test').searchParams.get('s')).toBe(encoded.value);
+    }
+  });
+
   it('decodes links produced by the experimental CLI', () => {
-    expect(decodeDeepLinkState(DEEP_LINK_COMPATIBILITY_PAYLOAD)).toEqual({
+    expect(decodeViewState(DEEP_LINK_COMPATIBILITY_PAYLOAD)).toEqual({
       ok: true,
       value: { version: 'v3', data: DEEP_LINK_COMPATIBILITY_STATE },
     });
   });
 
   it('rejects an absolute URL whose origin and path exhaust the budget', () => {
-    const result = buildDeepLinkUrl(
-      `https://quent.example.test/${'x'.repeat(MAX_DEEP_LINK_URL_LENGTH)}`,
+    const result = buildViewStateUrl(
+      `https://quent.example.test/${'x'.repeat(MAX_VIEW_STATE_URL_LENGTH)}`,
       state
     );
 
@@ -231,14 +256,14 @@ describe('deep-link codec', () => {
       (_, index) => `operator-${index}`
     );
     expect(
-      DeepLinkStateV3Schema.safeParse({
+      ViewStateV3Schema.safeParse({
         route: state.route,
         selection: { operatorNodeIds: atLimit },
       }).success
     ).toBe(true);
 
     expect(
-      encodeDeepLinkState({
+      encodeViewState({
         route: state.route,
         selection: { operatorNodeIds: [...atLimit, 'operator-over-limit'] },
       })
@@ -257,7 +282,7 @@ describe('deep-link codec', () => {
     );
 
     expect(
-      encodeDeepLinkState({
+      encodeViewState({
         route: state.route,
         resources: { expandedRowIds },
       })
@@ -294,8 +319,8 @@ describe('deep-link codec', () => {
       messages: [selectedMessage, expandedMessage],
     };
 
-    expect(encodeDeepLinkState(invalidState)).toEqual(expected);
-    expect(decodeDeepLinkState(encodeRawState('v3', invalidState))).toEqual(expected);
+    expect(encodeViewState(invalidState)).toEqual(expected);
+    expect(decodeViewState(encodeRawState('v3', invalidState))).toEqual(expected);
   });
 
   it('includes nested fields and array indexes in validation errors', () => {
@@ -309,7 +334,7 @@ describe('deep-link codec', () => {
       entities: { ...state.entities, window: { start: 20, end: 10 } },
     };
 
-    expect(encodeDeepLinkState(invalidState)).toMatchObject({
+    expect(encodeViewState(invalidState)).toMatchObject({
       ok: false,
       code: 'invalid-state',
       messages: [
@@ -322,18 +347,18 @@ describe('deep-link codec', () => {
   });
 });
 
-describe('deep-link search validation', () => {
+describe('view-state search validation', () => {
   it('strips unknown keys and rejects non-string state', () => {
-    expect(validateDeepLinkSearch({ s: 'v1.abc', extra: true })).toEqual({ s: 'v1.abc' });
-    expect(validateDeepLinkSearch({ s: 42 })).toEqual({});
+    expect(validateViewStateSearch({ s: 'v1.abc', extra: true })).toEqual({ s: 'v1.abc' });
+    expect(validateViewStateSearch({ s: 42 })).toEqual({});
   });
 });
 
-describe('deep-link state validation', () => {
+describe('view state validation', () => {
   it('validates and canonicalizes comprehensive v3 state', () => {
-    expect(DeepLinkStateV3Schema.parse({ ...state, futureField: true })).toEqual(state);
+    expect(ViewStateV3Schema.parse({ ...state, futureField: true })).toEqual(state);
     expect(
-      DeepLinkStateV3Schema.parse({
+      ViewStateV3Schema.parse({
         route: state.route,
         timeline: state.timeline,
         resources: {
@@ -342,13 +367,13 @@ describe('deep-link state validation', () => {
       }).resources?.expandedRowIds
     ).toEqual([RESOURCE_A_ID, RESOURCE_B_ID, NVTX_SECTION_ID]);
     expect(
-      DeepLinkStateV3Schema.validate({
+      ViewStateV3Schema.validate({
         route: state.route,
         timeline: { zoomRange: { start: 20, end: 10 } },
       })
     ).toBe(false);
     expect(
-      DeepLinkStateV3Schema.validate({
+      ViewStateV3Schema.validate({
         route: state.route,
         timeline: state.timeline,
         resources: {
@@ -360,7 +385,7 @@ describe('deep-link state validation', () => {
       })
     ).toBe(false);
     expect(
-      DeepLinkStateV3Schema.validate({
+      ViewStateV3Schema.validate({
         route: state.route,
         timeline: state.timeline,
         resources: {
@@ -369,7 +394,7 @@ describe('deep-link state validation', () => {
       })
     ).toBe(false);
     expect(
-      DeepLinkStateV3Schema.safeParse({
+      ViewStateV3Schema.safeParse({
         route: state.route,
         entities: { window: { start: 20, end: 10 } },
       }).success
@@ -378,7 +403,7 @@ describe('deep-link state validation', () => {
 
   it('keeps the v2 schema unchanged', () => {
     expect(
-      DeepLinkStateV2Schema.safeParse({
+      ViewStateV2Schema.safeParse({
         route: { engineId: 'engine-a', queryId: 'query-a', tab: 'entities' },
         timeline: state.timeline,
       }).success
@@ -387,7 +412,7 @@ describe('deep-link state validation', () => {
 
   it('keeps the legacy v1 schema available for old links', () => {
     expect(
-      DeepLinkStateV1Schema.parse({
+      ViewStateV1Schema.parse({
         zoomRange: { start: 1, end: 2 },
         expandedResourceIds: ['b', 'a'],
       })
@@ -396,14 +421,14 @@ describe('deep-link state validation', () => {
       expandedResourceIds: ['a', 'b'],
     });
     expect(
-      DeepLinkStateV1Schema.parse({
+      ViewStateV1Schema.parse({
         zoomRange: { start: 1, end: 2 },
         expandedResourceIds: [RESOURCE_B_ID, NVTX_SECTION_ID, RESOURCE_A_ID, RESOURCE_B_ID],
       }).expandedResourceIds
     ).toEqual([RESOURCE_A_ID, RESOURCE_B_ID, NVTX_SECTION_ID]);
-    expect(DeepLinkStateV1Schema.validate({ zoomRange: { start: 20, end: 10 } })).toBe(false);
+    expect(ViewStateV1Schema.validate({ zoomRange: { start: 20, end: 10 } })).toBe(false);
     expect(
-      DeepLinkStateV1Schema.validate({
+      ViewStateV1Schema.validate({
         zoomRange: { start: 1, end: 2 },
         expandedResourceIds: [''],
       })
@@ -414,27 +439,27 @@ describe('deep-link state validation', () => {
     const base = { route: state.route, timeline: state.timeline };
     for (const palette of Object.keys(CONTINUOUS_PALETTES)) {
       expect(
-        DeepLinkStateV3Schema.validate({
+        ViewStateV3Schema.validate({
           ...base,
           dag: { nodeColorPalette: palette, edgeColorPalette: palette },
         })
       ).toBe(true);
     }
     for (const nodeLabelField of Object.values(NODE_LABEL_FIELD)) {
-      expect(DeepLinkStateV3Schema.validate({ ...base, dag: { nodeLabelField } })).toBe(true);
+      expect(ViewStateV3Schema.validate({ ...base, dag: { nodeLabelField } })).toBe(true);
     }
     for (const layoutDirection of Object.values(DAG_LAYOUT_DIRECTION)) {
-      expect(DeepLinkStateV3Schema.validate({ ...base, dag: { layoutDirection } })).toBe(true);
+      expect(ViewStateV3Schema.validate({ ...base, dag: { layoutDirection } })).toBe(true);
     }
     for (const scaleType of Object.values(SCALE_TYPE)) {
-      expect(DeepLinkStateV3Schema.validate({ ...base, dag: { scaleType } })).toBe(true);
+      expect(ViewStateV3Schema.validate({ ...base, dag: { scaleType } })).toBe(true);
     }
     expect(OperatorGroupSchema.options).toEqual([...OPERATOR_TABLE_INDEX_ORDER]);
   });
 });
 
 it('round trips pipe inspection independently of operator selection and nested metric paths', () => {
-  const shared: DeepLinkStateV3 = {
+  const shared: ViewStateV3 = {
     ...state,
     selection: {
       planId: 'p',
@@ -446,34 +471,34 @@ it('round trips pipe inspection independently of operator selection and nested m
     },
     dag: { edgeWidthField: '[["Volume",0],["bytes",0]]' },
   };
-  const encoded = encodeDeepLinkState(shared);
+  const encoded = encodeViewState(shared);
   expect(encoded.ok).toBe(true);
   if (!encoded.ok) {
     return;
   }
-  const decoded = decodeDeepLinkState(encoded.value);
+  const decoded = decodeViewState(encoded.value);
   expect(decoded.ok).toBe(true);
   if (!decoded.ok) {
     return;
   }
-  const restored = DeepLinkStateV3Schema.parse(decoded.value.data);
+  const restored = ViewStateV3Schema.parse(decoded.value.data);
   expect(restored.selection).toEqual(shared.selection);
   expect(restored.dag?.edgeWidthField).toBe(shared.dag?.edgeWidthField);
 });
 
 describe('deep-link collapsed default rows', () => {
   it('round-trips collapsed row ids', () => {
-    const shared: DeepLinkStateV3 = {
+    const shared: ViewStateV3 = {
       route: state.route,
       timeline: state.timeline,
       resources: { collapsedRowIds: [RESOURCE_A_ID] },
     };
-    const encoded = encodeDeepLinkState(shared);
+    const encoded = encodeViewState(shared);
     expect(encoded.ok).toBe(true);
     if (!encoded.ok) {
       return;
     }
-    expect(decodeDeepLinkState(encoded.value)).toEqual({
+    expect(decodeViewState(encoded.value)).toEqual({
       ok: true,
       value: { version: 'v3', data: shared },
     });
@@ -482,18 +507,18 @@ describe('deep-link collapsed default rows', () => {
 
 describe('deep-link nested chart rows', () => {
   it('round-trips the nested chart rows setting', () => {
-    const shared: DeepLinkStateV3 = {
+    const shared: ViewStateV3 = {
       route: state.route,
       timeline: state.timeline,
       resources: { showNestedChartRows: true },
     };
-    const encoded = encodeDeepLinkState(shared);
+    const encoded = encodeViewState(shared);
     expect(encoded.ok).toBe(true);
     if (!encoded.ok) {
       return;
     }
 
-    expect(decodeDeepLinkState(encoded.value)).toEqual({
+    expect(decodeViewState(encoded.value)).toEqual({
       ok: true,
       value: { version: 'v3', data: shared },
     });
@@ -514,7 +539,7 @@ it('normalizes legacy detail IDs into filters and preserves nested metric paths'
     },
     dag: { edgeWidthField: '[["Volume",0],["bytes",0]]' },
   };
-  const decoded = decodeDeepLinkState(encodeRawState('v3', shared));
+  const decoded = decodeViewState(encodeRawState('v3', shared));
   expect(decoded.ok).toBe(true);
   if (!decoded.ok) {
     return;
@@ -523,7 +548,7 @@ it('normalizes legacy detail IDs into filters and preserves nested metric paths'
   if (decoded.value.version !== 'v3') {
     return;
   }
-  const restored = DeepLinkStateV3Schema.parse(decoded.value.data);
+  const restored = ViewStateV3Schema.parse(decoded.value.data);
   expect(restored.selection).toEqual({
     planId: 'p',
     operatorNodeIds: ['details-a', 'details-b', 'old'],
@@ -532,30 +557,28 @@ it('normalizes legacy detail IDs into filters and preserves nested metric paths'
   expect(restored.dag?.edgeWidthField).toBe(shared.dag.edgeWidthField);
 });
 
-describe('deep-link pinned rows', () => {
-  const withPins = (pinnedRowIds: string[]): DeepLinkStateV3 => ({
+describe('view-state pinned rows', () => {
+  const withPins = (pinnedRowIds: string[]): ViewStateV3 => ({
     route: state.route,
     timeline: state.timeline,
     resources: { pinnedRowIds },
   });
 
   it('round-trips pinned row ids in the order they were arranged', () => {
-    const encoded = encodeDeepLinkState(withPins([RESOURCE_B_ID, RESOURCE_A_ID]));
+    const encoded = encodeViewState(withPins([RESOURCE_B_ID, RESOURCE_A_ID]));
     expect(encoded.ok).toBe(true);
     if (!encoded.ok) {
       return;
     }
 
-    expect(decodeDeepLinkState(encoded.value)).toEqual({
+    expect(decodeViewState(encoded.value)).toEqual({
       ok: true,
       value: { version: 'v3', data: withPins([RESOURCE_B_ID, RESOURCE_A_ID]) },
     });
   });
 
   it('drops repeated pinned row ids, keeping the first of each', () => {
-    const parsed = DeepLinkStateV3Schema.parse(
-      withPins([RESOURCE_B_ID, RESOURCE_A_ID, RESOURCE_B_ID])
-    );
+    const parsed = ViewStateV3Schema.parse(withPins([RESOURCE_B_ID, RESOURCE_A_ID, RESOURCE_B_ID]));
 
     expect(parsed.resources?.pinnedRowIds).toEqual([RESOURCE_B_ID, RESOURCE_A_ID]);
   });
@@ -564,7 +587,7 @@ describe('deep-link pinned rows', () => {
     const laneId = `__long_entities__${RESOURCE_A_ID}`;
     const operatorsId = `__operator_timeline__${RESOURCE_B_ID}`;
 
-    const parsed = DeepLinkStateV3Schema.parse(withPins([operatorsId, laneId]));
+    const parsed = ViewStateV3Schema.parse(withPins([operatorsId, laneId]));
 
     expect(parsed.resources?.pinnedRowIds).toEqual([operatorsId, laneId]);
   });
@@ -572,8 +595,8 @@ describe('deep-link pinned rows', () => {
   it('allows the maximum number of pins and rejects more', () => {
     const ids = (count: number) => Array.from({ length: count }, (_, i) => `row-${i}`);
 
-    expect(DeepLinkStateV3Schema.validate(withPins(ids(MAX_PINNED_ROW_IDS)))).toBe(true);
-    expect(encodeDeepLinkState(withPins(ids(MAX_PINNED_ROW_IDS + 1)))).toEqual({
+    expect(ViewStateV3Schema.validate(withPins(ids(MAX_PINNED_ROW_IDS)))).toBe(true);
+    expect(encodeViewState(withPins(ids(MAX_PINNED_ROW_IDS + 1)))).toEqual({
       ok: false,
       code: 'invalid-state',
       message: `Shared links support at most ${MAX_PINNED_ROW_IDS} pinned rows.`,
@@ -582,7 +605,7 @@ describe('deep-link pinned rows', () => {
   });
 
   it('leaves links without pins unchanged', () => {
-    const parsed = DeepLinkStateV3Schema.parse({ route: state.route, timeline: state.timeline });
+    const parsed = ViewStateV3Schema.parse({ route: state.route, timeline: state.timeline });
 
     expect(parsed.resources).toBeUndefined();
   });

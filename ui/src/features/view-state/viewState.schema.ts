@@ -14,12 +14,15 @@ import { OPERATOR_TABLE_INDEX_ORDER } from '@/components/operator-table/types';
 import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/resourceFilter';
 
 export const MAX_ENCODED_STATE_LENGTH = 4096;
-export const MAX_EXPANDED_RESOURCE_IDS = 50;
-export const MAX_SELECTED_NODE_IDS = 100;
-export const MAX_PINNED_ROW_IDS = 100;
+// Saved state never goes into a URL. It is bounded by the decompression limit instead.
+export const MAX_STORED_STATE_LENGTH = 128 * 1024;
+export const MAX_EXPANDED_RESOURCE_IDS = 500;
+export const MAX_SELECTED_NODE_IDS = 500;
+export const MAX_PINNED_ROW_IDS = 500;
 export const MAX_RESOURCE_OVERRIDES = 50;
 export const MAX_VISIBLE_STATS = 100;
 export const MAX_TABLE_SORTS = 5;
+export const MAX_NVTX_CATEGORIES = 50;
 
 const MAX_V1_EXPANDED_RESOURCE_IDS = 100;
 const MAX_ID_LENGTH = 128;
@@ -67,7 +70,7 @@ export const ZoomRangeSchema = z
     message: 'Zoom range end must be greater than start',
   });
 
-export const DeepLinkStateV1Schema = z
+export const ViewStateV1Schema = z
   .object({
     zoomRange: ZoomRangeSchema,
     expandedResourceIds: z
@@ -86,7 +89,7 @@ export const DeepLinkStateV1Schema = z
   })
   .strip();
 
-export type DeepLinkStateV1 = z.infer<typeof DeepLinkStateV1Schema>;
+export type ViewStateV1 = z.infer<typeof ViewStateV1Schema>;
 
 const RouteSchema = z
   .object({
@@ -104,7 +107,16 @@ const RouteV3Schema = z
   })
   .strip();
 
-const TimelineSchema = z.object({ zoomRange: ZoomRangeSchema }).strip();
+const TimelineV2Schema = z.object({ zoomRange: ZoomRangeSchema }).strip();
+
+const TimelineSchema = z
+  .object({
+    zoomRange: ZoomRangeSchema.optional(),
+    longEntityDensity: z
+      .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
+      .optional(),
+  })
+  .strip();
 
 const SelectionSchema = z
   .object({
@@ -158,6 +170,16 @@ const FsmSelectionSchema = z
   })
   .strip();
 
+const NvtxSelectionSchema = z
+  .object({
+    domainId: IdSchema.optional(),
+    categories: z
+      .array(z.object({ domainId: IdSchema, categoryId: IdSchema }).strip())
+      .max(MAX_NVTX_CATEGORIES, limitMessage('selected NVTX categories', MAX_NVTX_CATEGORIES))
+      .optional(),
+  })
+  .strip();
+
 const ResourceFilterSchema = z
   .object({
     search: z
@@ -203,6 +225,9 @@ const ResourceTreeSchema = z
       .max(MAX_PINNED_ROW_IDS, limitMessage('pinned rows', MAX_PINNED_ROW_IDS))
       .transform(uniqueInOrder)
       .optional(),
+    pinnedRowsCollapsed: z.literal(true).optional(),
+    pinnedRowsPanelSize: z.number().positive().max(10_000).optional(),
+    nvtxSelection: NvtxSelectionSchema.optional(),
     showNestedChartRows: z.boolean().optional(),
     rootResourceType: NameSchema.optional(),
     resourceFilter: ResourceFilterSchema.optional(),
@@ -322,10 +347,10 @@ const EntitiesSchema = z
   })
   .strip();
 
-export const DeepLinkStateV2Schema = z
+export const ViewStateV2Schema = z
   .object({
     route: RouteSchema,
-    timeline: TimelineSchema,
+    timeline: TimelineV2Schema,
     selection: SelectionSchema.optional(),
     resources: ResourceTreeSchema.optional(),
     dag: DagControlsSchema.optional(),
@@ -334,9 +359,9 @@ export const DeepLinkStateV2Schema = z
   })
   .strip();
 
-export type DeepLinkStateV2 = z.infer<typeof DeepLinkStateV2Schema>;
+export type ViewStateV2 = z.infer<typeof ViewStateV2Schema>;
 
-export const DeepLinkStateV3Schema = z
+export const ViewStateV3Schema = z
   .object({
     route: RouteV3Schema,
     timeline: TimelineSchema.optional(),
@@ -349,7 +374,7 @@ export const DeepLinkStateV3Schema = z
   })
   .strip()
   .superRefine((state, context) => {
-    if (state.route.tab !== 'entities' && !state.timeline) {
+    if (state.route.tab !== 'entities' && !state.timeline?.zoomRange) {
       context.addIssue({
         code: 'custom',
         path: ['timeline'],
@@ -365,20 +390,20 @@ export const DeepLinkStateV3Schema = z
     }
   });
 
-export type DeepLinkStateV3 = z.infer<typeof DeepLinkStateV3Schema>;
-export type DeepLinkState = DeepLinkStateV3;
-export type DeepLinkTab = DeepLinkStateV3['route']['tab'];
-export type DeepLinkEntitiesState = NonNullable<DeepLinkStateV3['entities']>;
+export type ViewStateV3 = z.infer<typeof ViewStateV3Schema>;
+export type ViewState = ViewStateV3;
+export type ViewStateTab = ViewStateV3['route']['tab'];
+export type ViewStateEntitiesState = NonNullable<ViewStateV3['entities']>;
 
-export const DeepLinkSearchSchema = z
+export const ViewStateSearchSchema = z
   .object({
     s: z.string().optional(),
   })
   .strip();
 
-export type DeepLinkSearch = z.infer<typeof DeepLinkSearchSchema>;
+export type ViewStateSearch = z.infer<typeof ViewStateSearchSchema>;
 
-export function validateDeepLinkSearch(search: unknown): DeepLinkSearch {
-  const result = DeepLinkSearchSchema.safeParse(search);
+export function validateViewStateSearch(search: unknown): ViewStateSearch {
+  const result = ViewStateSearchSchema.safeParse(search);
   return result.success ? result.data : {};
 }
