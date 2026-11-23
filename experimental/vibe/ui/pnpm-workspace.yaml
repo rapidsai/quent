@@ -10,7 +10,7 @@ catalog:
   elkjs: ^0.12.1
   eslint: ^10.14.0
   globals: ^17.14.0
-  jsdom: ^30.1.3
+  jsdom: ^31.0.0
   svelte: 5.57.3
   svelte-check: ^4.7.8
   typescript: ^6.0.3
