@@ -63,6 +63,8 @@ jobs:
           SCHEMA_EXPLORER_BASE: /quent/schema/
       - name: Install simulator UI dependencies
         run: pixi run --frozen pnpm --dir ui install --frozen-lockfile
+      - name: Install simulator test browser
+        run: pixi run --frozen pnpm --dir ui exec playwright install --with-deps chromium
       - name: Build simulator
         run: pixi run --frozen pnpm --dir ui demo:build
         env:
