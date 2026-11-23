@@ -133,6 +133,32 @@ describe('operator hierarchy', () => {
     ]);
   });
 
+  it('preserves descendants shared with another selected parent', () => {
+    const operators = [
+      makeOperator('source', 'Source'),
+      makeOperator('target', 'Target'),
+      makeOperator('shared', 'Shared', ['source', 'target']),
+    ];
+
+    expect(
+      toggleOperatorSelection(
+        operators,
+        new Set(['source', 'target', 'shared']),
+        new Map([
+          ['source', { label: 'Source', operatorIds: new Set(['source', 'shared']) }],
+          ['target', { label: 'Target', operatorIds: new Set(['target', 'shared']) }],
+        ]),
+        'source'
+      )
+    ).toEqual([
+      {
+        selectionId: 'target',
+        label: 'Target',
+        operatorIds: new Set(['target', 'shared']),
+      },
+    ]);
+  });
+
   it('deselects every selected ancestor of a covered descendant', () => {
     const operators = [
       makeOperator('logical', 'Logical'),

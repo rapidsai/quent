@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState } from 'react';
-import type { CapacityDecl, FsmTransition, QuantitySpec } from '@quent/utils';
 import { bigintToChartNumber, formatBytes, formatQuantity } from '@quent/utils';
-import { echarts } from '../lib/echarts';
-import { EChartsReactCore } from '../lib/echartsReactCore';
-import { useChartResize } from '../lib/useChartResize';
-import type { PointerPosition } from '../ui/pointer-tooltip-portal';
-import { PositionedTooltip } from '../ui/positioned-tooltip';
-import { SelectField } from '../ui/select-field';
-import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
+import { echarts } from '../../lib/echarts';
+import { EChartsReactCore } from '../../lib/echartsReactCore';
+import { useChartResize } from '../../lib/useChartResize';
+import type { PointerPosition } from '../../ui/pointer-tooltip-portal';
+import { PositionedTooltip } from '../../ui/positioned-tooltip';
+import { SelectField } from '../../ui/select-field';
+import { useTimelineEchartsTheme } from '../../timeline/timelineEchartsTheme';
 import { FsmCapacityTooltip } from './FsmCapacityTooltip';
 
 const CHART_HEIGHT = 90;
@@ -34,12 +33,33 @@ interface AxisPointerEvent {
   axesInfo?: Array<{ axisDim?: string; value?: number }>;
 }
 
+export interface FsmCapacityTransition {
+  name: string;
+  usages: Array<{
+    resource: string;
+    capacities: Array<[string, bigint | null]>;
+  }>;
+}
+
+export interface FsmCapacityQuantitySpec {
+  symbol: string;
+  singular: string;
+  plural: string;
+  occupancy_prefix: 'Si' | 'Iec' | 'None';
+  rate_prefix: 'Si' | 'Iec' | 'None';
+}
+
+export interface FsmCapacityDecl {
+  quantity: string;
+  kind: 'Occupancy' | 'Rate';
+}
+
 export interface FsmCapacityChartProps {
-  transitions: FsmTransition[];
+  transitions: FsmCapacityTransition[];
   isDark: boolean;
   resourceLabel: (id: string) => string;
-  quantitySpecs: { [key in string]: QuantitySpec };
-  getCapacityDecl: (resourceId: string, capacityName: string) => CapacityDecl | undefined;
+  quantitySpecs: { [key in string]: FsmCapacityQuantitySpec };
+  getCapacityDecl: (resourceId: string, capacityName: string) => FsmCapacityDecl | undefined;
   defaultCapacityPredicate?: (name: string) => boolean;
 }
 

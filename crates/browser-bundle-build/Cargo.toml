@@ -1,0 +1,17 @@
+[package]
+name = "quent-browser-bundle-build"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+postcard.workspace = true
+quent-browser-bundle.workspace = true
+quent-events = { workspace = true, features = ["serde"] }
+quent-store = { workspace = true, features = ["io-msgpack", "io-ndjson", "io-postcard"] }
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+uuid = { workspace = true, features = ["serde"] }
+zip = { workspace = true, features = ["deflate"] }

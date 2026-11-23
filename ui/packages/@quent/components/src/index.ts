@@ -74,6 +74,12 @@ export { PointerTooltipPortal } from './ui/pointer-tooltip-portal';
 export type { PointerPosition } from './ui/pointer-tooltip-portal';
 export { PositionedTooltip } from './ui/positioned-tooltip';
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './ui/resizable';
+export { useCollapsiblePanel } from './lib/useCollapsiblePanel';
+export type {
+  CollapsiblePanel,
+  PanelHeights,
+  UseCollapsiblePanelOptions,
+} from './lib/useCollapsiblePanel';
 export { ScrollArea, ScrollBar } from './ui/scroll-area';
 export {
   ThinScroll,
@@ -117,8 +123,8 @@ export { TreeView } from './ui/tree-view';
 export type { TreeDataItem } from './ui/tree-view';
 export { TreeSelect } from './ui/tree-select';
 export type { TreeSelectProps } from './ui/tree-select';
-export { TreeTable } from './ui/tree-table';
-export type { Column, ColumnComponent, IconComponent } from './ui/tree-table';
+export { TreeTable, PinnedSectionToggle, TREE_TABLE_SCROLLER_SELECTOR } from './ui/tree-table';
+export type { Column, ColumnComponent, ColumnWidth, IconComponent } from './ui/tree-table';
 export { Badge, badgeVariants } from './ui/badge';
 export { TruncatedBadgeList } from './ui/truncated-badge-list';
 export type { TruncatedBadgeListProps } from './ui/truncated-badge-list';
@@ -187,20 +193,24 @@ export {
 } from './lib/timeline.utils';
 export { getFsmTypeName, getResourceTypeName } from '@quent/utils';
 
-// ─── Services – query-plan ────────────────────────────────────────────────────
+// ─── Query-engine – query-plan ────────────────────────────────────────────────
 export {
   computeNodeColoring,
   computeEdgeColoring,
   computeEdgeWidthConfig,
-} from './services/query-plan/dagFieldProcessing';
+} from './query-engine/query-plan/dagFieldProcessing';
 export {
   getPlanDAG,
   getTreeData,
   getSelectedOperatorCountsByPlan,
   validateQueryBundle,
-} from './services/query-plan/query-bundle-transformer';
-export type { DAGData, QueryPlanDataItem, QueryPlanNodeData } from './services/query-plan/types';
-// DAGNode, DAGEdge, StatValue re-exported via services/query-plan/types (avoid direct @quent/utils re-export here)
+} from './query-engine/query-plan/query-bundle-transformer';
+export type {
+  DAGData,
+  QueryPlanDataItem,
+  QueryPlanNodeData,
+} from './query-engine/query-plan/types';
+// DAGNode, DAGEdge, StatValue come from query-engine/query-plan/types.
 
 // ─── Timeline components ──────────────────────────────────────────────────────
 export { TimelineController } from './timeline/TimelineController';
@@ -312,8 +322,8 @@ export {
 export type { GroupIndexDef, RowWithGroupKeys } from './pivot-table/utils';
 
 // ─── FSM chart components ─────────────────────────────────────────────────────
-export { FsmCapacityChart } from './fsm-chart/FsmCapacityChart';
-export type { FsmCapacityChartProps } from './fsm-chart/FsmCapacityChart';
+export { FsmCapacityChart } from './quent-views/fsm-chart/FsmCapacityChart';
+export type { FsmCapacityChartProps } from './quent-views/fsm-chart/FsmCapacityChart';
 
 // ─── Long-entities components ─────────────────────────────────────────────────
 export {

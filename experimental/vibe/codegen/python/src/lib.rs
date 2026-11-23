@@ -31,6 +31,12 @@ pub struct Options {
     pub io_path: String,
     pub dynamic_attributes_path: String,
     pub exporters: Exporters,
+    /// Rust function that writes a model-specific browser bundle.
+    ///
+    /// The function must accept input and output [`Path`] references and return
+    /// a result whose success value exposes `engine_id`, `context_count`,
+    /// `event_count`, `schema_digest`, and `format_version` fields.
+    pub browser_bundle_writer: Option<String>,
     /// Expose a model-specific factory for an embedded collector server.
     pub collector_server: bool,
     /// Generate an `<event>_at(timestamp_ns, ...)` variant of each event and
@@ -77,6 +83,7 @@ impl Default for Options {
             io_path: "quent_io".to_owned(),
             dynamic_attributes_path: "quent_dynamic_attributes".to_owned(),
             exporters: Exporters::default(),
+            browser_bundle_writer: None,
             collector_server: false,
             timestamped_methods: false,
         }
@@ -121,7 +128,13 @@ pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, Ge
     let runtime = parse_path(&options.runtime_path)?;
     let io = parse_path(&options.io_path)?;
     let dynamic = parse_path(&options.dynamic_attributes_path)?;
+    let browser_bundle_writer = options
+        .browser_bundle_writer
+        .as_deref()
+        .map(parse_path)
+        .transpose()?;
     let helpers = helpers(options, &runtime, &dynamic);
+    let browser_bundle = browser_bundle_writer.as_ref().map(browser_bundle);
     let context = context(schema, options, &instrumentation, &runtime, &io);
     let entities = schema
         .entities()
@@ -140,6 +153,7 @@ pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, Ge
         #[allow(clippy::needless_borrow)]
         mod __quent_pyo3_bridge {
             #helpers
+            #browser_bundle
             #context
             #(#entities)*
             #module
@@ -198,6 +212,10 @@ fn validate_names(schema: &Schema, options: &Options) -> Result<(), GenerateErro
     if options.collector_server {
         reserve_name(&mut names, "Collector".to_owned())?;
         reserve_name(&mut names, "start_collector".to_owned())?;
+    }
+    if options.browser_bundle_writer.is_some() {
+        reserve_name(&mut names, "BrowserBundleSummary".to_owned())?;
+        reserve_name(&mut names, "write_browser_bundle".to_owned())?;
     }
     for record in schema.records() {
         reserve_name(&mut names, format!("{}Dict", path_pascal(record.path())))?;
@@ -1419,6 +1437,11 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             module.add_function(wrap_pyfunction!(start_collector, module)?)?;
         }
     });
+    let browser_bundle_registration = options.browser_bundle_writer.as_ref().map(|_| {
+        quote! {
+            module.add_function(wrap_pyfunction!(write_browser_bundle, module)?)?;
+        }
+    });
     quote! {
         #[pymodule(name = #export_name)]
         pub fn #rust_name(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1450,9 +1473,42 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             module.add_class::<PyExporterOptions>()?;
             module.add_class::<PyContext>()?;
             #collector_registration
+            #browser_bundle_registration
             #(module.add_class::<#observers>()?;)*
             #(module.add_class::<#handles>()?;)*
             Ok(())
+        }
+    }
+}
+
+fn browser_bundle(writer: &syn::Path) -> TokenStream {
+    quote! {
+        #[pyfunction]
+        fn write_browser_bundle(
+            py: Python<'_>,
+            input: ::std::path::PathBuf,
+            output: ::std::path::PathBuf,
+        ) -> PyResult<Py<pyo3::types::PyDict>> {
+            let (engine_id, context_count, event_count, schema_digest, format_version) =
+                py.detach(move || {
+                    #writer(&input, &output)
+                        .map(|summary| (
+                            summary.engine_id.to_string(),
+                            summary.context_count,
+                            summary.event_count,
+                            summary.schema_digest,
+                            summary.format_version,
+                        ))
+                        .map_err(|error| error.to_string())
+                })
+                .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+            let summary = pyo3::types::PyDict::new(py);
+            summary.set_item("engine_id", engine_id)?;
+            summary.set_item("context_count", context_count)?;
+            summary.set_item("event_count", event_count)?;
+            summary.set_item("schema_digest", schema_digest)?;
+            summary.set_item("format_version", format_version)?;
+            Ok(summary.unbind())
         }
     }
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export { DetailsEntry } from './DetailsEntry';
+export { DetailItemActions } from './DetailItemActions';
 export { OperatorAccordion } from './OperatorAccordion';
 export type { OperatorDisclosureState } from './OperatorAccordion';
 export { OperatorColorBar } from './OperatorColorBar';

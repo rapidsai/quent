@@ -423,7 +423,10 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
             {
               selectionId: value.nodeId,
               label: value.label,
-              operatorIds: new Set([value.nodeId]),
+              operatorIds: [
+                value.nodeId,
+                ...(value.relatedOperators?.map(operator => operator.nodeId) ?? []),
+              ],
               selectedData: value,
             },
           ],

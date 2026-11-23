@@ -3,20 +3,24 @@
 
 import { parseCustomStatistics, parsePortStatistics } from '../../lib/queryBundle.utils';
 import type { DAGNode, DAGEdge, QueryPlanDataItem } from './types';
-import type { QueryBundle, EntityRef } from '@quent/utils';
+import type {
+  EntityRef,
+  Operator,
+  Plan,
+  PlanTree,
+  Port,
+  QueryBundle,
+  Worker,
+} from '@quent/utils/query-engine';
 import {
   aggregateNumericValues,
   buildRelatedOperatorIdsById,
   flattenStatistics,
   isNumericValue,
+  operatorPlanLabel,
   operatorWorkerLabel,
   statisticFieldLabel,
   workerDisplayName,
-  Operator,
-  Port,
-  Plan,
-  PlanTree,
-  Worker,
   type DAGStatisticSet,
   type Statistic,
   type StatisticField,
@@ -116,11 +120,18 @@ const getNodeEntity = (
           bundle.entities.workers
         ),
       };
+      const operatorPlanLabels: Record<string, string | undefined> = {
+        [operator.id]: operatorPlanLabel(operator, bundle.entities.plans),
+      };
       for (const relatedOperator of relatedOperators) {
         operatorWorkerLabels[relatedOperator.id] = operatorWorkerLabel(
           relatedOperator,
           bundle.entities.plans,
           bundle.entities.workers
+        );
+        operatorPlanLabels[relatedOperator.id] = operatorPlanLabel(
+          relatedOperator,
+          bundle.entities.plans
         );
       }
       const node: DAGNode = {
@@ -138,6 +149,7 @@ const getNodeEntity = (
           relatedOperators,
           relatedOperatorStatistics,
           operatorWorkerLabels,
+          operatorPlanLabels,
         },
       };
       return node;

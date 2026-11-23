@@ -8,6 +8,11 @@ import { TIMELINE_SPACING } from '../timeline/types';
 import { useTimelineWheelNavigation } from './useTimelineWheelNavigation';
 
 const CHART_WIDTH = 1010;
+const ZOOM_MODIFIERS = [
+  { name: 'Shift', init: { shiftKey: true } },
+  { name: 'Ctrl', init: { ctrlKey: true } },
+  { name: 'Command', init: { metaKey: true } },
+] as const;
 
 function createChart(dataZoom: { start: number; end: number }) {
   const dom = document.createElement('div');
@@ -59,7 +64,7 @@ describe('useTimelineWheelNavigation', () => {
     });
   });
 
-  it('pans instead of zooming on shifted horizontal wheel input', () => {
+  it.each(ZOOM_MODIFIERS)('pans instead of zooming on $name+horizontal wheel input', ({ init }) => {
     const chart = createChart({ start: 25, end: 75 });
     const wheelTarget = document.createElement('div');
     wheelTarget.appendChild(chart.dom);
@@ -70,7 +75,7 @@ describe('useTimelineWheelNavigation', () => {
 
     const event = new WheelEvent('wheel', {
       deltaX: 100,
-      shiftKey: true,
+      ...init,
       bubbles: true,
       cancelable: true,
     });
@@ -85,7 +90,7 @@ describe('useTimelineWheelNavigation', () => {
     );
   });
 
-  it('allows shifted vertical wheel input to reach ECharts', () => {
+  it.each(ZOOM_MODIFIERS)('allows $name+vertical wheel input to reach ECharts', ({ init }) => {
     const chart = createChart({ start: 25, end: 75 });
     const wheelTarget = document.createElement('div');
     wheelTarget.appendChild(chart.dom);
@@ -98,7 +103,7 @@ describe('useTimelineWheelNavigation', () => {
       chart.dom.dispatchEvent(
         new WheelEvent('wheel', {
           deltaY: 100,
-          shiftKey: true,
+          ...init,
           bubbles: true,
           cancelable: true,
         })
@@ -111,8 +116,12 @@ describe('useTimelineWheelNavigation', () => {
 
   it('leaves vertical wheel input to native scrolling', () => {
     const chart = createChart({ start: 25, end: 75 });
+    const wheelTarget = document.createElement('div');
+    wheelTarget.appendChild(chart.dom);
+    const echartsWheel = vi.fn();
+    chart.dom.addEventListener('wheel', echartsWheel);
     const { result } = renderHook(() => useTimelineWheelNavigation(10));
-    act(() => result.current(chart.instance));
+    act(() => result.current(chart.instance, wheelTarget));
 
     const event = new WheelEvent('wheel', {
       deltaY: 100,
@@ -122,45 +131,49 @@ describe('useTimelineWheelNavigation', () => {
     act(() => chart.dom.dispatchEvent(event));
 
     expect(event.defaultPrevented).toBe(false);
+    expect(echartsWheel).not.toHaveBeenCalled();
     expect(chart.dispatchAction).not.toHaveBeenCalled();
   });
 
-  it('uses the latest minimum span when blocking zoom-in panning', () => {
-    const chart = createChart({ start: 20, end: 30 });
-    const parent = document.createElement('div');
-    parent.appendChild(chart.dom);
-    const parentWheel = vi.fn();
-    parent.addEventListener('wheel', parentWheel);
+  it.each(ZOOM_MODIFIERS)(
+    'uses the latest minimum span when blocking $name+wheel zoom-in',
+    ({ init }) => {
+      const chart = createChart({ start: 20, end: 30 });
+      const parent = document.createElement('div');
+      parent.appendChild(chart.dom);
+      const parentWheel = vi.fn();
+      parent.addEventListener('wheel', parentWheel);
 
-    const { result, rerender } = renderHook(
-      ({ minZoomSpanPct }) => useTimelineWheelNavigation(minZoomSpanPct),
-      { initialProps: { minZoomSpanPct: 5 } }
-    );
-    act(() => result.current(chart.instance));
-    rerender({ minZoomSpanPct: 10 });
+      const { result, rerender } = renderHook(
+        ({ minZoomSpanPct }) => useTimelineWheelNavigation(minZoomSpanPct),
+        { initialProps: { minZoomSpanPct: 5 } }
+      );
+      act(() => result.current(chart.instance));
+      rerender({ minZoomSpanPct: 10 });
 
-    const zoomIn = new WheelEvent('wheel', {
-      deltaY: -1,
-      shiftKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    act(() => chart.dom.dispatchEvent(zoomIn));
+      const zoomIn = new WheelEvent('wheel', {
+        deltaY: -1,
+        ...init,
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => chart.dom.dispatchEvent(zoomIn));
 
-    expect(zoomIn.defaultPrevented).toBe(true);
-    expect(parentWheel).not.toHaveBeenCalled();
+      expect(zoomIn.defaultPrevented).toBe(true);
+      expect(parentWheel).not.toHaveBeenCalled();
 
-    const zoomOut = new WheelEvent('wheel', {
-      deltaY: 1,
-      shiftKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    act(() => chart.dom.dispatchEvent(zoomOut));
+      const zoomOut = new WheelEvent('wheel', {
+        deltaY: 1,
+        ...init,
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => chart.dom.dispatchEvent(zoomOut));
 
-    expect(zoomOut.defaultPrevented).toBe(false);
-    expect(parentWheel).toHaveBeenCalledOnce();
-  });
+      expect(zoomOut.defaultPrevented).toBe(false);
+      expect(parentWheel).toHaveBeenCalledOnce();
+    }
+  );
 
   it.each([
     { dataZoom: { start: 0, end: 50 }, deltaX: -100, expectedStart: 0 },

@@ -42,8 +42,9 @@ export function useTimelineWheelNavigation(minZoomSpanPct: number) {
       const handleWheel = (event: WheelEvent) => {
         const isHorizontalScroll =
           event.deltaX !== 0 && Math.abs(event.deltaX) > Math.abs(event.deltaY);
+        const hasZoomModifier = event.shiftKey || event.ctrlKey || event.metaKey;
 
-        if (event.shiftKey && !isHorizontalScroll) {
+        if (hasZoomModifier && !isHorizontalScroll) {
           if (event.deltaY < 0 && isAtZoomLimit()) {
             event.preventDefault();
             event.stopPropagation();

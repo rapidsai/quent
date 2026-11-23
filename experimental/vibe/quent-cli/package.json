@@ -27,11 +27,11 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.6",
     "@types/react": "catalog:",
-    "prettier": "^3.9.6",
+    "prettier": "^3.9.10",
     "tsx": "^4.23.12",
     "typescript": "catalog:",
-    "vitest": "^4.1.11"
+    "vitest": "^5.1.0"
   }
 }

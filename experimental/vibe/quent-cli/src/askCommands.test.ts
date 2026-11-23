@@ -13,6 +13,7 @@ describe('ask command dispatcher', () => {
       'query-structure',
       'operator-facts',
       'operator-statistics-summary',
+      'query-diff',
     ]);
     expect(askUsage).toContain('pnpm ask <command>');
     expect(askUsage).not.toContain('query-groups');
@@ -20,6 +21,7 @@ describe('ask command dispatcher', () => {
     expect(askUsage).toContain('query-structure');
     expect(askUsage).toContain('operator-facts');
     expect(askUsage).toContain('operator-statistics-summary');
+    expect(askUsage).toContain('query-diff');
   });
 
   it('provides command-specific usage', () => {
@@ -29,14 +31,16 @@ describe('ask command dispatcher', () => {
     expect(getAskCommand('operator-statistics-summary').usage).toContain(
       'pnpm ask operator-statistics-summary'
     );
+    expect(getAskCommand('query-diff').usage).toContain('pnpm ask query-diff');
   });
 
   it('allows interactive selection with JSON output', () => {
-    const usage = getAskCommand('operator-facts').usage;
-
-    expect(usage).toContain('--json');
-    expect(usage).toContain('selection may still be interactive');
-    expect(usage).not.toContain('never open interactive prompts');
+    for (const command of ['operator-facts', 'query-diff']) {
+      const usage = getAskCommand(command).usage;
+      expect(usage).toContain('--json');
+      expect(usage).toContain('selection may still be interactive');
+      expect(usage).not.toContain('never open interactive prompts');
+    }
   });
 
   it('only advertises options used by current questions', () => {
@@ -50,7 +54,7 @@ describe('ask command dispatcher', () => {
 
   it('rejects unknown commands with the supported command list', () => {
     expect(() => getAskCommand('unknown')).toThrow(
-      'Supported commands: engines, queries, query-lifecycle, query-structure, operator-facts, operator-statistics-summary'
+      'Supported commands: engines, queries, query-lifecycle, query-structure, operator-facts, operator-statistics-summary, query-diff'
     );
   });
 });

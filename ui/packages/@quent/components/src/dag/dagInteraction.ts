@@ -4,17 +4,11 @@
 import { computeScaleRange, type DAGNode, type ScaleRange } from '@quent/utils';
 import type { HoveredStatInfo } from '@quent/hooks';
 import { resolveHoveredStatValue } from '@quent/hooks';
+import { getRelatedOperatorIds } from './dagSelection';
 
 export interface DagHeatmap {
   values: ReadonlyMap<string, number>;
   range: ScaleRange;
-}
-
-function getRelatedOperatorIds(node: DAGNode): readonly string[] {
-  const relatedOperatorIds = node.metadata?.relatedOperatorIds;
-  return Array.isArray(relatedOperatorIds)
-    ? relatedOperatorIds.filter((id): id is string => typeof id === 'string')
-    : [];
 }
 
 export function resolveDagHeatmap(

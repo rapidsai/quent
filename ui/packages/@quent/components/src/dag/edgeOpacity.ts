@@ -12,14 +12,14 @@ export function shouldDimEdgeFromInteraction({
   hoveredEdgeId,
   inspectedEdgeIds = NO_EDGES,
   edgeId,
-  selectedNodeIds,
+  selectedOperatorIds,
   highlightedNodeIds,
 }: {
   /** A transient hover emphasizes this edge in addition to the inspected pipes. */
   hoveredEdgeId?: string;
   inspectedEdgeIds?: ReadonlySet<string>;
   edgeId?: string;
-  selectedNodeIds: ReadonlySet<string>;
+  selectedOperatorIds: ReadonlySet<string>;
   highlightedNodeIds: ReadonlySet<string> | null;
 }): boolean {
   if (edgeId !== undefined && (edgeId === hoveredEdgeId || inspectedEdgeIds.has(edgeId))) {
@@ -27,7 +27,7 @@ export function shouldDimEdgeFromInteraction({
   }
   return (
     hoveredEdgeId !== undefined ||
-    selectedNodeIds.size > 0 ||
+    selectedOperatorIds.size > 0 ||
     inspectedEdgeIds.size > 0 ||
     highlightedNodeIds !== null
   );
