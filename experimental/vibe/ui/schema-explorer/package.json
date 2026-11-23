@@ -25,14 +25,14 @@
     "svelte": "catalog:"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1",
+    "@playwright/test": "^1.65.0",
     "@sveltejs/vite-plugin-svelte": "catalog:",
-    "@tailwindcss/vite": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.5",
     "daisyui": "^5.7.50",
     "eslint": "catalog:",
     "svelte-check": "catalog:",
-    "tailwindcss": "^4.3.3",
+    "tailwindcss": "^4.3.5",
     "typescript": "catalog:",
-    "vite": "8.3.5"
+    "vite": "8.3.6"
   }
 }
