@@ -98,6 +98,7 @@ fn invalid_and_reserved_names() {
         "\
 records:
   'has space':
+    fields: { x: u8 }
 ",
         &["invalid name `has space`"],
     );
@@ -157,7 +158,9 @@ fn invalid_sibling_names_do_not_panic() {
         "\
 records:
   'a b':
+    fields: { x: u8 }
   'c d':
+    fields: { x: u8 }
 ",
         &["invalid name `a b`"],
     );
