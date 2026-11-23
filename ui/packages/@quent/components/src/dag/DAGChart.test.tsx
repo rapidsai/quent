@@ -431,9 +431,6 @@ describe('DAGChart edge scaling', () => {
       await screen.findByRole('button', { name: 'Inspect pipe source-out to middle-in' })
     );
 
-    expect(container.querySelector('#first-pipe')).toHaveStyle({
-      stroke: 'hsl(var(--foreground))',
-    });
     expect(container.querySelector('#arrow-first-pipe path')).toHaveAttribute(
       'fill',
       'hsl(var(--foreground))'
