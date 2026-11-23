@@ -2,29 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { glob, readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { resolveConfigFromFile } from 'vite-plus';
 import { format } from 'vite-plus/fmt';
 
-const patterns = process.argv.slice(2);
-const fileNames = new Set<string>();
+const configPath = fileURLToPath(new URL('../vite.config.ts', import.meta.url));
+const { fmt: fmtConfig } = await resolveConfigFromFile(configPath);
 
-for (const pattern of patterns.length > 0 ? patterns : ['generated/ts-bindings/**/*.ts']) {
-  for await (const fileName of glob(pattern)) {
-    fileNames.add(fileName);
-  }
+if (!fmtConfig) {
+  throw new Error('vite.config.ts must define fmt options');
 }
 
-for (const fileName of fileNames) {
+const { ignorePatterns: _, ...formatOptions } = fmtConfig;
+let fileCount = 0;
+
+for await (const fileName of glob('generated/ts-bindings/**/*.ts')) {
   const sourceText = await readFile(fileName, 'utf8');
-  const result = await format(fileName, sourceText, {
-    semi: true,
-    trailingComma: 'es5',
-    singleQuote: true,
-    printWidth: 100,
-    tabWidth: 2,
-    useTabs: false,
-    arrowParens: 'avoid',
-    endOfLine: 'lf',
-  });
+  const result = await format(fileName, sourceText, formatOptions);
 
   if (result.errors.length > 0) {
     throw new Error(
@@ -35,8 +29,9 @@ for (const fileName of fileNames) {
   if (result.code !== sourceText) {
     await writeFile(fileName, result.code);
   }
+  fileCount += 1;
 }
 
-if (fileNames.size === 0) {
+if (fileCount === 0) {
   throw new Error('No generated TypeScript bindings found');
 }
