@@ -30,6 +30,39 @@ class ResizeObserverMock {
 (globalThis as typeof globalThis & { ResizeObserver: typeof ResizeObserverMock }).ResizeObserver =
   ResizeObserverMock;
 
+// Newer Node versions ship an experimental `localStorage` global that is
+// undefined without --localstorage-file, and it hides jsdom's. Install a simple
+// in-memory Storage so tests behave the same on every Node version.
+class MemoryStorage implements Storage {
+  private items = new Map<string, string>();
+
+  get length(): number {
+    return this.items.size;
+  }
+  clear(): void {
+    this.items.clear();
+  }
+  getItem(key: string): string | null {
+    return this.items.get(key) ?? null;
+  }
+  key(index: number): string | null {
+    return [...this.items.keys()][index] ?? null;
+  }
+  removeItem(key: string): void {
+    this.items.delete(key);
+  }
+  setItem(key: string, value: string): void {
+    this.items.set(key, String(value));
+  }
+  [name: string]: unknown;
+}
+
+for (const name of ['localStorage', 'sessionStorage'] as const) {
+  const storage = new MemoryStorage();
+  Object.defineProperty(globalThis, name, { configurable: true, value: storage });
+  Object.defineProperty(window, name, { configurable: true, value: storage });
+}
+
 // Mock scrollIntoView for Radix UI Select components
 Element.prototype.scrollIntoView = vi.fn();
 

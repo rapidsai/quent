@@ -13,7 +13,19 @@ import {
   ResizablePanelGroup,
   transformResourceTree,
 } from '@quent/components';
-import { CopyLinkButton, DeepLinkBoundary } from '@/features/deep-link';
+import {
+  CopyLinkButton,
+  ViewStateBoundary,
+  ViewStatePersistence,
+  UrlViewState,
+  ViewStateResolutionToast,
+  applicationViewStateRepository,
+  createUrlViewStateSource,
+  URL_VIEW_STATE_SOURCE_ID,
+  type ViewStateScope,
+  useResolvedViewState,
+} from '@/features/view-state';
+import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { THEME_DARK, useTheme } from '@/contexts/ThemeContext';
 import { type EntityRef, type PaletteTheme, type QueryBundle } from '@quent/utils';
 
@@ -31,6 +43,8 @@ function defaultRootResourceType(queryBundle: QueryBundle<EntityRef> | undefined
     (root.entity && 'type_name' in root.entity ? root.entity.type_name : null)
   );
 }
+
+const PROFILE_PANEL_IDS = ['query-plan', 'query-tabs'];
 
 function ProfileLayout() {
   const { engineId } = Route.useParams();
@@ -70,11 +84,36 @@ function ProfileLayout() {
         : undefined;
   const hasQuery = queryId !== undefined;
   const isQueryReady = !hasQuery || queryMatch?.status === 'success';
-  // Stripping a consumed `s` keeps the store; a different payload resets it.
-  const [providerPayload, setProviderPayload] = useState(encodedState);
-  if (encodedState !== undefined && encodedState !== providerPayload) {
-    setProviderPayload(encodedState);
+  const providerScopeKey = queryId ? `${engineId}:${queryId}` : null;
+  const [providerState, setProviderState] = useState({
+    scopeKey: providerScopeKey,
+    urlPayload: encodedState,
+  });
+  if (providerState.scopeKey !== providerScopeKey) {
+    setProviderState({ scopeKey: providerScopeKey, urlPayload: encodedState });
+  } else if (encodedState !== undefined && encodedState !== providerState.urlPayload) {
+    setProviderState({ scopeKey: providerScopeKey, urlPayload: encodedState });
   }
+  const urlPayload =
+    providerState.scopeKey === providerScopeKey ? providerState.urlPayload : encodedState;
+  const stateScope = useMemo<ViewStateScope | null>(
+    () => (queryId && activeTab ? { engineId, queryId, tab: activeTab } : null),
+    [activeTab, engineId, queryId]
+  );
+  const stateSources = useMemo(
+    () => [createUrlViewStateSource(urlPayload), applicationViewStateRepository],
+    [urlPayload]
+  );
+  const stateResolution = useResolvedViewState({
+    enabled: isQueryReady && stateScope !== null,
+    resolutionKey: queryId ? `${engineId}:${queryId}:${urlPayload ?? ''}` : null,
+    scope: stateScope,
+    sources: stateSources,
+  });
+  const resolvedState =
+    stateResolution.status === 'ready' ? (stateResolution.encodedState ?? undefined) : undefined;
+
+  const layout = usePanelLayout('profile-split', PROFILE_PANEL_IDS);
 
   if (!hasQuery) {
     return <Outlet />;
@@ -83,9 +122,12 @@ function ProfileLayout() {
   if (!isQueryReady) {
     return <Outlet />;
   }
+  if (stateResolution.status === 'loading') {
+    return <Outlet />;
+  }
 
   const content = (
-    <DeepLinkBoundary
+    <ViewStateBoundary
       engineId={engineId}
       queryId={queryId}
       activeTab={activeTab}
@@ -93,17 +135,41 @@ function ProfileLayout() {
       durationSeconds={queryBundle?.duration_s ?? 0}
       defaultRootResourceType={defaultRootResourceType(queryBundle)}
       operators={operators}
-      encodedState={encodedState}
+      encodedState={resolvedState}
+      maxEncodedLength={
+        stateResolution.status === 'ready' ? stateResolution.maxEncodedLength : undefined
+      }
       isQueryReady={isQueryReady}
     >
       <div className="flex h-full min-w-0 flex-col">
+        <UrlViewState active={stateResolution.sourceId === URL_VIEW_STATE_SOURCE_ID} />
+        <ViewStateResolutionToast resolution={stateResolution} />
+        {activeTab && (
+          <ViewStatePersistence
+            repository={applicationViewStateRepository}
+            engineId={engineId}
+            queryId={queryId}
+            tab={activeTab}
+            restoring={stateResolution.sourceId === applicationViewStateRepository.id}
+          />
+        )}
         {queryId && (
           <QueryToolbar>
             <CopyLinkButton />
           </QueryToolbar>
         )}
-        <ResizablePanelGroup orientation="horizontal" className="min-h-0 min-w-0 flex-1">
-          <ResizablePanel defaultSize="33%" minSize="15%" collapsible collapsedSize="0%">
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 min-w-0 flex-1"
+          {...layout}
+        >
+          <ResizablePanel
+            id="query-plan"
+            defaultSize="33%"
+            minSize="15%"
+            collapsible
+            collapsedSize="0%"
+          >
             {queryId && queryId !== '' ? (
               <QueryPlan queryId={queryId} engineId={engineId} />
             ) : (
@@ -114,6 +180,7 @@ function ProfileLayout() {
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel
+            id="query-tabs"
             defaultSize="67%"
             minSize="20%"
             collapsible
@@ -124,11 +191,11 @@ function ProfileLayout() {
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
-    </DeepLinkBoundary>
+    </ViewStateBoundary>
   );
 
   return (
-    <Provider key={`${engineId}:${queryId ?? ''}:${providerPayload ?? ''}`}>
+    <Provider key={`${engineId}:${queryId ?? ''}:${urlPayload ?? ''}`}>
       {queryBundle ? (
         <QueryColorRegistry queryBundle={queryBundle} paletteTheme={paletteTheme}>
           {content}
