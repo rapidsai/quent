@@ -38,25 +38,29 @@ import {
   selectedTypesAtom,
 } from '@/atoms/resourceTree';
 import { findAncestorNames, resolvePinnedRows } from '@/features/pinned-rows/pinnedRows';
-import { ResourceFilterSearch } from '@/features/resource-filter/ResourceFilterSearch';
 import { filterResourceTree } from '@/features/resource-filter/resourceFilter';
 import {
   useAutoExpandMatchingAncestors,
   useExpandedIds,
   useInitializeDisclosureExpansion,
 } from '@/hooks/useExpandedIds';
-import { usePinnedCollapsed, usePinnedIds } from '@/hooks/usePinnedIds';
+import { usePinnedIds } from '@/hooks/usePinnedIds';
 import { PinnedRowPath } from './PinnedRowPath';
 import { TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT, type ResourceTimelineSubRow } from './sub-rows';
+import { TimelineTreeFilterControls } from './TimelineTreeFilterControls';
 import {
   TimelineTreeTable,
   useTimelineTreeSetup,
   type TimelineTreeControls,
   type TimelineTreeItem,
   type TimelineTreeModel,
-  type PinningControls,
   type RowPinning,
 } from './TimelineTreeTable';
+import type {
+  TimelineTreeFilterSummary,
+  TimelineTreePinningSource,
+} from './timelineTreeComposition';
+import { useCombinedTimelineTreePinning } from './timelineTreeComposition';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) {
@@ -65,9 +69,14 @@ function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string |
   return unpackEntityRef(resourceTree.ResourceGroup.id).id;
 }
 
-export interface ResourceTimelinesTreeModel extends TimelineTreeModel, TimelineTreeControls {
-  filterMatchCount: number;
-  isFilterActive: boolean;
+export interface ResourceTimelinesTreeModel
+  extends TimelineTreeModel, Omit<TimelineTreeControls, 'filters' | 'pinning'> {
+  filter: TimelineTreeFilterSummary;
+  filterOptions: {
+    fsmTypes: string[];
+    resourceTypes: string[];
+  };
+  pinningSource: TimelineTreePinningSource;
   rootItem: TreeTableItem;
   showOthers: boolean;
 }
@@ -87,19 +96,8 @@ export interface ResourceTimelinesTreeProps {
   seedRootExpanded?: boolean;
 }
 
-// Rows from another tree in the same table (the NVTX tree) that share this model's pinned
-// section and "pin all" button.
-export interface SiblingPinning {
-  // The sibling tree before any filter, and as it is displayed now.
-  fullRoots: readonly TimelineTreeItem[];
-  displayedRoots: readonly TimelineTreeItem[];
-  // Matching rows of the sibling tree that "pin all" should include.
-  matchIds: readonly string[];
-}
-
 interface UseResourceTimelinesTreeModelProps extends ResourceTimelinesTreeProps {
   isDark: boolean;
-  siblingPinning?: SiblingPinning;
 }
 
 // QueryResourceTree reuses the model to combine multiple trees in one table.
@@ -110,14 +108,13 @@ export function useResourceTimelinesTreeModel({
   isDark,
   subRows = EMPTY_SUB_ROWS,
   seedRootExpanded = true,
-  siblingPinning,
 }: UseResourceTimelinesTreeModelProps): ResourceTimelinesTreeModel {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const durationSeconds = queryBundle.duration_s;
   const [selectedTypes, setSelectedTypes] = useAtom(selectedTypesAtom);
   const [selectedFsmTypes, setSelectedFsmTypes] = useAtom(selectedFsmTypesAtom);
   const [rootResourceType, setRootResourceType] = useAtom(rootResourceTypeAtom);
-  const [resourceFilter, setResourceFilter] = useAtom(resourceFilterAtom);
+  const [resourceFilter] = useAtom(resourceFilterAtom);
   const deferredResourceFilter = useDeferredValue(resourceFilter);
 
   const rootItem = useMemo(
@@ -222,44 +219,31 @@ export function useResourceTimelinesTreeModel({
     rootItem,
   ]);
 
-  const { pinnedIds, togglePin, pinMany, clearPins, movePin } = usePinnedIds();
-  const { isPinnedCollapsed, togglePinnedCollapsed } = usePinnedCollapsed();
-  // A pin whose row a filter has removed is hidden, not forgotten; clearing the filter restores it.
-  const { shownItems: pinnedItems, hiddenCount: hiddenPinnedCount } = useMemo(() => {
-    // Rows that are pinned with their owner (Entities) cannot be pinned on their own, so an id
-    // for one, such as from an old shared link, is ignored.
-    const ownedRowIds = new Set<string>();
-    const collectOwnedRows = (item: TimelineTreeItem) => {
-      if (subRows.some(subRow => subRow.pinsWithOwner && subRow.matches(item))) {
-        ownedRowIds.add(item.id);
-      }
-      item.children?.forEach(collectOwnedRows);
-    };
-    collectOwnedRows(fullTree as TimelineTreeItem);
-    const standalonePinnedIds = new Set([...pinnedIds].filter(id => !ownedRowIds.has(id)));
-
-    const resolved = resolvePinnedRows(
-      standalonePinnedIds,
-      [fullTree, ...(siblingPinning?.fullRoots ?? [])],
-      [...trees, ...(siblingPinning?.displayedRoots ?? [])]
-    );
-    // A pinned copy shows only the disclosure rows pinned with it (each with its chart row), not
-    // the rest of its subtree.
-    const shownItems = resolved.shownItems.map(item => {
+  const { pinnedIds } = usePinnedIds();
+  // The root and sub-rows owned by another row cannot be pinned independently.
+  const isPinnable = useCallback(
+    (item: TimelineTreeItem) =>
+      item.id !== rootItem.id &&
+      !subRows.some(
+        subRow =>
+          subRow.disclosureRowType === item.type || (subRow.pinsWithOwner && subRow.matches(item))
+      ),
+    [rootItem.id, subRows]
+  );
+  const preparePinnedItem = useCallback(
+    (item: TimelineTreeItem) => {
       const ownedRows = (item.children ?? []).filter(child =>
         subRows.some(subRow => subRow.pinsWithOwner && subRow.disclosureRowType === child.type)
       );
       return { ...item, children: ownedRows.length > 0 ? ownedRows : undefined };
-    });
-    return { shownItems, hiddenCount: resolved.hiddenCount };
-  }, [
-    fullTree,
-    pinnedIds,
-    siblingPinning?.displayedRoots,
-    siblingPinning?.fullRoots,
-    subRows,
-    trees,
-  ]);
+    },
+    [subRows]
+  );
+  // A pin whose row a filter has removed is hidden, not forgotten; clearing the filter restores it.
+  const { shownItems: pinnedItems } = useMemo(() => {
+    const resolved = resolvePinnedRows(pinnedIds, [fullTree], trees, isPinnable);
+    return { shownItems: resolved.shownItems.map(preparePinnedItem) };
+  }, [fullTree, isPinnable, pinnedIds, preparePinnedItem, trees]);
   const getPinnedRowDescription = useCallback(
     (item: TimelineTreeItem) => {
       // A row pinned with its owner (Entities) is drawn under that owner, which already has the path.
@@ -276,18 +260,7 @@ export function useResourceTimelinesTreeModel({
     },
     [entities.workers, fullTree, subRows]
   );
-  // The root group is already summarized by the overview bar, so it has no pin button.
-  const isPinnable = useCallback(
-    (item: TimelineTreeItem) =>
-      item.id !== rootItem.id &&
-      !subRows.some(
-        subRow =>
-          subRow.disclosureRowType === item.type || (subRow.pinsWithOwner && subRow.matches(item))
-      ),
-    [rootItem.id, subRows]
-  );
-  // Matches the user can pin with "pin all": the matching resource rows, in tree order, then the
-  // sibling tree's matches. Entities and Operators rows are left out for now, and so is the root.
+  // Entities and Operators rows are left out of "pin all" for now, and so is the root.
   const pinnableMatchIds = useMemo(() => {
     const { directMatchIds } = resourceFilterResult;
     const ids: string[] = [];
@@ -299,8 +272,8 @@ export function useResourceTimelinesTreeModel({
       item.children?.forEach(visit);
     };
     (trees as TimelineTreeItem[]).forEach(visit);
-    return [...ids, ...(siblingPinning?.matchIds ?? [])];
-  }, [resourceFilterResult, rootItem.id, siblingPinning?.matchIds, subRows, trees]);
+    return ids;
+  }, [resourceFilterResult, rootItem.id, subRows, trees]);
   const getRowName = useCallback(
     (item: TimelineTreeItem) =>
       subRows.find(subRow => subRow.matches(item))?.label ??
@@ -311,28 +284,6 @@ export function useResourceTimelinesTreeModel({
   const rowPinning = useMemo<RowPinning>(
     () => ({ isPinnable, getName: getRowName, getDescription: getPinnedRowDescription }),
     [getPinnedRowDescription, getRowName, isPinnable]
-  );
-  const pinning = useMemo<PinningControls>(
-    () => ({
-      items: pinnedItems as TimelineTreeItem[],
-      hiddenCount: hiddenPinnedCount,
-      ids: pinnedIds,
-      onToggle: togglePin,
-      isCollapsed: isPinnedCollapsed,
-      onToggleCollapsed: togglePinnedCollapsed,
-      onClear: clearPins,
-      onReorder: movePin,
-    }),
-    [
-      clearPins,
-      hiddenPinnedCount,
-      isPinnedCollapsed,
-      movePin,
-      pinnedIds,
-      pinnedItems,
-      togglePin,
-      togglePinnedCollapsed,
-    ]
   );
   // Only real resources and groups have bulk timeline data; sub-rows load their own.
   const pinnedBulkItems = useMemo(
@@ -514,41 +465,33 @@ export function useResourceTimelinesTreeModel({
         : DEFAULT_TIMELINE_HEIGHT,
     [expandedIds, subRows]
   );
+  const pinningSource = useMemo<TimelineTreePinningSource>(
+    () => ({
+      fullRoots: [fullTree],
+      displayedRoots: trees as TimelineTreeItem[],
+      isPinnable,
+      preparePinnedItem,
+    }),
+    [fullTree, isPinnable, preparePinnedItem, trees]
+  );
 
   return {
-    filterMatchCount: resourceFilterResult.matchCount,
-    isFilterActive: resourceFilterResult.isActive,
+    filter: {
+      isActive: resourceFilterResult.isActive,
+      matchCount: resourceFilterResult.matchCount,
+      pinnableMatchIds,
+    },
+    filterOptions: {
+      fsmTypes: fsmTypeOptions,
+      resourceTypes: resourceTypeOptions,
+    },
+    pinningSource,
     rootItem,
     showOthers: resourceFilter.showOthers,
     trees: trees as TimelineTreeItem[],
-    pinning,
     rowPinning,
     getRowHeight,
     emptyMessage: 'No resources match this filter.',
-    filters: (
-      <>
-        <ResourceFilterSearch
-          fsmTypes={fsmTypeOptions}
-          matchCount={resourceFilterResult.matchCount}
-          matchIds={pinnableMatchIds}
-          onPinMany={pinMany}
-          pinnedIds={pinnedIds}
-          onFsmTypesChange={fsmTypes => setResourceFilter(current => ({ ...current, fsmTypes }))}
-          onResourceTypesChange={resourceTypes =>
-            setResourceFilter(current => ({ ...current, resourceTypes }))
-          }
-          onSearchChange={search => setResourceFilter(current => ({ ...current, search }))}
-          onShowOthersChange={showOthers =>
-            setResourceFilter(current => ({ ...current, showOthers }))
-          }
-          resourceTypes={resourceTypeOptions}
-          search={resourceFilter.search}
-          selectedFsmTypes={resourceFilter.fsmTypes}
-          selectedResourceTypes={resourceFilter.resourceTypes}
-          showOthers={resourceFilter.showOthers}
-        />
-      </>
-    ),
     initialSelectedItemId: rootItem.id,
     expandedIds,
     highlightedItemIds,
@@ -575,8 +518,19 @@ export function ResourceTimelinesTree({
     subRows,
     seedRootExpanded,
   });
+  const pinningSources = useMemo(() => [resourceTree.pinningSource], [resourceTree.pinningSource]);
+  const { pinning, pinMany } = useCombinedTimelineTreePinning(pinningSources);
+  const filters = (
+    <TimelineTreeFilterControls
+      {...resourceTree.filterOptions}
+      matchCount={resourceTree.filter.matchCount}
+      matchIds={resourceTree.filter.pinnableMatchIds}
+      onPinMany={pinMany}
+      pinnedIds={pinning.ids}
+    />
+  );
   const trees =
-    resourceTree.isFilterActive && resourceTree.showOthers && resourceTree.filterMatchCount === 0
+    resourceTree.filter.isActive && resourceTree.showOthers && resourceTree.filter.matchCount === 0
       ? []
       : [resourceTree];
 
@@ -585,7 +539,7 @@ export function ResourceTimelinesTree({
       durationSeconds={durationSeconds}
       isDark={isDark}
       trees={trees}
-      controls={resourceTree}
+      controls={{ ...resourceTree, filters, pinning }}
     />
   );
 }
