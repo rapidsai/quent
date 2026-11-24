@@ -112,6 +112,35 @@ describe('query sources', () => {
     expect(runtime.stop).toHaveBeenCalledWith([handle]);
   });
 
+  it('keeps local and Benchmarking API options distinct', async () => {
+    const handle: QuentOpenDbHandle = {
+      run: '6647',
+      viewers: [{ label: 'viewer', apiBaseUrl: 'http://viewer.test/api' }],
+      stop: vi.fn(),
+    };
+    const runtime: QuerySourceRuntime = {
+      launch: vi.fn().mockResolvedValue([handle]),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await expect(
+      withQuerySources(
+        {
+          'api-base': 'http://local.test/api',
+          'db-api-base-url': 'https://benchmark.test',
+          'db-run': ['6647'],
+        },
+        vi.fn(),
+        async session => session.sources.map(source => source.id),
+        runtime
+      )
+    ).resolves.toEqual(['local', '6647']);
+    expect(runtime.launch).toHaveBeenCalledWith(
+      ['6647'],
+      expect.objectContaining({ apiBaseUrl: 'https://benchmark.test' })
+    );
+  });
+
   it('reuses database viewers across commands and stops them after the session', async () => {
     const handle: QuentOpenDbHandle = {
       run: '6647',

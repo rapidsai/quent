@@ -58,11 +58,21 @@ See [Query diff CLI](./query-diff-cli.md) for the detailed comparison contract.
 Every command accepts database runs as query sources. Repeat `--db-run`, or use
 `--db` to enter run IDs interactively:
 
+The two API options serve different systems:
+
+- `--db-api-base-url` selects the Benchmarking API that resolves `--db-run`
+  (`QUENT_OPEN_API_BASE_URL` is the environment equivalent).
+- `--api-base` selects an already-running local Quent REST API
+  (`QUENT_API_BASE_URL` is the environment equivalent). It does not configure
+  database-run lookup.
+
 ```sh
 pixi run pnpm --dir experimental/vibe/quent-cli ask engines \
-  --db-run RUN_ID
+  --db-run RUN_ID \
+  --db-api-base-url https://benchmark.example.test
 pixi run pnpm --dir experimental/vibe/quent-cli ask query-lifecycle \
-  --db-run RUN_ID
+  --db-run RUN_ID \
+  --db-api-base-url https://benchmark.example.test
 ```
 
 Runs can be mixed freely with each other and with a local API:
@@ -70,12 +80,13 @@ Runs can be mixed freely with each other and with a local API:
 ```sh
 pixi run pnpm --dir experimental/vibe/quent-cli ask engines \
   --api-base http://localhost:8080/api \
+  --db-api-base-url https://benchmark.example.test \
   --db-run BASELINE_RUN \
   --db-run CANDIDATE_RUN
 ```
 
-`--db-api-base-url`, `--db-token`, `--db-trust`, and `--db-trust-all` are passed
-to the temporary `quent-open` viewers. When several sources are available,
+`--db-token`, `--db-trust`, and `--db-trust-all` are also passed to the
+temporary `quent-open` viewers. When several sources are available,
 single-source commands prompt for one; pass `--source RUN_ID` to choose it
 explicitly. `engines` lists every source unless `--source` limits it.
 

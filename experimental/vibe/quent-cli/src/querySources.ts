@@ -48,10 +48,12 @@ export const querySourceOptions = {
   'db-trust-all': { type: 'boolean' as const },
 };
 
-export const querySourceUsage = `  --api-base URL          Local API base (default: QUENT_API_BASE_URL or http://localhost:8080/api)
+export const querySourceUsage = `  --api-base URL          Local Quent REST API; with --db-run, adds the local source
+                          (default outside DB mode: QUENT_API_BASE_URL or http://localhost:8080/api)
   --db                    Prompt for comma-separated database run IDs
   --db-run RUN            Database run to add; repeat for multiple runs
-  --db-api-base-url URL   Benchmarking API base (default: QUENT_OPEN_API_BASE_URL)
+  --db-api-base-url URL   Benchmarking API used to resolve --db-run
+                          (default: QUENT_OPEN_API_BASE_URL)
   --db-token TOKEN        Benchmarking API bearer token (default: QUENT_OPEN_TOKEN)
   --db-trust REMOTE       Trust a git remote for quent-open; repeatable
   --db-trust-all          Trust every source opened from the database`;

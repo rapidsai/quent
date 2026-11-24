@@ -37,7 +37,10 @@ describe('ask command dispatcher', () => {
   it('supports database-backed sources in every command', () => {
     for (const command of askCommandRegistry.values()) {
       expect(command.usage).toContain('--db-run');
-      expect(command.usage).toContain('--db-api-base-url');
+      expect(command.usage).toContain(
+        '--db-api-base-url URL   Benchmarking API used to resolve --db-run'
+      );
+      expect(command.usage).toContain('--api-base URL          Local Quent REST API');
       expect(command.usage).toContain('--db-token');
     }
     for (const id of [

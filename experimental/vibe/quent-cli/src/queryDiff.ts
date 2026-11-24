@@ -23,6 +23,7 @@ import { formatQueryDiff } from './queryDiffFormat';
 import {
   createHttpQuerySourceApi,
   inputDatabaseRunIds,
+  querySourceUsage,
   resolveDatabaseRunIds,
   withQuerySources,
   type InputText,
@@ -42,13 +43,7 @@ Options:
                           Qualified candidate; repeat for cross-engine comparison
   --metric NAME           Metric to compare; repeat or pass "all"
   --[no-]combined-table   Combine operator rows into one table (default: true)
-  --api-base URL          API base (default: QUENT_API_BASE_URL or http://localhost:8080/api)
-  --db                    Prompt for comma-separated database run IDs
-  --db-run RUN            Database run to add; repeat for multiple runs
-  --db-api-base-url URL   Benchmarking API base (default: QUENT_OPEN_API_BASE_URL)
-  --db-token TOKEN        Benchmarking API bearer token (default: QUENT_OPEN_TOKEN)
-  --db-trust REMOTE       Trust a git remote for quent-open; repeatable
-  --db-trust-all          Trust every source opened from the database
+${querySourceUsage}
   --baseline-source ID    "local" or a registered database run
   --candidate-source ID   Candidate source; one for all or one per candidate
                           Maps --candidate entries before --candidate-query entries
