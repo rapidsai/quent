@@ -8,6 +8,7 @@ import {
   databaseQuerySources,
   selectQuerySource,
   withQuerySources,
+  withReusableQuerySources,
   type QuerySource,
   type QuerySourceApi,
   type QuerySourceRuntime,
@@ -61,13 +62,26 @@ describe('query sources', () => {
       },
     ];
 
-    expect(
-      databaseQuerySources(handles).map(source => ({ id: source.id, label: source.label }))
-    ).toEqual([
-      { id: '6647#1', label: 'db 6647 · first viewer' },
-      { id: '6647#2', label: 'db 6647 · second viewer' },
-      { id: '6753', label: 'db 6753' },
+    const registered = databaseQuerySources(handles).map(source => ({
+      id: source.id,
+      label: source.label,
+    }));
+    expect(registered.map(source => source.label)).toEqual([
+      'db 6647 · first viewer',
+      'db 6647 · second viewer',
+      'db 6753',
     ]);
+    expect(registered[0]!.id).toMatch(/^6647#[0-9a-f]{16}$/u);
+    expect(registered[1]!.id).toMatch(/^6647#[0-9a-f]{16}$/u);
+    expect(registered[0]!.id).not.toBe(registered[1]!.id);
+    expect(registered[2]!.id).toBe('6753');
+
+    const reversed = databaseQuerySources([
+      { ...handles[0]!, viewers: [...handles[0]!.viewers].reverse() },
+    ]);
+    expect(new Map(reversed.map(source => [source.label, source.id]))).toEqual(
+      new Map(registered.slice(0, 2).map(source => [source.label, source.id]))
+    );
   });
 
   it('starts database viewers and always stops them after use', async () => {
@@ -95,6 +109,46 @@ describe('query sources', () => {
       ['6647'],
       expect.objectContaining({ interactive: false })
     );
+    expect(runtime.stop).toHaveBeenCalledWith([handle]);
+  });
+
+  it('reuses database viewers across commands and stops them after the session', async () => {
+    const handle: QuentOpenDbHandle = {
+      run: '6647',
+      viewers: [{ label: 'viewer', apiBaseUrl: 'http://viewer.test/api' }],
+      stop: vi.fn(),
+    };
+    const runtime: QuerySourceRuntime = {
+      launch: vi.fn().mockResolvedValue([handle]),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    const sessions: QuerySource[][] = [];
+
+    await withReusableQuerySources(async () => {
+      await withQuerySources(
+        { 'db-run': ['6647'] },
+        vi.fn(),
+        async session => {
+          sessions.push(session.sources);
+        },
+        runtime
+      );
+      await withQuerySources(
+        {},
+        vi.fn(),
+        async session => {
+          sessions.push(session.sources);
+        },
+        runtime
+      );
+
+      expect(runtime.stop).not.toHaveBeenCalled();
+    });
+
+    expect(runtime.launch).toHaveBeenCalledTimes(1);
+    expect(sessions).toHaveLength(2);
+    expect(sessions[1]).toBe(sessions[0]);
+    expect(runtime.stop).toHaveBeenCalledOnce();
     expect(runtime.stop).toHaveBeenCalledWith([handle]);
   });
 });

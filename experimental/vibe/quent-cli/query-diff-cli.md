@@ -102,8 +102,8 @@ pixi run pnpm --dir experimental/vibe/quent-cli ask query-diff \
 
 The combined query tree labels sources as `local`, `db RUN`, or
 `db RUN · VIEWER` when a run has multiple viewers. Multi-viewer source IDs use
-`RUN#1`, `RUN#2`, and so on. For JSON, identify sources explicitly when more
-than one is registered:
+`RUN#<fingerprint>`, where the fingerprint is stable for the viewer label. For
+JSON, identify sources explicitly when more than one is registered:
 
 ```sh
 pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \

@@ -337,6 +337,54 @@ describe('query bundle diff', () => {
     );
   });
 
+  it('preserves precision when safe integers and bigints share a metric', () => {
+    const large = 9_007_199_254_740_993n;
+    const baseline = bundle('baseline', 1, [
+      operator('first', 'physical', 'Scan', null, {
+        output_rows: { value: large, quantity: 'rows' },
+      }),
+      operator('second', 'physical', 'Scan', null, {
+        output_rows: { value: 7, quantity: 'rows' },
+      }),
+    ]);
+    const candidate = bundle('candidate', 1, [
+      operator('first', 'physical', 'Scan', null, {
+        output_rows: { value: large + 2n, quantity: 'rows' },
+      }),
+      operator('second', 'physical', 'Scan', null, {
+        output_rows: { value: 7, quantity: 'rows' },
+      }),
+    ]);
+
+    const result = diffQueryBundles({ bundle: baseline }, [{ bundle: candidate }]);
+    const row = result.comparisons[0]!.rows.find(
+      item =>
+        item.scope === 'physical' && item.operatorType === 'Scan' && item.metric === 'output_rows'
+    );
+
+    expect(row).toMatchObject({
+      baseline: '9007199254741000',
+      candidate: '9007199254741002',
+      delta: '2',
+    });
+    expect(row?.deltaPercent).toBeGreaterThan(0);
+  });
+
+  it('rejects inexact bigint and number aggregation', () => {
+    const baseline = bundle('baseline', 1, [
+      operator('integer', 'physical', 'Scan', null, {
+        metric: { value: 10n, quantity: null },
+      }),
+      operator('fraction', 'physical', 'Scan', null, {
+        metric: { value: 0.5, quantity: null },
+      }),
+    ]);
+
+    expect(() =>
+      diffQueryBundles({ bundle: baseline }, [{ bundle: bundle('candidate', 1, []) }])
+    ).toThrow('Cannot combine bigint metrics');
+  });
+
   it('compares any number of candidates against one baseline', () => {
     const result = diffQueryBundles(
       { engineId: 'baseline-engine', bundle: bundle('baseline', 1, []) },

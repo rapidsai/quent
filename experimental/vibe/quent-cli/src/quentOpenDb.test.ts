@@ -1,12 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import type { ChildProcess } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createQuentOpenReadyTracker,
+  launchQuentOpenDb,
   launchQuentOpenDbRuns,
   parseQuentOpenLine,
   quentOpenDbArguments,
+  stopQuentOpenDbChild,
   type QuentOpenDbHandle,
   type QuentOpenDbOptions,
 } from './quentOpenDb';
@@ -41,10 +45,10 @@ describe('quent-open database launcher', () => {
     expect(tracker.consume('discovered 3 context(s) -> 2 viewer(s)')).toBeUndefined();
     expect(tracker.consume('serving 2 viewer(s)')).toBeUndefined();
     expect(
-      tracker.consume('ready: query-engine-a — 2 context(s)  http://127.0.0.1:49152/')
+      tracker.consume('ready: query-engine-b — 1 context(s)  http://127.0.0.1:49153/')
     ).toBeUndefined();
     expect(
-      tracker.consume('ready: query-engine-b — 1 context(s)  http://127.0.0.1:49153/')
+      tracker.consume('ready: query-engine-a — 2 context(s)  http://127.0.0.1:49152/')
     ).toEqual([
       {
         label: 'query-engine-a — 2 context(s)',
@@ -79,6 +83,37 @@ describe('quent-open database launcher', () => {
     expect(args).toContain('github.com/rapidsai/*');
     expect(args.join(' ')).not.toContain(options.token);
     expect(args.join(' ')).not.toContain(options.apiBaseUrl);
+  });
+
+  it('does not spawn a database viewer after startup is cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      launchQuentOpenDb('6647', { ...options, signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('stops the complete spawned process group', async () => {
+    const child = Object.assign(new EventEmitter(), {
+      exitCode: null,
+      kill: vi.fn(),
+      pid: 43210,
+      signalCode: null,
+    }) as unknown as ChildProcess;
+    const kill = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
+      queueMicrotask(() => child.emit('close', 0, signal));
+      return true;
+    });
+
+    try {
+      await stopQuentOpenDbChild(child);
+
+      expect(kill).toHaveBeenCalledWith(-43210, 'SIGINT');
+      expect(child.kill).not.toHaveBeenCalled();
+    } finally {
+      kill.mockRestore();
+    }
   });
 
   it('launches unique database runs serially', async () => {

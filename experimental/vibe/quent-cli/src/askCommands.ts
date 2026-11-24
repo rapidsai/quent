@@ -22,6 +22,7 @@ export const askUsage = `Usage:
 
 Commands:
 ${commands.map(command => `  ${command.id.padEnd(24)} ${command.explanation}`).join('\n')}
+  ${'session'.padEnd(24)} Runs multiple JSON commands with shared query sources.
 
 Run "pnpm ask <command> --help" for command options.`;
 

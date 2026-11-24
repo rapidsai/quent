@@ -82,6 +82,11 @@ explicitly. `engines` lists every source unless `--source` limits it.
 Database mode excludes the implicit localhost API. Pass `--api-base` or set
 `QUENT_API_BASE_URL` to include a local API alongside database runs.
 
+After an interactive database command finishes, the CLI prompts for another
+command. All commands in that session reuse the same `quent-open` viewers;
+select `Exit` when finished. JSON and non-interactive invocations remain
+one-shot.
+
 ### Agent and JSON usage
 
 Prefer environment variables for database credentials, discover source and
@@ -100,6 +105,22 @@ pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-lifecycle \
 Database-mode JSON output includes source IDs and labels. `query-diff` uses
 `--baseline-source` and `--candidate-source` because each selected query may
 come from a different local or database source.
+
+Agents can keep the same viewers running with JSON session mode. Send one
+request per line; each response is one compact JSON line in the same order:
+
+```sh
+printf '%s\n' \
+  '{"command":"engines"}' \
+  '{"command":"queries","args":["--source","RUN_ID","--engine","ENGINE_ID"]}' \
+  '{"command":"exit"}' |
+  pixi run pnpm --silent --dir experimental/vibe/quent-cli ask session \
+    --db-run RUN_ID --json
+```
+
+Each request receives `--json` automatically. Request errors are returned as
+machine-error objects without ending the session. Closing stdin or sending the
+`exit` command stops every `quent-open` viewer.
 
 ## Validation
 
