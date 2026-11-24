@@ -14,10 +14,10 @@ pixi run pnpm --dir experimental/vibe/quent-cli ask query-diff \
   [--candidate-source SOURCE ...] \
   [--metric METRIC ...] \
   [--no-combined-table] \
-  [--api-base http://localhost:8080/api] \
+  [--api-base LOCAL_QUENT_API] \
   [--db] \
   [--db-run RUN ...] \
-  [--db-api-base-url URL] \
+  [--db-api-base-url BENCHMARKING_API] \
   [--db-token TOKEN] \
   [--db-trust REMOTE ...] \
   [--db-trust-all] \
@@ -53,6 +53,10 @@ interactively. `--db-api-base-url` and `--db-token` mirror
 `quent-open`; `QUENT_OPEN_API_BASE_URL`, `QUENT_OPEN_TOKEN`, and its `.env`
 loading remain valid defaults. Trust prompts are also inherited, with
 `--db-trust` and `--db-trust-all` available for explicit passthrough.
+
+Do not pass the Benchmarking API URL through `--api-base`. That option adds an
+already-running local Quent REST API as the `local` source; only
+`--db-api-base-url` configures lookup for `--db-run`.
 
 Database APIs start serially to avoid races in the shared viewer build cache.
 When a run produces multiple viewer APIs, all of their engines and queries
@@ -102,8 +106,8 @@ pixi run pnpm --dir experimental/vibe/quent-cli ask query-diff \
 
 The combined query tree labels sources as `local`, `db RUN`, or
 `db RUN · VIEWER` when a run has multiple viewers. Multi-viewer source IDs use
-`RUN#1`, `RUN#2`, and so on. For JSON, identify sources explicitly when more
-than one is registered:
+`RUN#<fingerprint>`, where the fingerprint is stable for the viewer label. For
+JSON, identify sources explicitly when more than one is registered:
 
 ```sh
 pixi run pnpm --silent --dir experimental/vibe/quent-cli ask query-diff \

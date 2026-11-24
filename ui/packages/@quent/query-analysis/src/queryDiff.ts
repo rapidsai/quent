@@ -70,26 +70,35 @@ interface OperatorGroup {
 
 export const ACTIVE_SPAN_METRIC = 'active_span_s';
 
-function addNumeric(left: NumericValue, right: NumericValue): NumericValue {
-  if (
-    (typeof left === 'bigint' || typeof right === 'bigint') &&
-    (typeof left === 'bigint' || Number.isSafeInteger(left)) &&
-    (typeof right === 'bigint' || Number.isSafeInteger(right))
-  ) {
-    return BigInt(left) + BigInt(right);
+function normalizeNumericPair(
+  left: NumericValue,
+  right: NumericValue
+):
+  | { kind: 'number'; left: number; right: number }
+  | { kind: 'bigint'; left: bigint; right: bigint } {
+  if (typeof left === 'bigint' && typeof right === 'bigint') {
+    return { kind: 'bigint', left, right };
   }
-  return Number(left) + Number(right);
+  if (typeof left === 'number' && typeof right === 'number') {
+    return { kind: 'number', left, right };
+  }
+  const numberValue = typeof left === 'number' ? left : (right as number);
+  if (!Number.isSafeInteger(numberValue)) {
+    throw new Error('Cannot combine bigint metrics with fractional or unsafe number values.');
+  }
+  return typeof left === 'bigint'
+    ? { kind: 'bigint', left, right: BigInt(numberValue) }
+    : { kind: 'bigint', left: BigInt(numberValue), right: right as bigint };
+}
+
+function addNumeric(left: NumericValue, right: NumericValue): NumericValue {
+  const values = normalizeNumericPair(left, right);
+  return values.kind === 'bigint' ? values.left + values.right : values.left + values.right;
 }
 
 function subtractNumeric(left: NumericValue, right: NumericValue): NumericValue {
-  if (
-    (typeof left === 'bigint' || typeof right === 'bigint') &&
-    (typeof left === 'bigint' || Number.isSafeInteger(left)) &&
-    (typeof right === 'bigint' || Number.isSafeInteger(right))
-  ) {
-    return BigInt(left) - BigInt(right);
-  }
-  return Number(left) - Number(right);
+  const values = normalizeNumericPair(left, right);
+  return values.kind === 'bigint' ? values.left - values.right : values.left - values.right;
 }
 
 function serializeNumeric(value: NumericValue): SerializedQueryDiffValue {
@@ -226,8 +235,19 @@ function deltaPercent(
   candidate: NumericValue,
   delta: NumericValue
 ): number | null {
-  const baselineNumber = Number(baseline);
-  const candidateNumber = Number(candidate);
+  const values = normalizeNumericPair(baseline, candidate);
+  if (values.kind === 'bigint') {
+    if (values.left === 0n) {
+      return values.right === 0n ? 0 : null;
+    }
+    const deltaNumber = Number(delta);
+    const denominator = Number(values.left < 0n ? -values.left : values.left);
+    return Number.isFinite(deltaNumber) && Number.isFinite(denominator)
+      ? (deltaNumber / denominator) * 100
+      : null;
+  }
+  const baselineNumber = values.left;
+  const candidateNumber = values.right;
   const deltaNumber = Number(delta);
   if (
     !Number.isFinite(baselineNumber) ||

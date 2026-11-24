@@ -3,6 +3,8 @@
 
 export const ASK_OUTPUT_SCHEMA_VERSION = 2;
 
+let compactOutput = false;
+
 export interface AskMachineResult<T> {
   schemaVersion: typeof ASK_OUTPUT_SCHEMA_VERSION;
   command: string;
@@ -35,10 +37,20 @@ export function machineError(command: string | null, error: unknown): AskMachine
   };
 }
 
+export async function withCompactMachineOutput<T>(run: () => Promise<T>): Promise<T> {
+  const previous = compactOutput;
+  compactOutput = true;
+  try {
+    return await run();
+  } finally {
+    compactOutput = previous;
+  }
+}
+
 export function serializeMachineOutput(value: unknown): string {
   return `${JSON.stringify(
     value,
     (_key, item) => (typeof item === 'bigint' ? item.toString() : item),
-    2
+    compactOutput ? undefined : 2
   )}\n`;
 }
