@@ -10,13 +10,13 @@ import {
   ROLLUP_TIMELINE_COLOR_DARK,
   ROLLUP_TIMELINE_COLOR_LIGHT,
   useTimelineEchartsTheme,
-} from '../timeline/timelineEchartsTheme';
+} from '../ui/charts/timelineTheme';
 import { useZoomRange } from '@quent/hooks';
 import { formatDuration, withOpacity } from '@quent/utils';
 import type { LongEntityEntry } from './types';
 import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
-import type { GanttHover } from '../gantt-chart/hover';
-import { layoutGanttBar } from '../gantt-chart/utils';
+import type { GanttHover } from '../ui/charts/ganttHover';
+import { layoutGanttBar } from '../ui/charts/ganttLayout';
 import { getLongEntitySegmentsAtTimestamp } from './utils';
 import { PointerTooltipPortal } from '../ui/pointer-tooltip-portal';
 import { EmptyState } from '../ui/empty-state';

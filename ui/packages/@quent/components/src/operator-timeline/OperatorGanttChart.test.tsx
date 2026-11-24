@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   ganttChart: vi.fn(),
 }));
 
-vi.mock('../timeline/timelineEchartsTheme', () => ({
+vi.mock('../ui/charts/timelineTheme', () => ({
   useTimelineEchartsTheme: () => ({ textColor: '#000000' }),
 }));
 

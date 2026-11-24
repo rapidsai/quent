@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it, vi } from 'vitest';
-import { TIMELINE_SPACING } from '../timeline/types';
-import { buildGanttOption, type GanttRenderItem } from './options';
+import { TIMELINE_SPACING } from './timelineTypes';
+import { buildGanttOption, type GanttRenderItem } from './ganttOptions';
 
 describe('buildGanttOption', () => {
   it('builds the shared elapsed-time custom-series chart', () => {

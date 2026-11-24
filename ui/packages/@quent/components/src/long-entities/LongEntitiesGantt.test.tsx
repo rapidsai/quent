@@ -15,7 +15,7 @@ vi.mock('@quent/hooks', () => ({
   useZoomRange: () => ({ start: 0, end: 1 }),
 }));
 
-vi.mock('../timeline/timelineEchartsTheme', () => ({
+vi.mock('../ui/charts/timelineTheme', () => ({
   DIMMED_OPACITY: 0.25,
   MARK_AREA_BORDER_OPACITY: 0.8,
   MARK_AREA_FILL_OPACITY: 0.2,

@@ -1,14 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect, vi } from 'vitest';
-
-// Prevent ECharts canvas initialization in jsdom
-vi.mock('../lib/echarts', () => ({
-  connect: vi.fn(),
-  disconnect: vi.fn(),
-  getInstanceByDom: vi.fn(),
-}));
+import { describe, it, expect } from 'vitest';
 
 import {
   nanosToMs,
@@ -19,7 +12,6 @@ import {
   setOperatorOnEntry,
   setOperatorOnEntries,
   findItemById,
-  computeVisibleMaxValue,
   deriveCapacityLabel,
   buildBulkParamsForItem,
   collectVisibleEntries,
@@ -471,27 +463,6 @@ describe('mergeOverlaySeries', () => {
     const base: TimelineSeries = { run: entry };
     mergeOverlaySeries(base, {}, 'op-1');
     expect(entry.isDimmed).toBeUndefined();
-  });
-});
-
-describe('computeVisibleMaxValue', () => {
-  it('uses operator overlays instead of the dimmed full-data series', () => {
-    const series: TimelineSeries = {
-      base: makeEntry('#f00', { values: [100, 100], binDuration: 1, isDimmed: true }),
-      running: makeEntry('#0f0', { values: [2, 3], binDuration: 1, isOverlay: true }),
-      waiting: makeEntry('#00f', { values: [4, 1], binDuration: 1, isOverlay: true }),
-    };
-
-    expect(computeVisibleMaxValue(series, [0, 1000], 0, 2000)).toBe(6);
-  });
-
-  it('uses regular series when no overlay is active', () => {
-    const series: TimelineSeries = {
-      running: makeEntry('#0f0', { values: [2, 3], binDuration: 1 }),
-      waiting: makeEntry('#00f', { values: [4, 1], binDuration: 1 }),
-    };
-
-    expect(computeVisibleMaxValue(series, [0, 1000], 0, 2000)).toBe(6);
   });
 });
 
