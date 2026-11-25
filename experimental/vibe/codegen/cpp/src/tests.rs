@@ -13,6 +13,65 @@ use crate::{
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
 
 #[test]
+fn documents_public_event_payloads() {
+    let schema = parse_from_str(
+        r#"quent: '0.1.0'
+model: Test
+records:
+  Task:
+    fields:
+      id: { type: string, doc: The task identifier. }
+entities:
+  Worker:
+    events:
+      finished:
+        doc: |-
+          Reports a completed task.
+          Includes the task identifier.
+        attributes:
+          task: { type: Task, doc: Identifies the task. }
+"#,
+        None,
+    )
+    .unwrap()
+    .schema;
+    let files = emit(&schema, &Options::default()).unwrap();
+    let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
+    assert!(facade.content.contains(
+        "/**\n * Reports a completed task.\n * Includes the task identifier.\n */\nstruct Finished {"
+    ));
+    assert!(
+        facade
+            .content
+            .contains("  /**\n   * Identifies the task.\n   */\n  ::quent::records::Task task;")
+    );
+    assert!(
+        facade
+            .content
+            .contains("  /**\n   * The task identifier.\n   */\n  std::string id;")
+    );
+}
+
+#[test]
+fn documents_readme_model() {
+    let schema = parse_from_str(DEMO, None).unwrap().schema;
+    let files = emit(&schema, &Options::default()).unwrap();
+    let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
+    for documented_declaration in [
+        " * @file quent.hpp\n * Event model used by the README instrumentation example.",
+        " * A worker belonging to a cluster.\n */\nstruct Worker final",
+        " * A worker belonging to a cluster.\n */\nclass WorkerObserver final",
+        " * Details of the applied checksum.\n */\nstruct Checksum",
+        " * A simple unit of work.\n */\nclass JobObserver final",
+    ] {
+        assert!(
+            facade.content.contains(documented_declaration),
+            "{documented_declaration}"
+        );
+    }
+}
+
+#[test]
 fn nvtx_support_is_opt_in_and_preserves_disabled_contract() {
     let schema = parse_from_str(DEMO, None).unwrap().schema;
     assert_eq!(Options::default().nvtx, NvtxSupport::Disabled);

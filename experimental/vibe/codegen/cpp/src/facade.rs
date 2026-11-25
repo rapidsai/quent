@@ -13,6 +13,9 @@ use crate::{GenerateError, GeneratedFile, NvtxSupport, Options};
 
 pub(crate) fn emit(schema: &Schema, options: &Options) -> Result<GeneratedFile, GenerateError> {
     let mut output = String::from("#pragma once\n");
+    if let Some(docs) = schema.annotations().docs() {
+        emit_docs(&mut output, Some(&format!("@file quent.hpp\n{docs}")), "");
+    }
     for file in ["uuid", "dynamic_attributes", "context"] {
         output.push_str(&format!(
             "#include \"{}/{}/{}.rs.h\"\n",
@@ -411,10 +414,11 @@ fn emit_value_type(
             }
             let namespace = &options.namespace;
             let name = path_pascal(path);
-            output.push_str(&format!(
-                "namespace {namespace}::records {{\nstruct {name} {{\n"
-            ));
+            output.push_str(&format!("namespace {namespace}::records {{\n"));
+            emit_docs(output, record.annotations().docs(), "");
+            output.push_str(&format!("struct {name} {{\n"));
             for field in record.fields() {
+                emit_docs(output, field.annotations().docs(), "  ");
                 output.push_str(&format!(
                     "  {} {};\n",
                     public_type(field.ty(), options),
@@ -477,6 +481,21 @@ fn emit_type_dependencies(
     }
 }
 
+fn emit_docs(output: &mut String, docs: Option<&str>, indent: &str) {
+    if let Some(docs) = docs {
+        output.push_str(&format!("{indent}/**\n"));
+        for line in docs.lines() {
+            output.push_str(&format!("{indent} *"));
+            if !line.is_empty() {
+                output.push(' ');
+                output.push_str(&line.replace("*/", "* /"));
+            }
+            output.push('\n');
+        }
+        output.push_str(&format!("{indent} */\n"));
+    }
+}
+
 fn emit_event_payloads(schema: &Schema, options: &Options, output: &mut String) {
     for entity in schema.entities() {
         let namespace = public_entity_namespace(entity, options);
@@ -486,11 +505,13 @@ fn emit_event_payloads(schema: &Schema, options: &Options, output: &mut String) 
             if fields.is_empty() {
                 continue;
             }
+            emit_docs(output, event.annotations().docs(), "");
             output.push_str(&format!(
                 "struct {} {{\n",
                 to_case(event.name(), Case::Pascal)
             ));
             for field in fields {
+                emit_docs(output, field.annotations().docs(), "  ");
                 output.push_str(&format!(
                     "  {} {};\n",
                     public_type(field.ty(), options),
@@ -538,9 +559,15 @@ fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String)
         let name = path_pascal(entity.path());
         let marker = to_case(entity.path().name(), Case::Pascal);
         let entity_type = public_entity_type(entity, options);
-        output.push_str(&format!(
-            "namespace {parent_namespace} {{ struct {marker} final {{}}; }}\n"
-        ));
+        if let Some(docs) = entity.annotations().docs() {
+            output.push_str(&format!("namespace {parent_namespace} {{\n"));
+            emit_docs(output, Some(docs), "");
+            output.push_str(&format!("struct {marker} final {{}};\n}}\n"));
+        } else {
+            output.push_str(&format!(
+                "namespace {parent_namespace} {{ struct {marker} final {{}}; }}\n"
+            ));
+        }
         if is_fsm(entity) {
             let state_namespace = public_fsm_state_namespace(entity, options);
             output.push_str(&format!("namespace {state_namespace} {{"));
@@ -710,8 +737,10 @@ fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
         let prefix = path_snake(entity.path());
         let entity_type = public_entity_type(entity, options);
         let public_handle = format!("::{base_namespace}::Handle<{entity_type}>");
+        output.push_str(&format!("namespace {namespace} {{\n"));
+        emit_docs(output, entity.annotations().docs(), "");
         output.push_str(&format!(
-            "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {public_handle} handle() const;\n  {public_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\ntemplate <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n"
+            "class {name}Observer final {{\n public:\n  {public_handle} handle() const;\n  {public_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\ntemplate <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n"
         ));
         for event in entity.events() {
             let method = cxx_safe(&to_case(event.name(), Case::Snake));
@@ -755,8 +784,10 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
     let entity_type = public_entity_type(entity, options);
     let initial_handle = public_fsm_handle_type(entity, None, options);
 
+    output.push_str(&format!("namespace {namespace} {{\n"));
+    emit_docs(output, entity.annotations().docs(), "");
     output.push_str(&format!(
-        "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {initial_handle} handle() const;\n  {initial_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\n"
+        "class {name}Observer final {{\n public:\n  {initial_handle} handle() const;\n  {initial_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\n"
     ));
 
     output.push_str(&format!("namespace {base_namespace} {{\n"));
