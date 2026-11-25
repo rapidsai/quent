@@ -13,7 +13,11 @@ use crate::{GenerateError, GeneratedFile, NvtxSupport, Options};
 
 pub(crate) fn emit(schema: &Schema, options: &Options) -> Result<GeneratedFile, GenerateError> {
     let mut output = String::from("#pragma once\n");
-    if let Some(docs) = schema.annotations().docs() {
+    if let Some(docs) = schema
+        .annotations()
+        .docs()
+        .filter(|docs| !sanitize_docs(docs).is_empty())
+    {
         emit_docs(&mut output, Some(&format!("@file quent.hpp\n{docs}")), "");
     }
     for file in ["uuid", "dynamic_attributes", "context"] {
@@ -482,18 +486,32 @@ fn emit_type_dependencies(
 }
 
 fn emit_docs(output: &mut String, docs: Option<&str>, indent: &str) {
-    if let Some(docs) = docs {
-        output.push_str(&format!("{indent}/**\n"));
-        for line in docs.lines() {
-            output.push_str(&format!("{indent} *"));
-            if !line.is_empty() {
-                output.push(' ');
-                output.push_str(&line.replace("*/", "* /"));
-            }
-            output.push('\n');
+    let Some(docs) = docs.map(sanitize_docs).filter(|docs| !docs.is_empty()) else {
+        return;
+    };
+    output.push_str(&format!("{indent}/**\n"));
+    for line in docs.lines() {
+        output.push_str(&format!("{indent} *"));
+        let line = line.trim_end();
+        if !line.is_empty() {
+            output.push(' ');
+            output.push_str(&line.replace("*/", "* /").replace("/*", "/ *"));
         }
-        output.push_str(&format!("{indent} */\n"));
+        output.push('\n');
     }
+    output.push_str(&format!("{indent} */\n"));
+}
+
+/// Normalizes line endings and drops control and bidirectional formatting
+/// characters, which C++ compilers treat as line breaks or warn about.
+fn sanitize_docs(docs: &str) -> String {
+    let mut docs = docs.replace("\r\n", "\n").replace('\r', "\n");
+    docs.retain(|c| {
+        matches!(c, '\n' | '\t')
+            || !(c.is_control()
+                || matches!(c, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'))
+    });
+    docs.trim_end().to_owned()
 }
 
 fn emit_event_payloads(schema: &Schema, options: &Options, output: &mut String) {
@@ -559,7 +577,11 @@ fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String)
         let name = path_pascal(entity.path());
         let marker = to_case(entity.path().name(), Case::Pascal);
         let entity_type = public_entity_type(entity, options);
-        if let Some(docs) = entity.annotations().docs() {
+        if let Some(docs) = entity
+            .annotations()
+            .docs()
+            .filter(|docs| !sanitize_docs(docs).is_empty())
+        {
             output.push_str(&format!("namespace {parent_namespace} {{\n"));
             emit_docs(output, Some(docs), "");
             output.push_str(&format!("struct {marker} final {{}};\n}}\n"));
@@ -740,7 +762,11 @@ fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
         output.push_str(&format!("namespace {namespace} {{\n"));
         emit_docs(output, entity.annotations().docs(), "");
         output.push_str(&format!(
-            "class {name}Observer final {{\n public:\n  {public_handle} handle() const;\n  {public_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\ntemplate <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n"
+            "class {name}Observer final {{\n public:\n  {public_handle} handle() const;\n  {public_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\n"
+        ));
+        emit_docs(output, entity.annotations().docs(), "");
+        output.push_str(&format!(
+            "template <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n"
         ));
         for event in entity.events() {
             let method = cxx_safe(&to_case(event.name(), Case::Snake));
@@ -749,6 +775,7 @@ fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
             } else {
                 ""
             };
+            emit_docs(output, event.annotations().docs(), "  ");
             if event.fields().next().is_none() {
                 output.push_str(&format!(
                     "  void {method}(){constness} {{ inner_->{method}(); }}\n"
@@ -796,6 +823,7 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
             || format!("::{base_namespace}::facade_detail::InitialFsmState"),
             |event| public_fsm_state_type(entity, event, options),
         );
+        emit_docs(output, entity.annotations().docs(), "");
         output.push_str(&format!(
             "template <>\nclass FsmHandle<{entity_type}, {state_type}> final {{\n public:\n  FsmHandle(FsmHandle&&) = default;\n  FsmHandle& operator=(FsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n  DynamicFsmHandle<{entity_type}> into_dynamic() &&;\n"
         ));
@@ -823,11 +851,13 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
         ));
     }
 
+    emit_docs(output, entity.annotations().docs(), "");
     output.push_str(&format!(
         "template <>\nclass DynamicFsmHandle<{entity_type}> final {{\n public:\n  DynamicFsmHandle(DynamicFsmHandle&&) = default;\n  DynamicFsmHandle& operator=(DynamicFsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n  template <typename State>\n  std::optional<FsmHandle<{entity_type}, State>> try_into() && {{\n    if (inner_->dynamic_state() != facade_detail::FsmStateIndex<{entity_type}, State>::value) {{\n      return std::nullopt;\n    }}\n    return facade_detail::HandleAccess::make<FsmHandle<{entity_type}, State>>(std::move(inner_));\n  }}\n"
     ));
     for event in entity.events() {
         let method = cxx_safe(&to_case(event.name(), Case::Snake));
+        emit_docs(output, event.annotations().docs(), "  ");
         if public_event_fields(entity, event).next().is_none() {
             output.push_str(&format!("  void {method}() {{ inner_->{method}(); }}\n"));
         } else {
@@ -884,6 +914,7 @@ fn emit_fsm_method_declaration(
 ) {
     let method = cxx_safe(&to_case(event.name(), Case::Snake));
     let target = public_fsm_handle_type(entity, Some(event), options);
+    emit_docs(output, event.annotations().docs(), "  ");
     if public_event_fields(entity, event).next().is_none() {
         output.push_str(&format!("  {target} {method}() &&;\n"));
     } else {

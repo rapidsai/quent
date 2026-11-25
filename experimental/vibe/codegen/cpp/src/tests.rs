@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_schema::builder::SchemaBuilder;
-use quent_schema::test_utils::{entity, event};
+use quent_fsm::{FsmEntityBuilder, StateDecl};
+use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, SchemaBuilder};
+use quent_schema::test_utils::{entity, event, ident, path};
 use quent_yaml::parse_from_str;
 
 use crate::{
@@ -68,6 +69,109 @@ fn documents_readme_model() {
             facade.content.contains(documented_declaration),
             "{documented_declaration}"
         );
+    }
+}
+
+fn facade(model: &str) -> String {
+    let schema = parse_from_str(model, None).unwrap().schema;
+    emit(&schema, &Options::default())
+        .unwrap()
+        .into_iter()
+        .find(|file| file.name == "quent.hpp")
+        .unwrap()
+        .content
+}
+
+#[test]
+fn sanitizes_doc_comments() {
+    let content = facade(
+        r#"quent: '0.1.0'
+model: Test
+entities:
+  Worker:
+    doc: "Reads logs/*.json /*/ and */ text.\r\nSplit *\\\r/ line \u202e\u0007end.  \n \nLast."
+    events:
+      started: { doc: "  " }
+"#,
+    );
+    assert!(content.contains(
+        "/**\n * Reads logs/ *.json / * / and * / text.\n * Split *\\\n * / line end.\n *\n * Last.\n */\ntemplate <>\nclass Handle<"
+    ));
+    assert!(!content.contains("/**\n  */"));
+    assert!(!content.contains("  /**\n"));
+}
+
+#[test]
+fn documents_handle_methods() {
+    let content = facade(
+        r#"quent: '0.1.0'
+model: Test
+entities:
+  Worker:
+    doc: A worker.
+    events:
+      started: { doc: Marks the start. }
+"#,
+    );
+    assert!(content.contains("  /**\n   * Marks the start.\n   */\n  void started()"));
+    assert!(content.contains(" * A worker.\n */\ntemplate <>\nclass Handle<"));
+}
+
+#[test]
+fn documents_fsm_handle_methods() {
+    // YAML states take no `doc`, so document the built state events here.
+    let state = |name: &str, initial, to: &[&str]| StateDecl {
+        name: ident(name),
+        attributes: Vec::new(),
+        to: to.iter().map(|target| ident(target)).collect(),
+        initial,
+    };
+    let built = FsmEntityBuilder::new(path("Job"))
+        .with_states([state("queued", true, &["done"]), state("done", false, &[])])
+        .build()
+        .unwrap();
+    let docs = |text: &str| AnnotationsBuilder::new().with_docs(text).build().unwrap();
+    let mut job = EntityBuilder::new(path("Job"));
+    for event in built.events() {
+        let mut documented = EventBuilder::new(event.name().clone(), event.cardinality())
+            .with_annotations(docs(&format!("State {}.", event.name())));
+        for field in event.fields() {
+            documented = documented.with_field(field.clone());
+        }
+        job = job.with_event(documented.build().unwrap());
+    }
+    let mut annotations = AnnotationsBuilder::from_annotations(built.annotations());
+    annotations = annotations.with_docs("A job.");
+    let job = job
+        .with_annotations(annotations.build().unwrap())
+        .build()
+        .unwrap();
+    let schema = SchemaBuilder::new(ident("Test"))
+        .with_entity(job)
+        .build()
+        .unwrap();
+    let files = emit(&schema, &Options::default()).unwrap();
+    let content = &files
+        .iter()
+        .find(|f| f.name == "quent.hpp")
+        .unwrap()
+        .content;
+
+    // `seq` is filtered out, so neither state has a payload struct.
+    assert!(!content.contains("struct Queued {"));
+    for (state, method) in [("queued", "queued"), ("done", "done")] {
+        let comment = format!("  /**\n   * State {state}.\n   */\n");
+        // Dynamic handle method.
+        assert!(content.contains(&format!("{comment}  void {method}()")));
+        // Typed transition declaration.
+        assert!(content.split(&comment).skip(1).any(|rest| {
+            rest.lines()
+                .next()
+                .is_some_and(|line| line.ends_with(&format!(" {method}() &&;")))
+        }));
+    }
+    for handle in ["FsmHandle<", "DynamicFsmHandle<"] {
+        assert!(content.contains(&format!(" * A job.\n */\ntemplate <>\nclass {handle}")));
     }
 }
 
