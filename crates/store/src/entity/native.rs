@@ -44,9 +44,9 @@ where
     ///
     /// # Performance notes
     ///
-    /// Collecting n events arriving in key order per entity is O(n).
-    /// Inserting m out-of-order events for one entity can take O(m^2).
-    /// Index construction may add further costs.
+    /// For one entity with n events, collection takes Θ(n) time in the best
+    /// case (key order) and Θ(n²) in the worst case (strictly decreasing keys),
+    /// assuming constant-time key extraction, comparisons, and event moves.
     pub fn try_from_events(
         events: impl IntoIterator<Item = Event<E::Payload>>,
     ) -> Result<Self, Error> {
