@@ -4,7 +4,7 @@
 use quent_store::{
     EntityHandle, EntityStore, Timestamp,
     entity::native::NativeStore,
-    fsm::{FsmHandle, Sequence, Transition},
+    fsm::{FsmHandle, FsmStateHandle, Sequence, Transition},
 };
 
 #[allow(unused_imports, dead_code)]
@@ -72,12 +72,23 @@ fn orders_fsm_events_and_borrows_typed_state_transitions() {
     assert_eq!(first.span().end(), 10);
     assert_eq!(first.opening_transition().sequence(), 0);
     assert!(!first.opening_transition().is_final());
+    let reconstructed_first =
+        FsmStateHandle::try_new(*first.opening_transition(), *first.closing_transition()).unwrap();
+    assert_eq!(reconstructed_first.span(), first.span());
     let last = task.last().unwrap();
     assert_eq!(last.span().start(), 10);
     assert_eq!(last.span().end(), 20);
     assert!(last.closing_transition().is_final());
     assert_eq!(last.closing_transition().name(), "done");
     assert_eq!(last.closing_transition().timestamp(), 20);
+    let reconstructed_last =
+        FsmStateHandle::try_new(*last.opening_transition(), *last.closing_transition()).unwrap();
+    assert_eq!(reconstructed_last.span(), last.span());
+    assert_eq!(reconstructed_last.name(), last.name());
+    assert!(reconstructed_last.closing_transition().is_final());
+    assert!(
+        FsmStateHandle::try_new(*last.closing_transition(), *last.opening_transition()).is_err()
+    );
     let state = task.state(1).unwrap();
     let TaskTransitionHandle::Running(running) = state.opening_transition() else {
         panic!("expected running transition");

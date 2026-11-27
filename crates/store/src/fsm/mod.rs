@@ -124,13 +124,26 @@ impl<T: FsmHandle + ?Sized> FsmHandle for &T {
 }
 
 /// Borrows a delimited FSM state through its opening and closing transitions.
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub struct FsmStateHandle<T: Transition> {
     opening: T,
     closing: T,
 }
 
 impl<T: Transition> FsmStateHandle<T> {
+    /// Creates a state handle from its opening and closing transitions.
+    ///
+    /// Callers must supply consecutive transitions from the same FSM.
+    /// Equal timestamps are allowed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the closing timestamp precedes the opening timestamp.
+    pub fn try_new(opening: T, closing: T) -> quent_time::Result<Self> {
+        SpanUnixNanoSec::try_new(opening.timestamp(), closing.timestamp())?;
+        Ok(Self { opening, closing })
+    }
+
     /// Returns the name of the state entered by the opening transition.
     pub fn name(&self) -> &str {
         self.opening.name()
@@ -213,10 +226,7 @@ mod tests {
         }
 
         fn state_handle() -> FsmStateHandle<TestTransition> {
-            FsmStateHandle {
-                opening: TestTransition(0),
-                closing: TestTransition(1),
-            }
+            FsmStateHandle::try_new(TestTransition(0), TestTransition(1)).unwrap()
         }
     }
 
