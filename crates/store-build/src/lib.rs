@@ -189,6 +189,7 @@ impl Default for Options {
 
 /// An error from generating stored-event retrieval source.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum GenerateError {
     #[error("filesystem loading requires combined-event generation")]
     FilesystemRequiresCombinedEvent,
