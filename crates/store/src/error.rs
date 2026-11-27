@@ -10,6 +10,8 @@ use uuid::Uuid;
 /// An error from selecting contexts, storing entities, or loading events.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(transparent)]
+    RefTree(#[from] quent_ref_tree::analysis::Error),
     #[error("entity {0} has no events")]
     EmptyEventSequence(Uuid),
     #[error("multiple occurrences of once-event `{event_name}`")]

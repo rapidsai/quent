@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_schema::test_utils::{entity, event, schema};
+use quent_schema::{
+    DataType,
+    builder::AnnotationsBuilder,
+    test_utils::{entity, event, field, schema},
+};
 
 use crate::{GenerateError, Options, generate_str};
 
@@ -15,6 +19,34 @@ fn rejects_model_store_name_conflicts() {
         matches!(result, Err(GenerateError::EntityEventsNameConflict { .. })),
         "expected a name conflict, got {result:?}"
     );
+}
+
+#[test]
+fn rejects_tree_traversal_name_conflicts() {
+    for name in ["DemoTree", "DemoTreeVisitor"] {
+        let parent = DataType::EntityRef {
+            data: None,
+            annotations: AnnotationsBuilder::new()
+                .with_constraint("quent.ref-target.v0.1.0", Some(name.to_owned()))
+                .with_constraint("quent.ref-tree.v0.1.0", None)
+                .build()
+                .unwrap(),
+        };
+        let result = generate_str(
+            &schema(
+                "Demo",
+                [
+                    entity(name, [event("created", [])]),
+                    entity("Child", [event("created", [field("parent", parent)])]),
+                ],
+                [],
+            ),
+            &Options::default(),
+        );
+        assert!(
+            matches!(result, Err(GenerateError::EntityEventsNameConflict { name: conflict, .. }) if conflict == name)
+        );
+    }
 }
 
 #[test]

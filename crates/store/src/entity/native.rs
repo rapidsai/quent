@@ -92,6 +92,27 @@ impl<E: NativeEntityMarker> NativeStore<E> {
     }
 }
 
+impl<E: NativeEntityMarker + crate::RefTreeEntityMarker> NativeStore<E> {
+    /// Adds this store's entities and earliest recorded parents to the index.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an entity UUID has already been added.
+    #[doc(hidden)]
+    pub fn index_ref_tree(
+        &self,
+        index: &mut quent_ref_tree::analysis::RefTreeIndexBuilder,
+    ) -> Result<(), Error> {
+        index
+            .extend::<E>(
+                self.entities
+                    .values()
+                    .map(|entity| (entity.id(), entity.parent_id())),
+            )
+            .map_err(Error::from)
+    }
+}
+
 impl<E: EntityMarker, T: EntityHandle<Entity = E>> EntityStore<E> for EntityMap<E, T> {
     type Error = Error;
     type Handle<'a>
@@ -158,6 +179,19 @@ impl<E: NativeEntityMarker> NativeEntity<E> {
     /// Borrows the raw event sequence.
     pub fn event_sequence(&self) -> &EventSequence<E> {
         &self.sequence
+    }
+}
+
+impl<E: NativeEntityMarker + crate::RefTreeEntityMarker> NativeEntity<E> {
+    /// Returns the first recorded Reference Tree parent, or `None` if absent.
+    ///
+    /// Examines at most `n` payloads in timestamp order for `n` events.
+    /// Conflicting later parents are ignored.
+    pub fn parent_id(&self) -> Option<Id<E::Parent>> {
+        self.sequence
+            .events()
+            .iter()
+            .find_map(|event| E::parent_id(&event.data))
     }
 }
 
@@ -477,5 +511,126 @@ mod tests {
         assert_eq!(event.id, id);
         assert_eq!(event.timestamp, 10);
         assert_eq!(event.data.0, "first");
+    }
+
+    mod ref_tree {
+        use crate::{
+            Error, Id, Result,
+            entity::native::{EventIndex, NativeEntityMarker, NativeStore},
+            event::{EventIterator, EventLoader},
+        };
+        use crate::{RefTreeEntityMarker, RefTreeIndexBuilder};
+        use quent_events::{EntityMarker, Event, EventPayload, Uuid};
+        use quent_time::TimeUnixNanoSec;
+        use std::{
+            cell::{Cell, RefCell},
+            rc::Rc,
+        };
+
+        struct Marker<const KIND: u8>;
+        struct Payload {
+            parent: Option<Uuid>,
+            reads: Rc<Cell<usize>>,
+        }
+
+        impl EventPayload for Payload {
+            const NAME: &'static str = "Test";
+        }
+
+        impl<const KIND: u8> EntityMarker for Marker<KIND> {
+            type Payload = Payload;
+        }
+
+        impl RefTreeEntityMarker for Marker<0> {
+            type Parent = Self;
+
+            fn parent_id(_: &Payload) -> Option<Id<Self::Parent>> {
+                None
+            }
+        }
+
+        impl RefTreeEntityMarker for Marker<1> {
+            type Parent = Marker<0>;
+
+            fn parent_id(payload: &Payload) -> Option<Id<Self::Parent>> {
+                payload.reads.set(payload.reads.get() + 1);
+                payload.parent.map(Id::new)
+            }
+        }
+
+        #[derive(Default)]
+        struct Index;
+
+        impl<const KIND: u8> EventIndex<Marker<KIND>> for Index {
+            fn record(&mut self, _: &Payload, _: usize) -> Result<()> {
+                Ok(())
+            }
+        }
+
+        impl<const KIND: u8> NativeEntityMarker for Marker<KIND> {
+            type Index = Index;
+        }
+
+        struct Loader(RefCell<Vec<Event<Payload>>>);
+
+        impl<const KIND: u8> EventLoader<Marker<KIND>> for Loader {
+            type Error = Error;
+            fn events(&self) -> Result<EventIterator<Payload, Error>> {
+                Ok(Box::new(self.0.take().into_iter().map(Ok)))
+            }
+        }
+
+        fn loader(
+            entries: impl IntoIterator<Item = (u128, TimeUnixNanoSec, Option<u128>)>,
+            reads: &Rc<Cell<usize>>,
+        ) -> Loader {
+            Loader(RefCell::new(
+                entries
+                    .into_iter()
+                    .map(|(id, time, parent)| {
+                        Event::new(
+                            Uuid::from_u128(id),
+                            time,
+                            Payload {
+                                parent: parent.map(Uuid::from_u128),
+                                reads: reads.clone(),
+                            },
+                        )
+                    })
+                    .collect(),
+            ))
+        }
+
+        #[test]
+        fn resolves_out_of_order_parents_once_and_preserves_equal_timestamp_order() {
+            let reads = Rc::new(Cell::new(0));
+            let children = NativeStore::<Marker<1>>::try_from_loader(&loader(
+                [
+                    (2, 20, Some(999)),
+                    (2, 10, Some(1)),
+                    (2, 10, Some(998)),
+                    (2, 0, None),
+                ],
+                &reads,
+            ))
+            .unwrap();
+            let roots = NativeStore::<Marker<0>>::try_from_loader(&loader([(1, 30, None)], &reads))
+                .unwrap();
+            assert_eq!(reads.get(), 0);
+            let mut builder = RefTreeIndexBuilder::default();
+            children.index_ref_tree(&mut builder).unwrap();
+            roots.index_ref_tree(&mut builder).unwrap();
+            assert_eq!(reads.get(), 2);
+            let index = builder.build().unwrap();
+            assert_eq!(
+                index
+                    .children(Uuid::from_u128(1))
+                    .unwrap()
+                    .collect::<Vec<_>>(),
+                [Uuid::from_u128(2)]
+            );
+            assert_eq!(index.roots().collect::<Vec<_>>(), [Uuid::from_u128(1)]);
+            assert_eq!(reads.get(), 2);
+        }
     }
 }

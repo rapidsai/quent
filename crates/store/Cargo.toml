@@ -14,6 +14,7 @@ serde = ["dep:serde", "quent-events/serde"]
 [dependencies]
 quent-build-info = { path = "../build-info" }
 quent-events = { path = "../events" }
+quent-ref-tree = { path = "../ref-tree", features = ["analysis"] }
 quent-io = { path = "../io", default-features = false }
 quent-time = { path = "../time" }
 rustc-hash.workspace = true

@@ -4,12 +4,14 @@
 //! Type definitions of entity events.
 
 mod entity_ref;
+mod id;
 
 use quent_time::{OrderKey, TimeUnixNanoSec, Timestamp, timestamp};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 pub use entity_ref::{AnyEntity, EntityRef};
+pub use id::Id;
 pub use quent_build_info as build_info;
 pub use quent_dynamic_attributes::DynamicAttributes;
 pub use uuid::Uuid;

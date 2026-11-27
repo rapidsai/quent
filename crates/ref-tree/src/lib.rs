@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Constraint marking an entity reference as tree-forming.
+//! Reference-tree schema validation and analysis.
+
+#[cfg(feature = "analysis")]
+pub mod analysis;
 
 use petgraph::{
     Graph,

@@ -28,6 +28,44 @@ fn main() {
     let demo = quent_yaml::parse_from_file(&demo_path).unwrap();
     generate(&demo.schema, &Options::default()).unwrap();
 
+    generate(
+        &schema::tree_schema(),
+        &Options {
+            events: EventOptions {
+                serde: false,
+                combined_event: false,
+                event_derives: &["Clone"],
+                ..Options::default().events
+            },
+            filesystem: false,
+            file_name: Some("tree_model.rs".to_owned()),
+            ..Options::default()
+        },
+    )
+    .unwrap();
+
+    generate(
+        &quent_schema::test_utils::schema(
+            "Plain",
+            [quent_schema::test_utils::entity(
+                "Task",
+                [quent_schema::test_utils::event("parent_id", [])],
+            )],
+            [],
+        ),
+        &Options {
+            events: EventOptions {
+                serde: false,
+                combined_event: false,
+                ..Options::default().events
+            },
+            filesystem: false,
+            file_name: Some("plain_model.rs".to_owned()),
+            ..Options::default()
+        },
+    )
+    .unwrap();
+
     // Compile each event/store combination; filesystem loading also needs serde and combined events.
     let mut modules = String::new();
     for serde in [false, true] {

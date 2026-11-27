@@ -4,10 +4,14 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+analysis = ["dep:quent-events"]
+
 [dependencies]
 quent-schema = { path = "../schema", features = ["visitor"] }
 quent-constraints = { path = "../constraints" }
 quent-ref-target = { path = "../ref-target" }
+quent-events = { path = "../events", optional = true }
 petgraph = { workspace = true }
 thiserror.workspace = true
 rustc-hash = { workspace = true }
