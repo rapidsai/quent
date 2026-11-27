@@ -6,6 +6,10 @@
 // @quent/hooks (which holds DAG atoms) and @quent/components (which holds DAG rendering).
 
 import type { StatisticField } from './statisticFields';
+import type { Statistic, StatValue } from './statistics';
+
+export { isStatStruct } from './statistics';
+export type { Statistic, StatStruct, StatValue } from './statistics';
 
 export type ContinuousNodeColoring = {
   type: 'continuous';
@@ -78,25 +82,6 @@ export const SCALE_TYPE = {
 export type ScaleType = (typeof SCALE_TYPE)[keyof typeof SCALE_TYPE];
 
 /** A parsed struct keeps its identity even when it contains no fields. */
-export interface StatStruct {
-  kind: 'struct';
-  fields: Statistic[];
-}
-
-export interface Statistic {
-  key: string;
-  value: StatValue;
-  quantity?: string;
-}
-
-export type StatValue = string | number | bigint | boolean | null | StatStruct | StatValue[];
-
-export function isStatStruct(value: StatValue): value is StatStruct {
-  return (
-    typeof value === 'object' && value !== null && !Array.isArray(value) && value.kind === 'struct'
-  );
-}
-
 export interface DAGStatisticSet {
   statistics: Statistic[];
   fields: StatisticField[];

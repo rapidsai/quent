@@ -10,3 +10,4 @@ own risk.
 - [Quent MCP REST bridge](quent-mcp/)
 - [Intricate query-engine simulator](simulator/)
 - [Benchmark plot viewer](bench-plot/)
+- [Question and query-diff CLI](quent-cli/)

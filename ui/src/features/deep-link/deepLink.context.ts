@@ -8,9 +8,10 @@ export type DeepLinkIntakeStatus =
   | { kind: 'idle' }
   | { kind: 'ready' }
   | { kind: 'warning'; message: string }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; messages: readonly string[] };
 
-export type CopyLinkResult = { ok: true; url: string } | { ok: false; message: string };
+export type CopyLinkResult =
+  { ok: true; url: string } | { ok: false; message: string; messages: readonly string[] };
 
 export interface DeepLinkContextValue {
   copyLink(): Promise<CopyLinkResult>;

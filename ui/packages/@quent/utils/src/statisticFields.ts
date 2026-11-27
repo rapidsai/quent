@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { isStatStruct, type Statistic } from './dagTypes';
+import { isStatStruct, type Statistic } from './statistics';
 
 export type StatisticFieldPath = ReadonlyArray<readonly [string, number]>;
 

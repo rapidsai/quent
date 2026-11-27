@@ -8,6 +8,7 @@ use convert_case::Case;
 use proc_macro2::TokenStream;
 use quent_schema::{Entity, Schema};
 use quote::quote;
+use std::collections::BTreeSet;
 use syn::Ident;
 
 use crate::{
@@ -23,22 +24,56 @@ pub(crate) use handle::{MAX_FSM_STATES, MAX_ONCE_EVENTS};
 pub(crate) fn entity_runtime_types(
     schema: &Schema,
     entity: &Entity,
+    timestamped_methods: bool,
 ) -> Result<TokenStream, GenerateError> {
-    let handle = handle::entity_handle(entity)?;
-    if entity
+    let event_methods = entity
         .events()
-        .any(|event| to_case(event.name(), Case::Snake) == "id")
-    {
+        .map(|event| to_case(event.name(), Case::Snake))
+        .collect::<BTreeSet<_>>();
+    if event_methods.contains("id") {
         return Err(GenerateError::HandleIdCollision {
             entity: entity.path().clone(),
         });
     }
+    if timestamped_methods {
+        validate_timestamped_methods(entity, &event_methods)?;
+    }
+    let handle = handle::entity_handle(entity, timestamped_methods)?;
     let entity_impl = entity_impl(schema, entity, &handle.associated_type);
     let handle = handle.tokens;
     Ok(quote! {
         #handle
         #entity_impl
     })
+}
+
+/// Rejects schemas whose `<event>_at` methods or their `timestamp_ns`
+/// parameter would conflict with other generated names.
+fn validate_timestamped_methods(
+    entity: &Entity,
+    event_methods: &BTreeSet<String>,
+) -> Result<(), GenerateError> {
+    if let Some(method) = event_methods
+        .iter()
+        .map(|method| format!("{method}_at"))
+        .find(|method_at| event_methods.contains(method_at))
+    {
+        return Err(GenerateError::TimestampedEventMethodCollision {
+            entity: entity.path().clone(),
+            method,
+        });
+    }
+    if let Some(event) = entity.events().find(|event| {
+        event
+            .fields()
+            .any(|field| to_case(field.name(), Case::Snake) == "timestamp_ns")
+    }) {
+        return Err(GenerateError::TimestampParameterCollision {
+            entity: entity.path().clone(),
+            event: event.name().clone(),
+        });
+    }
+    Ok(())
 }
 
 pub(crate) fn generate_model(
@@ -120,7 +155,7 @@ pub(crate) fn reexports() -> TokenStream {
         pub use ::quent_instrumentation::{
             AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicNull,
             DynamicStruct, DynamicValue, EntityRef, Event, FsmStateMismatch, FsmTransitionError,
-            HandleError, Noop, Observer, RuntimeOptions, Uuid,
+            HandleError, Noop, Observer, RuntimeOptions, TimeUnixNanoSec, Uuid, timestamp,
         };
     }
 }
@@ -175,7 +210,7 @@ mod tests {
     }
 
     #[test]
-    fn reexports_dynamic_attribute_value_types() {
+    fn reexports_runtime_api() {
         let source = pretty(reexports());
 
         for name in [
@@ -185,6 +220,8 @@ mod tests {
             "DynamicStruct",
             "DynamicValue",
             "DynamicNull",
+            "TimeUnixNanoSec",
+            "timestamp",
         ] {
             assert!(source.contains(name), "missing re-export for {name}");
         }
@@ -206,7 +243,7 @@ mod tests {
             .build()
             .unwrap();
         let entity = s.entities().next().unwrap();
-        let entity_types = entity_runtime_types(&s, entity).unwrap();
+        let entity_types = entity_runtime_types(&s, entity, false).unwrap();
         let namespaces = crate::namespace::Namespace::root(&s);
         let quent_events_build::NamespaceCode {
             declarations: event_types,

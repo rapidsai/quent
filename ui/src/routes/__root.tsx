@@ -13,20 +13,17 @@ function AppNav() {
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
       <div className="w-full flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link
-          to="/"
-          className="flex shrink-0 items-center gap-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
+        <Link to="/" className="focus-ring flex shrink-0 items-center gap-3 rounded-sm">
           <span
             aria-hidden="true"
-            className="size-8 shrink-0 bg-current text-primary"
+            className="size-8 shrink-0 bg-current text-foreground"
             style={{
               WebkitMask: `url('${logoUrl}') center / contain no-repeat`,
               mask: `url('${logoUrl}') center / contain no-repeat`,
             }}
           />
-          <h1 className="text-2xl font-semibold text-primary">
-            QUENT <span className="font-light text-muted-foreground">UI</span>
+          <h1 className="text-2xl font-semibold text-foreground">
+            QUENT <span className="font-light text-primary">UI</span>
           </h1>
         </Link>
         <div className="flex min-w-0 flex-1 items-center justify-center overflow-hidden px-4 sm:px-6">

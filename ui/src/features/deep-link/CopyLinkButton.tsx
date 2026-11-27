@@ -3,8 +3,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Check, Share2 } from 'lucide-react';
-import { Button, toast } from '@quent/components';
+import { Button } from '@quent/components';
 import { useDeepLink } from './deepLink.context';
+import { showDeepLinkErrorToasts } from './deepLink.toasts';
 
 type CopyFeedback =
   | { kind: 'idle'; message: '' }
@@ -38,12 +39,10 @@ export function CopyLinkButton() {
         : { kind: 'error', message: result.message }
     );
     if (!result.ok) {
-      toast.add({
+      showDeepLinkErrorToasts({
         id: 'deep-link-copy-error',
-        type: 'error',
         title: 'Could not copy link',
-        description: result.message,
-        priority: 'high',
+        messages: result.messages,
       });
     }
 
@@ -72,7 +71,7 @@ export function CopyLinkButton() {
         disabled={!deepLink || feedback.kind === 'working'}
         onClick={() => void handleCopy()}
       >
-        {feedback.kind === 'success' ? <Check /> : <Share2 />}
+        {feedback.kind === 'success' ? <Check className="text-primary" /> : <Share2 />}
       </Button>
       <span className="sr-only" aria-live="polite">
         {statusMessage}

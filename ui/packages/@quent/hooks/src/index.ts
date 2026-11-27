@@ -16,6 +16,8 @@ export type { ColorRegistry, ColorRegistryKey } from './colors/colorRegistry';
 // DAG hooks
 export { useSelectedOperatorIds } from './dag/useSelectedOperatorIds';
 export { useOperatorSelection, useOperatorSelectionActions } from './dag/useOperatorSelection';
+export { useDisplayedOperatorDetails } from './dag/useOperatorDetails';
+export { useClearDagDetailAttention, useDagDetailAttention } from './dag/useDagDetailAttention';
 export {
   useHydrateSelectedPlanId,
   useSelectedPlanId,
@@ -37,6 +39,8 @@ export {
   useSetDebouncedZoomRange,
   useLongEntityDensity,
   useSetLongEntityDensity,
+  useShowNestedChartRows,
+  useSetShowNestedChartRows,
   useTimelineHover,
   useSetTimelineHover,
   useTimelinePointerRatio,
@@ -51,7 +55,7 @@ export {
 } from './timeline/useTimelineAtoms';
 
 // Timeline cache key helpers (consumers need these to address per-item data)
-export { LONG_ENTITY_DENSITIES, timelineCacheKey } from './atoms/timeline';
+export { LONG_ENTITY_DENSITIES, showNestedChartRowsAtom, timelineCacheKey } from './atoms/timeline';
 export type { LongEntityDensity, TimelineCacheParams, TimelineHoverState } from './atoms/timeline';
 export { bulkEntryId, isTimelineUtilizationAllZero } from './timeline/timeline.utils';
 
@@ -168,7 +172,6 @@ export {
   useClearInspectedPipes,
   useSyncDisplayedPipes,
   useDisplayedPipes,
-  useDisplayedDagNodes,
   useInspectedPipeNodes,
   useHoveredPipeId,
   useSetHoveredPipeId,

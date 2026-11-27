@@ -14,12 +14,10 @@ use quent_query_engine_server::{
     analyzer_service_router_with_routes, collector_service, initialize_tracing,
 };
 use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
-use quent_simulator_instrumentation as instrumentation;
+use quent_simulator_instrumentation::SimulatorCollectorSink;
 use quent_simulator_store::Simulator;
 use quent_store::event::{CombinedEventLoader, filesystem::Loader};
 use tokio::net::TcpListener;
-
-type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
 
 mod defaults {
     /// Default collector socket address to listen on.
@@ -107,8 +105,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ExporterOptions::FileSystem(filesystem::exporter::Options::new(format, output_dir));
 
     let collector = async {
-        collector_service::<SimulatorContext, _>(move |id| {
-            SimulatorContext::try_with_id(id, exporter_kind.clone()).map_err(|e| e.to_string())
+        collector_service::<SimulatorCollectorSink, _>(move |id| {
+            SimulatorCollectorSink::try_new(id, exporter_kind.clone()).map_err(|e| e.to_string())
         })?
         .serve(collector_addr)
         .await

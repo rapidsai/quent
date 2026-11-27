@@ -6,11 +6,11 @@
 use proc_macro2::TokenStream;
 use quent_constraints::Constraint as _;
 use quent_fsm::Fsm;
-use quent_schema::{Entity, Identifier, Schema};
+use quent_schema::{Entity, Event, Identifier, Schema};
 use quote::quote;
 
-use super::GeneratedHandle;
-use crate::{GenerateError, runtime::event_ident};
+use super::{GeneratedHandle, timestamped_docs};
+use crate::{GenerateError, common::doc_attr_or, runtime::event_ident};
 
 mod dynamic;
 mod typestate;
@@ -30,6 +30,22 @@ const RESERVED_HANDLE_METHOD_NAMES: [&str; 9] = [
     "as_any_entity_ref_with",
 ];
 
+/// Documents the transition into `event` and its `_at` counterpart.
+fn transition_docs(event: &Event) -> (TokenStream, TokenStream) {
+    let docs = doc_attr_or(
+        event.annotations().docs(),
+        &format!("Transition this FSM into `{}`.", event.name()),
+    );
+    let at_docs = timestamped_docs(&docs);
+    let at_docs = quote! {
+        #at_docs
+        /// For one FSM instance, the timestamp must not precede its previous
+        /// transition. Equal timestamps are valid. Quent does not enforce this
+        /// ordering requirement.
+    };
+    (docs, at_docs)
+}
+
 fn reserved_handle_method(state: &Identifier) -> Option<&'static str> {
     let method = crate::common::to_case(state, convert_case::Case::Snake);
     RESERVED_HANDLE_METHOD_NAMES
@@ -37,7 +53,10 @@ fn reserved_handle_method(state: &Identifier) -> Option<&'static str> {
         .find(|reserved| *reserved == method)
 }
 
-pub(super) fn entity_handle(entity: &Entity) -> Result<Option<GeneratedHandle>, GenerateError> {
+pub(super) fn entity_handle(
+    entity: &Entity,
+    timestamped_methods: bool,
+) -> Result<Option<GeneratedHandle>, GenerateError> {
     let Some(fsm) = Fsm::try_from_entity(entity)? else {
         return Ok(None);
     };
@@ -59,8 +78,8 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<Option<GeneratedHandle>, 
     }
     let handle_ty = typestate::handle_type_path(entity);
     let fsm_event = fsm_event_impl(entity);
-    let typestate = typestate::entity_impl(entity, &fsm)?;
-    let dynamic = dynamic::entity_impl(entity, &fsm)?;
+    let typestate = typestate::entity_impl(entity, &fsm, timestamped_methods)?;
+    let dynamic = dynamic::entity_impl(entity, &fsm, timestamped_methods)?;
     Ok(Some(GeneratedHandle {
         tokens: quote! {
             #fsm_event
@@ -128,7 +147,7 @@ mod tests {
     }
 
     fn source(entity: &Entity) -> String {
-        pretty(entity_handle(entity).unwrap().unwrap().tokens)
+        pretty(entity_handle(entity, true).unwrap().unwrap().tokens)
     }
 
     #[test]
@@ -158,6 +177,8 @@ mod tests {
         assert!(source.contains("impl FsmHandle<Query>"));
         assert!(source.contains("pub fn submitted(self, text: String)"));
         assert!(source.contains("-> FsmHandle<Query, query_state::Submitted>"));
+        assert!(source.contains("pub fn submitted_at("));
+        assert!(source.contains(".transition_at("));
         assert!(source.contains("impl FsmHandle<Query, query_state::Submitted>"));
         assert!(source.contains(".transition(QueryEvent::Submitted"));
         assert!(source.contains("seq: 0"));
@@ -173,8 +194,83 @@ mod tests {
         assert!(source.contains("pub fn try_into<S>("));
         assert!(source.contains("S: ::quent_instrumentation::FsmState<Query>"));
         assert!(source.contains("pub fn submitted(\n        &mut self"));
-        assert!(source.contains("self.inner.transition_mut("));
+        assert!(source.contains("pub fn submitted_at(\n        &mut self"));
+        assert!(source.contains("fn _transition("));
+        assert_eq!(source.matches("::core::option::Option::None,").count(), 3);
+        assert_eq!(
+            source
+                .matches("::core::option::Option::Some(timestamp_ns),")
+                .count(),
+            3
+        );
+        assert!(source.contains("self.inner.transition_mut(event)"));
+        assert!(source.contains("self.inner.transition_mut_at(timestamp_ns, event)"));
         assert!(source.contains("impl FsmHandle<Query, query_state::Ready>"));
+    }
+
+    #[test]
+    fn timestamped_transitions_are_opt_in() {
+        let entity = FsmEntityBuilder::new("Query".parse::<quent_schema::Path>().unwrap())
+            .with_states([
+                state("submitted", &["ready"], true, vec![]),
+                state("ready", &[], false, vec![]),
+            ])
+            .build()
+            .unwrap();
+
+        let source = pretty(entity_handle(&entity, false).unwrap().unwrap().tokens);
+
+        assert!(source.contains("pub fn submitted("));
+        assert!(source.contains("pub fn ready("));
+        assert!(!source.contains("submitted_at"));
+        assert!(!source.contains("ready_at"));
+        assert!(!source.contains("::core::option::Option::Some(timestamp_ns),"));
+    }
+
+    #[test]
+    fn documents_timestamp_ordering_on_every_timestamped_transition() {
+        let annotations = quent_schema::builder::AnnotationsBuilder::new()
+            .with_docs("Application-defined transition documentation.")
+            .build()
+            .unwrap();
+        let undocumented = FsmEntityBuilder::new("Query".parse::<quent_schema::Path>().unwrap())
+            .with_states([
+                state("submitted", &["ready"], true, vec![]),
+                state("ready", &[], false, vec![]),
+            ])
+            .build()
+            .unwrap();
+        let entity = quent_schema::builder::EntityBuilder::new(undocumented.path().clone())
+            .with_annotations(undocumented.annotations().clone())
+            .with_events(undocumented.events().map(|event| {
+                quent_schema::builder::EventBuilder::new(event.name().clone(), event.cardinality())
+                    .with_fields(event.fields().cloned())
+                    .with_annotations(annotations.clone())
+                    .build()
+                    .unwrap()
+            }))
+            .build()
+            .unwrap();
+
+        let source = source(&entity);
+
+        // Typestate and dynamic handles each generate `submitted_at` and `ready_at`.
+        assert_eq!(
+            source
+                .matches("Application-defined transition documentation.")
+                .count(),
+            8
+        );
+        assert_eq!(
+            source
+                .matches("`timestamp_ns` is the absolute event time")
+                .count(),
+            4
+        );
+        assert_eq!(source.matches("must not precede its").count(), 4);
+        assert_eq!(source.matches("Equal timestamps are valid.").count(), 4);
+        assert_eq!(source.matches("Quent does not enforce this").count(), 4);
+        assert_eq!(source.matches("ordering requirement.").count(), 4);
     }
 
     #[test]
@@ -229,7 +325,7 @@ mod tests {
             .build()
             .unwrap();
 
-        assert!(matches!(entity_handle(&entity), Ok(Some(_))));
+        assert!(matches!(entity_handle(&entity, false), Ok(Some(_))));
     }
 
     #[test]
@@ -255,7 +351,7 @@ mod tests {
             .unwrap();
 
         assert!(matches!(
-            entity_handle(&entity),
+            entity_handle(&entity, false),
             Err(GenerateError::TooManyFsmStates { count, .. }) if count == MAX_FSM_STATES + 1
         ));
     }
@@ -282,7 +378,7 @@ mod tests {
                 .unwrap();
 
             assert!(matches!(
-                entity_handle(&entity),
+                entity_handle(&entity, false),
                 Err(GenerateError::ReservedFsmHandleMethod {
                     state,
                     method,

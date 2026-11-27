@@ -5,25 +5,66 @@ import type { ReactNode } from 'react';
 import type { TreeTableItem } from '@quent/components';
 import type { TimelineTreeItem } from '../TimelineTreeTable';
 
+export const TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT = 28;
+
 export interface ResourceTimelineSubRow {
   id: string;
+  /** Short name of the row, as plain text. */
+  label: string;
+  /** Row type for the always-visible disclosure that owns the chart row. */
+  disclosureRowType: string;
+  /** Whether adding this disclosure turns a former leaf into an initially expanded owner. */
+  expandOwnerByDefault: boolean;
+  /**
+   * Whether the chart row is pinned together with its owner instead of on its own. The owner's
+   * pinned copy shows the chart row beneath it, and the chart row has no pin button.
+   */
+  pinsWithOwner: boolean;
   injectRows: (rootItem: TreeTableItem) => TreeTableItem;
   matches: (item: TimelineTreeItem) => boolean;
-  renderLabel: (item: TimelineTreeItem) => ReactNode;
-  renderTimeline: (item: TimelineTreeItem) => ReactNode;
+  renderLabel: (item: TimelineTreeItem, description?: ReactNode) => ReactNode;
+  /** `isOpen` is whether the item is expanded; an open disclosure row draws its chart itself. */
+  renderTimeline: (item: TimelineTreeItem, isOpen?: boolean) => ReactNode;
 }
 
-export function TimelineSubRowLabel({ children }: { children: string }) {
+export function TimelineSubRowLabel({
+  children,
+  description,
+}: {
+  children: string;
+  description?: ReactNode;
+}) {
   return (
-    <span className="flex items-center">
+    <span className="flex min-w-0 items-center">
       <span aria-hidden className="mr-4 h-4 w-4 shrink-0" />
-      <span className="text-xs leading-none text-muted-foreground">{children}</span>
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="text-xs leading-none text-muted-foreground">{children}</span>
+        {description != null && (
+          <span className="text-[11px] font-normal leading-none text-muted-foreground">
+            {description}
+          </span>
+        )}
+      </span>
     </span>
   );
 }
 
 export function createSyntheticSubRow(id: string, type: string): TreeTableItem {
   return { id, type, entity: {} as TreeTableItem['entity'] };
+}
+
+export function createTimelineSubRowDisclosure(
+  ownerId: string,
+  rowType: string,
+  chartRow: TreeTableItem
+): TreeTableItem {
+  const idType = rowType.replace(/-/g, '_');
+  return {
+    ...createSyntheticSubRow(`__${idType}_disclosure__${ownerId}`, `${rowType}-disclosure`),
+    // The disclosure row draws the chart in its own row while it is open, so the chart row never
+    // gets a separate row. It is kept as a child so the disclosure row can be opened and closed.
+    children: [{ ...chartRow, rendersInParent: true }],
+  };
 }
 
 /** Recursively rewrite each node's children; used to splice synthetic subrows into the tree. */
@@ -42,18 +83,44 @@ export function createTimelineSubRow({
   injectRows,
   label,
   renderTimeline,
+  expandOwnerByDefault = false,
+  pinsWithOwner = false,
 }: {
   id: string;
   rowType: string;
   injectRows: ResourceTimelineSubRow['injectRows'];
   label: string;
   renderTimeline: ResourceTimelineSubRow['renderTimeline'];
+  expandOwnerByDefault?: boolean;
+  pinsWithOwner?: boolean;
 }): ResourceTimelineSubRow {
+  const disclosureRowType = `${rowType}-disclosure`;
   return {
     id,
+    label,
+    disclosureRowType,
+    expandOwnerByDefault,
+    pinsWithOwner,
     injectRows,
-    matches: item => item.type === rowType,
-    renderLabel: () => <TimelineSubRowLabel>{label}</TimelineSubRowLabel>,
-    renderTimeline,
+    matches: item => item.type === rowType || item.type === disclosureRowType,
+    renderLabel: (item, description) =>
+      item.type === disclosureRowType || description != null ? (
+        <TimelineSubRowLabel description={description}>{label}</TimelineSubRowLabel>
+      ) : null,
+    renderTimeline: (item, isOpen = false) => {
+      if (item.type !== disclosureRowType) {
+        return renderTimeline(item);
+      }
+      const chartRow = item.children?.[0];
+      if (!isOpen || !chartRow) {
+        return null;
+      }
+      // Clicking the chart selects things in it; only the label should open and close the row.
+      return (
+        <div className="h-full cursor-default" onClick={event => event.stopPropagation()}>
+          {renderTimeline(chartRow as TimelineTreeItem)}
+        </div>
+      );
+    },
   };
 }

@@ -8,6 +8,7 @@ requires-pixi = ">=0.68"
 rust = "=1.97.0"
 rust-src = "=1.97.0"
 cargo-deny = "=0.20.2"
+sccache = "=0.18.0" # Keep in sync with the CI action version.
 nodejs = ">=24.11.0"
 pnpm = ">=11.19.0"
 cmake = ">=3.24"
@@ -21,14 +22,18 @@ ty = ">=0.0.55"
 uv = ">=0.11.25"
 pre-commit = ">=4"
 rust-std-wasm32-unknown-unknown = "1.97.0.*"
-wasm-bindgen-cli = "0.2.128.*"
+wasm-bindgen-cli = "0.2.130.*"
 mdbook = "0.5.4.*"
+ffmpeg = ">=7,<9"
 
 [pypi-dependencies]
 rumdl = "*"
 
 [activation]
 scripts = ["integrations/nvtx/activate-bindgen.sh"]
+
+[activation.env]
+RUSTC_WRAPPER = "sccache"
 
 [tasks]
 # clang-format needs an explicit file list; Git excludes ignored build output and dependencies.

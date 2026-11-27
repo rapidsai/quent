@@ -50,7 +50,10 @@
 //!
 //! ## Reserved names
 //!
-//! Schema event names that become the Rust method name `id` are rejected. FSM
+//! Schema event names that become the Rust method name `id` are rejected. When
+//! [`Options::generate_timestamped_methods`] is enabled, event names must not collide
+//! with another event's `<event>_at` method, and event fields must not be named
+//! `timestamp_ns`. FSM
 //! state names must also avoid existing FSM handle methods, such as `state`,
 //! `try_into`, and `as_entity_ref`.
 //!
@@ -122,6 +125,14 @@ pub struct Options {
     /// Requires `io-collector` on the consuming crate's `quent-instrumentation`
     /// dependency.
     pub collector_sink: bool,
+
+    /// Generate an `<event>_at` variant of each handle event and transition
+    /// method that takes a caller-supplied `timestamp_ns` as its first
+    /// parameter.
+    ///
+    /// Disabled by default because the generated method names can conflict
+    /// with methods an application already defines on generated handles.
+    pub generate_timestamped_methods: bool,
 }
 
 impl Default for Options {
@@ -132,6 +143,7 @@ impl Default for Options {
             file_name: None,
             analyzer_package: None,
             collector_sink: false,
+            generate_timestamped_methods: false,
         }
     }
 }
@@ -183,6 +195,25 @@ pub enum GenerateError {
     },
     #[error("generated handle method `id` conflicts with an event on entity `{entity}`")]
     HandleIdCollision { entity: Path },
+    #[error(
+        "generated timestamped event method `{method}` conflicts with an event on entity `{entity}`"
+    )]
+    TimestampedEventMethodCollision {
+        /// The offending entity.
+        entity: Path,
+        /// The generated method name shared by an event and an `_at` companion.
+        method: String,
+    },
+    #[error(
+        "generated parameter `timestamp_ns` conflicts with a field of event `{event}` on entity \
+         `{entity}`"
+    )]
+    TimestampParameterCollision {
+        /// The offending entity.
+        entity: Path,
+        /// The event whose field conflicts with the `_at` method parameter.
+        event: Identifier,
+    },
     #[error("`collector_sink` requires serde generation")]
     CollectorSinkRequiresSerde,
     #[error("failed to write generated file")]
@@ -271,7 +302,9 @@ fn generate_namespace(
     let runtime = namespace
         .entities()
         .iter()
-        .map(|entity| runtime::entity_runtime_types(schema, entity))
+        .map(|entity| {
+            runtime::entity_runtime_types(schema, entity, opts.generate_timestamped_methods)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let children = namespace
         .children()
@@ -406,6 +439,7 @@ mod path_tests {
             )
         );
         assert!(source.contains("impl super::Handle<Query>"));
+        assert!(!source.contains("pub fn event_at("));
         assert!(source.contains("impl ::quent_instrumentation::InstrumentedEntity for Query"));
         assert!(source.contains("impl ::quent_instrumentation::events::EntityMarker for Query"));
         assert!(source.contains("type Context = super::Context<super::Demo>"));
@@ -418,6 +452,27 @@ mod path_tests {
         ));
         assert!(source.contains(r#"const NAME: &'static str = "Foo::Query""#));
         assert!(!source.contains("foo_query_observer"));
+    }
+
+    #[test]
+    fn generates_timestamped_methods_when_enabled() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Query", [event("event", [])]))
+            .build()
+            .unwrap();
+
+        let source = generate_str(
+            &schema,
+            &Options {
+                generate_timestamped_methods: true,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        assert!(source.contains("pub fn event_at("));
+        assert!(source.contains("timestamp_ns: u64"));
+        assert!(source.contains("self.inner.emit_once_at::<0>("));
     }
 
     #[test]
@@ -463,6 +518,46 @@ mod path_tests {
             generate_str(&schema, &Options::default()),
             Err(GenerateError::HandleIdCollision { .. })
         ));
+    }
+
+    #[test]
+    fn rejects_timestamped_name_collisions_only_when_enabled() {
+        let timestamped = Options {
+            generate_timestamped_methods: true,
+            ..Options::default()
+        };
+
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity(
+                "Task",
+                [event("started", []), event("started_at", [])],
+            ))
+            .build()
+            .unwrap();
+        assert!(generate_str(&schema, &Options::default()).is_ok());
+        assert!(matches!(
+            generate_str(&schema, &timestamped),
+            Err(GenerateError::TimestampedEventMethodCollision { method, .. })
+                if method == "started_at"
+        ));
+
+        for field_name in ["timestamp_ns", "timestampNs"] {
+            let schema = SchemaBuilder::try_new("Demo")
+                .unwrap()
+                .with_entity(entity(
+                    "Task",
+                    [event("started", [field(field_name, DataType::U64)])],
+                ))
+                .build()
+                .unwrap();
+            assert!(generate_str(&schema, &Options::default()).is_ok());
+            assert!(matches!(
+                generate_str(&schema, &timestamped),
+                Err(GenerateError::TimestampParameterCollision { event, .. })
+                    if event == "started"
+            ));
+        }
     }
 
     #[test]

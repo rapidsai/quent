@@ -5,6 +5,7 @@ export {
   createSyntheticSubRow,
   createTimelineSubRow,
   mapTreeItems,
+  TIMELINE_SUB_ROW_DISCLOSURE_HEIGHT,
   TimelineSubRowLabel,
   type ResourceTimelineSubRow,
 } from './subRow';

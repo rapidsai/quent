@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 test = false
 
 [dependencies]
-pyo3 = { version = "0.29", features = ["abi3-py311"] }
+pyo3 = { version = "0.30", features = ["abi3-py311"] }
 quent-dynamic-attributes = { path = "../../../../../../../../crates/dynamic-attributes" }
 quent-instrumentation = { path = "../../../../../../../../crates/instrumentation" }
 

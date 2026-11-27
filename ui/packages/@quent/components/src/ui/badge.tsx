@@ -8,7 +8,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@quent/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center justify-center gap-1 w-fit shrink-0 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium transition-colors overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&>svg]:pointer-events-none [&>svg]:size-3',
+  'inline-flex items-center justify-center gap-1 w-fit shrink-0 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium transition-colors overflow-hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 [&>svg]:pointer-events-none [&>svg]:size-3',
   {
     variants: {
       variant: {

@@ -1,17 +1,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DEFAULT_TIMELINE_HEIGHT,
+  EmptyState,
   TimelineActions,
   TimelineController,
   TimelineRuler,
   TimelineToolbar,
+  PinnedSectionToggle,
   TreeTable,
   nanosToMs,
   type Column,
+  type ColumnWidth,
   type NvtxTreeEntity,
   type TreeTableItem,
 } from '@quent/components';
@@ -25,13 +28,50 @@ import type {
 } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { useTabActionSlots } from '@/components/TabActionSlots';
+import { PinnableRowLabel } from './PinnableRowLabel';
+import { PinnedRowsSplit } from './PinnedRowsSplit';
+import { useSyncedHorizontalScroll } from './useSyncedHorizontalScroll';
+
+const DEFAULT_COLUMN_WIDTHS: ColumnWidth[] = [275, 'auto'];
+
+// Keeps the space for a scrollbar on every table, so their columns line up whether or not
+// any of them is currently scrolling.
+const STABLE_GUTTER = '[&_[data-tree-table-scroller]]:[scrollbar-gutter:stable]';
 
 export type TimelineTreeItem = TreeTableItem<EntityTypeValue | NvtxTreeEntity>;
 
 export interface TimelineTreeModel {
   trees: TimelineTreeItem[];
-  renderLabel: (item: TimelineTreeItem) => ReactNode;
-  renderTimeline: (item: TimelineTreeItem) => ReactNode;
+  // The description is extra context for the row, given only for rows in the pinned section.
+  renderLabel: (item: TimelineTreeItem, description?: ReactNode, isPinned?: boolean) => ReactNode;
+  renderTimeline: (item: TimelineTreeItem, isPinned?: boolean) => ReactNode;
+  // Which of this tree's rows can be pinned. Trees that leave it out have no pin buttons.
+  rowPinning?: RowPinning;
+  getRowHeight?: (item: TimelineTreeItem) => number;
+}
+
+export interface RowPinning {
+  isPinnable: (item: TimelineTreeItem) => boolean;
+  // Plain-text name of a row, used to label its pin button.
+  getName: (item: TimelineTreeItem) => string;
+  // Extra context shown only on the pinned copy of a row.
+  getDescription?: (item: TimelineTreeItem) => ReactNode;
+}
+
+export interface PinningControls {
+  // Pinned rows to show above the tree, after any filter has been applied.
+  items: TimelineTreeItem[];
+  // Pinned rows that a filter currently hides.
+  hiddenCount: number;
+  ids: ReadonlySet<string>;
+  onToggle: (itemId: string) => void;
+  // Whether the pinned section shows only its header.
+  isCollapsed: boolean;
+  onToggleCollapsed: () => void;
+  // Unpins every row, including the ones a filter hides.
+  onClear: () => void;
+  // Moves a pinned row to where another pinned row sits, when the user drags it there.
+  onReorder: (activeId: string, overId: string) => void;
 }
 
 export interface TimelineTreeControls {
@@ -44,6 +84,8 @@ export interface TimelineTreeControls {
   timelineData?: SingleTimelineResponse;
   onExpandChange: (itemId: string, isExpanded: boolean) => void;
   onZoomChange?: (range: ZoomRange) => void;
+  // Leave out for trees with no pinning.
+  pinning?: PinningControls;
 }
 
 interface TimelineTreeTableProps {
@@ -108,6 +150,14 @@ export function TimelineTreeTable({
     }
     return { data, modelsByItemId };
   }, [trees]);
+  const { pinning } = controls;
+  const getRowHeight = useCallback(
+    (item: { id: string }) => {
+      const timelineItem = item as TimelineTreeItem;
+      return modelsByItemId.get(item.id)?.getRowHeight?.(timelineItem) ?? DEFAULT_TIMELINE_HEIGHT;
+    },
+    [modelsByItemId]
+  );
   const columns = useMemo(
     () =>
       [
@@ -121,8 +171,25 @@ export function TimelineTreeTable({
               Resource
             </div>
           ),
-          render: ({ item }: { item: TimelineTreeItem }) =>
-            modelsByItemId.get(item.id)?.renderLabel(item) ?? null,
+          render: ({ item, isPinned }: { item: TimelineTreeItem; isPinned?: boolean }) => {
+            const model = modelsByItemId.get(item.id);
+            const rowPinning = model?.rowPinning;
+            return (
+              <PinnableRowLabel
+                label={
+                  model?.renderLabel(
+                    item,
+                    isPinned ? rowPinning?.getDescription?.(item) : undefined,
+                    isPinned
+                  ) ?? null
+                }
+                name={rowPinning?.getName(item) ?? item.id}
+                isPinnable={pinning != null && (rowPinning?.isPinnable(item) ?? false)}
+                isPinned={pinning?.ids.has(item.id) ?? false}
+                onTogglePin={() => pinning?.onToggle(item.id)}
+              />
+            );
+          },
         },
         {
           key: 'usage',
@@ -139,12 +206,33 @@ export function TimelineTreeTable({
             </div>
           ),
           subHeaderContent: <TimelineRuler isDark={isDark} />,
-          render: ({ item }: { item: TimelineTreeItem }) =>
-            modelsByItemId.get(item.id)?.renderTimeline(item) ?? null,
+          render: ({ item, isPinned }: { item: TimelineTreeItem; isPinned?: boolean }) =>
+            modelsByItemId.get(item.id)?.renderTimeline(item, isPinned) ?? null,
         },
       ] satisfies Column<TimelineTreeItem>[],
-    [controls.onZoomChange, controls.timelineData, durationSeconds, isDark, modelsByItemId]
+    [controls.onZoomChange, controls.timelineData, durationSeconds, isDark, modelsByItemId, pinning]
   );
+
+  const hasPinnedSection = pinning != null && (pinning.items.length > 0 || pinning.hiddenCount > 0);
+
+  // The headers live in their own table above the resizable split so they never scroll away.
+  // The tables below drop theirs.
+  const bodyColumns = useMemo(
+    () =>
+      columns.map(column => ({
+        ...column,
+        headerContent: undefined,
+        subHeaderContent: undefined,
+      })),
+    [columns]
+  );
+
+  // The header table and the two body tables are separate, so they share one set of widths.
+  const [columnWidths, setColumnWidths] = useState<ColumnWidth[]>(DEFAULT_COLUMN_WIDTHS);
+
+  // Likewise, each table scrolls horizontally on its own, so keep them at the same offset.
+  const tablesRef = useRef<HTMLDivElement>(null);
+  useSyncedHorizontalScroll(tablesRef, data.length > 0);
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col">
@@ -157,24 +245,74 @@ export function TimelineTreeTable({
       ) : (
         <TimelineToolbar durationSeconds={durationSeconds} filters={controls.filters} />
       )}
-      <div className="min-h-0 min-w-0 flex-1">
-        {data.length > 0 ? (
-          <TreeTable<TimelineTreeItem>
-            data={data}
-            columns={columns}
-            initialSelectedItemId={controls.initialSelectedItemId}
-            columnWidths={[275, 'auto']}
-            onExpandChange={controls.onExpandChange}
-            highlightedItemIds={controls.highlightedItemIds}
-            indicatorItemIds={controls.indicatorItemIds}
-            controlledExpandedIds={controls.expandedIds}
-            virtualized
-            rowHeight={DEFAULT_TIMELINE_HEIGHT}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center px-4 text-sm text-muted-foreground">
-            {controls.emptyMessage ?? 'No timeline data available.'}
+      <div ref={tablesRef} className={`flex min-h-0 min-w-0 flex-1 flex-col ${STABLE_GUTTER}`}>
+        {data.length > 0 && (
+          <div className="shrink-0">
+            <TreeTable<TimelineTreeItem>
+              data={[]}
+              columns={columns}
+              columnWidths={columnWidths}
+              onColumnWidthsChange={setColumnWidths}
+            />
           </div>
+        )}
+        {data.length > 0 ? (
+          <PinnedRowsSplit
+            pinned={
+              hasPinnedSection ? (
+                <TreeTable<TimelineTreeItem>
+                  data={[]}
+                  columns={bodyColumns}
+                  columnWidths={columnWidths}
+                  onColumnWidthsChange={setColumnWidths}
+                  pinnedItems={pinning.items}
+                  isPinnedCollapsed={pinning.isCollapsed}
+                  hiddenPinnedCount={pinning.hiddenCount}
+                  hidePinnedToggle
+                  onReorderPinned={pinning.onReorder}
+                  onExpandChange={controls.onExpandChange}
+                  controlledExpandedIds={controls.expandedIds}
+                  virtualized
+                  rowHeight={DEFAULT_TIMELINE_HEIGHT}
+                  getRowHeight={getRowHeight}
+                />
+              ) : undefined
+            }
+            pinnedHeader={
+              hasPinnedSection ? (
+                <PinnedSectionToggle
+                  pinnedCount={pinning.items.length}
+                  hiddenCount={pinning.hiddenCount}
+                  isCollapsed={pinning.isCollapsed}
+                  onToggle={pinning.onToggleCollapsed}
+                  onClear={pinning.onClear}
+                />
+              ) : undefined
+            }
+            pinnedCount={pinning?.items.length ?? 0}
+            isCollapsed={pinning?.isCollapsed ?? false}
+          >
+            <TreeTable<TimelineTreeItem>
+              data={data}
+              columns={bodyColumns}
+              initialSelectedItemId={controls.initialSelectedItemId}
+              columnWidths={columnWidths}
+              onColumnWidthsChange={setColumnWidths}
+              onExpandChange={controls.onExpandChange}
+              highlightedItemIds={controls.highlightedItemIds}
+              indicatorItemIds={controls.indicatorItemIds}
+              controlledExpandedIds={controls.expandedIds}
+              virtualized
+              rowHeight={DEFAULT_TIMELINE_HEIGHT}
+              getRowHeight={getRowHeight}
+            />
+          </PinnedRowsSplit>
+        ) : (
+          <EmptyState
+            size="compact"
+            dimmed
+            title={controls.emptyMessage ?? 'No timeline data available.'}
+          />
         )}
       </div>
       {children}

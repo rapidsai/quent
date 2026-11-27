@@ -11,10 +11,10 @@ import {
   inspectedPipeNodesAtom,
   inspectedPipesAtom,
   inspectedPipeRefsAtom,
-  removeInspectedPipeAtom,
   toggleInspectedPipeAtom,
 } from '../atoms/pipeInspection';
 import { operatorSelectionActionAtom, selectedOperatorIdsAtom } from '../atoms/dag';
+import { dagDetailAttentionAtom } from '../atoms/dagDetailAttention';
 import { useSyncDisplayedPipes } from './usePipeInspection';
 import type { DAGEdge, DAGNode } from '@quent/utils';
 
@@ -150,7 +150,7 @@ describe('pipes across plans', () => {
       </Provider>
     );
     act(() => {
-      store.set(removeInspectedPipeAtom, { sourcePortId: 'out-1', targetPortId: 'in-1' });
+      store.set(toggleInspectedPipeAtom, { sourcePortId: 'out-1', targetPortId: 'in-1' });
     });
     expect(store.get(inspectedPipesAtom)).toEqual([]);
     expect(store.get(inspectedPipeNodesAtom).size).toBe(0);
@@ -180,6 +180,23 @@ describe('inspected pipe actions', () => {
   const first = { sourcePortId: 'out-1', targetPortId: 'in-1' };
   const second = { sourcePortId: 'out-2', targetPortId: 'in-2' };
 
+  it('requests attention for the selected displayed pipe', () => {
+    const store = createStore();
+    const view = render(
+      <Provider store={store}>
+        <Sync edges={[one]} />
+      </Provider>
+    );
+
+    act(() => store.set(addInspectedPipeAtom, first));
+
+    expect(store.get(dagDetailAttentionAtom)).toMatchObject({
+      kind: 'pipe',
+      id: 'one',
+    });
+    view.unmount();
+  });
+
   it('toggling adds pipes in selection order and removes only the toggled pipe', () => {
     const store = createStore();
     store.set(toggleInspectedPipeAtom, first);
@@ -195,16 +212,6 @@ describe('inspected pipe actions', () => {
     store.set(addInspectedPipeAtom, { ...first });
     store.set(addInspectedPipeAtom, second);
     expect(store.get(inspectedPipeRefsAtom)).toEqual([first, second]);
-  });
-
-  it('removing drops only the matching pipe and ignores one that is not inspected', () => {
-    const store = createStore();
-    store.set(addInspectedPipeAtom, first);
-    store.set(addInspectedPipeAtom, second);
-    store.set(removeInspectedPipeAtom, { ...first });
-    expect(store.get(inspectedPipeRefsAtom)).toEqual([second]);
-    store.set(removeInspectedPipeAtom, { ...first });
-    expect(store.get(inspectedPipeRefsAtom)).toEqual([second]);
   });
 
   it('clearing drops every pipe and leaves the operator selection alone', () => {

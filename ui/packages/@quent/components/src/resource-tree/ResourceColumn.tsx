@@ -15,6 +15,8 @@ type ResourceColumnProps = {
   onFsmChange?: (itemId: string, fsmType: string | null) => void;
   className?: string;
   verbose?: boolean;
+  /** Extra line shown under the name, type and FSM. */
+  description?: React.ReactNode;
 };
 
 /** Tree table column cell showing either a ResourceGroupRow or ResourceRow. */
@@ -26,11 +28,12 @@ export function ResourceColumn({
   selectedFsmType,
   onFsmChange,
   className,
+  description,
 }: ResourceColumnProps): React.ReactNode {
   return (
     <div className={cn('text-foreground flex truncate items-center', className)}>
-      <div>{item.icon && <item.icon className="h-4 w-4 shrink-0 mr-4" />}</div>
-      <div>
+      <div className="shrink-0">{item.icon && <item.icon className="h-4 w-4 shrink-0 mr-4" />}</div>
+      <div className="min-w-0">
         {item?.children?.length ? (
           <ResourceGroupRow
             group={item.entity as ResourceGroup}
@@ -44,6 +47,11 @@ export function ResourceColumn({
           />
         ) : (
           <ResourceRow resource={item.entity as Resource} />
+        )}
+        {description != null && (
+          <div className="mt-1 text-[11px] font-normal leading-none text-muted-foreground">
+            {description}
+          </div>
         )}
       </div>
     </div>

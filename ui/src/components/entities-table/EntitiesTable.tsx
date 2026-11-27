@@ -49,6 +49,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
             error={table.query.error}
             requestPending={table.query.requestPending}
             hasValidationErrors={table.filters.validationErrors.length > 0}
+            hasNonDefaultSettings={table.filters.hasNonDefaultSettings}
             page={table.pagination.page}
             pageCount={table.pagination.pageCount}
             pageSize={table.filters.values.pageSize}
@@ -66,6 +67,7 @@ export function EntitiesTable(props: EntitiesTableProps) {
               table.filters.update({ pageSize: value }, { preserveSelection: true })
             }
             onSortChange={table.filters.updateSortDir}
+            onResetFilters={table.filters.reset}
           />
         </div>
       </ResizablePanel>

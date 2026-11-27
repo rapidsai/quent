@@ -32,7 +32,22 @@ pub fn set_timestamp(ts: TimeUnixNanoSec) {
 
 pub use span::{SpanNanoSec, SpanSec};
 
-/// A number of nanoseconds expired since the Unix epoch.
+/// An absolute number of nanoseconds elapsed since the Unix epoch.
+///
+/// Values supplied by callers must use the same time domain as [`timestamp()`].
+/// In particular, a raw monotonic-clock reading or a duration since process
+/// start is not a timestamp. A suitable implementation samples Unix time once
+/// and adds elapsed monotonic time, as [`timestamp()`] does.
+///
+/// Quent stores caller-supplied timestamps unchanged. It does not validate
+/// plausibility, synchronize clocks between processes, compensate for clock
+/// skew, or correct timestamps that move backward. Callers combining external
+/// timestamps with Quent-generated timestamps are responsible for using
+/// sufficiently synchronized Unix-time calibrations. Equal consecutive
+/// timestamps are valid; ordered event sequences must not decrease.
+///
+/// Although the representation permits [`u64::MAX`], callers should not use it:
+/// it cannot be represented as a point inside a half-open time span.
 // TODO(johanpel): u64::MAX should be excluded as a valid timestamp because it
 // cannot fall into half-open span intervals. There is a possibility to make
 // this a sentinel value for "potentially up to infinity" which may be useful
@@ -107,6 +122,11 @@ pub fn initialize_clock() {
 /// elapsed time to it. If the system clock is later corrected, for example by
 /// NTP, returned timestamps continue from the original time and may differ
 /// from the current Unix time.
+///
+/// Calls in one process are nondecreasing, though multiple calls may return the
+/// same value when the clock resolution is coarser than the call rate. Each
+/// process calibrates independently; this function does not synchronize clocks
+/// or compensate for skew between processes.
 ///
 /// ## Test override (enabled with the `__test-clock-override` feature)
 ///

@@ -4,6 +4,7 @@
 //! Backing types for generated FSM instrumentation handles.
 
 use crate::{AnyEntity, EntityRef, HandleInner, InstrumentedEntity, Uuid};
+use quent_time::TimeUnixNanoSec;
 
 /// Assigns the transition sequence carried by an FSM event.
 #[doc(hidden)]
@@ -144,10 +145,29 @@ where
     /// in-place transitions on dynamic-state FSM handles; application code uses
     /// the generated transition methods instead.
     #[doc(hidden)]
-    pub fn transition_mut(&mut self, mut event: E::Payload) {
+    pub fn transition_mut(&mut self, event: E::Payload) {
+        self.transition_mut_with_timestamp(None, event);
+    }
+
+    /// Emits `event` at a caller-supplied Unix-nanosecond timestamp with the
+    /// next wrapping transition sequence number.
+    ///
+    /// Hidden because generated instrumentation uses this primitive to implement
+    /// in-place transitions on dynamic-state FSM handles; application code uses
+    /// the generated transition methods instead.
+    #[doc(hidden)]
+    pub fn transition_mut_at(&mut self, timestamp: TimeUnixNanoSec, event: E::Payload) {
+        self.transition_mut_with_timestamp(Some(timestamp), event);
+    }
+
+    fn transition_mut_with_timestamp(
+        &mut self,
+        timestamp: Option<TimeUnixNanoSec>,
+        mut event: E::Payload,
+    ) {
         let (sequence, next) = self.sequence.advance();
         event.set_sequence(sequence);
-        self.handle.emit(event);
+        self.handle.emit_with_timestamp(timestamp, event);
         self.sequence = next;
     }
 
@@ -157,8 +177,27 @@ where
     /// to implement typestate transitions that return the target-state handle;
     /// application code uses the generated transition methods instead.
     #[doc(hidden)]
-    pub fn transition(mut self, event: E::Payload) -> Self {
-        self.transition_mut(event);
+    pub fn transition(self, event: E::Payload) -> Self {
+        self.transition_with_timestamp(None, event)
+    }
+
+    /// Emits `event` at a caller-supplied Unix-nanosecond timestamp with the
+    /// next wrapping transition sequence number.
+    ///
+    /// Hidden because generated instrumentation uses this consuming primitive
+    /// to implement typestate transitions that return the target-state handle;
+    /// application code uses the generated transition methods instead.
+    #[doc(hidden)]
+    pub fn transition_at(self, timestamp: TimeUnixNanoSec, event: E::Payload) -> Self {
+        self.transition_with_timestamp(Some(timestamp), event)
+    }
+
+    fn transition_with_timestamp(
+        mut self,
+        timestamp: Option<TimeUnixNanoSec>,
+        event: E::Payload,
+    ) -> Self {
+        self.transition_mut_with_timestamp(timestamp, event);
         self
     }
 }

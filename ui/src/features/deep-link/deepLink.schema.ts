@@ -16,6 +16,7 @@ import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/res
 export const MAX_ENCODED_STATE_LENGTH = 4096;
 export const MAX_EXPANDED_RESOURCE_IDS = 50;
 export const MAX_SELECTED_NODE_IDS = 100;
+export const MAX_PINNED_ROW_IDS = 100;
 export const MAX_RESOURCE_OVERRIDES = 50;
 export const MAX_VISIBLE_STATS = 100;
 export const MAX_TABLE_SORTS = 5;
@@ -117,8 +118,31 @@ const SelectionSchema = z
       .max(MAX_SELECTED_NODE_IDS, limitMessage('selected operators', MAX_SELECTED_NODE_IDS))
       .transform(uniqueSorted)
       .optional(),
+    operatorDetailsNodeIds: z
+      .array(IdSchema)
+      .max(MAX_SELECTED_NODE_IDS, limitMessage('legacy operator details', MAX_SELECTED_NODE_IDS))
+      .transform(uniqueSorted)
+      .optional(),
   })
-  .strip();
+  .strip()
+  .transform(({ operatorNodeIds, operatorDetailsNodeIds, ...selection }, context) => {
+    const mergedOperatorNodeIds = uniqueSorted([
+      ...(operatorNodeIds ?? []),
+      ...(operatorDetailsNodeIds ?? []),
+    ]);
+    if (mergedOperatorNodeIds.length > MAX_SELECTED_NODE_IDS) {
+      context.addIssue({
+        code: 'custom',
+        path: ['operatorNodeIds'],
+        message: limitMessage('selected operators', MAX_SELECTED_NODE_IDS),
+      });
+      return z.NEVER;
+    }
+    return {
+      ...selection,
+      ...(mergedOperatorNodeIds.length > 0 ? { operatorNodeIds: mergedOperatorNodeIds } : {}),
+    };
+  });
 
 const ResourceSelectionSchema = z
   .object({
@@ -166,6 +190,20 @@ const ResourceTreeSchema = z
       .max(MAX_EXPANDED_RESOURCE_IDS, limitMessage('expanded resources', MAX_EXPANDED_RESOURCE_IDS))
       .transform(uniqueSorted)
       .optional(),
+    collapsedRowIds: z
+      .array(IdSchema)
+      .max(
+        MAX_EXPANDED_RESOURCE_IDS,
+        limitMessage('collapsed resources', MAX_EXPANDED_RESOURCE_IDS)
+      )
+      .transform(uniqueSorted)
+      .optional(),
+    pinnedRowIds: z
+      .array(IdSchema)
+      .max(MAX_PINNED_ROW_IDS, limitMessage('pinned rows', MAX_PINNED_ROW_IDS))
+      .transform(uniqueInOrder)
+      .optional(),
+    showNestedChartRows: z.boolean().optional(),
     rootResourceType: NameSchema.optional(),
     resourceFilter: ResourceFilterSchema.optional(),
     resourceTypeSelections: z

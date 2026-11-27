@@ -18,7 +18,7 @@ quent-resource = { workspace = true }
 quent-schema = { path = "../schema" }
 semver = { workspace = true }
 serde = { workspace = true }
-serde-saphyr = "1.0.1"
+serde-saphyr = "2.0.0"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }

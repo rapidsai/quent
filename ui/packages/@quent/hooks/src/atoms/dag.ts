@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { atom } from 'jotai';
-import type {
-  OperatorSelectionInput,
-  OperatorSelectionState,
-  SelectedOperatorGroupData,
-} from '@quent/utils';
+import type { OperatorSelectionState, SelectedOperatorGroupData } from '@quent/utils';
 import {
   addOperatorSelection as addSelection,
   createEmptyOperatorSelectionState,
@@ -19,6 +15,7 @@ import {
   upsertSelectedOperatorData,
 } from '../dag/selectedOperatorData';
 import { selectedOperatorsDataAtom } from './dagControls';
+import { requestDagDetailAttentionAtom } from './dagDetailAttention';
 
 export type OperatorSelectionAction =
   | {
@@ -27,13 +24,18 @@ export type OperatorSelectionAction =
       label: string;
       operatorIds: Iterable<string>;
       selectedData: SelectedOperatorGroupData;
+      detailAttention?: 'show' | 'none';
     }
   | { type: 'remove'; selectionId: string }
   | {
       type: 'replace';
-      selections: ReadonlyArray<
-        OperatorSelectionInput & { selectedData?: SelectedOperatorGroupData }
-      >;
+      selections: ReadonlyArray<{
+        selectionId: string;
+        label: string;
+        operatorIds: Iterable<string>;
+        selectedData?: SelectedOperatorGroupData;
+      }>;
+      detailAttention?: 'show' | 'none';
     }
   | {
       type: 'hydrate';
@@ -46,7 +48,7 @@ export type OperatorSelectionAction =
     }
   | { type: 'clear' };
 
-/** Canonical operator filter selection state */
+/** Canonical operator filter selection state. */
 export const operatorSelectionAtom = atom<OperatorSelectionState>(
   createEmptyOperatorSelectionState()
 );
@@ -61,22 +63,26 @@ export const operatorSelectionActionAtom = atom(
     let nextData: ReadonlyMap<string, SelectedOperatorGroupData>;
 
     switch (action.type) {
-      case 'add':
+      case 'add': {
         nextSelection = addSelection(
           currentSelection,
           action.selectionId,
           action.label,
           action.operatorIds
         );
-        nextData = new Map([...currentData].filter(([id]) => nextSelection.selections.has(id)));
+        nextData = new Map(
+          [...currentData].filter(([selectionId]) => nextSelection.selections.has(selectionId))
+        );
         if (nextSelection.selections.has(action.selectionId)) {
           nextData = upsertSelectedOperatorData(nextData, action.selectionId, action.selectedData);
         }
         break;
-      case 'remove':
+      }
+      case 'remove': {
         nextSelection = removeSelection(currentSelection, action.selectionId);
         nextData = removeSelectedOperatorData(currentData, action.selectionId);
         break;
+      }
       case 'replace': {
         nextSelection = createEmptyOperatorSelectionState();
         nextData = new Map();
@@ -87,16 +93,15 @@ export const operatorSelectionActionAtom = atom(
             selection.label,
             selection.operatorIds
           );
-          if (!nextSelection.selections.has(selection.selectionId)) {
-            continue;
-          }
           const selectedData =
             selection.selectedData ?? findSelectedOperatorData(currentData, selection.selectionId);
           if (selectedData) {
             nextData = upsertSelectedOperatorData(nextData, selection.selectionId, selectedData);
           }
         }
-        nextData = new Map([...nextData].filter(([id]) => nextSelection.selections.has(id)));
+        nextData = new Map(
+          [...nextData].filter(([selectionId]) => nextSelection.selections.has(selectionId))
+        );
         break;
       }
       case 'hydrate': {
@@ -121,11 +126,25 @@ export const operatorSelectionActionAtom = atom(
 
     set(operatorSelectionAtom, nextSelection);
     set(selectedOperatorsDataAtom, nextData);
+    if ((action.type === 'add' || action.type === 'replace') && action.detailAttention !== 'none') {
+      let addedSelectionId: string | undefined;
+      for (const selectionId of nextSelection.selections.keys()) {
+        if (!currentSelection.selections.has(selectionId)) {
+          addedSelectionId = selectionId;
+        }
+      }
+      if (addedSelectionId) {
+        set(requestDagDetailAttentionAtom, {
+          kind: 'operator',
+          id: addedSelectionId,
+        });
+      }
+    }
     return getSelectedOperatorIds(nextSelection);
   }
 );
 
-/** The operator IDs represented by the current selections */
+/** The operator IDs represented by the current filters. */
 export const selectedOperatorIdsAtom = atom(get =>
   getSelectedOperatorIds(get(operatorSelectionAtom))
 );

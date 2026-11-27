@@ -5,7 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } fro
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { useQueryBundle, useDataFlow } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
-import { Badge, getSelectedOperatorCountsByPlan, TreeSelect } from '@quent/components';
+import {
+  Badge,
+  getSelectedOperatorCountsByPlan,
+  LoadingOverlay,
+  TreeSelect,
+} from '@quent/components';
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
 import {
   useSelectedOperatorIds,
@@ -42,7 +47,7 @@ import {
 import { DataText } from '@quent/components';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 
-// Lazy load DAGChart to split elkjs (~1.6MB) into a separate chunk
+// Keep the visualization dependencies out of the initial query-page chunk.
 const DAGChart = lazy(() => import('@quent/components').then(mod => ({ default: mod.DAGChart })));
 
 const OPERATOR_DETAILS_COLLAPSED_HEIGHT = 32;
@@ -126,10 +131,8 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   // handle loading and error states
   if (queryBundleLoading) {
     return (
-      <div className="w-full flex flex-col h-full">
-        <div className="flex justify-center items-center h-full text-muted-foreground">
-          Loading query plan...
-        </div>
+      <div className="relative h-full w-full">
+        <LoadingOverlay label="Loading query plan…" />
       </div>
     );
   }
@@ -264,8 +267,8 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
             <div className="flex-1 min-h-0">
               <Suspense
                 fallback={
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    Loading visualization...
+                  <div className="relative h-full">
+                    <LoadingOverlay />
                   </div>
                 }
               >
@@ -303,6 +306,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         >
           <DAGNodeInfoPanel
             quantitySpecs={queryBundle.quantity_specs}
+            operators={operators}
             fillHeight
             onExpandedChange={setOperatorDetailsExpanded}
           />

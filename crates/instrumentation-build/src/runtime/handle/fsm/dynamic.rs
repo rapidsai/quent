@@ -12,7 +12,7 @@ use quote::quote;
 use super::super::{event_construct, event_fields, event_params};
 use crate::{
     GenerateError,
-    common::{doc_attr_or, raw_ident, relative_root_type, to_case},
+    common::{raw_ident, relative_root_type, to_case},
     runtime::{event_ident, marker_ident, model_ident},
 };
 
@@ -65,7 +65,11 @@ pub(super) fn handle_type(schema: &Schema) -> TokenStream {
     }
 }
 
-pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, GenerateError> {
+pub(super) fn entity_impl(
+    entity: &Entity,
+    fsm: &Fsm,
+    timestamped_methods: bool,
+) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let typestate_handle_ty = super::typestate::handle_type_path(entity);
@@ -119,8 +123,8 @@ pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, Gen
             entity,
             event,
             &event_ty,
-            &entity_name,
             &sources,
+            timestamped_methods,
         )?);
     }
 
@@ -215,6 +219,33 @@ pub(super) fn entity_impl(entity: &Entity, fsm: &Fsm) -> Result<TokenStream, Gen
                 })
             }
 
+            fn _transition(
+                &mut self,
+                sources: &[u8],
+                target: u8,
+                target_name: &'static str,
+                timestamp_ns: ::core::option::Option<u64>,
+                event: #event_ty,
+            ) -> ::core::result::Result<(), ::quent_instrumentation::FsmTransitionError> {
+                if !sources.contains(&self.state) {
+                    return ::core::result::Result::Err(
+                        ::quent_instrumentation::FsmTransitionError::new(
+                            #entity_name,
+                            self.state_name(),
+                            target_name,
+                        ),
+                    );
+                }
+                match timestamp_ns {
+                    ::core::option::Option::Some(timestamp_ns) => {
+                        self.inner.transition_mut_at(timestamp_ns, event)
+                    }
+                    ::core::option::Option::None => self.inner.transition_mut(event),
+                }
+                self.state = target;
+                ::core::result::Result::Ok(())
+            }
+
             #(#transition_methods)*
         }
     })
@@ -224,15 +255,13 @@ fn transition_method(
     entity: &Entity,
     event: &Event,
     event_ty: &syn::Ident,
-    entity_name: &str,
     sources: &[usize],
+    timestamped_methods: bool,
 ) -> Result<TokenStream, GenerateError> {
     let method = raw_ident(to_case(event.name(), Case::Snake));
+    let method_at = raw_ident(format!("{}_at", to_case(event.name(), Case::Snake)));
     let variant = raw_ident(to_case(event.name(), Case::Pascal));
-    let docs = doc_attr_or(
-        event.annotations().docs(),
-        &format!("Transition this FSM into `{}`.", event.name()),
-    );
+    let (docs, at_docs) = super::transition_docs(event);
     let params = event_params(entity, event, Some(SEQUENCE_FIELD_NAME))?;
     let sequence_placeholder = quote! { 0 };
     let fields = event_fields(event, Some((SEQUENCE_FIELD_NAME, &sequence_placeholder)));
@@ -242,53 +271,76 @@ fn transition_method(
         "{}_state",
         to_case(entity.path().name(), Case::Snake)
     ));
-    let sources = sources.iter().map(|source| {
-        if *source == 0 {
-            quote! {
-                <() as ::quent_instrumentation::FsmState<#marker_ty>>::DYNAMIC_STATE_INDEX
+    let sources = sources
+        .iter()
+        .map(|source| {
+            if *source == 0 {
+                quote! {
+                    <() as ::quent_instrumentation::FsmState<#marker_ty>>::DYNAMIC_STATE_INDEX
+                }
+            } else {
+                let source = entity
+                    .events()
+                    .nth(*source - 1)
+                    .expect("validated FSM transition source index");
+                let source_marker = raw_ident(to_case(source.name(), Case::Pascal));
+                quote! {
+                    <#state_module::#source_marker as
+                        ::quent_instrumentation::FsmState<#marker_ty>>::DYNAMIC_STATE_INDEX
+                }
             }
-        } else {
-            let source = entity
-                .events()
-                .nth(*source - 1)
-                .expect("validated FSM transition source index");
-            let source_marker = raw_ident(to_case(source.name(), Case::Pascal));
-            quote! {
-                <#state_module::#source_marker as
-                    ::quent_instrumentation::FsmState<#marker_ty>>::DYNAMIC_STATE_INDEX
-            }
-        }
-    });
+        })
+        .collect::<Vec<_>>();
     let target_marker = raw_ident(to_case(event.name(), Case::Pascal));
     let target = quote! {
         <#state_module::#target_marker as
             ::quent_instrumentation::FsmState<#marker_ty>>::DYNAMIC_STATE_INDEX
     };
     let target_name = event.name().to_string();
-
-    Ok(quote! {
-        #docs
+    let errors = quote! {
         ///
         /// # Errors
         ///
         /// Returns [`FsmTransitionError`] when this transition is not valid
         /// from the current dynamic state.
+    };
+
+    let timestamped = timestamped_methods.then(|| {
+        quote! {
+            #at_docs
+            #errors
+            pub fn #method_at(
+                &mut self,
+                timestamp_ns: u64,
+                #(#params),*
+            ) -> ::core::result::Result<(), ::quent_instrumentation::FsmTransitionError> {
+                self._transition(
+                    &[#(#sources),*],
+                    #target,
+                    #target_name,
+                    ::core::option::Option::Some(timestamp_ns),
+                    #construct,
+                )
+            }
+        }
+    });
+
+    Ok(quote! {
+        #docs
+        #errors
         pub fn #method(
             &mut self,
             #(#params),*
         ) -> ::core::result::Result<(), ::quent_instrumentation::FsmTransitionError> {
-            if ![#(#sources),*].contains(&self.state) {
-                return ::core::result::Result::Err(
-                    ::quent_instrumentation::FsmTransitionError::new(
-                        #entity_name,
-                        self.state_name(),
-                        #target_name,
-                    ),
-                );
-            }
-            self.inner.transition_mut(#construct);
-            self.state = #target;
-            ::core::result::Result::Ok(())
+            self._transition(
+                &[#(#sources),*],
+                #target,
+                #target_name,
+                ::core::option::Option::None,
+                #construct,
+            )
         }
+
+        #timestamped
     })
 }

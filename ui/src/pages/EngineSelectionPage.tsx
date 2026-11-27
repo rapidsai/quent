@@ -3,6 +3,7 @@
 
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { Server } from 'lucide-react';
 import { fetchListEngines } from '@quent/client';
 import { DataText } from '@quent/components';
 import type { Engine } from '@quent/utils';
@@ -41,6 +42,7 @@ export function EngineSelectionPage() {
         isLoading={enginesList.isLoading}
         error={enginesList.error instanceof Error ? enginesList.error : null}
         emptyMessage="No engines are available."
+        emptyIcon={Server}
         onRetry={() => void enginesList.refetch()}
         renderItemLink={(engine, children, primary) => (
           <Link

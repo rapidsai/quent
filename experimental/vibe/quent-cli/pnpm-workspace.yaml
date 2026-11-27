@@ -1,0 +1,20 @@
+packages:
+  - '.'
+  - '../../../ui/packages/@quent/client'
+  - '../../../ui/packages/@quent/query-analysis'
+  - '../../../ui/packages/@quent/utils'
+
+catalog:
+  '@tanstack/react-query': 5.107.1
+  '@tanstack/react-router': 1.170.46
+  '@types/react': 19.3.0
+  '@types/react-dom': 19.3.0
+  clsx: 2.1.1
+  react: 19.3.1
+  react-dom: 19.3.1
+  tailwind-merge: 3.7.0
+  tsdown: 0.23.7
+  typescript: 6.0.3
+
+allowBuilds:
+  esbuild: true

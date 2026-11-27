@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useLayoutEffect } from 'react';
+import { gzipSync, strToU8 } from 'fflate';
 import { Provider as JotaiProvider, createStore, useAtomValue, useSetAtom } from 'jotai';
 import {
   useDebouncedZoomRange,
@@ -18,6 +19,7 @@ import { render, screen, waitFor, userEvent } from '@/test/test-utils';
 import { entitiesTableStateAtom, type EntitiesTableState } from '@/atoms/entitiesTable';
 import {
   expandedIdsAtom,
+  pinnedIdsAtom,
   resourceFilterAtom,
   rootResourceTypeAtom,
   selectedFsmTypesAtom,
@@ -35,6 +37,7 @@ import { CopyLinkButton } from './CopyLinkButton';
 import { DeepLinkBoundary } from './DeepLinkBoundary';
 import { decodeDeepLinkState, encodeDeepLinkState } from './deepLink.codec';
 import { useDeepLink } from './deepLink.context';
+import { MAX_EXPANDED_RESOURCE_IDS, MAX_SELECTED_NODE_IDS } from './deepLink.schema';
 
 const BOUNDARY_PROPS = {
   engineId: 'e',
@@ -48,6 +51,16 @@ const BOUNDARY_PROPS = {
 
 const RESOURCE_A_ID = '01a025ff-ea8b-7881-9d31-72a275872c9d';
 const RESOURCE_B_ID = '01a025ff-ea8b-7881-9d31-72a275872c9e';
+
+function encodeRawState(value: unknown): string {
+  const compressed = gzipSync(strToU8(JSON.stringify(value)), { level: 9, mtime: 0 });
+  let binary = '';
+  for (const byte of compressed) {
+    binary += String.fromCharCode(byte);
+  }
+  return `v3.${btoa(binary).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '')}`;
+}
+
 const DEEP_LINK_OPERATORS: Operator[] = [
   {
     id: 'operator-a',
@@ -152,6 +165,33 @@ function SeedExpandedRows({ ids }: { ids: string[] }) {
     setExpandedIds(new Set(ids));
   }, [ids, setExpandedIds]);
   return null;
+}
+
+function SeedSelectedOperators({ ids }: { ids: string[] }) {
+  const { hydrate } = useSerializableViewState({
+    operatorTablePersistKey: OPERATOR_TABLE_PERSIST_KEY,
+    operatorTableGroupKeys: OPERATOR_TABLE_INDEX_ORDER,
+    operators: [],
+  });
+
+  useLayoutEffect(() => {
+    hydrate({ selection: { operatorNodeIds: ids } });
+  }, [hydrate, ids]);
+  return null;
+}
+
+function SeedPinnedRows({ ids }: { ids: string[] }) {
+  const setPinnedIds = useSetAtom(pinnedIdsAtom);
+
+  useLayoutEffect(() => {
+    setPinnedIds(new Set(ids));
+  }, [ids, setPinnedIds]);
+  return null;
+}
+
+function PinnedRowsProbe() {
+  const pinnedIds = useAtomValue(pinnedIdsAtom);
+  return <output data-testid="pinned-rows">{JSON.stringify([...pinnedIds])}</output>;
 }
 
 function SeedEmptyDataFlowDimensions() {
@@ -402,6 +442,36 @@ describe('DeepLinkBoundary', () => {
     );
   });
 
+  it('migrates legacy operator detail IDs into operator filters', () => {
+    const encoded = encodeRawState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 10, end: 40 } },
+      selection: {
+        planId: 'plan-a',
+        operatorNodeIds: [],
+        operatorDetailsNodeIds: ['operator-a', 'operator-child'],
+      },
+    });
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          operators={DEEP_LINK_OPERATORS}
+          encodedState={encoded}
+        >
+          <SerializableStateProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    const value = JSON.parse(screen.getByTestId('serializable-state').textContent ?? '{}');
+    expect(value.view.selection).toEqual({
+      planId: 'plan-a',
+      operatorNodeIds: ['operator-a', 'operator-child'],
+    });
+  });
+
   it('clears an existing resource filter when shared state omits resources', () => {
     const encoded = encodeDeepLinkState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
@@ -495,11 +565,29 @@ describe('DeepLinkBoundary', () => {
   });
 
   it('shows an error toast for invalid incoming state without hydrating it', async () => {
+    const selectedMessage = `Shared links support at most ${MAX_SELECTED_NODE_IDS} selected operators.`;
+    const expandedMessage = `Shared links support at most ${MAX_EXPANDED_RESOURCE_IDS} expanded resources.`;
+    const encoded = encodeRawState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 10, end: 40 } },
+      selection: {
+        operatorNodeIds: Array.from(
+          { length: MAX_SELECTED_NODE_IDS + 1 },
+          (_, index) => `operator-${index}`
+        ),
+      },
+      resources: {
+        expandedRowIds: Array.from(
+          { length: MAX_EXPANDED_RESOURCE_IDS + 1 },
+          (_, index) => `resource-${index}`
+        ),
+      },
+    });
     const toastSpy = vi.spyOn(toast, 'add');
     render(
       <>
         <JotaiProvider>
-          <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState="v1.invalid">
+          <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded}>
             <IntakeStatusProbe />
             <ViewportProbe />
           </DeepLinkBoundary>
@@ -515,20 +603,75 @@ describe('DeepLinkBoundary', () => {
         debounced: { start: 0, end: 0 },
       })
     );
-    await waitFor(() =>
-      expect(toastSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'deep-link-intake',
-          type: 'error',
-          title: 'Could not restore shared view',
-        })
-      )
+    await waitFor(() => expect(toastSpy).toHaveBeenCalledTimes(2));
+    expect(toastSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        id: 'deep-link-intake-0',
+        type: 'error',
+        title: 'Could not restore shared view',
+        description: expect.stringContaining(selectedMessage),
+      })
+    );
+    expect(toastSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: 'deep-link-intake-1',
+        type: 'error',
+        title: 'Could not restore shared view',
+        description: expect.stringContaining(expandedMessage),
+      })
     );
     await waitFor(() =>
       expect(document.querySelector('[data-slot="toast-title"]')).toHaveTextContent(
         'Could not restore shared view'
       )
     );
+  });
+
+  it('groups more than three incoming errors in an expandable summary toast', async () => {
+    const encoded = encodeRawState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: -1, end: 0 } },
+      selection: { planId: 'p'.repeat(129) },
+      resources: {
+        expandedRowIds: Array.from(
+          { length: MAX_EXPANDED_RESOURCE_IDS + 1 },
+          (_, index) => `resource-${index}`
+        ),
+      },
+    });
+    const toastSpy = vi.spyOn(toast, 'add');
+
+    render(
+      <>
+        <JotaiProvider>
+          <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded}>
+            <IntakeStatusProbe />
+          </DeepLinkBoundary>
+        </JotaiProvider>
+        <Toaster />
+      </>
+    );
+
+    await waitFor(() => expect(toastSpy).toHaveBeenCalledTimes(1));
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'deep-link-intake-summary',
+        type: 'error',
+        title: 'Could not restore shared view',
+        description: null,
+      })
+    );
+
+    const expand = await screen.findByText('4 errors, click to expand', { selector: 'button' });
+    expect(expand).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(expand);
+    const collapse = await screen.findByText('Hide details', { selector: 'button' });
+    expect(collapse).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getAllByText('Too small: expected number to be >=0 (timeline.zoomRange.start)')[0]
+    ).toBeVisible();
   });
 
   it('copies the current viewport without changing the address bar', async () => {
@@ -715,11 +858,169 @@ describe('DeepLinkBoundary', () => {
     await waitFor(() =>
       expect(toastSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: 'deep-link-copy-error',
+          id: 'deep-link-copy-error-0',
           type: 'error',
           title: 'Could not copy link',
         })
       )
     );
+  });
+
+  it('shows each generation error in a separate toast', async () => {
+    const selectedMessage = `Shared links support at most ${MAX_SELECTED_NODE_IDS} selected operators.`;
+    const expandedMessage = `Shared links support at most ${MAX_EXPANDED_RESOURCE_IDS} expanded resources.`;
+    const selectedIds = Array.from(
+      { length: MAX_SELECTED_NODE_IDS + 1 },
+      (_, index) => `operator-${index}`
+    );
+    const expandedIds = Array.from(
+      { length: MAX_EXPANDED_RESOURCE_IDS + 1 },
+      (_, index) => `resource-${index}`
+    );
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const toastSpy = vi.spyOn(toast, 'add');
+
+    render(
+      <>
+        <JotaiProvider>
+          <DeepLinkBoundary {...BOUNDARY_PROPS}>
+            <SeedViewport start={20} end={60} />
+            <SeedSelectedOperators ids={selectedIds} />
+            <SeedExpandedRows ids={expandedIds} />
+            <CopyLinkButton />
+          </DeepLinkBoundary>
+        </JotaiProvider>
+        <Toaster />
+      </>
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy Link' }));
+
+    await waitFor(() => expect(toastSpy).toHaveBeenCalledTimes(2));
+    expect(toastSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        id: 'deep-link-copy-error-0',
+        type: 'error',
+        title: 'Could not copy link',
+        description: expect.stringContaining(selectedMessage),
+      })
+    );
+    expect(toastSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: 'deep-link-copy-error-1',
+        type: 'error',
+        title: 'Could not copy link',
+        description: expect.stringContaining(expandedMessage),
+      })
+    );
+    expect(writeText).not.toHaveBeenCalled();
+  });
+});
+
+describe('DeepLinkBoundary pinned rows', () => {
+  const LANE_ID = `__long_entities__${RESOURCE_A_ID}`;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function encodeState(resources?: { pinnedRowIds: string[] }) {
+    const encoded = encodeDeepLinkState({
+      route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
+      timeline: { zoomRange: { start: 10, end: 40 } },
+      ...(resources ? { resources } : {}),
+    });
+    if (!encoded.ok) {
+      throw new Error('Failed to encode the test link');
+    }
+    return encoded.value;
+  }
+
+  function mockClipboard() {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    return writeText;
+  }
+
+  it('restores pinned rows from a shared link', () => {
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          encodedState={encodeState({ pinnedRowIds: [RESOURCE_B_ID, LANE_ID] })}
+        >
+          <PinnedRowsProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    expect(screen.getByTestId('pinned-rows')).toHaveTextContent(
+      JSON.stringify([RESOURCE_B_ID, LANE_ID])
+    );
+  });
+
+  it('replaces pins already in the session with the ones in the link', () => {
+    const store = createStore();
+    store.set(pinnedIdsAtom, new Set([RESOURCE_A_ID]));
+    expect([...store.get(pinnedIdsAtom)]).toEqual([RESOURCE_A_ID]);
+
+    render(
+      <JotaiProvider store={store}>
+        <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encodeState()}>
+          <PinnedRowsProbe />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    expect(screen.getByTestId('pinned-rows')).toHaveTextContent('[]');
+  });
+
+  it('copies pinned rows into the shared link', async () => {
+    const writeText = mockClipboard();
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <SeedViewport start={20} end={60} />
+          <SeedPinnedRows ids={[RESOURCE_B_ID, RESOURCE_A_ID]} />
+          <CopyLinkButton />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy Link' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+
+    const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
+    expect(decodeDeepLinkState(encoded!)).toMatchObject({
+      ok: true,
+      value: { data: { resources: { pinnedRowIds: [RESOURCE_B_ID, RESOURCE_A_ID] } } },
+    });
+  });
+
+  it('leaves pins out of the link when nothing is pinned', async () => {
+    const writeText = mockClipboard();
+
+    render(
+      <JotaiProvider>
+        <DeepLinkBoundary {...BOUNDARY_PROPS}>
+          <SeedViewport start={20} end={60} />
+          <CopyLinkButton />
+        </DeepLinkBoundary>
+      </JotaiProvider>
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy Link' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+
+    const encoded = new URL(writeText.mock.calls[0][0] as string).searchParams.get('s');
+    const decoded = decodeDeepLinkState(encoded!);
+    expect(decoded.ok && 'resources' in decoded.value.data).toBe(false);
   });
 });

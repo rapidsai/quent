@@ -28,7 +28,8 @@ import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
 import type { GanttHover } from '../gantt-chart/hover';
 import { layoutGanttBar } from '../gantt-chart/utils';
 import { getOperatorsAtTimestamp } from './utils';
-import { GanttTooltipPortal, type GanttTooltipItem } from '../ui/gantt-tooltip';
+import { EmptyState } from '../ui/empty-state';
+import { GanttTooltipPortal, type GanttTooltipItem } from '../gantt-chart/GanttTooltip';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_HEIGHT = 200;
@@ -197,6 +198,7 @@ export function OperatorGanttChart({
         if (selectedOperatorIds.has(op.operatorId)) {
           updateOperatorSelection({
             type: 'replace',
+            detailAttention: 'none',
             selections: toggleOperatorSelection(
               allOperators,
               selectedOperatorIds,
@@ -246,7 +248,7 @@ export function OperatorGanttChart({
         isDark={isDark}
         seriesName="operator-span"
         renderItem={renderItem}
-        emptyMessage="No operator active spans"
+        emptyState={<EmptyState size="compact" dimmed title="No operator active spans" />}
         cursor="pointer"
         onEvents={handleClick}
         renderTooltip={renderTooltip}

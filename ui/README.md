@@ -87,6 +87,23 @@ Preview the production build:
 pnpm preview
 ```
 
+### Static WASM analyzer
+
+The simulator demonstrates the serverless browser transport used by
+model-specific analyzers:
+
+```bash
+pnpm demo:build
+pnpm test:e2e:simulator
+```
+
+The static entry point uses hash routing and accepts alternate `module` and
+`data` query parameters. The module must be hosted on the UI origin and export
+the standardized `BrowserServer` class; the bundle may be fetched cross-origin
+when its host permits CORS. `@quent/client` owns the generic worker, protocol,
+and `ApiClient` adapter, so model integrations do not need custom TypeScript
+workers.
+
 ### End-to-End Tests
 
 Install Playwright browser binaries if they are not already present:

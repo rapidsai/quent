@@ -12,22 +12,22 @@ afterEach(() => {
 
 describe('InnerScrollTable', () => {
   it('positions multiple sticky columns without pinning spanning rows', () => {
-    vi.spyOn(HTMLTableCellElement.prototype, 'getBoundingClientRect').mockImplementation(
-      function () {
-        const width = Number(this.dataset.testWidth ?? 0);
-        return {
-          width,
-          height: 40,
-          x: 0,
-          y: 0,
-          top: 0,
-          right: width,
-          bottom: 40,
-          left: 0,
-          toJSON: () => ({}),
-        };
-      }
-    );
+    vi.spyOn(HTMLTableCellElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLTableCellElement
+    ) {
+      const width = Number(this.dataset.testWidth ?? 0);
+      return {
+        width,
+        height: 40,
+        x: 0,
+        y: 0,
+        top: 0,
+        right: width,
+        bottom: 40,
+        left: 0,
+        toJSON: () => ({}),
+      };
+    });
 
     render(
       <InnerScrollTable stickyLeftColumns={2} stickyRightColumns={2}>

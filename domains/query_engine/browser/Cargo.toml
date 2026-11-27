@@ -1,0 +1,24 @@
+[package]
+name = "quent-query-engine-browser"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+# `{ code, message }` exceptions for `export_wasm_browser_server`. Native builds
+# do not otherwise depend on `wasm-bindgen` or `js-sys`.
+wasm = ["dep:js-sys", "dep:wasm-bindgen"]
+
+[dependencies]
+async-trait.workspace = true
+js-sys = { version = "0.3", optional = true }
+quent-analyzer = { path = "../../../crates/analyzer" }
+quent-query-engine-analyzer = { path = "../analyzer" }
+quent-query-engine-ui = { path = "../ui" }
+quent-ui = { path = "../../../crates/ui" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid = { workspace = true, features = ["js"] }
+# Match `wasm-bindgen-cli` in pixi.toml. The export macro re-exports this crate.
+wasm-bindgen = { version = "=0.2.130", optional = true }

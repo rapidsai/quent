@@ -26,7 +26,8 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
         "class InvalidFsmStateError(QuentError): ...\n\n",
         "class InvalidFsmTransitionError(QuentError): ...\n\n",
         "def now_v7() -> _uuid.UUID: ...\n",
-        "def nil_uuid() -> _uuid.UUID: ...\n\n",
+        "def nil_uuid() -> _uuid.UUID: ...\n",
+        "def timestamp() -> int: ...\n\n",
         "class DynamicValue:\n",
         "    \"\"\"An explicitly typed dynamic attribute value.\"\"\"\n",
         "    @staticmethod\n    def u8(value: int) -> DynamicValue: ...\n",
@@ -90,6 +91,21 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
             "\ndef start_collector(output: ExporterOptions, *, bind_address: str = \"127.0.0.1:0\", advertised_host: str | None = None) -> Collector: ...\n",
         ));
     }
+    if options.browser_bundle_writer.is_some() {
+        output.push_str(concat!(
+            "\nclass BrowserBundleSummary(TypedDict):\n",
+            "    engine_id: str\n",
+            "    context_count: int\n",
+            "    event_count: int\n",
+            "    schema_digest: str\n",
+            "    format_version: int\n",
+            "\n",
+            "def write_browser_bundle(\n",
+            "    input: str | PathLike[str],\n",
+            "    output: str | PathLike[str],\n",
+            ") -> BrowserBundleSummary: ...\n",
+        ));
+    }
 
     for record in schema.records() {
         let name = format!("{}Dict", path_pascal(record.path()));
@@ -151,14 +167,14 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
             entity.path(),
         ));
         if let Some(fsm) = Fsm::try_from_entity(entity).ok().flatten() {
-            emit_fsm_handles(&mut output, schema, entity, &fsm);
+            emit_fsm_handles(&mut output, schema, entity, &fsm, options);
         } else {
             output.push_str(&format!(
                 "\nclass {name}Handle:\n    \"\"\"Emits events for one `{}` entity.\"\"\"\n    @property\n    def id(self) -> _uuid.UUID: ...\n    def __repr__(self) -> str: ...\n",
                 entity.path(),
             ));
             for event in entity.events() {
-                emit_event_method(&mut output, schema, event, "None", false);
+                emit_event_method(&mut output, schema, event, "None", false, options);
                 if event.cardinality() == quent_schema::Cardinality::Once {
                     let emitted =
                         py_safe(&format!("{}_emitted", to_case(event.name(), Case::Snake)));
@@ -196,6 +212,7 @@ fn emit_fsm_handles(
     schema: &Schema,
     entity: &quent_schema::Entity,
     fsm: &Fsm,
+    options: &Options,
 ) {
     let entity_name = path_pascal(entity.path());
     let initial = entity
@@ -209,7 +226,7 @@ fn emit_fsm_handles(
         "    def into_dynamic(self) -> {entity_name}DynamicFsmHandle: ...\n"
     ));
     let initial_target = state_handle_name(entity, initial.name());
-    emit_event_method(output, schema, initial, &initial_target, true);
+    emit_event_method(output, schema, initial, &initial_target, true, options);
 
     for state in entity.events() {
         let class_name = state_handle_name(entity, state.name());
@@ -230,7 +247,7 @@ fn emit_fsm_handles(
                 .event(transition.target())
                 .expect("validated FSM transition target");
             let target_name = state_handle_name(entity, target.name());
-            emit_event_method(output, schema, target, &target_name, true);
+            emit_event_method(output, schema, target, &target_name, true, options);
         }
     }
 
@@ -247,7 +264,7 @@ fn emit_fsm_handles(
         output.push_str(&format!("    def {method}(self) -> {target}: ...\n"));
     }
     for event in entity.events() {
-        emit_event_method(output, schema, event, "None", true);
+        emit_event_method(output, schema, event, "None", true, options);
     }
 }
 
@@ -257,6 +274,7 @@ fn emit_event_method(
     event: &quent_schema::Event,
     return_type: &str,
     skip_sequence: bool,
+    options: &Options,
 ) {
     let params = event
         .fields()
@@ -278,6 +296,12 @@ fn emit_event_method(
         "    def {}(self{suffix}) -> {return_type}: ...\n",
         py_safe(&to_case(event.name(), Case::Snake)),
     ));
+    if options.timestamped_methods {
+        output.push_str(&format!(
+            "    def {}(self, timestamp_ns: int{suffix}) -> {return_type}: ...\n",
+            py_safe(&format!("{}_at", to_case(event.name(), Case::Snake))),
+        ));
+    }
 }
 
 fn state_handle_name(entity: &quent_schema::Entity, state: &quent_schema::Identifier) -> String {

@@ -46,8 +46,8 @@ describe('entityRefToEntitiesKey', () => {
     expect(entityRefToEntitiesKey('Resource')).toBe('resources');
   });
 
-  it('returns undefined for Task (no QueryEntities collection)', () => {
-    expect(entityRefToEntitiesKey('Task')).toBeUndefined();
+  it('returns undefined for Application (no QueryEntities collection)', () => {
+    expect(entityRefToEntitiesKey('Application')).toBeUndefined();
   });
 
   it('ENTITY_REF_TO_ENTITIES_KEY contains exactly the expected entries', () => {

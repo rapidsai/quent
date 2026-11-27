@@ -96,7 +96,7 @@ function ProfileLayout() {
       encodedState={encodedState}
       isQueryReady={isQueryReady}
     >
-      <div className="flex h-[calc(100vh-4rem)] min-w-0 flex-col">
+      <div className="flex h-full min-w-0 flex-col">
         {queryId && (
           <QueryToolbar>
             <CopyLinkButton />

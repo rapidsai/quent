@@ -17,6 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             },
             collector_sink: true,
+            generate_timestamped_methods: true,
             out_dir: out_dir.clone(),
             file_name: Some("model.rs".to_owned()),
             ..Default::default()
@@ -31,6 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         },
         collector_server: true,
+        browser_bundle_writer: Some("crate::browser::generate_bundle".to_owned()),
+        timestamped_methods: true,
         ..Default::default()
     };
     quent_schema_codegen_python::write_generated_files(
