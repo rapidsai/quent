@@ -78,7 +78,7 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
         .clone()
         .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
     let path = opts.out_dir.join(file_name);
-    std::fs::write(&path, generate_str(schema, opts)?)?;
+    std::fs::write(&path, generate_str_unvalidated(schema, opts)?)?;
     Ok(GenerateInfo { path, warnings })
 }
 
@@ -90,6 +90,10 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// conflict, event generation fails, or the combined output is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     validate_schema(schema)?;
+    generate_str_unvalidated(schema, opts)
+}
+
+fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     if opts.filesystem && !opts.events.combined_event {
         return Err(GenerateError::FilesystemRequiresCombinedEvent);
     }
