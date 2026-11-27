@@ -72,13 +72,13 @@ mod model;
 /// Returns an error when the options are inconsistent, the schema cannot be
 /// generated, or the output cannot be written.
 pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
-    let warnings = quent_events_build::validate_schema(schema)?;
+    let warnings = validate_schema(schema)?;
     let file_name = opts
         .file_name
         .clone()
         .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
     let path = opts.out_dir.join(file_name);
-    std::fs::write(&path, generate_str(schema, opts)?)?;
+    std::fs::write(&path, generate_str_unvalidated(schema, opts)?)?;
     Ok(GenerateInfo { path, warnings })
 }
 
@@ -89,6 +89,11 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// Returns an error when the options are inconsistent, generated names
 /// conflict, event generation fails, or the combined output is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    validate_schema(schema)?;
+    generate_str_unvalidated(schema, opts)
+}
+
+fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     if opts.filesystem && !opts.events.combined_event {
         return Err(GenerateError::FilesystemRequiresCombinedEvent);
     }
@@ -104,6 +109,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         entities::generate(schema, event_opts, &mut events, &opts.entity_store)?;
     }
 
+    let ordering = entities::ordering::generate(schema)?;
     let loaders = event_loaders::generate(schema, opts.filesystem);
     let model_store = opts
         .entity_store
@@ -113,6 +119,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
 
     let file = syn::parse2::<syn::File>(quote! {
         #events
+        #ordering
 
         #loaders
         #model_store
@@ -142,6 +149,9 @@ pub struct Options {
     ///
     /// Access traits and event handles are available in each entity's module,
     /// such as `model::connection`.
+    /// When native stores are enabled, FSM entities also provide
+    /// `quent_store::fsm::FsmHandle` access with typed transition handles,
+    /// ordered by timestamp and sequence number.
     pub entity_store: EntityStoreImplementations,
 
     /// Directory the generated file is written into.
@@ -179,6 +189,7 @@ impl Default for Options {
 
 /// An error from generating stored-event retrieval source.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum GenerateError {
     #[error("filesystem loading requires combined-event generation")]
     FilesystemRequiresCombinedEvent,
@@ -192,6 +203,8 @@ pub enum GenerateError {
     },
     #[error(transparent)]
     EventModel(#[from] quent_events_build::Error),
+    #[error(transparent)]
+    InvalidFsm(#[from] quent_fsm::FsmError),
     #[error("generated stored-event retrieval code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
     #[error("failed to write generated stored-event retrieval source")]
@@ -204,6 +217,20 @@ pub struct GenerateInfo {
     pub path: PathBuf,
     /// Constraint names without registered validators.
     pub warnings: Vec<String>,
+}
+
+fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
+    let report = quent_constraints::validate::<(
+        quent_ref_target::RefTargetConstraint,
+        quent_fsm::FsmConstraint,
+    )>(schema);
+    report
+        .base_constraints
+        .map_err(quent_events_build::Error::from)?;
+    let (ref_target, fsm) = report.results;
+    ref_target.map_err(quent_events_build::Error::from)?;
+    fsm?;
+    Ok(report.unregistered_constraints)
 }
 
 fn event_runtime() -> quent_events_build::Runtime {

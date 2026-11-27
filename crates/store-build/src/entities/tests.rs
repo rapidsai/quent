@@ -171,3 +171,89 @@ fn entity_modules_keep_store_types_separate_from_schema_types() {
     );
     generate_str(&schema, &Options::default()).unwrap();
 }
+
+fn fsm_entity(final_state: &str) -> quent_schema::Entity {
+    quent_fsm::FsmEntityBuilder::new("Task".parse::<quent_schema::Path>().unwrap())
+        .with_states([
+            quent_fsm::StateDecl {
+                name: "ready".parse().unwrap(),
+                attributes: vec![],
+                to: vec![final_state.parse().unwrap()],
+                initial: true,
+            },
+            quent_fsm::StateDecl {
+                name: final_state.parse().unwrap(),
+                attributes: vec![],
+                to: vec![],
+                initial: false,
+            },
+        ])
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn rejects_fsm_accessor_and_transition_handle_name_conflicts() {
+    for name in [
+        "num_states",
+        "is_valid",
+        "is_empty",
+        "transition",
+        "state",
+        "states",
+        "first",
+        "last",
+        "task_transition",
+    ] {
+        assert_name_conflict(schema("Demo", [fsm_entity(name)], []));
+    }
+}
+
+#[test]
+fn rejects_fsm_field_accessor_name_conflicts() {
+    for name in [
+        "name",
+        "sequence",
+        "is_initial",
+        "is_final",
+        "is_valid_next",
+    ] {
+        for reverse in [false, true] {
+            let mut attributes = vec![
+                field(name, DataType::String),
+                field(&format!("field_{name}"), DataType::String),
+            ];
+            if reverse {
+                attributes.reverse();
+            }
+            generate_str(
+                &schema(
+                    "Demo",
+                    [entity("Task", [event("ready", attributes.clone())])],
+                    [],
+                ),
+                &Options::default(),
+            )
+            .unwrap();
+            let task =
+                quent_fsm::FsmEntityBuilder::new("Task".parse::<quent_schema::Path>().unwrap())
+                    .with_states([
+                        quent_fsm::StateDecl {
+                            name: "ready".parse().unwrap(),
+                            attributes,
+                            to: vec!["done".parse().unwrap()],
+                            initial: true,
+                        },
+                        quent_fsm::StateDecl {
+                            name: "done".parse().unwrap(),
+                            attributes: vec![],
+                            to: vec![],
+                            initial: false,
+                        },
+                    ])
+                    .build()
+                    .unwrap();
+            assert_name_conflict(schema("Demo", [task], []));
+        }
+    }
+}

@@ -4,6 +4,7 @@
 //! Generation of entity-specific event accessor declarations.
 
 use proc_macro2::TokenStream;
+use quent_constraints::Constraint;
 use quent_events_build::common::module_ident;
 use quent_schema::{Cardinality, Entity, Event};
 use quote::quote;
@@ -43,12 +44,22 @@ pub(super) fn generate(entity: &Entity, event: &Event, handle: &TokenStream) -> 
                 },
             )
         } else {
-            (
-                quote! { impl ::core::iter::Iterator<Item = #handle<'_>> },
+            let docs = if entity
+                .annotations()
+                .has_constraint(quent_fsm::FsmConstraint::NAME)
+            {
+                quote! {
+                    /// Borrows events in timestamp and sequence number order.
+                }
+            } else {
                 quote! {
                     /// Borrows events in timestamp order; equal timestamps
                     /// retain input order.
-                },
+                }
+            };
+            (
+                quote! { impl ::core::iter::Iterator<Item = #handle<'_>> },
+                docs,
             )
         };
     let method_signature = quote! { fn #method(&self) -> #return_type };

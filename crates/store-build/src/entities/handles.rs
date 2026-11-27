@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
+use quent_constraints::Constraint;
 use quent_events_build::{
     Options,
     common::{module_ident, type_ident},
@@ -33,12 +34,21 @@ pub(super) fn generate(
     let variant = type_ident(event.name());
     let handle = ident(event);
     let variant_pattern = variant_pattern(event, original);
+    let is_fsm = entity
+        .annotations()
+        .has_constraint(quent_fsm::FsmConstraint::NAME);
     let mut names = BTreeMap::from([("timestamp".to_owned(), "event timestamp".to_owned())]);
     let mut methods = Vec::new();
     for field in event.fields() {
         let field_ident = module_ident(field.name());
-        let method = if field_ident == "timestamp" {
-            quote::format_ident!("field_timestamp")
+        let reserved = field_ident == "timestamp"
+            || (is_fsm
+                && matches!(
+                    field_ident.to_string().as_str(),
+                    "name" | "sequence" | "is_initial" | "is_final" | "is_valid_next"
+                ));
+        let method = if reserved {
+            quote::format_ident!("field_{}", field_ident)
         } else {
             field_ident.clone()
         };

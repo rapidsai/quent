@@ -44,6 +44,23 @@ pub(super) fn generate_entity(
     access: &syn::Ident,
     marker: &TokenStream,
     events: &[EventCode],
+    fsm: Option<&super::fsm::FsmCode>,
 ) -> TokenStream {
-    native::generate_entity(entity, event_index_ident, access, marker, events)
+    native::generate_entity(entity, event_index_ident, access, marker, events, fsm)
+}
+
+/// Store fragments for an FSM entity.
+pub(super) struct FsmStoreCode {
+    native: native::NativeFsmStoreCode,
+}
+
+pub(super) fn generate_fsm(
+    entity: &Entity,
+    marker: &TokenStream,
+    original: &TokenStream,
+    transition: &syn::Ident,
+) -> FsmStoreCode {
+    FsmStoreCode {
+        native: native::generate_fsm(entity, marker, original, transition),
+    }
 }

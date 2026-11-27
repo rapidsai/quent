@@ -118,3 +118,86 @@ fn filesystem_loading_requires_serde_but_native_stores_do_not() {
     assert!(source.contains("pub struct DemoStore"));
     assert!(!source.contains("::serde::Serialize"));
 }
+
+#[test]
+fn invalid_fsm_is_a_generation_error_even_without_native_storage() {
+    use quent_constraints::Constraint;
+    use quent_schema::{DataType, test_utils::field};
+
+    for data in [
+        None,
+        Some("invalid JSON".to_owned()),
+        Some(r#"{"initial_state":"missing","transitions":[]}"#.to_owned()),
+    ] {
+        let entity = EntityBuilder::try_new("Task")
+            .unwrap()
+            .with_event(event("ready", [field("seq", DataType::U16)]))
+            .with_annotations(
+                AnnotationsBuilder::new()
+                    .with_constraint(quent_fsm::FsmConstraint::NAME, data)
+                    .build()
+                    .unwrap(),
+            )
+            .build()
+            .unwrap();
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity)
+            .build()
+            .unwrap();
+        for native in [false, true] {
+            assert!(matches!(
+                generate_str(
+                    &schema,
+                    &Options {
+                        entity_store: EntityStoreImplementations { native },
+                        ..Options::default()
+                    }
+                ),
+                Err(GenerateError::InvalidFsm(_))
+            ));
+        }
+    }
+}
+
+#[test]
+fn registers_fsm_validation_and_preserves_unknown_constraint_warnings() {
+    let entity = quent_fsm::FsmEntityBuilder::new("Task".parse::<quent_schema::Path>().unwrap())
+        .with_annotations(
+            AnnotationsBuilder::new()
+                .with_constraint("example.unknown.v1", None)
+                .build()
+                .unwrap(),
+        )
+        .with_states([
+            quent_fsm::StateDecl {
+                name: "ready".parse().unwrap(),
+                attributes: vec![],
+                to: vec!["done".parse().unwrap()],
+                initial: true,
+            },
+            quent_fsm::StateDecl {
+                name: "done".parse().unwrap(),
+                attributes: vec![],
+                to: vec![],
+                initial: false,
+            },
+        ])
+        .build()
+        .unwrap();
+    let schema = SchemaBuilder::try_new("Demo")
+        .unwrap()
+        .with_entity(entity)
+        .build()
+        .unwrap();
+    let output = tempfile::tempdir().unwrap();
+    let generated = generate(
+        &schema,
+        &Options {
+            out_dir: output.path().to_owned(),
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(generated.warnings, ["example.unknown.v1"]);
+}

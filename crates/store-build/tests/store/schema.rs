@@ -7,6 +7,40 @@ use quent_schema::{
     test_utils::{entity, event, event_with, field, record, record_type},
 };
 
+fn task() -> quent_schema::Entity {
+    quent_fsm::FsmEntityBuilder::new("Nested::type::Task".parse::<quent_schema::Path>().unwrap())
+        .with_states(
+            [
+                ("type", vec!["running"], true),
+                ("running", vec!["running", "done", "failed", "key"], false),
+                ("done", vec![], false),
+                ("failed", vec![], false),
+                ("key", vec![], false),
+            ]
+            .map(|(name, to, initial)| {
+                let mut attributes = vec![field("label", DataType::String)];
+                if name == "key" {
+                    attributes.extend([
+                        field("name", DataType::String),
+                        field("sequence", DataType::U16),
+                        field("is_final", DataType::Bool),
+                        field("is_initial", DataType::Bool),
+                        field("is_valid_next", DataType::Bool),
+                        field("timestamp", DataType::U64),
+                    ]);
+                }
+                quent_fsm::StateDecl {
+                    name: name.parse().unwrap(),
+                    attributes,
+                    to: to.into_iter().map(|name| name.parse().unwrap()).collect(),
+                    initial,
+                }
+            }),
+        )
+        .build()
+        .unwrap()
+}
+
 fn reference(data: Option<DataType>) -> DataType {
     DataType::EntityRef {
         data: data.map(Box::new),
@@ -21,6 +55,7 @@ pub(super) fn schema() -> Schema {
     quent_schema::test_utils::schema(
         "ScopedEvents",
         [
+            task(),
             entity("Parent", [event("created", [])]),
             entity(
                 "Worker",
@@ -53,6 +88,7 @@ pub(super) fn schema() -> Schema {
                     ),
                     event("renamed", [field("string", DataType::String)]),
                     event("properties", []),
+                    event("key", []),
                     event(
                         "metadata",
                         [

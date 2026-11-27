@@ -7,10 +7,12 @@ use quent_store::{
     context::ContextSet,
     entity::EntityHandle,
     event::{EventLoader, filesystem},
+    fsm::{FsmHandle, Sequence, TransitionHandle},
 };
 
 use crate::demo::{
-    Connection, Demo, DemoStore, Query, connection::ConnectionEvents, server::ServerEvents,
+    Connection, Demo, DemoStore, Query, connection::ConnectionEvents, query::QueryTransitionHandle,
+    server::ServerEvents,
 };
 
 #[allow(unused_imports, dead_code)]
@@ -63,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Access some properties common to all entities.
         println!(
-            "Observed entity {} between {} and {}",
+            "\nObserved entity {} between {} and {}",
             entity.id().uuid(),
             entity.earliest_timestamp(),
             entity.latest_timestamp()
@@ -95,6 +97,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 transfer.timestamp(),
                 transfer.bytes()
             )
+        }
+    }
+
+    // Iterate over instances of an FSM entity type:
+    for id in store.entities::<Query>()? {
+        let query = store.entity(id)?.unwrap();
+        println!(
+            "\nQuery {}: {} states",
+            query.id().uuid(),
+            query.num_states()
+        );
+
+        // Each FSM state spans two consecutive transitions.
+        for state in query.states() {
+            let span = state.span();
+            let opening = state.opening_transition();
+            let closing = state.closing_transition();
+            println!(
+                "\t{:>10}: seq={:>2} next={:>8} final={:<5} [{}..{})",
+                state.name(),
+                opening.sequence(),
+                closing.name(),
+                closing.is_final(), // The final transition closes the last state.
+                span.start(),
+                span.end(),
+            );
+
+            // We can inspect type-safe state attributes
+            if let QueryTransitionHandle::Running(running) = opening {
+                println!("\t\trows processed: {}", running.rows());
+            }
         }
     }
 
