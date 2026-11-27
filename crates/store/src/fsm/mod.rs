@@ -94,8 +94,32 @@ impl<T: FsmHandle + ?Sized> FsmHandle for &T {
     where
         Self: 'a;
 
+    fn num_states(&self) -> usize {
+        T::num_states(self)
+    }
+
+    fn is_empty(&self) -> bool {
+        T::is_empty(self)
+    }
+
     fn transition(&self, index: usize) -> Option<Self::Transition<'_>> {
         T::transition(self, index)
+    }
+
+    fn state(&self, index: usize) -> Option<FsmStateHandle<Self::Transition<'_>>> {
+        T::state(self, index)
+    }
+
+    fn states(&self) -> impl ExactSizeIterator<Item = FsmStateHandle<Self::Transition<'_>>> {
+        T::states(self)
+    }
+
+    fn first(&self) -> Option<FsmStateHandle<Self::Transition<'_>>> {
+        T::first(self)
+    }
+
+    fn last(&self) -> Option<FsmStateHandle<Self::Transition<'_>>> {
+        T::last(self)
     }
 }
 
@@ -127,5 +151,141 @@ impl<T: Transition> FsmStateHandle<T> {
     /// Returns the span between the opening and closing transitions.
     pub fn span(&self) -> SpanUnixNanoSec {
         SpanUnixNanoSec::try_new(self.opening.timestamp(), self.closing.timestamp()).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{cell::Cell, num::NonZeroUsize};
+
+    use quent_events::{EntityMarker, EventPayload};
+    use quent_time::TimeUnixNanoSec;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::Id;
+
+    struct TestEntity;
+
+    impl EntityMarker for TestEntity {
+        type Payload = TestTransition;
+    }
+
+    struct TestTransition(u16);
+
+    impl EventPayload for TestTransition {
+        const NAME: &'static str = "test";
+    }
+
+    impl Timestamp for TestTransition {
+        fn timestamp(&self) -> TimeUnixNanoSec {
+            self.0.into()
+        }
+    }
+
+    impl Sequence for TestTransition {
+        fn sequence(&self) -> u16 {
+            self.0
+        }
+    }
+
+    impl Transition for TestTransition {
+        fn name(&self) -> &str {
+            "test"
+        }
+
+        fn is_final(&self) -> bool {
+            self.0 == 1
+        }
+    }
+
+    #[derive(Default)]
+    struct TestFsm {
+        calls: Cell<[u8; 7]>,
+    }
+
+    impl TestFsm {
+        fn record<T>(&self, method: usize, result: T) -> T {
+            let mut calls = self.calls.get();
+            calls[method] += 1;
+            self.calls.set(calls);
+            result
+        }
+
+        fn state_handle() -> FsmStateHandle<TestTransition> {
+            FsmStateHandle {
+                opening: TestTransition(0),
+                closing: TestTransition(1),
+            }
+        }
+    }
+
+    impl EntityHandle for TestFsm {
+        type Entity = TestEntity;
+
+        fn id(&self) -> Id<Self::Entity> {
+            Id::new(Uuid::nil())
+        }
+
+        fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+            0
+        }
+
+        fn latest_timestamp(&self) -> TimeUnixNanoSec {
+            1
+        }
+
+        fn num_events(&self) -> NonZeroUsize {
+            NonZeroUsize::new(2).unwrap()
+        }
+    }
+
+    impl FsmHandle for TestFsm {
+        type Transition<'a> = TestTransition;
+
+        fn num_states(&self) -> usize {
+            self.record(0, 1)
+        }
+
+        fn is_empty(&self) -> bool {
+            self.record(1, false)
+        }
+
+        fn transition(&self, index: usize) -> Option<Self::Transition<'_>> {
+            self.record(2, (index < 2).then_some(TestTransition(index as u16)))
+        }
+
+        fn state(&self, index: usize) -> Option<FsmStateHandle<Self::Transition<'_>>> {
+            self.record(3, (index == 0).then(Self::state_handle))
+        }
+
+        fn states(&self) -> impl ExactSizeIterator<Item = FsmStateHandle<Self::Transition<'_>>> {
+            self.record(4, std::iter::once(Self::state_handle()))
+        }
+
+        fn first(&self) -> Option<FsmStateHandle<Self::Transition<'_>>> {
+            self.record(5, Some(Self::state_handle()))
+        }
+
+        fn last(&self) -> Option<FsmStateHandle<Self::Transition<'_>>> {
+            self.record(6, Some(Self::state_handle()))
+        }
+    }
+
+    #[test]
+    fn reference_preserves_all_fsm_overrides() {
+        fn check(handle: impl FsmHandle) {
+            assert_eq!(handle.num_states(), 1);
+            assert!(!handle.is_empty());
+            assert_eq!(handle.transition(0).unwrap().sequence(), 0);
+            assert_eq!(handle.state(0).unwrap().span().duration(), 1);
+            assert_eq!(handle.states().count(), 1);
+            assert_eq!(handle.first().unwrap().opening_transition().sequence(), 0);
+            assert!(handle.last().unwrap().closing_transition().is_final());
+        }
+
+        let fsm = TestFsm::default();
+        check(&fsm);
+        assert_eq!(fsm.calls.get(), [1; 7]);
     }
 }
