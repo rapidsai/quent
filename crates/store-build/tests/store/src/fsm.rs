@@ -59,9 +59,7 @@ fn orders_fsm_events_and_borrows_typed_state_transitions() {
     assert!(!task.is_empty());
     assert_eq!(task.states().len(), 3);
     assert_eq!(
-        task.states()
-            .map(|state| state.name().to_owned())
-            .collect::<Vec<_>>(),
+        task.states().map(|state| state.name()).collect::<Vec<_>>(),
         ["type", "running", "running"]
     );
     assert!(task.transition(4).is_none());

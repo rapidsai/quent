@@ -66,7 +66,7 @@ pub(super) fn generate(
                 }
             }
             impl ::quent_store::fsm::Transition for #handle<'_> {
-                fn name(&self) -> &str { #name }
+                fn name(&self) -> &'static str { #name }
                 fn is_final(&self) -> bool { #is_final }
             }
         });
@@ -94,7 +94,7 @@ pub(super) fn generate(
                 }
             }
             impl ::quent_store::fsm::Transition for #transition<'_> {
-                fn name(&self) -> &str {
+                fn name(&self) -> &'static str {
                     match self { #(#name_arms,)* }
                 }
                 fn is_final(&self) -> bool {

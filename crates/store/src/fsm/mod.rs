@@ -18,7 +18,7 @@ pub trait Sequence {
 /// Provides access to a recorded [`FsmHandle`] state transition.
 pub trait Transition: Timestamp + Sequence {
     /// Return the unique name of the state this transition leads to.
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
 
     /// Returns whether this transition ends the FSM's dynamic lifetime.
     fn is_final(&self) -> bool;
@@ -145,7 +145,7 @@ impl<T: Transition> FsmStateHandle<T> {
     }
 
     /// Returns the name of the state entered by the opening transition.
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &'static str {
         self.opening.name()
     }
 
@@ -203,7 +203,7 @@ mod tests {
     }
 
     impl Transition for TestTransition {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "test"
         }
 
