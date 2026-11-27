@@ -15,9 +15,10 @@ pub(crate) fn generate(schema: &Schema) -> Result<TokenStream, GenerateError> {
     for entity in schema.entities() {
         let payload = relative_type_path(entity.path(), &[], "Event");
         let implementation = if quent_fsm::Fsm::try_from_entity(entity)?.is_some() {
+            let sequence_field = quote::format_ident!("{}", quent_fsm::SEQUENCE_FIELD_NAME);
             let arms = entity.events().map(|event| {
                 let variant = type_ident(event.name());
-                quote! { Self::#variant { seq, .. } => *seq }
+                quote! { Self::#variant { #sequence_field, .. } => *#sequence_field }
             });
             quote! {
                 impl ::quent_store::fsm::Sequence for #payload {
