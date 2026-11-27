@@ -149,8 +149,9 @@ pub struct Options {
     ///
     /// Access traits and event handles are available in each entity's module,
     /// such as `model::connection`.
-    /// FSM entities also provide `quent_store::fsm::FsmHandle` access with
-    /// typed transition handles, ordered by timestamp and sequence number.
+    /// When native stores are enabled, FSM entities also provide
+    /// `quent_store::fsm::FsmHandle` access with typed transition handles,
+    /// ordered by timestamp and sequence number.
     pub entity_store: EntityStoreImplementations,
 
     /// Directory the generated file is written into.
