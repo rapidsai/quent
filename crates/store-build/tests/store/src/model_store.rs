@@ -8,7 +8,7 @@ use quent_store::{
     context::ContextSet,
     entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, native::NativeStore},
     event::filesystem,
-    fsm::{FsmHandle, Transition},
+    fsm::{FsmHandle, TransitionHandle},
 };
 
 use demo::{Connection, Demo, DemoStore, Query, connection::ConnectionEvents};

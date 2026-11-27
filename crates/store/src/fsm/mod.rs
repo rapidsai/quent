@@ -16,7 +16,7 @@ pub trait Sequence {
 }
 
 /// Provides access to a recorded [`FsmHandle`] state transition.
-pub trait Transition: Timestamp + Sequence {
+pub trait TransitionHandle: Timestamp + Sequence {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &'static str;
 
@@ -33,7 +33,7 @@ pub trait Transition: Timestamp + Sequence {
 /// dynamic lifetime. Incomplete recordings may omit either boundary.
 pub trait FsmHandle: EntityHandle {
     /// A handle borrowing a recorded transition.
-    type Transition<'a>: Transition
+    type Transition<'a>: TransitionHandle
     where
         Self: 'a;
 
@@ -125,12 +125,12 @@ impl<T: FsmHandle + ?Sized> FsmHandle for &T {
 
 /// Borrows a delimited FSM state through its opening and closing transitions.
 #[derive(Clone, Copy, Debug)]
-pub struct FsmStateHandle<T: Transition> {
+pub struct FsmStateHandle<T: TransitionHandle> {
     opening: T,
     closing: T,
 }
 
-impl<T: Transition> FsmStateHandle<T> {
+impl<T: TransitionHandle> FsmStateHandle<T> {
     /// Creates a state handle from its opening and closing transitions.
     ///
     /// Callers must supply consecutive transitions from the same FSM.
@@ -202,7 +202,7 @@ mod tests {
         }
     }
 
-    impl Transition for TestTransition {
+    impl TransitionHandle for TestTransition {
         fn name(&self) -> &'static str {
             "test"
         }

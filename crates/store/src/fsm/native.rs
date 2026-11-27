@@ -6,7 +6,7 @@
 use crate::{
     Timestamped,
     entity::native::{NativeEntity, NativeEntityMarker},
-    fsm::{FsmHandle, Transition},
+    fsm::{FsmHandle, TransitionHandle},
 };
 
 /// Associates an FSM entity marker with borrowing transition handles.
@@ -15,7 +15,7 @@ use crate::{
 #[doc(hidden)]
 pub trait NativeFsmMarker: NativeEntityMarker {
     /// A handle borrowing one transition event.
-    type Transition<'a>: Transition
+    type Transition<'a>: TransitionHandle
     where
         Self: 'a;
 

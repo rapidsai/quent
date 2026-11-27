@@ -7,7 +7,7 @@ use quent_store::{
     context::ContextSet,
     entity::EntityHandle,
     event::{EventLoader, filesystem},
-    fsm::{FsmHandle, Sequence, Transition},
+    fsm::{FsmHandle, Sequence, TransitionHandle},
 };
 
 use crate::demo::{

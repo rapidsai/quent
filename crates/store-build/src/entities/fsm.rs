@@ -46,13 +46,13 @@ pub(super) fn generate(
         timestamp_arms
             .push(quote! { Self::#variant(handle) => ::quent_store::Timestamp::timestamp(handle) });
         name_arms.push(
-            quote! { Self::#variant(handle) => ::quent_store::fsm::Transition::name(handle) },
+            quote! { Self::#variant(handle) => ::quent_store::fsm::TransitionHandle::name(handle) },
         );
         sequence_arms.push(
             quote! { Self::#variant(handle) => ::quent_store::fsm::Sequence::sequence(handle) },
         );
         final_arms.push(
-            quote! { Self::#variant(handle) => ::quent_store::fsm::Transition::is_final(handle) },
+            quote! { Self::#variant(handle) => ::quent_store::fsm::TransitionHandle::is_final(handle) },
         );
         event_impls.push(quote! {
             impl ::quent_store::Timestamp for #handle<'_> {
@@ -65,7 +65,7 @@ pub(super) fn generate(
                     ::quent_store::fsm::Sequence::sequence(&self.event.data)
                 }
             }
-            impl ::quent_store::fsm::Transition for #handle<'_> {
+            impl ::quent_store::fsm::TransitionHandle for #handle<'_> {
                 fn name(&self) -> &'static str { #name }
                 fn is_final(&self) -> bool { #is_final }
             }
@@ -93,7 +93,7 @@ pub(super) fn generate(
                     match self { #(#sequence_arms,)* }
                 }
             }
-            impl ::quent_store::fsm::Transition for #transition<'_> {
+            impl ::quent_store::fsm::TransitionHandle for #transition<'_> {
                 fn name(&self) -> &'static str {
                     match self { #(#name_arms,)* }
                 }

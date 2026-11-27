@@ -4,7 +4,7 @@
 use quent_store::{
     EntityHandle, EntityStore, Timestamp,
     entity::native::NativeStore,
-    fsm::{FsmHandle, FsmStateHandle, Sequence, Transition},
+    fsm::{FsmHandle, FsmStateHandle, Sequence, TransitionHandle},
 };
 
 #[allow(unused_imports, dead_code)]
@@ -97,8 +97,8 @@ fn orders_fsm_events_and_borrows_typed_state_transitions() {
         task.running().map(|event| *event.seq()).collect::<Vec<_>>(),
         [1, 2]
     );
-    assert_eq!(Transition::name(&task.r#type().unwrap()), "type");
-    assert!(Transition::is_final(&task.done().unwrap()));
+    assert_eq!(TransitionHandle::name(&task.r#type().unwrap()), "type");
+    assert!(TransitionHandle::is_final(&task.done().unwrap()));
     assert_eq!(task.transition(1).unwrap().sequence(), 1);
     fn through_handle<H: FsmHandle>(handle: H) -> usize {
         handle.num_states()
