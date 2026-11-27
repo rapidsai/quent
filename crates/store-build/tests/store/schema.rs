@@ -12,9 +12,10 @@ fn task() -> quent_schema::Entity {
         .with_states(
             [
                 ("type", vec!["running"], true),
-                ("running", vec!["running", "done", "failed"], false),
+                ("running", vec!["running", "done", "failed", "key"], false),
                 ("done", vec![], false),
                 ("failed", vec![], false),
+                ("key", vec![], false),
             ]
             .map(|(name, to, initial)| quent_fsm::StateDecl {
                 name: name.parse().unwrap(),
@@ -74,6 +75,7 @@ pub(super) fn schema() -> Schema {
                     ),
                     event("renamed", [field("string", DataType::String)]),
                     event("properties", []),
+                    event("key", []),
                     event(
                         "metadata",
                         [

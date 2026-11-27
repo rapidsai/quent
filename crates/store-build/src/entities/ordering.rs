@@ -28,7 +28,7 @@ pub(crate) fn generate(schema: &Schema) -> Result<TokenStream, GenerateError> {
                 impl ::quent_store::OrderKey for #payload {
                     type Key = u16;
 
-                    fn order_key(&self) -> Self::Key {
+                    fn order_key(&self) -> u16 {
                         ::quent_store::fsm::Sequence::sequence(self)
                     }
                 }
@@ -38,7 +38,7 @@ pub(crate) fn generate(schema: &Schema) -> Result<TokenStream, GenerateError> {
                 impl ::quent_store::OrderKey for #payload {
                     type Key = ();
 
-                    fn order_key(&self) -> Self::Key {}
+                    fn order_key(&self) {}
                 }
             }
         };
