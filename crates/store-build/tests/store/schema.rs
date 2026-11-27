@@ -17,11 +17,22 @@ fn task() -> quent_schema::Entity {
                 ("failed", vec![], false),
                 ("key", vec![], false),
             ]
-            .map(|(name, to, initial)| quent_fsm::StateDecl {
-                name: name.parse().unwrap(),
-                attributes: vec![field("label", DataType::String)],
-                to: to.into_iter().map(|name| name.parse().unwrap()).collect(),
-                initial,
+            .map(|(name, to, initial)| {
+                let mut attributes = vec![field("label", DataType::String)];
+                if name == "key" {
+                    attributes.extend([
+                        field("name", DataType::String),
+                        field("sequence", DataType::U16),
+                        field("is_final", DataType::Bool),
+                        field("timestamp", DataType::U64),
+                    ]);
+                }
+                quent_fsm::StateDecl {
+                    name: name.parse().unwrap(),
+                    attributes,
+                    to: to.into_iter().map(|name| name.parse().unwrap()).collect(),
+                    initial,
+                }
             }),
         )
         .build()

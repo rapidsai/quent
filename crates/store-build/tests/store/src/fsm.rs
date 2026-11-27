@@ -158,3 +158,29 @@ fn accepts_partial_recordings_and_all_final_states() {
         );
     }
 }
+
+#[test]
+fn attributes_do_not_shadow_transition_properties() {
+    let store = NativeStore::<Task>::try_from_events([event(
+        10,
+        TaskEvent::Key {
+            seq: 7,
+            label: String::new(),
+            name: "attribute name".into(),
+            sequence: 99,
+            is_final: false,
+            timestamp: 123,
+        },
+    )])
+    .unwrap();
+    let task = store.entity(Uuid::from_u128(1)).unwrap().unwrap();
+    let key = task.key().unwrap();
+    assert_eq!(key.name(), "key");
+    assert_eq!(key.sequence(), 7);
+    assert!(key.is_final());
+    assert_eq!(key.timestamp(), 10);
+    assert_eq!(key.field_name(), "attribute name");
+    assert_eq!(*key.field_sequence(), 99);
+    assert!(!key.field_is_final());
+    assert_eq!(*key.field_timestamp(), 123);
+}

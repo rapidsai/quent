@@ -207,3 +207,46 @@ fn rejects_fsm_accessor_and_transition_handle_name_conflicts() {
         assert_name_conflict(schema("Demo", [fsm_entity(name)], []));
     }
 }
+
+#[test]
+fn rejects_fsm_field_accessor_name_conflicts() {
+    for name in ["name", "sequence", "is_final"] {
+        for reverse in [false, true] {
+            let mut attributes = vec![
+                field(name, DataType::String),
+                field(&format!("field_{name}"), DataType::String),
+            ];
+            if reverse {
+                attributes.reverse();
+            }
+            generate_str(
+                &schema(
+                    "Demo",
+                    [entity("Task", [event("ready", attributes.clone())])],
+                    [],
+                ),
+                &Options::default(),
+            )
+            .unwrap();
+            let task =
+                quent_fsm::FsmEntityBuilder::new("Task".parse::<quent_schema::Path>().unwrap())
+                    .with_states([
+                        quent_fsm::StateDecl {
+                            name: "ready".parse().unwrap(),
+                            attributes,
+                            to: vec!["done".parse().unwrap()],
+                            initial: true,
+                        },
+                        quent_fsm::StateDecl {
+                            name: "done".parse().unwrap(),
+                            attributes: vec![],
+                            to: vec![],
+                            initial: false,
+                        },
+                    ])
+                    .build()
+                    .unwrap();
+            assert_name_conflict(schema("Demo", [task], []));
+        }
+    }
+}
