@@ -20,12 +20,17 @@ pub trait TransitionHandle: Timestamp + Sequence {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &'static str;
 
+    /// Returns whether this transition enters the FSM's initial state.
+    fn is_initial(&self) -> bool;
+
     /// Returns whether this transition ends the FSM's dynamic lifetime.
     fn is_final(&self) -> bool;
 
-    /// Returns whether the FSM topology permits `next` to immediately follow this transition.
+    /// Returns whether `next` follows a legal topology edge and has a strictly greater
+    /// `(timestamp, sequence)` key than this transition.
     ///
-    /// Does not check instance identity, timestamps, or sequence numbers.
+    /// Does not check entity IDs. Callers must ensure both transitions belong
+    /// to the same entity ID.
     fn is_valid_next(&self, next: &Self) -> bool;
 }
 
@@ -33,9 +38,13 @@ pub trait TransitionHandle: Timestamp + Sequence {
 ///
 /// Every recorded entity event is a transition, ordered by timestamp and then
 /// sequence number. Each adjacent pair delimits one state, which may have zero
-/// duration when the timestamps are equal. A complete FSM has an entry
-/// transition and a final transition that closes the last state and ends its
-/// dynamic lifetime. Incomplete recordings may omit either boundary.
+/// duration when the timestamps are equal.
+///
+/// A complete FSM has an entry transition and a final transition that closes
+/// the last state and ends its dynamic lifetime. Incomplete recordings may
+/// omit either boundary.
+///
+/// Use [`Self::is_valid`] to check the recording's validity explicitly.
 pub trait FsmHandle: EntityHandle {
     /// A handle borrowing a recorded transition.
     type Transition<'a>: TransitionHandle
@@ -53,6 +62,23 @@ pub trait FsmHandle: EntityHandle {
     /// state requires two consecutive transitions.
     fn is_empty(&self) -> bool {
         self.num_states() == 0
+    }
+
+    /// Returns whether the recording has initial and final transitions, legal
+    /// topology edges, and unique `(timestamp, sequence)` keys.
+    fn is_valid(&self) -> bool {
+        let mut previous = self.transition(0).unwrap();
+        if !previous.is_initial() {
+            return false;
+        }
+        for index in 1..self.num_events().get() {
+            let next = self.transition(index).unwrap();
+            if !previous.is_valid_next(&next) {
+                return false;
+            }
+            previous = next;
+        }
+        previous.is_final()
     }
 
     /// Returns a handle to the transition at the given index.
@@ -105,6 +131,10 @@ impl<T: FsmHandle + ?Sized> FsmHandle for &T {
 
     fn is_empty(&self) -> bool {
         T::is_empty(self)
+    }
+
+    fn is_valid(&self) -> bool {
+        T::is_valid(self)
     }
 
     fn transition(&self, index: usize) -> Option<Self::Transition<'_>> {
@@ -216,6 +246,10 @@ mod tests {
             self.0 == 1
         }
 
+        fn is_initial(&self) -> bool {
+            self.0 == 0
+        }
+
         fn is_valid_next(&self, next: &Self) -> bool {
             self.0 == 0 && next.0 == 1
         }
@@ -223,7 +257,7 @@ mod tests {
 
     #[derive(Default)]
     struct TestFsm {
-        calls: Cell<[u8; 7]>,
+        calls: Cell<[u8; 8]>,
     }
 
     impl TestFsm {
@@ -270,6 +304,10 @@ mod tests {
             self.record(1, false)
         }
 
+        fn is_valid(&self) -> bool {
+            self.record(7, true)
+        }
+
         fn transition(&self, index: usize) -> Option<Self::Transition<'_>> {
             self.record(2, (index < 2).then_some(TestTransition(index as u16)))
         }
@@ -296,6 +334,7 @@ mod tests {
         fn check(handle: impl FsmHandle) {
             assert_eq!(handle.num_states(), 1);
             assert!(!handle.is_empty());
+            assert!(handle.is_valid());
             assert_eq!(handle.transition(0).unwrap().sequence(), 0);
             assert_eq!(handle.state(0).unwrap().span().duration(), 1);
             assert_eq!(handle.states().count(), 1);
@@ -305,6 +344,6 @@ mod tests {
 
         let fsm = TestFsm::default();
         check(&fsm);
-        assert_eq!(fsm.calls.get(), [1; 7]);
+        assert_eq!(fsm.calls.get(), [1; 8]);
     }
 }

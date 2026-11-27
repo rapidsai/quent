@@ -109,6 +109,7 @@ fn generate_entity(
     if fsm.is_some() {
         for name in [
             "num_states",
+            "is_valid",
             "is_empty",
             "transition",
             "state",

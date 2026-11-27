@@ -196,6 +196,7 @@ fn fsm_entity(final_state: &str) -> quent_schema::Entity {
 fn rejects_fsm_accessor_and_transition_handle_name_conflicts() {
     for name in [
         "num_states",
+        "is_valid",
         "is_empty",
         "transition",
         "state",
@@ -210,7 +211,13 @@ fn rejects_fsm_accessor_and_transition_handle_name_conflicts() {
 
 #[test]
 fn rejects_fsm_field_accessor_name_conflicts() {
-    for name in ["name", "sequence", "is_final", "is_valid_next"] {
+    for name in [
+        "name",
+        "sequence",
+        "is_initial",
+        "is_final",
+        "is_valid_next",
+    ] {
         for reverse in [false, true] {
             let mut attributes = vec![
                 field(name, DataType::String),

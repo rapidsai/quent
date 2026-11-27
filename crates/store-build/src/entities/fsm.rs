@@ -35,8 +35,13 @@ pub(super) fn generate(
     let mut timestamp_arms = Vec::new();
     let mut name_arms = Vec::new();
     let mut sequence_arms = Vec::new();
+    let mut initial_arms = Vec::new();
     let mut final_arms = Vec::new();
     let mut event_impls = Vec::new();
+    let ordered = quote! {
+        (::quent_store::Timestamp::timestamp(self), ::quent_store::fsm::Sequence::sequence(self))
+            < (::quent_store::Timestamp::timestamp(next), ::quent_store::fsm::Sequence::sequence(next))
+    };
     let valid_pairs = fsm.transitions().iter().map(|edge| {
         let source = type_ident(edge.source());
         let target = type_ident(edge.target());
@@ -46,11 +51,22 @@ pub(super) fn generate(
         let variant = type_ident(event.name());
         let handle = handles::ident(event);
         let name = event.name().to_string();
+        let is_initial = event.name() == fsm.initial_state();
         let is_final = fsm.is_final_state(event.name());
         let allows_self = fsm
             .transitions()
             .iter()
             .any(|edge| edge.source() == event.name() && edge.target() == event.name());
+        let valid_self = if allows_self {
+            ordered.clone()
+        } else {
+            quote! { false }
+        };
+        let next_arg = if allows_self {
+            quote! { next }
+        } else {
+            quote! { _next }
+        };
         variants.push(quote! { #variant(#handle<'a>) });
         timestamp_arms
             .push(quote! { Self::#variant(handle) => ::quent_store::Timestamp::timestamp(handle) });
@@ -62,6 +78,9 @@ pub(super) fn generate(
         );
         final_arms.push(
             quote! { Self::#variant(handle) => ::quent_store::fsm::TransitionHandle::is_final(handle) },
+        );
+        initial_arms.push(
+            quote! { Self::#variant(handle) => ::quent_store::fsm::TransitionHandle::is_initial(handle) },
         );
         event_impls.push(quote! {
             impl ::quent_store::Timestamp for #handle<'_> {
@@ -76,8 +95,9 @@ pub(super) fn generate(
             }
             impl ::quent_store::fsm::TransitionHandle for #handle<'_> {
                 fn name(&self) -> &'static str { #name }
+                fn is_initial(&self) -> bool { #is_initial }
                 fn is_final(&self) -> bool { #is_final }
-                fn is_valid_next(&self, _next: &Self) -> bool { #allows_self }
+                fn is_valid_next(&self, #next_arg: &Self) -> bool { #valid_self }
             }
         });
     }
@@ -110,8 +130,11 @@ pub(super) fn generate(
                 fn is_final(&self) -> bool {
                     match self { #(#final_arms,)* }
                 }
+                fn is_initial(&self) -> bool {
+                    match self { #(#initial_arms,)* }
+                }
                 fn is_valid_next(&self, next: &Self) -> bool {
-                    matches!((self, next), #(#valid_pairs)|*)
+                    matches!((self, next), #(#valid_pairs)|*) && #ordered
                 }
             }
         },
