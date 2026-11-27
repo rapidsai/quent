@@ -37,11 +37,20 @@ pub(super) fn generate(
     let mut sequence_arms = Vec::new();
     let mut final_arms = Vec::new();
     let mut event_impls = Vec::new();
+    let valid_pairs = fsm.transitions().iter().map(|edge| {
+        let source = type_ident(edge.source());
+        let target = type_ident(edge.target());
+        quote! { (Self::#source(_), Self::#target(_)) }
+    });
     for event in entity.events() {
         let variant = type_ident(event.name());
         let handle = handles::ident(event);
         let name = event.name().to_string();
         let is_final = fsm.is_final_state(event.name());
+        let allows_self = fsm
+            .transitions()
+            .iter()
+            .any(|edge| edge.source() == event.name() && edge.target() == event.name());
         variants.push(quote! { #variant(#handle<'a>) });
         timestamp_arms
             .push(quote! { Self::#variant(handle) => ::quent_store::Timestamp::timestamp(handle) });
@@ -68,6 +77,7 @@ pub(super) fn generate(
             impl ::quent_store::fsm::TransitionHandle for #handle<'_> {
                 fn name(&self) -> &'static str { #name }
                 fn is_final(&self) -> bool { #is_final }
+                fn is_valid_next(&self, _next: &Self) -> bool { #allows_self }
             }
         });
     }
@@ -99,6 +109,9 @@ pub(super) fn generate(
                 }
                 fn is_final(&self) -> bool {
                     match self { #(#final_arms,)* }
+                }
+                fn is_valid_next(&self, next: &Self) -> bool {
+                    matches!((self, next), #(#valid_pairs)|*)
                 }
             }
         },

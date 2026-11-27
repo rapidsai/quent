@@ -45,7 +45,7 @@ pub(super) fn generate(
             || (is_fsm
                 && matches!(
                     field_ident.to_string().as_str(),
-                    "name" | "sequence" | "is_final"
+                    "name" | "sequence" | "is_final" | "is_valid_next"
                 ));
         let method = if reserved {
             quote::format_ident!("field_{}", field_ident)

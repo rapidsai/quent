@@ -22,6 +22,11 @@ pub trait TransitionHandle: Timestamp + Sequence {
 
     /// Returns whether this transition ends the FSM's dynamic lifetime.
     fn is_final(&self) -> bool;
+
+    /// Returns whether the FSM topology permits `next` to immediately follow this transition.
+    ///
+    /// Does not check instance identity, timestamps, or sequence numbers.
+    fn is_valid_next(&self, next: &Self) -> bool;
 }
 
 /// Provides access to a stored Finite State Machine (FSM).
@@ -209,6 +214,10 @@ mod tests {
 
         fn is_final(&self) -> bool {
             self.0 == 1
+        }
+
+        fn is_valid_next(&self, next: &Self) -> bool {
+            self.0 == 0 && next.0 == 1
         }
     }
 

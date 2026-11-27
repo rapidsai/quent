@@ -178,6 +178,7 @@ fn attributes_do_not_shadow_transition_properties() {
             name: "attribute name".into(),
             sequence: 99,
             is_final: false,
+            is_valid_next: true,
             timestamp: 123,
         },
     )])
@@ -191,5 +192,74 @@ fn attributes_do_not_shadow_transition_properties() {
     assert_eq!(key.field_name(), "attribute name");
     assert_eq!(*key.field_sequence(), 99);
     assert!(!key.field_is_final());
+    assert!(key.field_is_valid_next());
+    assert!(!key.is_valid_next(&key));
     assert_eq!(*key.field_timestamp(), 123);
+}
+
+#[test]
+fn checks_transition_pairs_against_the_topology() {
+    let payloads = [
+        TaskEvent::Type {
+            seq: 0,
+            label: String::new(),
+        },
+        TaskEvent::Running {
+            seq: 1,
+            label: String::new(),
+        },
+        TaskEvent::Running {
+            seq: 2,
+            label: String::new(),
+        },
+        TaskEvent::Done {
+            seq: 3,
+            label: String::new(),
+        },
+        TaskEvent::Failed {
+            seq: 4,
+            label: String::new(),
+        },
+        TaskEvent::Key {
+            seq: 5,
+            label: String::new(),
+            name: String::new(),
+            sequence: 0,
+            is_final: false,
+            is_valid_next: false,
+            timestamp: 0,
+        },
+    ];
+    let store = NativeStore::<Task>::try_from_events(
+        payloads.into_iter().map(|payload| event(10, payload)),
+    )
+    .unwrap();
+    let task = store.entity(Uuid::from_u128(1)).unwrap().unwrap();
+    let allowed = [
+        [false, true, true, false, false, false],
+        [false, true, true, true, true, true],
+        [false, true, true, true, true, true],
+        [false; 6],
+        [false; 6],
+        [false; 6],
+    ];
+    for (source, targets) in allowed.iter().enumerate() {
+        let transition = task.transition(source).unwrap();
+        for (target, expected) in targets.iter().enumerate() {
+            let next = task.transition(target).unwrap();
+            assert_eq!(
+                transition.is_valid_next(&next),
+                *expected,
+                "{} -> {}",
+                transition.name(),
+                next.name()
+            );
+        }
+    }
+    let running = task.running().collect::<Vec<_>>();
+    assert!(running[0].is_valid_next(&running[1]));
+    let initial = task.r#type().unwrap();
+    assert!(!initial.is_valid_next(&initial));
+    let done = task.done().unwrap();
+    assert!(!done.is_valid_next(&done));
 }

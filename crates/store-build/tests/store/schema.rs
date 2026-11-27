@@ -24,6 +24,7 @@ fn task() -> quent_schema::Entity {
                         field("name", DataType::String),
                         field("sequence", DataType::U16),
                         field("is_final", DataType::Bool),
+                        field("is_valid_next", DataType::Bool),
                         field("timestamp", DataType::U64),
                     ]);
                 }
